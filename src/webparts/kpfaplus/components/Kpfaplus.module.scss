@@ -1,34 +1,56 @@
 @import '~@fluentui/react/dist/sass/References.scss';
 
 .kpfaplus {
-  overflow: hidden;
-  padding: 1em;
   color: "[theme:bodyText, default: #323130]";
   color: var(--bodyText);
+  overflow: hidden;
+  padding: 0;
+  height: 100%;
+  
   &.teams {
     font-family: $ms-font-family-fallbacks;
   }
 }
 
-.welcome {
-  text-align: center;
+.container {
+  display: flex;
+  height: 100vh;
+  max-height: calc(100vh - 50px);
 }
 
-.welcomeImage {
-  width: 100%;
-  max-width: 420px;
+.sidePanel {
+  flex: 0 0 250px;
+  background-color: #f3f2f1;
+  border-right: 1px solid #edebe9;
+  padding: 16px;
+  overflow-y: auto;
 }
 
-.links {
-  a {
-    text-decoration: none;
-    color: "[theme:link, default:#03787c]";
-    color: var(--link); // note: CSS Custom Properties support is limited to modern browsers only
+.mainPanel {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+}
 
-    &:hover {
-      text-decoration: underline;
-      color: "[theme:linkHovered, default: #014446]";
-      color: var(--linkHovered); // note: CSS Custom Properties support is limited to modern browsers only
-    }
+.header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+  
+  .logo {
+    width: 48px;
+    height: 48px;
+    margin-right: 16px;
   }
+  
+  .title {
+    margin: 0;
+    font-size: 24px;
+  }
+}
+
+.content {
+  background-color: white;
+  border-radius: 2px;
+  box-shadow: 0 1.6px 3.6px 0 rgba(0, 0, 0, 0.132), 0 0.3px 0.9px 0 rgba(0, 0, 0, 0.108);
 }

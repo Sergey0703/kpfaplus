@@ -1,0 +1,39 @@
+.staffGallery {
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    background-color: #f0f0f0;
+    padding: 10px;
+  }
+  
+  .staffItem {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+    margin-bottom: 4px;
+    background-color: white;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+  
+    &:hover {
+      background-color: #f6f6f6;
+    }
+  
+    &.selected {
+      background-color: #e5f0ff;
+      border-left: 3px solid #0078d4;
+    }
+  }
+  
+  .staffName {
+    flex: 1;
+  }
+  
+  .deleteButton {
+    visibility: hidden;
+    
+    .staffItem:hover & {
+      visibility: visible;
+    }
+  }

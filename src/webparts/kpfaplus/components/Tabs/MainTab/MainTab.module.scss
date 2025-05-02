@@ -1,0 +1,51 @@
+.mainTab {
+    padding: 20px;
+  }
+  
+  .staffInfo {
+    display: flex;
+    margin-bottom: 20px;
+  }
+  
+  .profilePhoto {
+    margin-right: 20px;
+  }
+  
+  .photoPlaceholder {
+    width: 100px;
+    height: 100px;
+    background-color: #f0f0f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+  }
+  
+  .staffDetails {
+    flex: 1;
+    
+    h2 {
+      margin-top: 0;
+      margin-bottom: 10px;
+    }
+  }
+  
+  .staffMetadata {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    
+    > div {
+      margin-bottom: 10px;
+    }
+    
+    label {
+      display: inline-block;
+      margin-right: 10px;
+      font-weight: 600;
+    }
+  }
+  
+  .autoSchedule {
+    grid-column: 1 / -1;
+  }
