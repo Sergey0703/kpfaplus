@@ -4,53 +4,144 @@
   color: "[theme:bodyText, default: #323130]";
   color: var(--bodyText);
   overflow: hidden;
-  padding: 0;
-  height: 100%;
-  
-  &.teams {
-    font-family: $ms-font-family-fallbacks;
-  }
-}
-
-.container {
   display: flex;
-  height: 100vh;
-  max-height: calc(100vh - 50px);
+  flex-direction: column;
+  height: 100%;
+  background-color: #f0f6ff;
 }
 
-.sidePanel {
-  flex: 0 0 250px;
-  background-color: #f3f2f1;
-  border-right: 1px solid #edebe9;
-  padding: 16px;
+.contentContainer {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.leftPanel {
+  width: 220px;
+  background-color: #f0f6ff;
+  border-right: 1px solid #ddd;
+  padding: 10px;
   overflow-y: auto;
+  flex-shrink: 0;
 }
 
 .mainPanel {
   flex: 1;
-  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
   overflow-y: auto;
 }
 
-.header {
+.tabsContainer {
+  margin-bottom: 15px;
+  background-color: #fff;
+  border-bottom: 1px solid #ddd;
+}
+
+.contentArea {
+  flex: 1;
+  background-color: #fff;
+  padding: 15px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.departmentSection {
+  margin-bottom: 15px;
+}
+
+.departmentLabel {
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+
+.toggleContainer {
   display: flex;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 15px;
+}
+
+.toggleLabel {
+  margin-right: 10px;
+}
+
+.staffList {
+  margin-top: 10px;
+}
+
+.staffItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px;
+  margin-bottom: 5px;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  background-color: #f0f6ff;
   
-  .logo {
-    width: 48px;
-    height: 48px;
-    margin-right: 16px;
+  &:hover {
+    background-color: #e0ecff;
   }
   
-  .title {
-    margin: 0;
-    font-size: 24px;
+  &.selected {
+    background-color: #d0e2ff;
+    border-left: 3px solid #0078d4;
   }
 }
 
-.content {
-  background-color: white;
-  border-radius: 2px;
-  box-shadow: 0 1.6px 3.6px 0 rgba(0, 0, 0, 0.132), 0 0.3px 0.9px 0 rgba(0, 0, 0, 0.108);
+.staffName {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.deleteButton {
+  visibility: hidden;
+  
+  .staffItem:hover & {
+    visibility: visible;
+  }
+}
+
+.profileSection {
+  display: flex;
+  margin-bottom: 20px;
+}
+
+.profileImage {
+  width: 100px;
+  height: 100px;
+  margin-right: 20px;
+  background-color: #f0f0f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profileInfo {
+  flex: 1;
+  
+  h2 {
+    margin-top: 0;
+    margin-bottom: 15px;
+  }
+}
+
+.infoField {
+  margin-bottom: 15px;
+  
+  label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 5px;
+  }
+}
+
+.autoScheduleToggle {
+  margin-top: 15px;
+}
+
+.srsSection {
+  margin-top: 20px;
 }
