@@ -1,0 +1,18 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/config.2.0.schema.json",
+  "version": "2.0",
+  "bundles": {
+    "kpfaplus-web-part": {
+      "components": [
+        {
+          "entrypoint": "./lib/webparts/kpfaplus/KpfaplusWebPart.js",
+          "manifest": "./src/webparts/kpfaplus/KpfaplusWebPart.manifest.json"
+        }
+      ]
+    }
+  },
+  "externals": {},
+  "localizedResources": {
+    "KpfaplusWebPartStrings": "lib/webparts/kpfaplus/loc/{locale}.js"
+  }
+}

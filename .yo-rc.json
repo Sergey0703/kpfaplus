@@ -1,0 +1,18 @@
+{
+  "@microsoft/generator-sharepoint": {
+    "plusBeta": false,
+    "isCreatingSolution": true,
+    "nodeVersion": "22.15.0",
+    "sdksVersions": {},
+    "version": "1.21.0",
+    "libraryName": "kpfaplus",
+    "libraryId": "10e2507a-e6b2-4d28-98a7-e08bb439446a",
+    "environment": "spo",
+    "packageManager": "npm",
+    "solutionName": "kpfaplus",
+    "solutionShortDescription": "kpfaplus description",
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "componentType": "webpart"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/package-solution.schema.json",
+  "solution": {
+    "name": "kpfaplus-client-side-solution",
+    "id": "10e2507a-e6b2-4d28-98a7-e08bb439446a",
+    "version": "1.0.0.0",
+    "includeClientSideAssets": true,
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "developer": {
+      "name": "",
+      "websiteUrl": "",
+      "privacyUrl": "",
+      "termsOfUseUrl": "",
+      "mpnId": "Undefined-1.21.0"
+    },
+    "metadata": {
+      "shortDescription": {
+        "default": "kpfaplus description"
+      },
+      "longDescription": {
+        "default": "kpfaplus description"
+      },
+      "screenshotPaths": [],
+      "videoUrl": "",
+      "categories": []
+    },
+    "features": [
+      {
+        "title": "kpfaplus Feature",
+        "description": "The feature that activates elements of the kpfaplus solution.",
+        "id": "35d692b5-454b-4bef-8367-38e0265fe2ef",
+        "version": "1.0.0.0"
+      }
+    ]
+  },
+  "paths": {
+    "zippedPackage": "solution/kpfaplus.sppkg"
+  }
+}
