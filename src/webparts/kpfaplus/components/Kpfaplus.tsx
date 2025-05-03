@@ -5,6 +5,14 @@ import { DepartmentService, IDepartment } from '../services/DepartmentService';
 import { StaffGallery } from './StaffGallery/StaffGallery';
 import { Pivot, PivotItem } from '@fluentui/react/lib/Pivot';
 
+// Импортируем компоненты вкладок
+import { MainTab } from './Tabs/MainTab/MainTab';
+import { ContractsTab } from './Tabs/ContractsTab/ContractsTab';
+import { NotesTab } from './Tabs/NotesTab/NotesTab';
+import { LeavesTab } from './Tabs/LeavesTab/LeavesTab';
+import { LeaveTimeByYearsTab } from './Tabs/LeaveTimeByYearsTab/LeaveTimeByYearsTab';
+import { SRSTab } from './Tabs/SRSTab/SRSTab';
+
 // Интерфейс для сотрудника
 interface IStaffMember {
   id: string;
@@ -28,6 +36,11 @@ const Kpfaplus: React.FC<IKpfaplusProps> = (props) => {
   
   // Состояние для вкладок
   const [selectedTabKey, setSelectedTabKey] = useState<string>('main');
+  
+  // Дополнительные состояния для данных в вкладках
+  const [autoSchedule, setAutoSchedule] = useState<boolean>(true);
+  const [srsFilePath, setSrsFilePath] = useState<string>('');
+  const [generalNote, setGeneralNote] = useState<string>('');
 
   // Загрузка данных при инициализации компонента
   useEffect(() => {
@@ -100,10 +113,36 @@ const Kpfaplus: React.FC<IKpfaplusProps> = (props) => {
     }
   };
 
+  // Обработчики для дополнительных данных
+  const handleAutoScheduleChange = (ev: React.MouseEvent<HTMLElement>, checked?: boolean): void => {
+    if (checked !== undefined) {
+      setAutoSchedule(checked);
+    }
+  };
+
+  const handleSrsFilePathChange = (newValue: string): void => {
+    setSrsFilePath(newValue);
+  };
+
+  const handleGeneralNoteChange = (newValue: string): void => {
+    setGeneralNote(newValue);
+  };
+
   // Если данные загружаются, показываем загрузчик
   if (isLoading) {
     return <div>Загрузка данных...</div>;
   }
+
+  // Общие props для передачи во вкладки
+  const tabProps = {
+    selectedStaff,
+    autoSchedule,
+    onAutoScheduleChange: handleAutoScheduleChange,
+    srsFilePath,
+    onSrsFilePathChange: handleSrsFilePathChange,
+    generalNote,
+    onGeneralNoteChange: handleGeneralNoteChange
+  };
 
   // Рендеринг содержимого вкладки
   const renderTabContent = () => {
@@ -113,25 +152,17 @@ const Kpfaplus: React.FC<IKpfaplusProps> = (props) => {
 
     switch (selectedTabKey) {
       case 'main':
-        return (
-          <div>
-            <h3>{selectedStaff.name}</h3>
-            <p>EmployeeID: {selectedStaff.employeeId || 'N/A'}</p>
-            <p>ID: 1</p>
-            <p>GroupMemberID: {selectedStaff.groupMemberId}</p>
-            <p>Autoschedule</p>
-          </div>
-        );
+        return <MainTab {...tabProps} />;
       case 'contracts':
-        return <div>Contracts information for {selectedStaff.name}</div>;
+        return <ContractsTab {...tabProps} />;
       case 'notes':
-        return <div>Notes for {selectedStaff.name}</div>;
+        return <NotesTab {...tabProps} />;
       case 'leaves':
-        return <div>Leaves information for {selectedStaff.name}</div>;
+        return <LeavesTab {...tabProps} />;
       case 'leaveTimeByYears':
-        return <div>Leave Time by Years for {selectedStaff.name}</div>;
+        return <LeaveTimeByYearsTab {...tabProps} />;
       case 'srs':
-        return <div>SRS information for {selectedStaff.name}</div>;
+        return <SRSTab {...tabProps} />;
       default:
         return <div>Select a tab</div>;
     }
