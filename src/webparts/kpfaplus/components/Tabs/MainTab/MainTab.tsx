@@ -14,7 +14,7 @@ export const MainTab: React.FC<ITabProps> = (props) => {
       <div className={styles.staffInfo}>
         <div className={styles.profilePhoto}>
           {/* Placeholder for profile photo */}
-          <div className={styles.photoPlaceholder}></div>
+          <div className={styles.photoPlaceholder} />
         </div>
         <div className={styles.staffDetails}>
           <h2>{selectedStaff.name}</h2>

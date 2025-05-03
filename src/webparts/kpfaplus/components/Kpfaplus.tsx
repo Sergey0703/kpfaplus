@@ -12,7 +12,7 @@ import { Persona, PersonaSize } from '@fluentui/react/lib/Persona';
 import { List } from '@fluentui/react/lib/List';
 
 const Kpfaplus: React.FC<IKpfaplusProps> = (props) => {
-  const { hasTeamsContext } = props;
+  //const { hasTeamsContext } = props;
 
   // Временные данные - будут заменены на реальные данные из SharePoint
   const mockDepartments: IDepartment[] = [
@@ -41,7 +41,8 @@ const Kpfaplus: React.FC<IKpfaplusProps> = (props) => {
   const [departments] = useState<IDepartment[]>(mockDepartments);
   const [selectedDepartment, setSelectedDepartment] = useState<string>(mockDepartments[0].key);
   const [staffMembers] = useState<IStaffMember[]>(mockStaffMembers);
-  const [selectedStaff, setSelectedStaff] = useState<IStaffMember | null>(mockStaffMembers[0]);
+  //const [selectedStaff, setSelectedStaff] = useState<IStaffMember | null>(mockStaffMembers[0]);
+  const [selectedStaff, setSelectedStaff] = useState<IStaffMember | undefined>(mockStaffMembers[0]);
   const [showDeleted, setShowDeleted] = useState<boolean>(false);
   const [selectedTabKey, setSelectedTabKey] = useState<string>('main');
   const [srsFilePath, setSrsFilePath] = useState<string>('path2222355789');
@@ -225,7 +226,7 @@ const Kpfaplus: React.FC<IKpfaplusProps> = (props) => {
   };
 
   return (
-    <div className={`${styles.kpfaplus} ${hasTeamsContext ? 'teams' : ''}`}>
+    <div className={styles.kpfaplus}>
       <div className={styles.contentContainer}>
         {/* Левая панель с селектором группы и списком сотрудников */}
         <div className={styles.leftPanel}>
@@ -251,7 +252,7 @@ const Kpfaplus: React.FC<IKpfaplusProps> = (props) => {
         </div>
         
         {/* Правая панель с вкладками и содержимым */}
-        <div className={styles.mainPanel}>
+        <div className={styles.rightPanel}>
           <div className={styles.tabsContainer}>
             <Pivot 
               selectedKey={selectedTabKey} 

@@ -33,6 +33,11 @@ export default class KpfaplusWebPart extends BaseClientSideWebPart<IKpfaplusWebP
       }
     );
 
+    this.domElement.style.height = '800px'; // Устанавливаем фиксированную высоту для контейнера
+    this.domElement.style.minHeight = '600px';
+    this.domElement.style.width = '100%';
+    this.domElement.style.overflow = 'auto';
+    
     ReactDom.render(element, this.domElement);
   }
 
@@ -41,8 +46,6 @@ export default class KpfaplusWebPart extends BaseClientSideWebPart<IKpfaplusWebP
       this._environmentMessage = message;
     });
   }
-
-
 
   private _getEnvironmentMessage(): Promise<string> {
     if (!!this.context.sdks.microsoftTeams) { // running in Teams, office.com or Outlook
@@ -86,7 +89,6 @@ export default class KpfaplusWebPart extends BaseClientSideWebPart<IKpfaplusWebP
       this.domElement.style.setProperty('--link', semanticColors.link || null);
       this.domElement.style.setProperty('--linkHovered', semanticColors.linkHovered || null);
     }
-
   }
 
   protected onDispose(): void {
