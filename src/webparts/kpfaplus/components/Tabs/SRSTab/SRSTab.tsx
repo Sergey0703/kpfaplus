@@ -33,6 +33,11 @@ const generateLunchOptions = (): JSX.Element[] => {
   return options;
 };
 
+const tableCellStyle = {
+  border: '1px solid black',
+  padding: '4px'
+};
+
 export const SRSTab: React.FC<ITabProps> = (props) => {
   const { selectedStaff } = props;
   
@@ -139,32 +144,30 @@ export const SRSTab: React.FC<ITabProps> = (props) => {
       
       {/* Таблица данных */}
       <div className={styles.tableContainer}>
-        <table 
-          className={styles.srsTable} 
-          style={{ borderCollapse: 'collapse', border: '2px solid black' }}
-        >          <thead>
+        <table style={{ borderCollapse: 'collapse', border: '2px solid black', width: '100%' }}>
+          <thead>
             <tr>
-              <th className={styles.dateColumn} style={{ border: '1px solid black' }}>Date</th>
-              <th className={styles.hoursColumn} style={{ border: '1px solid black' }}>Hrs</th>
-              <th className={styles.checkboxColumn} style={{ border: '1px solid black' }}>Relief?</th>
-              <th className={styles.timeColumn} style={{ border: '1px solid black' }}>Start Work</th>
-              <th className={styles.timeColumn} style={{ border: '1px solid black' }}>Finish Work</th>
-              <th className={styles.centerColumn} style={{ border: '1px solid black' }}>Lunch</th>
-              <th className={styles.typeColumn} style={{ border: '1px solid black' }}>Type of Leave</th>
-              <th className={styles.timeleaveColumn} style={{ border: '1px solid black' }}>Time Leave (h)</th>
-              <th className={styles.checkboxColumn} style={{ border: '1px solid black' }}>Contract Check</th>
-              <th style={{ border: '1px solid black' }}>Shift</th>
-              <th className={styles.centerColumn} style={{ border: '1px solid black' }}></th>
-              <th className={styles.centerColumn} style={{ border: '1px solid black' }}>SRS</th>
-              <th className={styles.centerColumn} style={{ border: '1px solid black' }}></th>
+              <th style={tableCellStyle}>Date</th>
+              <th style={tableCellStyle}>Hrs</th>
+              <th style={tableCellStyle}>Relief?</th>
+              <th style={tableCellStyle}>Start Work</th>
+              <th style={tableCellStyle}>Finish Work</th>
+              <th style={tableCellStyle}>Lunch</th>
+              <th style={tableCellStyle}>Type of Leave</th>
+              <th style={tableCellStyle}>Time Leave (h)</th>
+              <th style={tableCellStyle}>Contract Check</th>
+              <th style={tableCellStyle}>Shift</th>
+              <th style={tableCellStyle}></th>
+              <th style={tableCellStyle}>SRS</th>
+              <th style={tableCellStyle}></th>
             </tr>
           </thead>
           <tbody>
             {srsData.map((row) => (
               <tr key={row.id}>
-                <td className={styles.dateColumn}>{row.date}</td>
-                <td className={styles.hoursColumn}>{row.hours}</td>
-                <td className={styles.checkboxColumn}>
+                <td style={tableCellStyle}>{row.date}</td>
+                <td style={tableCellStyle}>{row.hours}</td>
+                <td style={tableCellStyle}>
                   <input
                     type="checkbox"
                     className={styles.checkboxInput}
@@ -172,7 +175,7 @@ export const SRSTab: React.FC<ITabProps> = (props) => {
                     readOnly
                   />
                 </td>
-                <td className={styles.timeColumn}>
+                <td style={tableCellStyle}>
                   <select className={styles.timeSelect} value={row.startWork.hours}>
                     {generateHoursOptions()}
                   </select>
@@ -181,7 +184,7 @@ export const SRSTab: React.FC<ITabProps> = (props) => {
                     {generateMinutesOptions()}
                   </select>
                 </td>
-                <td className={styles.timeColumn}>
+                <td style={tableCellStyle}>
                   <select className={styles.timeSelect} value={row.finishWork.hours}>
                     {generateHoursOptions()}
                   </select>
@@ -190,12 +193,12 @@ export const SRSTab: React.FC<ITabProps> = (props) => {
                     {generateMinutesOptions()}
                   </select>
                 </td>
-                <td className={styles.centerColumn}>
+                <td style={tableCellStyle}>
                   <select className={styles.timeSelect} value={row.lunch}>
                     {generateLunchOptions()}
                   </select>
                 </td>
-                <td className={styles.typeColumn}>
+                <td style={tableCellStyle}>
                   <select className={styles.selectField} value={row.typeOfLeave}>
                     <option value="Unpaid Leave">Unpaid Leave</option>
                     <option value="Adoptive Leave">Adoptive Leave</option>
@@ -203,7 +206,7 @@ export const SRSTab: React.FC<ITabProps> = (props) => {
                     <option value="Annual Leave">Annual Leave</option>
                   </select>
                 </td>
-                <td className={styles.timeleaveColumn}>
+                <td style={tableCellStyle}>
                   <input
                     type="text"
                     className={styles.timeleaveInput}
@@ -212,7 +215,7 @@ export const SRSTab: React.FC<ITabProps> = (props) => {
                     style={{ width: '40px' }}
                   />
                 </td>
-                <td className={styles.checkboxColumn}>
+                <td style={tableCellStyle}>
                   <input
                     type="checkbox"
                     className={styles.checkboxInput}
@@ -220,23 +223,23 @@ export const SRSTab: React.FC<ITabProps> = (props) => {
                     readOnly
                   />
                 </td>
-                <td>
+                <td style={tableCellStyle}>
                   <button className={styles.shiftButton}>
                     <span className={styles.plusIcon}>+</span>
                     Shift
                   </button>
                 </td>
-                <td className={styles.centerColumn}>
+                <td style={tableCellStyle}>
                   <span className={styles.numberId}>{row.shift}</span>
                 </td>
-                <td className={styles.centerColumn}>
+                <td style={tableCellStyle}>
                   {row.status === 'positive' && <span className={styles.thumbsUp}>👍</span>}
                   {row.status === 'negative' && <span className={styles.thumbsDown}>👎</span>}
                 </td>
-                <td className={styles.centerColumn}>
+                <td style={tableCellStyle}>
                   {row.srs && <span className={styles.srsTag}>SRS</span>}
                 </td>
-                <td className={styles.centerColumn}>
+                <td style={tableCellStyle}>
                   <span className={styles.deleteIcon}>🗑️</span>
                 </td>
               </tr>
