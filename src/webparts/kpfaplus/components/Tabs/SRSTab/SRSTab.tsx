@@ -104,13 +104,8 @@ export const SRSTab: React.FC<ITabProps> = (props) => {
     <div className={styles.srsTab}>
       {/* Заголовок */}
       <div className={styles.srsHeader}>
-        SRS for {selectedStaff.name}
+        <div>SRS for {selectedStaff.name}</div>
       </div>
-      
-      {/* Кнопка экспорта */}
-      <button className={styles.exportButton} onClick={handleExport}>
-        Export all SRS
-      </button>
       
       {/* Выбор даты и кнопка обновления */}
       <div className={styles.dateRow}>
@@ -137,9 +132,24 @@ export const SRSTab: React.FC<ITabProps> = (props) => {
         </button>
       </div>
       
-      {/* Общее количество часов */}
+      {/* Общее количество часов и кнопки */}
       <div className={styles.totalHours}>
         Total Hours: {totalHours}
+      </div>
+      
+      {/* Кнопки Save */}
+      <div style={{ float: 'right', margin: '-30px 0 10px 0', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+        <button className={styles.exportButton} onClick={handleExport} style={{ marginBottom: '5px' }}>
+          Export all SRS
+        </button>
+        <div>
+          <button className={styles.saveButton} onClick={handleSave} style={{ marginRight: '5px' }}>
+            <span className={styles.saveIcon}>💾</span> Save
+          </button>
+          <button className={styles.saveButton} onClick={handleCheckedSave}>
+            All in Checked & Save
+          </button>
+        </div>
       </div>
       
       {/* Таблица данных */}
@@ -157,9 +167,9 @@ export const SRSTab: React.FC<ITabProps> = (props) => {
               <th style={tableCellStyle}>Time Leave (h)</th>
               <th style={tableCellStyle}>Contract Check</th>
               <th style={tableCellStyle}>Shift</th>
-              <th style={tableCellStyle}></th>
+              <th style={tableCellStyle} />
               <th style={tableCellStyle}>SRS</th>
-              <th style={tableCellStyle}></th>
+              <th style={tableCellStyle} />
             </tr>
           </thead>
           <tbody>
@@ -246,27 +256,6 @@ export const SRSTab: React.FC<ITabProps> = (props) => {
             ))}
           </tbody>
         </table>
-      </div>
-      
-      {/* Кнопки сохранения */}
-      <div className={styles.buttonsRow}>
-        <button className={styles.saveButton} onClick={handleSave}>
-          Save
-        </button>
-        <button className={styles.checkedSaveButton} onClick={handleCheckedSave}>
-          All in Checked & Save
-        </button>
-      </div>
-      
-      {/* Навигационные кнопки и скроллбар */}
-      <div className={styles.navigationRow}>
-        <button className={styles.navButton}>◀</button>
-        <div className={styles.scrollbar}>
-          <div className={styles.scrollTrack}>
-            <div className={styles.scrollThumb}></div>
-          </div>
-        </div>
-        <button className={styles.navButton}>▶</button>
       </div>
     </div>
   );
