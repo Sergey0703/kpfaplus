@@ -33,10 +33,9 @@ export default class KpfaplusWebPart extends BaseClientSideWebPart<IKpfaplusWebP
       }
     );
 
-    this.domElement.style.height = '800px'; // Устанавливаем фиксированную высоту для контейнера
-    this.domElement.style.minHeight = '600px';
+    // Базовые стили для контейнера
+    this.domElement.style.height = '600px';
     this.domElement.style.width = '100%';
-    this.domElement.style.overflow = 'auto';
     
     ReactDom.render(element, this.domElement);
   }
