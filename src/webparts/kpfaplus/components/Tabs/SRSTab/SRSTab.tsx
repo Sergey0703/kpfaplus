@@ -165,11 +165,10 @@ export const SRSTab: React.FC<ITabProps> = (props) => {
               <th style={tableCellStyle}>Lunch</th>
               <th style={tableCellStyle}>Type of Leave</th>
               <th style={tableCellStyle}>Time Leave (h)</th>
-              <th style={tableCellStyle}>Contract Check</th>
               <th style={tableCellStyle}>Shift</th>
-              <th style={tableCellStyle} />
+              <th style={tableCellStyle}>Contract</th>
+              <th style={tableCellStyle}>Check</th>
               <th style={tableCellStyle}>SRS</th>
-              <th style={tableCellStyle} />
             </tr>
           </thead>
           <tbody>
@@ -226,21 +225,16 @@ export const SRSTab: React.FC<ITabProps> = (props) => {
                   />
                 </td>
                 <td style={tableCellStyle}>
-                  <input
-                    type="checkbox"
-                    className={styles.checkboxInput}
-                    checked={row.contractCheck}
-                    readOnly
-                  />
-                </td>
-                <td style={tableCellStyle}>
                   <button className={styles.shiftButton}>
-                    <span className={styles.plusIcon}>+</span>
-                    Shift
+                    <span className={styles.plusIcon}>+</span>Shift
                   </button>
                 </td>
                 <td style={tableCellStyle}>
-                  <span className={styles.numberId}>{row.shift}</span>
+                  <select className={styles.contractSelect} defaultValue="1">
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                  </select>
                 </td>
                 <td style={tableCellStyle}>
                   {row.status === 'positive' && <span className={styles.thumbsUp}>👍</span>}
@@ -248,9 +242,6 @@ export const SRSTab: React.FC<ITabProps> = (props) => {
                 </td>
                 <td style={tableCellStyle}>
                   {row.srs && <span className={styles.srsTag}>SRS</span>}
-                </td>
-                <td style={tableCellStyle}>
-                  <span className={styles.deleteIcon}>🗑️</span>
                 </td>
               </tr>
             ))}
