@@ -1,0 +1,68 @@
+@import '~@fluentui/react/dist/sass/References.scss';
+
+.kpfa {
+  overflow: hidden;
+  padding: 1em;
+  color: "[theme:bodyText, default: #323130]";
+  color: var(--bodyText);
+  
+  &.teams {
+    font-family: $ms-font-family-fallbacks;
+  }
+}
+
+.header {
+  padding: 10px 0;
+  border-bottom: 1px solid #e0e0e0;
+  margin-bottom: 20px;
+}
+
+.departmentSelectionContainer {
+  display: flex;
+  flex-direction: column;
+  max-width: 300px;
+  margin-bottom: 10px;
+}
+
+.departmentLabel {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+
+.departmentDropdown {
+  margin-bottom: 10px;
+  
+  :global {
+    .ms-Dropdown-container {
+      max-width: 100%;
+    }
+  }
+}
+
+.showDeletedCheckbox {
+  margin-top: 5px;
+  
+  :global {
+    .ms-Checkbox-text {
+      font-size: 14px;
+    }
+  }
+}
+
+.welcome {
+  text-align: left;
+  margin-bottom: 20px;
+  
+  h2 {
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+}
+
+.content {
+  margin-top: 20px;
+  padding: 15px;
+  border-top: 1px solid #e0e0e0;
+}

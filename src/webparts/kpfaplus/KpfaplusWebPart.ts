@@ -2,75 +2,111 @@ import * as React from 'react';
 import * as ReactDom from 'react-dom';
 import { Version } from '@microsoft/sp-core-library';
 import {
-  type IPropertyPaneConfiguration,
+  IPropertyPaneConfiguration,
   PropertyPaneTextField
 } from '@microsoft/sp-property-pane';
 import { BaseClientSideWebPart } from '@microsoft/sp-webpart-base';
 import { IReadonlyTheme } from '@microsoft/sp-component-base';
 
-import * as strings from 'KpfaplusWebPartStrings';
-import Kpfaplus from './components/Kpfaplus';
-import { IKpfaplusProps } from './components/IKpfaplusProps';
+// Use string keys for localization strings
+const strings = {
+  PropertyPaneDescription: "Description",
+  BasicGroupName: "Group Name",
+  DescriptionFieldLabel: "Description Field",
+  AppLocalEnvironmentSharePoint: "The app is running on a local environment as SharePoint web part",
+  AppLocalEnvironmentTeams: "The app is running on a local environment as Microsoft Teams app",
+  AppSharePointEnvironment: "The app is running on SharePoint page",
+  AppTeamsTabEnvironment: "The app is running in Microsoft Teams"
+};
 
-export interface IKpfaplusWebPartProps {
+import KPFA from './components/KPFA';
+// Исправляем импорт для соответствия регистру имени файла
+import { IKPFAProps } from './components/IKPFAprops';
+
+// Import our department service
+import { DepartmentService, IDepartment } from './services/DepartmentService';
+
+export interface IKPFAPlusWebPartProps {
   description: string;
 }
 
-export default class KpfaplusWebPart extends BaseClientSideWebPart<IKpfaplusWebPartProps> {
-
+export default class KPFAPlusWebPart extends BaseClientSideWebPart<IKPFAPlusWebPartProps> {
   private _isDarkTheme: boolean = false;
   private _environmentMessage: string = '';
+  private departmentService: DepartmentService;
+  private departments: IDepartment[] = [];
+  private defaultDepartment: IDepartment | null = null;
+
+  protected async onInit(): Promise<void> {
+    await super.onInit();
+    
+    // Initialize our environment message
+    this._environmentMessage = this._getEnvironmentMessage();
+    
+    // Initialize the department service
+    this.departmentService = new DepartmentService(this.context);
+    
+    // Fetch departments on component initialization
+    try {
+      await this.fetchDepartments();
+    } catch (error) {
+      console.error("Error initializing departments:", error);
+    }
+  }
+
+  /**
+   * Fetch departments from Power Automate flow
+   */
+  private async fetchDepartments(): Promise<void> {
+    try {
+      this.departments = await this.departmentService.fetchDepartments();
+      
+      // Filter out deleted departments if needed
+      const activeDepartments: IDepartment[] = [];
+      
+      // Используем цикл for вместо filter() для обратной совместимости с ES5
+      for (let i = 0; i < this.departments.length; i++) {
+        if (!this.departments[i].Deleted) {
+          activeDepartments.push(this.departments[i]);
+        }
+      }
+      
+      // Set default department if available
+      if (activeDepartments && activeDepartments.length > 0) {
+        this.defaultDepartment = activeDepartments[0];
+      }
+      
+      // Re-render the component with the updated data
+      this.render();
+    } catch (error) {
+      console.error("Failed to fetch departments:", error);
+    }
+  }
 
   public render(): void {
-    const element: React.ReactElement<IKpfaplusProps> = React.createElement(
-      Kpfaplus,
+    const element: React.ReactElement<IKPFAProps> = React.createElement(
+      KPFA,
       {
         description: this.properties.description,
         isDarkTheme: this._isDarkTheme,
         environmentMessage: this._environmentMessage,
         hasTeamsContext: !!this.context.sdks.microsoftTeams,
-        userDisplayName: this.context.pageContext.user.displayName
+        userDisplayName: this.context.pageContext.user.displayName,
+        // Pass departments data to the component
+        departments: this.departments,
+        defaultDepartment: this.defaultDepartment
       }
     );
 
-    // Базовые стили для контейнера
-    this.domElement.style.height = '600px';
-    this.domElement.style.width = '100%';
-    
     ReactDom.render(element, this.domElement);
   }
 
-  protected onInit(): Promise<void> {
-    return this._getEnvironmentMessage().then(message => {
-      this._environmentMessage = message;
-    });
-  }
-
-  private _getEnvironmentMessage(): Promise<string> {
-    if (!!this.context.sdks.microsoftTeams) { // running in Teams, office.com or Outlook
-      return this.context.sdks.microsoftTeams.teamsJs.app.getContext()
-        .then(context => {
-          let environmentMessage: string = '';
-          switch (context.app.host.name) {
-            case 'Office': // running in Office
-              environmentMessage = this.context.isServedFromLocalhost ? strings.AppLocalEnvironmentOffice : strings.AppOfficeEnvironment;
-              break;
-            case 'Outlook': // running in Outlook
-              environmentMessage = this.context.isServedFromLocalhost ? strings.AppLocalEnvironmentOutlook : strings.AppOutlookEnvironment;
-              break;
-            case 'Teams': // running in Teams
-            case 'TeamsModern':
-              environmentMessage = this.context.isServedFromLocalhost ? strings.AppLocalEnvironmentTeams : strings.AppTeamsTabEnvironment;
-              break;
-            default:
-              environmentMessage = strings.UnknownEnvironment;
-          }
-
-          return environmentMessage;
-        });
+  private _getEnvironmentMessage(): string {
+    if (!!this.context.sdks.microsoftTeams) { // running in Teams
+      return this.context.isServedFromLocalhost ? strings.AppLocalEnvironmentTeams : strings.AppTeamsTabEnvironment;
     }
 
-    return Promise.resolve(this.context.isServedFromLocalhost ? strings.AppLocalEnvironmentSharePoint : strings.AppSharePointEnvironment);
+    return this.context.isServedFromLocalhost ? strings.AppLocalEnvironmentSharePoint : strings.AppSharePointEnvironment;
   }
 
   protected onThemeChanged(currentTheme: IReadonlyTheme | undefined): void {
@@ -84,9 +120,9 @@ export default class KpfaplusWebPart extends BaseClientSideWebPart<IKpfaplusWebP
     } = currentTheme;
 
     if (semanticColors) {
-      this.domElement.style.setProperty('--bodyText', semanticColors.bodyText || null);
-      this.domElement.style.setProperty('--link', semanticColors.link || null);
-      this.domElement.style.setProperty('--linkHovered', semanticColors.linkHovered || null);
+      this.domElement.style.setProperty('--bodyText', semanticColors.bodyText || '');
+      this.domElement.style.setProperty('--link', semanticColors.link || '');
+      this.domElement.style.setProperty('--linkHovered', semanticColors.linkHovered || '');
     }
   }
 
