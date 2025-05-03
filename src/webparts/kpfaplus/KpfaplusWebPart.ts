@@ -8,7 +8,7 @@ import {
 import { BaseClientSideWebPart } from '@microsoft/sp-webpart-base';
 import { IReadonlyTheme } from '@microsoft/sp-component-base';
 
-// Use string keys for localization strings
+// Локализационные строки
 const strings = {
   PropertyPaneDescription: "Description",
   BasicGroupName: "Group Name",
@@ -19,12 +19,9 @@ const strings = {
   AppTeamsTabEnvironment: "The app is running in Microsoft Teams"
 };
 
-import KPFA from './components/KPFA';
-// Исправляем импорт для соответствия регистру имени файла
-import { IKPFAProps } from './components/IKPFAprops';
-
-// Import our department service
-import { DepartmentService, IDepartment } from './services/DepartmentService';
+// Импорт основного компонента и интерфейса
+import Kpfaplus from './components/Kpfaplus';
+import { IKpfaplusProps } from './components/IKpfaplusProps';
 
 export interface IKPFAPlusWebPartProps {
   description: string;
@@ -33,68 +30,25 @@ export interface IKPFAPlusWebPartProps {
 export default class KPFAPlusWebPart extends BaseClientSideWebPart<IKPFAPlusWebPartProps> {
   private _isDarkTheme: boolean = false;
   private _environmentMessage: string = '';
-  private departmentService: DepartmentService;
-  private departments: IDepartment[] = [];
-  private defaultDepartment: IDepartment | null = null;
-
+  
   protected async onInit(): Promise<void> {
     await super.onInit();
     
-    // Initialize our environment message
+    // Инициализация сообщения окружения
     this._environmentMessage = this._getEnvironmentMessage();
-    
-    // Initialize the department service
-    this.departmentService = new DepartmentService(this.context);
-    
-    // Fetch departments on component initialization
-    try {
-      await this.fetchDepartments();
-    } catch (error) {
-      console.error("Error initializing departments:", error);
-    }
-  }
-
-  /**
-   * Fetch departments from Power Automate flow
-   */
-  private async fetchDepartments(): Promise<void> {
-    try {
-      this.departments = await this.departmentService.fetchDepartments();
-      
-      // Filter out deleted departments if needed
-      const activeDepartments: IDepartment[] = [];
-      
-      // Используем цикл for вместо filter() для обратной совместимости с ES5
-      for (let i = 0; i < this.departments.length; i++) {
-        if (!this.departments[i].Deleted) {
-          activeDepartments.push(this.departments[i]);
-        }
-      }
-      
-      // Set default department if available
-      if (activeDepartments && activeDepartments.length > 0) {
-        this.defaultDepartment = activeDepartments[0];
-      }
-      
-      // Re-render the component with the updated data
-      this.render();
-    } catch (error) {
-      console.error("Failed to fetch departments:", error);
-    }
   }
 
   public render(): void {
-    const element: React.ReactElement<IKPFAProps> = React.createElement(
-      KPFA,
+    // Создание элемента React
+    const element: React.ReactElement<IKpfaplusProps> = React.createElement(
+      Kpfaplus,
       {
         description: this.properties.description,
         isDarkTheme: this._isDarkTheme,
         environmentMessage: this._environmentMessage,
         hasTeamsContext: !!this.context.sdks.microsoftTeams,
         userDisplayName: this.context.pageContext.user.displayName,
-        // Pass departments data to the component
-        departments: this.departments,
-        defaultDepartment: this.defaultDepartment
+        context: this.context // Передача контекста в компонент
       }
     );
 
@@ -102,7 +56,7 @@ export default class KPFAPlusWebPart extends BaseClientSideWebPart<IKPFAPlusWebP
   }
 
   private _getEnvironmentMessage(): string {
-    if (!!this.context.sdks.microsoftTeams) { // running in Teams
+    if (!!this.context.sdks.microsoftTeams) { // запуск в Teams
       return this.context.isServedFromLocalhost ? strings.AppLocalEnvironmentTeams : strings.AppTeamsTabEnvironment;
     }
 

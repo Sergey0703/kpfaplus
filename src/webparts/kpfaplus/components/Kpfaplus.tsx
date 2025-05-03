@@ -1,235 +1,210 @@
 import * as React from 'react';
-import { useState } from 'react';
-import styles from './Kpfaplus.module.scss';
+import { useState, useEffect } from 'react';
 import { IKpfaplusProps } from './IKpfaplusProps';
-import { IStaffMember, IDepartment } from '../models/types';
+import { DepartmentService, IDepartment } from '../services/DepartmentService';
+import { StaffGallery } from './StaffGallery/StaffGallery';
 import { Pivot, PivotItem } from '@fluentui/react/lib/Pivot';
 
-// Импортируем компоненты вкладок
-import { MainTab } from './Tabs/MainTab/MainTab';
-import { ContractsTab } from './Tabs/ContractsTab/ContractsTab';
-import { NotesTab } from './Tabs/NotesTab/NotesTab';
-import { LeavesTab } from './Tabs/LeavesTab/LeavesTab';
-import { LeaveTimeByYearsTab } from './Tabs/LeaveTimeByYearsTab/LeaveTimeByYearsTab';
-import { SRSTab } from './Tabs/SRSTab/SRSTab';
-
-// Импортируем компонент выбора департамента
-import { DepartmentSelector } from './DepartmentSelector/DepartmentSelector';
-
-// Импортируем компонент галереи сотрудников
-import { StaffGallery } from './StaffGallery/StaffGallery';
+// Интерфейс для сотрудника
+interface IStaffMember {
+  id: string;
+  name: string;
+  groupMemberId: string;
+  employeeId: string;
+  deleted?: boolean;
+}
 
 const Kpfaplus: React.FC<IKpfaplusProps> = (props) => {
-  // Временные данные - будут заменены на реальные данные из SharePoint
-  const mockDepartments: IDepartment[] = [
-    { key: 'lohan-lodge-s', text: 'Lohan Lodge(S)' },
-    { key: 'department-2', text: 'Department 2' },
-    { key: 'department-3', text: 'Department 3' },
-  ];
-
-  const mockStaffMembers: IStaffMember[] = [
-    { id: '1', name: 'Adele Kerrisk', groupMemberId: '249', employeeId: '' },
-    { id: '2', name: 'Anna Mujeni', groupMemberId: '250', employeeId: '' },
-    { id: '3', name: 'Anne Casey', groupMemberId: '251', employeeId: '' },
-    { id: '4', name: 'aSerhii Baliasnyi', groupMemberId: '252', employeeId: '' },
-    { id: '5', name: 'Christina Leahy', groupMemberId: '253', employeeId: '' },
-    { id: '6', name: 'Christine Tyler Nolan', groupMemberId: '254', employeeId: '' },
-    { id: '7', name: 'Ciara Palmer', groupMemberId: '255', employeeId: '' },
-    { id: '8', name: 'Daniel Kelly', groupMemberId: '256', employeeId: '', deleted: true },
-    { id: '9', name: 'Denise Golden', groupMemberId: '257', employeeId: '' },
-    { id: '10', name: 'Donald Clifford', groupMemberId: '258', employeeId: '' },
-    { id: '11', name: 'Fiona Burke O Shea', groupMemberId: '259', employeeId: '' },
-    { id: '12', name: 'James Broderick', groupMemberId: '260', employeeId: '' },
-    { id: '13', name: 'Jane Counihan', groupMemberId: '261', employeeId: '' },
-  ];
-
-  // Состояние компонента
-  const [departments] = useState<IDepartment[]>(mockDepartments);
-  const [selectedDepartment, setSelectedDepartment] = useState<string>(mockDepartments[0].key);
-  const [staffMembers] = useState<IStaffMember[]>(mockStaffMembers);
-  const [selectedStaff, setSelectedStaff] = useState<IStaffMember | undefined>(mockStaffMembers[0]);
+  // Инициализируем сервис
+  const departmentService = new DepartmentService(props.context);
+  const [departments, setDepartments] = useState<IDepartment[]>([]);
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>("");
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  
+  // Состояние для сотрудников
+  const [staffMembers, setStaffMembers] = useState<IStaffMember[]>([]);
+  const [selectedStaff, setSelectedStaff] = useState<IStaffMember | undefined>(undefined);
   const [showDeleted, setShowDeleted] = useState<boolean>(false);
+  
+  // Состояние для вкладок
   const [selectedTabKey, setSelectedTabKey] = useState<string>('main');
-  const [autoSchedule, setAutoSchedule] = useState<boolean>(true);
-  const [srsFilePath, setSrsFilePath] = useState<string>('path2222355789');
-  const [generalNote, setGeneralNote] = useState<string>('Adele Kerr2222789');
-  const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState<boolean>(false);
 
-  // Обработчики событий
-  const handleDepartmentChange = (departmentKey: string): void => {
-    setSelectedDepartment(departmentKey);
-    // Здесь будет загрузка сотрудников для выбранного подразделения
+  // Загрузка данных при инициализации компонента
+  useEffect(() => {
+    fetchDepartments();
+  }, []);
+
+  // При изменении выбранного департамента, загружаем его сотрудников
+  useEffect(() => {
+    if (selectedDepartmentId) {
+      // В будущем здесь будет реальный запрос к SharePoint
+      // Пока используем временные данные
+      loadMockStaffMembers(selectedDepartmentId);
+    }
+  }, [selectedDepartmentId]);
+
+  // Загрузка департаментов
+  const fetchDepartments = async () => {
+    try {
+      setIsLoading(true);
+      const depts = await departmentService.fetchDepartments();
+      setDepartments(depts);
+      
+      // Если есть департаменты, выбираем первый
+      if (depts.length > 0) {
+        setSelectedDepartmentId(depts[0].ID.toString());
+      }
+      
+      setIsLoading(false);
+    } catch (error) {
+      console.error("Failed to fetch departments:", error);
+      setIsLoading(false);
+    }
+  };
+
+  // Временная функция для загрузки сотрудников (будет заменена на реальный API)
+  const loadMockStaffMembers = (departmentId: string) => {
+    // Здесь в будущем будет реальный запрос к SharePoint
+    const mockStaff: IStaffMember[] = [
+      { id: '1', name: 'Adele Kerrisk', groupMemberId: '249', employeeId: '' },
+      { id: '2', name: 'Anna Mujeni', groupMemberId: '250', employeeId: '' },
+      { id: '3', name: 'Anne Casey', groupMemberId: '251', employeeId: '' },
+      { id: '4', name: 'aSerhii Baliasnyi', groupMemberId: '252', employeeId: '' },
+      { id: '5', name: 'Christina Leahy', groupMemberId: '253', employeeId: '' },
+      { id: '6', name: 'Christine Tyler Nolan', groupMemberId: '254', employeeId: '' },
+      { id: '7', name: 'Ciara Palmer', groupMemberId: '255', employeeId: '' },
+      { id: '8', name: 'Daniel Kelly', groupMemberId: '256', employeeId: '', deleted: true }
+    ];
+    
+    setStaffMembers(mockStaff);
+    if (mockStaff.length > 0) {
+      setSelectedStaff(mockStaff[0]);
+    }
+  };
+
+  const handleDepartmentChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedDepartmentId(e.target.value);
   };
 
   const handleStaffSelect = (staff: IStaffMember): void => {
     setSelectedStaff(staff);
-    // Здесь будет загрузка данных выбранного сотрудника
   };
 
   const handleShowDeletedChange = (showDeleted: boolean): void => {
     setShowDeleted(showDeleted);
   };
-
+  
   const handleTabChange = (item?: PivotItem): void => {
     if (item && item.props.itemKey) {
       setSelectedTabKey(item.props.itemKey);
     }
   };
 
-  const handleAutoScheduleChange = (ev: React.MouseEvent<HTMLElement>, checked?: boolean): void => {
-    if (checked !== undefined) {
-      setAutoSchedule(checked);
-    }
-  };
+  // Если данные загружаются, показываем загрузчик
+  if (isLoading) {
+    return <div>Загрузка данных...</div>;
+  }
 
-  const handleSrsFilePathChange = (newValue: string): void => {
-    setSrsFilePath(newValue);
-  };
-
-  const handleGeneralNoteChange = (newValue: string): void => {
-    setGeneralNote(newValue);
-  };
-
-  const toggleLeftPanel = (): void => {
-    setIsLeftPanelCollapsed(!isLeftPanelCollapsed);
-  };
-
-  // Рендеринг содержимого активной вкладки с проверкой наличия выбранного сотрудника
-  const renderActiveTabContent = (): JSX.Element => {
+  // Рендеринг содержимого вкладки
+  const renderTabContent = () => {
     if (!selectedStaff) {
-      return <div>Выберите сотрудника</div>;
+      return <div>Please select a staff member</div>;
     }
-
-    // Общие props для передачи всем компонентам вкладок
-    const tabProps = {
-      selectedStaff,
-      autoSchedule,
-      onAutoScheduleChange: handleAutoScheduleChange,
-      srsFilePath,
-      onSrsFilePathChange: handleSrsFilePathChange,
-      generalNote,
-      onGeneralNoteChange: handleGeneralNoteChange
-    };
 
     switch (selectedTabKey) {
       case 'main':
-        return <MainTab {...tabProps} />;
+        return (
+          <div>
+            <h3>{selectedStaff.name}</h3>
+            <p>EmployeeID: {selectedStaff.employeeId || 'N/A'}</p>
+            <p>ID: 1</p>
+            <p>GroupMemberID: {selectedStaff.groupMemberId}</p>
+            <p>Autoschedule</p>
+          </div>
+        );
       case 'contracts':
-        return <ContractsTab {...tabProps} />;
+        return <div>Contracts information for {selectedStaff.name}</div>;
       case 'notes':
-        return <NotesTab {...tabProps} />;
+        return <div>Notes for {selectedStaff.name}</div>;
       case 'leaves':
-        return <LeavesTab {...tabProps} />;
-      case 'leaveTime':
-        return <LeaveTimeByYearsTab {...tabProps} />;
+        return <div>Leaves information for {selectedStaff.name}</div>;
+      case 'leaveTimeByYears':
+        return <div>Leave Time by Years for {selectedStaff.name}</div>;
       case 'srs':
-        return <SRSTab {...tabProps} />;
+        return <div>SRS information for {selectedStaff.name}</div>;
       default:
-        return <MainTab {...tabProps} />;
+        return <div>Select a tab</div>;
     }
   };
 
   return (
-    <div className={styles.kpfaplus} style={{ width: '100%', height: '100%', margin: 0, padding: 0, position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }}>
+    <div style={{ width: '100%', height: '100%', margin: 0, padding: 0, position: 'relative' }}>
       <div style={{ display: 'flex', width: '100%', height: '100%', overflow: 'hidden' }}>
         {/* Левая панель */}
-        <div 
-          className={styles.leftPanel} 
-          style={{ 
-            width: isLeftPanelCollapsed ? '40px' : '200px', 
-            minWidth: isLeftPanelCollapsed ? '40px' : '200px',
-            height: '100%', 
-            overflowY: 'auto', 
-            backgroundColor: '#f0f6ff',
-            padding: isLeftPanelCollapsed ? '10px 5px' : '10px',
-            borderRight: '1px solid #ddd',
-            transition: 'width 0.3s ease-in-out',
-            boxSizing: 'border-box'
-          }}
-        >
-          {!isLeftPanelCollapsed && (
-            <>
-              <DepartmentSelector
-                departments={departments}
-                selectedDepartment={selectedDepartment}
-                onDepartmentChange={handleDepartmentChange}
-              />
-              
-              <StaffGallery
-                staffMembers={staffMembers}
-                selectedStaff={selectedStaff}
-                showDeleted={showDeleted}
-                onShowDeletedChange={handleShowDeletedChange}
-                onStaffSelect={handleStaffSelect}
-              />
-            </>
-          )}
-          <div 
-            onClick={toggleLeftPanel}
-            style={{
-              position: 'absolute',
-              top: '50%',
-              left: isLeftPanelCollapsed ? '30px' : '190px',
-              width: '20px',
-              height: '50px',
-              backgroundColor: '#0078d4',
-              color: 'white',
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              cursor: 'pointer',
-              borderRadius: isLeftPanelCollapsed ? '0 5px 5px 0' : '5px 0 0 5px',
-              transition: 'left 0.3s ease-in-out',
-              zIndex: 100
-            }}
-          >
-            {isLeftPanelCollapsed ? '>' : '<'}
+        <div style={{ 
+          width: '200px', 
+          minWidth: '200px',
+          height: '100%',
+          backgroundColor: '#f0f6ff',
+          borderRight: '1px solid #ddd',
+          padding: '10px'
+        }}>
+          <div style={{ marginBottom: '10px' }}>
+            <label>Select Group</label>
+            <select 
+              value={selectedDepartmentId}
+              onChange={handleDepartmentChange}
+              style={{ 
+                display: 'block', 
+                width: '100%',
+                padding: '5px',
+                marginTop: '5px',
+                border: '1px solid #ccc',
+                borderRadius: '3px'
+              }}
+            >
+              {departments.map((dept: IDepartment) => (
+                <option key={dept.ID} value={dept.ID.toString()}>
+                  {dept.Title}
+                </option>
+              ))}
+            </select>
           </div>
+          
+          {/* Используем компонент StaffGallery */}
+          <StaffGallery
+            staffMembers={staffMembers}
+            selectedStaff={selectedStaff}
+            showDeleted={showDeleted}
+            onShowDeletedChange={handleShowDeletedChange}
+            onStaffSelect={handleStaffSelect}
+          />
         </div>
         
         {/* Правая панель */}
-        <div 
-          className={styles.rightPanel} 
-          style={{ 
-            flex: 1, 
-            height: '100%', 
-            overflowY: 'auto',
-            backgroundColor: '#ffffff',
-            margin: 0,
-            padding: '5px'
-          }}
-        >
-          {/* Правая панель с вкладками и содержимым */}
-          <div className={styles.tabsContainer}>
-            <Pivot 
-              selectedKey={selectedTabKey} 
-              onLinkClick={handleTabChange}
-              style={{ marginBottom: '5px' }}
-            >
-              <PivotItem itemKey="main" headerText="Main" />
-              <PivotItem itemKey="contracts" headerText="Contracts" />
-              <PivotItem itemKey="notes" headerText="Notes" />
-              <PivotItem itemKey="leaves" headerText="Leaves" />
-              <PivotItem itemKey="leaveTime" headerText="Leave Time by Years" />
-              <PivotItem itemKey="srs" headerText="SRS" />
-            </Pivot>
-          </div>
-          
-          <div 
-            className={styles.contentArea} 
-            style={{ 
-              verticalAlign: 'top', 
-              display: 'block', 
-              width: '100%', 
-              maxWidth: '100%',
-              overflowX: 'auto',
-              boxSizing: 'border-box',
-              margin: 0,
-              padding: '5px'
-            }}
+        <div style={{ 
+          flex: 1, 
+          height: '100%', 
+          overflowY: 'auto',
+          backgroundColor: '#ffffff',
+          padding: '10px'
+        }}>
+          {/* Панель с вкладками */}
+          <Pivot 
+            selectedKey={selectedTabKey} 
+            onLinkClick={handleTabChange}
+            style={{ marginBottom: '15px' }}
           >
-            {renderActiveTabContent()}
-          </div>
+            <PivotItem itemKey="main" headerText="Main" />
+            <PivotItem itemKey="contracts" headerText="Contracts" />
+            <PivotItem itemKey="notes" headerText="Notes" />
+            <PivotItem itemKey="leaves" headerText="Leaves" />
+            <PivotItem itemKey="leaveTimeByYears" headerText="Leave Time by Years" />
+            <PivotItem itemKey="srs" headerText="SRS" />
+          </Pivot>
+          
+          {/* Содержимое активной вкладки */}
+          {renderTabContent()}
         </div>
       </div>
     </div>
