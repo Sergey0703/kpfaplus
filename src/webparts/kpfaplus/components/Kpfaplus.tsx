@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
-import { IKpfaplusProps } from './IKpfaplusProps';
+import { IKPFAprops } from './IKpfaplusProps';
 import { DepartmentService, IDepartment } from '../services/DepartmentService';
 import { StaffGallery } from './StaffGallery/StaffGallery';
 import { Pivot, PivotItem } from '@fluentui/react/lib/Pivot';
@@ -22,9 +22,10 @@ interface IStaffMember {
   deleted?: boolean;
 }
 
-const Kpfaplus: React.FC<IKpfaplusProps> = (props) => {
+const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
   // Инициализируем сервис
-  const departmentService = new DepartmentService(props.context);
+  const departmentService = React.useMemo(() => new DepartmentService(props.context), [props.context]);
+  
   const [departments, setDepartments] = useState<IDepartment[]>([]);
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -42,25 +43,13 @@ const Kpfaplus: React.FC<IKpfaplusProps> = (props) => {
   const [srsFilePath, setSrsFilePath] = useState<string>('');
   const [generalNote, setGeneralNote] = useState<string>('');
 
-  // Загрузка данных при инициализации компонента
-  useEffect(() => {
-    fetchDepartments();
-  }, []);
-
-  // При изменении выбранного департамента, загружаем его сотрудников
-  useEffect(() => {
-    if (selectedDepartmentId) {
-      // В будущем здесь будет реальный запрос к SharePoint
-      // Пока используем временные данные
-      loadMockStaffMembers(selectedDepartmentId);
-    }
-  }, [selectedDepartmentId]);
-
   // Загрузка департаментов
-  const fetchDepartments = async () => {
+  const fetchDepartments = async (): Promise<void> => {
     try {
       setIsLoading(true);
+      console.log("Fetching departments...");
       const depts = await departmentService.fetchDepartments();
+      console.log(`Fetched ${depts.length} departments`);
       setDepartments(depts);
       
       // Если есть департаменты, выбираем первый
@@ -75,8 +64,9 @@ const Kpfaplus: React.FC<IKpfaplusProps> = (props) => {
     }
   };
 
-  // Временная функция для загрузки сотрудников (будет заменена на реальный API)
-  const loadMockStaffMembers = (departmentId: string) => {
+  // Временная функция для загрузки сотрудников
+  const loadMockStaffMembers = (departmentId: string): void => {
+    console.log(`Loading staff for department ${departmentId}`);
     // Здесь в будущем будет реальный запрос к SharePoint
     const mockStaff: IStaffMember[] = [
       { id: '1', name: 'Adele Kerrisk', groupMemberId: '249', employeeId: '' },
@@ -95,7 +85,35 @@ const Kpfaplus: React.FC<IKpfaplusProps> = (props) => {
     }
   };
 
-  const handleDepartmentChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  // Загрузка данных при инициализации компонента
+  useEffect(() => {
+    let isComponentMounted = true;
+    
+    const loadInitialData = async (): Promise<void> => {
+      await fetchDepartments();
+    };
+    
+    if (isComponentMounted) {
+      loadInitialData().catch(error => {
+        console.error("Error loading initial data:", error);
+      });
+    }
+    
+    return () => {
+      isComponentMounted = false;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Пустой массив зависимостей - выполняется только при монтировании
+
+  // При изменении выбранного департамента, загружаем его сотрудников
+  useEffect(() => {
+    if (selectedDepartmentId) {
+      loadMockStaffMembers(selectedDepartmentId);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDepartmentId]);
+
+  const handleDepartmentChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
     setSelectedDepartmentId(e.target.value);
   };
 
@@ -128,27 +146,22 @@ const Kpfaplus: React.FC<IKpfaplusProps> = (props) => {
     setGeneralNote(newValue);
   };
 
-  // Если данные загружаются, показываем загрузчик
-  if (isLoading) {
-    return <div>Загрузка данных...</div>;
-  }
-
-  // Общие props для передачи во вкладки
-  const tabProps = {
-    selectedStaff,
-    autoSchedule,
-    onAutoScheduleChange: handleAutoScheduleChange,
-    srsFilePath,
-    onSrsFilePathChange: handleSrsFilePathChange,
-    generalNote,
-    onGeneralNoteChange: handleGeneralNoteChange
-  };
-
   // Рендеринг содержимого вкладки
-  const renderTabContent = () => {
+  const renderTabContent = (): JSX.Element => {
     if (!selectedStaff) {
       return <div>Please select a staff member</div>;
     }
+
+    // Общие props для передачи во вкладки
+    const tabProps = {
+      selectedStaff,
+      autoSchedule,
+      onAutoScheduleChange: handleAutoScheduleChange,
+      srsFilePath,
+      onSrsFilePathChange: handleSrsFilePathChange,
+      generalNote,
+      onGeneralNoteChange: handleGeneralNoteChange
+    };
 
     switch (selectedTabKey) {
       case 'main':
@@ -167,6 +180,11 @@ const Kpfaplus: React.FC<IKpfaplusProps> = (props) => {
         return <div>Select a tab</div>;
     }
   };
+
+  // Если данные загружаются, показываем загрузчик
+  if (isLoading) {
+    return <div>Загрузка данных...</div>;
+  }
 
   return (
     <div style={{ width: '100%', height: '100%', margin: 0, padding: 0, position: 'relative' }}>

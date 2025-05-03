@@ -31,11 +31,11 @@ interface IDepartmentItem {
     Id: number;
     Title: string;
   };
-  [key: string]: any; // Для дополнительных полей
+  [key: string]: unknown; // Для дополнительных полей
 }
 
 export class DepartmentService {
-  private sp: any;
+  private sp: ReturnType<typeof spfi>;
   private logSource: string = "DepartmentService";
 
   constructor(context: WebPartContext) {
@@ -51,7 +51,7 @@ export class DepartmentService {
     try {
       this.logInfo("Starting fetchDepartments");
       
-      // Получение элементов из списка "Departments"
+      // Получение элементов из списка "StaffGroups"
       const items: IDepartmentItem[] = await this.sp.web.lists
         .getByTitle("StaffGroups") // Название вашего списка
         .items
@@ -80,48 +80,6 @@ export class DepartmentService {
       return departments;
     } catch (error) {
       this.logError(`Error fetching departments: ${error}`);
-      throw error;
-    }
-  }
-
-  /**
-   * Fetches department list from another site
-   * @param siteUrl URL of the site containing the departments list
-   * @returns Promise with department data
-   */
-  public async fetchDepartmentsFromOtherSite(siteUrl: string): Promise<IDepartment[]> {
-    try {
-      this.logInfo(`Starting fetchDepartments from site: ${siteUrl}`);
-      
-      // Получение элементов из списка "Departments" на другом сайте
-      const items: IDepartmentItem[] = await this.sp.site.getWebByUrl(siteUrl).lists
-        .getByTitle("Departments")
-        .items
-        .select("ID,Title,Deleted,LeaveExportFolder,DayOfStartWeek,TypeOfSRS,EnterLunchTime,Manager/Id,Manager/Title")
-        .expand("Manager")
-        .top(1000)
-        .orderBy("Title", true)
-        ();
-      
-      // Преобразуем полученные данные в нужный формат с явным указанием типа item
-      const departments: IDepartment[] = items.map((item: IDepartmentItem) => ({
-        ID: item.ID,
-        Title: item.Title,
-        Deleted: item.Deleted || false,
-        LeaveExportFolder: item.LeaveExportFolder || "",
-        DayOfStartWeek: item.DayOfStartWeek || 0,
-        TypeOfSRS: item.TypeOfSRS || 0,
-        EnterLunchTime: item.EnterLunchTime || false,
-        Manager: {
-          Id: item.Manager ? item.Manager.Id : 0,
-          Value: item.Manager ? item.Manager.Title : ""
-        }
-      }));
-      
-      this.logInfo(`Fetched ${departments.length} departments from other site`);
-      return departments;
-    } catch (error) {
-      this.logError(`Error fetching departments from other site: ${error}`);
       throw error;
     }
   }

@@ -1,10 +1,11 @@
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 
-export interface IKpfaplusProps {
+export interface IKPFAprops {
   description: string;
   isDarkTheme: boolean;
   environmentMessage: string;
   hasTeamsContext: boolean;
   userDisplayName: string;
-  context: WebPartContext; // Свойство context для доступа к API
+  context: WebPartContext;
+  // Используем undefined вместо null, как требуется линтером
 }
