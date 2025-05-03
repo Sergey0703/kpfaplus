@@ -53,6 +53,7 @@ const Kpfaplus: React.FC<IKpfaplusProps> = (props) => {
   const [autoSchedule, setAutoSchedule] = useState<boolean>(true);
   const [srsFilePath, setSrsFilePath] = useState<string>('path2222355789');
   const [generalNote, setGeneralNote] = useState<string>('Adele Kerr2222789');
+  const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState<boolean>(false);
 
   // Обработчики событий
   const handleDepartmentChange = (departmentKey: string): void => {
@@ -87,6 +88,10 @@ const Kpfaplus: React.FC<IKpfaplusProps> = (props) => {
 
   const handleGeneralNoteChange = (newValue: string): void => {
     setGeneralNote(newValue);
+  };
+
+  const toggleLeftPanel = (): void => {
+    setIsLeftPanelCollapsed(!isLeftPanelCollapsed);
   };
 
   // Рендеринг содержимого активной вкладки с проверкой наличия выбранного сотрудника
@@ -125,35 +130,64 @@ const Kpfaplus: React.FC<IKpfaplusProps> = (props) => {
   };
 
   return (
-    <div className={styles.kpfaplus} style={{ width: '100%', height: '100%', position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }}>
+    <div className={styles.kpfaplus} style={{ width: '100%', height: '100%', margin: 0, padding: 0, position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }}>
       <div style={{ display: 'flex', width: '100%', height: '100%', overflow: 'hidden' }}>
+        {/* Левая панель */}
         <div 
           className={styles.leftPanel} 
           style={{ 
-            width: '250px', 
-            minWidth: '250px', 
+            width: isLeftPanelCollapsed ? '40px' : '200px', 
+            minWidth: isLeftPanelCollapsed ? '40px' : '200px',
             height: '100%', 
             overflowY: 'auto', 
             backgroundColor: '#f0f6ff',
-            padding: '10px',
-            borderRight: '1px solid #ddd' 
+            padding: isLeftPanelCollapsed ? '10px 5px' : '10px',
+            borderRight: '1px solid #ddd',
+            transition: 'width 0.3s ease-in-out',
+            boxSizing: 'border-box'
           }}
         >
-          {/* Левая панель с селектором группы и списком сотрудников */}
-          <DepartmentSelector
-            departments={departments}
-            selectedDepartment={selectedDepartment}
-            onDepartmentChange={handleDepartmentChange}
-          />
-          
-          <StaffGallery
-            staffMembers={staffMembers}
-            selectedStaff={selectedStaff}
-            showDeleted={showDeleted}
-            onShowDeletedChange={handleShowDeletedChange}
-            onStaffSelect={handleStaffSelect}
-          />
+          {!isLeftPanelCollapsed && (
+            <>
+              <DepartmentSelector
+                departments={departments}
+                selectedDepartment={selectedDepartment}
+                onDepartmentChange={handleDepartmentChange}
+              />
+              
+              <StaffGallery
+                staffMembers={staffMembers}
+                selectedStaff={selectedStaff}
+                showDeleted={showDeleted}
+                onShowDeletedChange={handleShowDeletedChange}
+                onStaffSelect={handleStaffSelect}
+              />
+            </>
+          )}
+          <div 
+            onClick={toggleLeftPanel}
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: isLeftPanelCollapsed ? '30px' : '190px',
+              width: '20px',
+              height: '50px',
+              backgroundColor: '#0078d4',
+              color: 'white',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              cursor: 'pointer',
+              borderRadius: isLeftPanelCollapsed ? '0 5px 5px 0' : '5px 0 0 5px',
+              transition: 'left 0.3s ease-in-out',
+              zIndex: 100
+            }}
+          >
+            {isLeftPanelCollapsed ? '>' : '<'}
+          </div>
         </div>
+        
+        {/* Правая панель */}
         <div 
           className={styles.rightPanel} 
           style={{ 
@@ -161,7 +195,8 @@ const Kpfaplus: React.FC<IKpfaplusProps> = (props) => {
             height: '100%', 
             overflowY: 'auto',
             backgroundColor: '#ffffff',
-            padding: '10px'
+            margin: 0,
+            padding: '5px'
           }}
         >
           {/* Правая панель с вкладками и содержимым */}
@@ -169,7 +204,7 @@ const Kpfaplus: React.FC<IKpfaplusProps> = (props) => {
             <Pivot 
               selectedKey={selectedTabKey} 
               onLinkClick={handleTabChange}
-              style={{ marginBottom: '15px' }}
+              style={{ marginBottom: '5px' }}
             >
               <PivotItem itemKey="main" headerText="Main" />
               <PivotItem itemKey="contracts" headerText="Contracts" />
@@ -186,10 +221,11 @@ const Kpfaplus: React.FC<IKpfaplusProps> = (props) => {
               verticalAlign: 'top', 
               display: 'block', 
               width: '100%', 
-              border: '1px solid #dddddd',
-              borderRadius: '2px',
-              padding: '15px',
-              boxSizing: 'border-box'
+              maxWidth: '100%',
+              overflowX: 'auto',
+              boxSizing: 'border-box',
+              margin: 0,
+              padding: '5px'
             }}
           >
             {renderActiveTabContent()}

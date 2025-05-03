@@ -16,7 +16,7 @@ export const SRSTab: React.FC<ITabProps> = (props) => {
       <div style={{ marginBottom: '20px' }}>
         <TextField 
           label="Path for SRS file:" 
-          placeholder="path2222355789"
+          placeholder="path22223557890000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000111"
           disabled
         />
       </div>
