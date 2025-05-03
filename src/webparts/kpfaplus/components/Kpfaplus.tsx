@@ -3,9 +3,6 @@ import { useState } from 'react';
 import styles from './Kpfaplus.module.scss';
 import { IKpfaplusProps } from './IKpfaplusProps';
 import { IStaffMember, IDepartment } from '../models/types';
-import { Toggle } from '@fluentui/react/lib/Toggle';
-import { IconButton } from '@fluentui/react/lib/Button';
-import { List } from '@fluentui/react/lib/List';
 import { Pivot, PivotItem } from '@fluentui/react/lib/Pivot';
 
 // Импортируем компоненты вкладок
@@ -18,6 +15,9 @@ import { SRSTab } from './Tabs/SRSTab/SRSTab';
 
 // Импортируем компонент выбора департамента
 import { DepartmentSelector } from './DepartmentSelector/DepartmentSelector';
+
+// Импортируем компонент галереи сотрудников
+import { StaffGallery } from './StaffGallery/StaffGallery';
 
 const Kpfaplus: React.FC<IKpfaplusProps> = (props) => {
   // Временные данные - будут заменены на реальные данные из SharePoint
@@ -65,10 +65,8 @@ const Kpfaplus: React.FC<IKpfaplusProps> = (props) => {
     // Здесь будет загрузка данных выбранного сотрудника
   };
 
-  const handleShowDeletedChange = (ev: React.MouseEvent<HTMLElement>, checked?: boolean): void => {
-    if (checked !== undefined) {
-      setShowDeleted(checked);
-    }
+  const handleShowDeletedChange = (showDeleted: boolean): void => {
+    setShowDeleted(showDeleted);
   };
 
   const handleTabChange = (item?: PivotItem): void => {
@@ -89,40 +87,6 @@ const Kpfaplus: React.FC<IKpfaplusProps> = (props) => {
 
   const handleGeneralNoteChange = (newValue: string): void => {
     setGeneralNote(newValue);
-  };
-
-  // Рендер списка сотрудников
-  const renderStaffList = (): JSX.Element => {
-    const filteredStaff = showDeleted 
-      ? staffMembers 
-      : staffMembers.filter(staff => !staff.deleted);
-
-    const onRenderCell = (item: IStaffMember): JSX.Element => {
-      const isSelected = selectedStaff && selectedStaff.id === item.id;
-      
-      return (
-        <div 
-          className={`${styles.staffItem} ${isSelected ? styles.selected : ''}`}
-          onClick={() => handleStaffSelect(item)}
-        >
-          <span className={styles.staffName}>{item.name}</span>
-          <IconButton 
-            iconProps={{ iconName: 'Delete' }} 
-            className={styles.deleteButton}
-            aria-label="Delete" 
-          />
-        </div>
-      );
-    };
-
-    return (
-      <div className={styles.staffList}>
-        <List
-          items={filteredStaff}
-          onRenderCell={onRenderCell}
-        />
-      </div>
-    );
   };
 
   // Рендеринг содержимого активной вкладки с проверкой наличия выбранного сотрудника
@@ -161,60 +125,77 @@ const Kpfaplus: React.FC<IKpfaplusProps> = (props) => {
   };
 
   return (
-    <div className={styles.kpfaplus}>
-      <table className={styles.tableLayout} style={{ tableLayout: 'fixed' }}>
-        <tbody>
-          <tr>
-            <td 
-              className={styles.leftCell} 
-              valign="top" 
-              style={{ verticalAlign: 'top' }}
+    <div className={styles.kpfaplus} style={{ width: '100%', height: '100%', position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }}>
+      <div style={{ display: 'flex', width: '100%', height: '100%', overflow: 'hidden' }}>
+        <div 
+          className={styles.leftPanel} 
+          style={{ 
+            width: '250px', 
+            minWidth: '250px', 
+            height: '100%', 
+            overflowY: 'auto', 
+            backgroundColor: '#f0f6ff',
+            padding: '10px',
+            borderRight: '1px solid #ddd' 
+          }}
+        >
+          {/* Левая панель с селектором группы и списком сотрудников */}
+          <DepartmentSelector
+            departments={departments}
+            selectedDepartment={selectedDepartment}
+            onDepartmentChange={handleDepartmentChange}
+          />
+          
+          <StaffGallery
+            staffMembers={staffMembers}
+            selectedStaff={selectedStaff}
+            showDeleted={showDeleted}
+            onShowDeletedChange={handleShowDeletedChange}
+            onStaffSelect={handleStaffSelect}
+          />
+        </div>
+        <div 
+          className={styles.rightPanel} 
+          style={{ 
+            flex: 1, 
+            height: '100%', 
+            overflowY: 'auto',
+            backgroundColor: '#ffffff',
+            padding: '10px'
+          }}
+        >
+          {/* Правая панель с вкладками и содержимым */}
+          <div className={styles.tabsContainer}>
+            <Pivot 
+              selectedKey={selectedTabKey} 
+              onLinkClick={handleTabChange}
+              style={{ marginBottom: '15px' }}
             >
-              {/* Левая панель с селектором группы и списком сотрудников */}
-              <DepartmentSelector
-                departments={departments}
-                selectedDepartment={selectedDepartment}
-                onDepartmentChange={handleDepartmentChange}
-              />
-              
-              <div className={styles.toggleContainer}>
-                <span className={styles.toggleLabel}>Show Deleted</span>
-                <Toggle 
-                  checked={showDeleted}
-                  onChange={handleShowDeletedChange}
-                  inlineLabel
-                />
-              </div>
-              
-              {renderStaffList()}
-            </td>
-            <td 
-              className={styles.rightCell} 
-              valign="top" 
-              style={{ verticalAlign: 'top' }}
-            >
-              {/* Правая панель с вкладками и содержимым */}
-              <div className={styles.tabsContainer}>
-                <Pivot 
-                  selectedKey={selectedTabKey} 
-                  onLinkClick={handleTabChange}
-                >
-                  <PivotItem itemKey="main" headerText="Main" />
-                  <PivotItem itemKey="contracts" headerText="Contracts" />
-                  <PivotItem itemKey="notes" headerText="Notes" />
-                  <PivotItem itemKey="leaves" headerText="Leaves" />
-                  <PivotItem itemKey="leaveTime" headerText="Leave Time by Years" />
-                  <PivotItem itemKey="srs" headerText="SRS" />
-                </Pivot>
-              </div>
-              
-              <div className={styles.contentArea} style={{ verticalAlign: 'top', display: 'block', marginTop: 0, paddingTop: 0 }}>
-                {renderActiveTabContent()}
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+              <PivotItem itemKey="main" headerText="Main" />
+              <PivotItem itemKey="contracts" headerText="Contracts" />
+              <PivotItem itemKey="notes" headerText="Notes" />
+              <PivotItem itemKey="leaves" headerText="Leaves" />
+              <PivotItem itemKey="leaveTime" headerText="Leave Time by Years" />
+              <PivotItem itemKey="srs" headerText="SRS" />
+            </Pivot>
+          </div>
+          
+          <div 
+            className={styles.contentArea} 
+            style={{ 
+              verticalAlign: 'top', 
+              display: 'block', 
+              width: '100%', 
+              border: '1px solid #dddddd',
+              borderRadius: '2px',
+              padding: '15px',
+              boxSizing: 'border-box'
+            }}
+          >
+            {renderActiveTabContent()}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

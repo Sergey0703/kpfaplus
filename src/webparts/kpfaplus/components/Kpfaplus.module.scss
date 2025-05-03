@@ -1,181 +1,63 @@
 @import '~@fluentui/react/dist/sass/References.scss';
 
 .kpfaplus {
+  width: 100%;
   height: 100%;
-  width: 100%;
-  padding: 0;
-  margin: 0;
-}
-
-.tableLayout {
-  width: 100%;
-  border-collapse: collapse;
-  border-spacing: 0;
-  height: 600px;
-}
-
-.leftCell {
-  width: 250px;
-  background-color: #f0f6ff;
-  vertical-align: top;
-  padding: 10px;
-  border-right: 1px solid #ddd;
-}
-
-.rightCell {
-  background-color: #ffffff;
-  vertical-align: top;
-  padding: 10px;
-}
-
-.departmentSection {
-  margin-bottom: 15px;
-}
-
-.departmentLabel {
-  font-weight: 600;
-  margin-bottom: 5px;
-}
-
-.toggleContainer {
-  display: flex;
-  align-items: center;
-  margin-bottom: 15px;
-}
-
-.toggleLabel {
-  margin-right: 10px;
-}
-
-.staffList {
-  margin-top: 10px;
-}
-
-.staffItem {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px;
-  margin-bottom: 5px;
-  cursor: pointer;
-  border-left: 3px solid transparent;
-  background-color: #f0f6ff;
-  
-  &:hover {
-    background-color: #e0ecff;
-  }
-  
-  &.selected {
-    background-color: #d0e2ff;
-    border-left: 3px solid #0078d4;
-  }
-}
-
-.staffName {
-  flex: 1;
-  white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
+  display: flex;
+  flex-direction: column;
 }
 
-.deleteButton {
-  visibility: hidden;
+.leftPanel {
+  overflow-y: auto;
+  background-color: #f0f6ff;
   
-  .staffItem:hover & {
-    visibility: visible;
+  :global(.ms-Dropdown-container) {
+    width: 100%;
   }
+}
+
+.rightPanel {
+  flex: 1;
+  overflow-y: auto;
+  background-color: #ffffff;
 }
 
 .tabsContainer {
   margin-bottom: 15px;
-  border-bottom: 1px solid #dddddd;
-}
-
-.contentArea {
-  padding: 15px;
-  background-color: #ffffff;
-  border: 1px solid #dddddd;
-  border-radius: 2px;
-  vertical-align: top;
-  /* Добавляем явное выравнивание по верху */
-  display: block;
-  position: relative;
   width: 100%;
-}
-
-.profileSection {
-  display: flex;
-  margin-bottom: 20px;
-  align-items: flex-start; /* Выравнивание по верху */
-}
-
-.profileImage {
-  width: 100px;
-  height: 100px;
-  margin-right: 20px;
-  background-color: #f0f0f0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.profileInfo {
-  flex: 1;
   
-  h2 {
-    margin-top: 0;
-    margin-bottom: 15px;
+  :global(.ms-Pivot) {
+    margin-bottom: 10px;
+  }
+  
+  :global(.ms-Pivot-link) {
+    font-size: 14px;
+    padding: 0 10px;
   }
 }
 
-.infoField {
-  margin-bottom: 15px;
-  
-  label {
-    display: block;
-    font-weight: 600;
-    margin-bottom: 5px;
-  }
-}
-
-.autoScheduleToggle {
-  margin-top: 15px;
-  margin-bottom: 15px;
-}
-
-.srsSection {
-  margin-top: 20px;
-}
-
-.tabContent {
-  /* Добавляем общий класс для содержимого всех вкладок */
-  width: 100%;
-  vertical-align: top;
-  text-align: left;
-}
-// Рендеринг содержимого активной вкладки
 .contentArea {
-  padding: 15px;
-  background-color: #ffffff;
-  border: 1px solid #dddddd;
-  border-radius: 2px;
-  height: auto !important; /* Убираем фиксированную высоту */
-  display: block !important; /* Явно указываем блочный элемент */
-  position: static !important; /* Отменяем любое позиционирование */
-  align-items: flex-start !important; /* Выравнивание по верху */
+  width: 100%;
+  box-sizing: border-box;
 }
 
-/* Стиль для всех вкладок */
-:global(.ms-Pivot) {
-  margin-bottom: 15px;
-}
-
-/* Стиль для контента вкладок */
-:global(.ms-Pivot-content) {
-  display: flex !important; 
-  flex-direction: column !important;
-  align-items: flex-start !important;
-  justify-content: flex-start !important;
-  height: auto !important;
-  padding-top: 0 !important;
+/* Стили для мобильной версии */
+@media (max-width: 768px) {
+  .kpfaplus {
+    flex-direction: column;
+  }
+  
+  .leftPanel {
+    width: 100%;
+    min-width: auto;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid #ddd;
+  }
+  
+  .rightPanel {
+    height: auto;
+    flex: 1;
+  }
 }
