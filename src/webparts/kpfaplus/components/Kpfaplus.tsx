@@ -3,18 +3,26 @@ import { useState } from 'react';
 import styles from './Kpfaplus.module.scss';
 import { IKpfaplusProps } from './IKpfaplusProps';
 import { IStaffMember, IDepartment } from '../models/types';
-import { Dropdown, IDropdownOption } from '@fluentui/react/lib/Dropdown';
 import { Toggle } from '@fluentui/react/lib/Toggle';
 import { IconButton } from '@fluentui/react/lib/Button';
 import { List } from '@fluentui/react/lib/List';
 import { Pivot, PivotItem } from '@fluentui/react/lib/Pivot';
-import { TextField } from '@fluentui/react/lib/TextField';
-import { Persona, PersonaSize } from '@fluentui/react/lib/Persona';
+
+// Импортируем компоненты вкладок
+import { MainTab } from './Tabs/MainTab/MainTab';
+import { ContractsTab } from './Tabs/ContractsTab/ContractsTab';
+import { NotesTab } from './Tabs/NotesTab/NotesTab';
+import { LeavesTab } from './Tabs/LeavesTab/LeavesTab';
+import { LeaveTimeByYearsTab } from './Tabs/LeaveTimeByYearsTab/LeaveTimeByYearsTab';
+import { SRSTab } from './Tabs/SRSTab/SRSTab';
+
+// Импортируем компонент выбора департамента
+import { DepartmentSelector } from './DepartmentSelector/DepartmentSelector';
 
 const Kpfaplus: React.FC<IKpfaplusProps> = (props) => {
   // Временные данные - будут заменены на реальные данные из SharePoint
   const mockDepartments: IDepartment[] = [
-    { key: 'lohan-lodge-s', text: 'Lohan Lodge(S)1' },
+    { key: 'lohan-lodge-s', text: 'Lohan Lodge(S)' },
     { key: 'department-2', text: 'Department 2' },
     { key: 'department-3', text: 'Department 3' },
   ];
@@ -42,16 +50,14 @@ const Kpfaplus: React.FC<IKpfaplusProps> = (props) => {
   const [selectedStaff, setSelectedStaff] = useState<IStaffMember | undefined>(mockStaffMembers[0]);
   const [showDeleted, setShowDeleted] = useState<boolean>(false);
   const [selectedTabKey, setSelectedTabKey] = useState<string>('main');
+  const [autoSchedule, setAutoSchedule] = useState<boolean>(true);
   const [srsFilePath, setSrsFilePath] = useState<string>('path2222355789');
   const [generalNote, setGeneralNote] = useState<string>('Adele Kerr2222789');
-  const [autoSchedule, setAutoSchedule] = useState<boolean>(true);
 
   // Обработчики событий
-  const handleDepartmentChange = (event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
-    if (option) {
-      setSelectedDepartment(option.key as string);
-      // Здесь будет загрузка сотрудников для выбранного подразделения
-    }
+  const handleDepartmentChange = (departmentKey: string): void => {
+    setSelectedDepartment(departmentKey);
+    // Здесь будет загрузка сотрудников для выбранного подразделения
   };
 
   const handleStaffSelect = (staff: IStaffMember): void => {
@@ -71,22 +77,18 @@ const Kpfaplus: React.FC<IKpfaplusProps> = (props) => {
     }
   };
 
-  const handleSrsFilePathChange = (ev: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, newValue?: string): void => {
-    if (newValue !== undefined) {
-      setSrsFilePath(newValue);
-    }
-  };
-
-  const handleGeneralNoteChange = (ev: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>, newValue?: string): void => {
-    if (newValue !== undefined) {
-      setGeneralNote(newValue);
-    }
-  };
-
   const handleAutoScheduleChange = (ev: React.MouseEvent<HTMLElement>, checked?: boolean): void => {
     if (checked !== undefined) {
       setAutoSchedule(checked);
     }
+  };
+
+  const handleSrsFilePathChange = (newValue: string): void => {
+    setSrsFilePath(newValue);
+  };
+
+  const handleGeneralNoteChange = (newValue: string): void => {
+    setGeneralNote(newValue);
   };
 
   // Рендер списка сотрудников
@@ -123,116 +125,38 @@ const Kpfaplus: React.FC<IKpfaplusProps> = (props) => {
     );
   };
 
-  // Содержимое вкладки Main
-  const renderMainTab = (): JSX.Element => {
-    if (!selectedStaff) {
-      return <div>Выберите сотрудника</div>;
-    }
-
-    return (
-      <div className={styles.profileSection}>
-        <div className={styles.profileImage}>
-          <Persona 
-            size={PersonaSize.size72}
-            hidePersonaDetails={true}
-            initialsColor="lightBlue"
-            text={selectedStaff.name}
-          />
-        </div>
-        <div className={styles.profileInfo}>
-          <h2>{selectedStaff.name}</h2>
-          <div>EmployeeID: {selectedStaff.employeeId || 'N/A'}</div>
-          <div>ID: {selectedStaff.id || 'N/A'}</div>
-          <div>GroupMemberID: {selectedStaff.groupMemberId || 'N/A'}</div>
-
-          <div className={styles.autoScheduleToggle}>
-            <Toggle 
-              label="Autoschedule" 
-              checked={autoSchedule}
-              onChange={handleAutoScheduleChange}
-            />
-          </div>
-
-          <div className={styles.srsSection}>
-            <div className={styles.infoField}>
-              <TextField
-                label="Path for SRS file:"
-                value={srsFilePath}
-                onChange={handleSrsFilePathChange}
-              />
-            </div>
-            <div className={styles.infoField}>
-              <TextField
-                label="General note:"
-                multiline
-                rows={5}
-                value={generalNote}
-                onChange={handleGeneralNoteChange}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // Заглушки для других вкладок
-  const renderContractsTab = (): JSX.Element => {
-    return <div>
-      <h3>Содержимое вкладки Contracts для {selectedStaff?.name}</h3>
-      <p>Здесь будет отображаться информация о контрактах выбранного сотрудника.</p>
-    </div>;
-  };
-
-  const renderNotesTab = (): JSX.Element => {
-    return <div>
-      <h3>Содержимое вкладки Notes для {selectedStaff?.name}</h3>
-      <p>Здесь будут отображаться заметки о выбранном сотруднике.</p>
-    </div>;
-  };
-
-  const renderLeavesTab = (): JSX.Element => {
-    return <div>
-      <h3>Содержимое вкладки Leaves для {selectedStaff?.name}</h3>
-      <p>Здесь будет отображаться информация об отпусках выбранного сотрудника.</p>
-    </div>;
-  };
-
-  const renderLeaveTimeTab = (): JSX.Element => {
-    return <div>
-      <h3>Содержимое вкладки Leave Time by Years для {selectedStaff?.name}</h3>
-      <p>Здесь будет отображаться информация о времени отпусков по годам.</p>
-    </div>;
-  };
-
-  const renderSRSTab = (): JSX.Element => {
-    return <div>
-      <h3>Содержимое вкладки SRS для {selectedStaff?.name}</h3>
-      <p>Здесь будет отображаться SRS информация о выбранном сотруднике.</p>
-    </div>;
-  };
-
   // Рендеринг содержимого активной вкладки с проверкой наличия выбранного сотрудника
   const renderActiveTabContent = (): JSX.Element => {
     if (!selectedStaff) {
       return <div>Выберите сотрудника</div>;
     }
 
+    // Общие props для передачи всем компонентам вкладок
+    const tabProps = {
+      selectedStaff,
+      autoSchedule,
+      onAutoScheduleChange: handleAutoScheduleChange,
+      srsFilePath,
+      onSrsFilePathChange: handleSrsFilePathChange,
+      generalNote,
+      onGeneralNoteChange: handleGeneralNoteChange
+    };
+
     switch (selectedTabKey) {
       case 'main':
-        return renderMainTab();
+        return <MainTab {...tabProps} />;
       case 'contracts':
-        return renderContractsTab();
+        return <ContractsTab {...tabProps} />;
       case 'notes':
-        return renderNotesTab();
+        return <NotesTab {...tabProps} />;
       case 'leaves':
-        return renderLeavesTab();
+        return <LeavesTab {...tabProps} />;
       case 'leaveTime':
-        return renderLeaveTimeTab();
+        return <LeaveTimeByYearsTab {...tabProps} />;
       case 'srs':
-        return renderSRSTab();
+        return <SRSTab {...tabProps} />;
       default:
-        return renderMainTab();
+        return <MainTab {...tabProps} />;
     }
   };
 
@@ -247,14 +171,11 @@ const Kpfaplus: React.FC<IKpfaplusProps> = (props) => {
               style={{ verticalAlign: 'top' }}
             >
               {/* Левая панель с селектором группы и списком сотрудников */}
-              <div className={styles.departmentSection}>
-                <div className={styles.departmentLabel}>Select Group</div>
-                <Dropdown
-                  selectedKey={selectedDepartment}
-                  options={departments.map(dept => ({ key: dept.key, text: dept.text }))}
-                  onChange={handleDepartmentChange}
-                />
-              </div>
+              <DepartmentSelector
+                departments={departments}
+                selectedDepartment={selectedDepartment}
+                onDepartmentChange={handleDepartmentChange}
+              />
               
               <div className={styles.toggleContainer}>
                 <span className={styles.toggleLabel}>Show Deleted</span>
