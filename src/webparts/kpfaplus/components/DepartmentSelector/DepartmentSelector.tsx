@@ -1,36 +1,42 @@
 import * as React from 'react';
 import { Dropdown, IDropdownOption } from '@fluentui/react/lib/Dropdown';
+import { useDataContext } from '../../context';
 import { IDepartment } from '../../models/types';
 
 export interface IDepartmentSelectorProps {
-  departments: IDepartment[];
-  selectedDepartment: string;
-  onDepartmentChange: (departmentKey: string) => void;
+  label?: string;
+  onChange?: (departmentId: string) => void;
 }
 
 export const DepartmentSelector: React.FC<IDepartmentSelectorProps> = (props) => {
-  const { departments, selectedDepartment, onDepartmentChange } = props;
-
-  const options: IDropdownOption[] = departments.map(dept => ({
-    key: dept.key,
-    text: dept.text
+  const { label = "Выберите департамент", onChange } = props;
+  const { departments, selectedDepartmentId, setSelectedDepartmentId } = useDataContext();
+  
+  // Преобразуем департаменты в опции для выпадающего списка
+  const options: IDropdownOption[] = departments.map((dept: IDepartment) => ({
+    key: dept.ID.toString(),  // Используем ID вместо key
+    text: dept.Title          // Используем Title вместо text
   }));
-
-  const onChange = (event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
+  
+  const handleChange = (event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
     if (option) {
-      onDepartmentChange(option.key as string);
+      const departmentId = option.key.toString();
+      setSelectedDepartmentId(departmentId);
+      
+      // Вызываем обработчик onChange, если он был передан
+      if (onChange) {
+        onChange(departmentId);
+      }
     }
   };
-
+  
   return (
-    <div style={{ marginBottom: '10px' }}>
-      <div style={{ marginBottom: '5px' }}>Select Group</div>
-      <Dropdown
-        selectedKey={selectedDepartment}
-        options={options}
-        onChange={onChange}
-        style={{ width: '100%' }}
-      />
-    </div>
+    <Dropdown
+      label={label}
+      selectedKey={selectedDepartmentId}
+      options={options}
+      onChange={handleChange}
+      styles={{ dropdown: { width: '100%' } }}
+    />
   );
 };

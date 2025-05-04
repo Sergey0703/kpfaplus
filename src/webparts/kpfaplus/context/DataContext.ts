@@ -1,14 +1,13 @@
-// src/webparts/kpfaplus/context/DataContext.ts
 import { createContext, useContext } from 'react';
 import { IDataContext } from './types';
 
 // Начальное значение контекста с пустыми значениями и заглушками для функций
 const initialContextState: IDataContext = {
   // Сервисные данные
-  spContext: null,
+  spContext: undefined, // изменено с null на undefined
   
   // Данные пользователя
-  currentUser: null,
+  currentUser: undefined, // изменено с null на undefined
   
   // Данные департаментов
   departments: [],
@@ -17,7 +16,7 @@ const initialContextState: IDataContext = {
   
   // Данные сотрудников
   staffMembers: [],
-  selectedStaff: null,
+  selectedStaff: undefined, // изменено с null на undefined
   setSelectedStaff: () => {}, // Заглушка, будет заменена реальной функцией
   
   // Состояния загрузки
@@ -25,7 +24,7 @@ const initialContextState: IDataContext = {
     isLoading: false,
     hasError: false,
     errorMessage: "",
-    loadingSteps: [] // Добавили отсутствующее свойство
+    loadingSteps: []
   },
   
   // Методы для управления данными

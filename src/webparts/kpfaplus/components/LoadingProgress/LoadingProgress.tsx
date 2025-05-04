@@ -1,7 +1,7 @@
 // src/webparts/kpfaplus/components/LoadingProgress/LoadingProgress.tsx
 import * as React from 'react';
 import { useDataContext } from '../../context';
-import { Spinner, SpinnerSize, DetailsList, IColumn, SelectionMode, MessageBar, MessageBarType } from '@fluentui/react';
+import { DetailsList, IColumn, SelectionMode, MessageBar, MessageBarType, Spinner, SpinnerSize } from '@fluentui/react';
 import { ILoadingStep } from '../../context/types';
 
 export interface ILoadingProgressProps {
@@ -65,28 +65,6 @@ export const LoadingProgress: React.FC<ILoadingProgressProps> = (props) => {
     }
   ];
   
-  if (loadingState.isLoading) {
-    return (
-      <div style={{ padding: '20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '15px' }}>
-          <Spinner size={SpinnerSize.medium} label="Loading data..." labelPosition="right" />
-        </div>
-        
-        {showDetail && loadingState.loadingSteps.length > 0 && (
-          <div style={{ marginTop: '20px' }}>
-            <h3>Loading Progress</h3>
-            <DetailsList
-              items={loadingState.loadingSteps}
-              columns={columns}
-              selectionMode={SelectionMode.none}
-              compact={true}
-            />
-          </div>
-        )}
-      </div>
-    );
-  }
-  
   if (loadingState.hasError) {
     return (
       <div style={{ padding: '20px' }}>
@@ -112,5 +90,19 @@ export const LoadingProgress: React.FC<ILoadingProgressProps> = (props) => {
     );
   }
   
-  return null;
+  return (
+    <div style={{ padding: '20px' }}>
+      {showDetail && loadingState.loadingSteps.length > 0 && (
+        <div style={{ marginTop: '20px' }}>
+          <h3>Loading Progress</h3>
+          <DetailsList
+            items={loadingState.loadingSteps}
+            columns={columns}
+            selectionMode={SelectionMode.none}
+            compact={true}
+          />
+        </div>
+      )}
+    </div>
+  );
 };

@@ -1,4 +1,3 @@
-// src/webparts/kpfaplus/KpfaplusWebPart.ts
 import * as React from 'react';
 import * as ReactDom from 'react-dom';
 import { Version } from '@microsoft/sp-core-library';
@@ -36,13 +35,11 @@ export default class KpfaplusWebPart extends BaseClientSideWebPart<IKpfaplusWebP
       }
     );
 
-    // Оборачиваем его в DataProvider
+    // Оборачиваем его в DataProvider, передавая kpfaplusElement как дочерний элемент
     const element: React.ReactElement = React.createElement(
       DataProvider,
-      {
-        context: this.context,
-        children: kpfaplusElement
-      }
+      { context: this.context },
+      kpfaplusElement
     );
 
     ReactDom.render(element, this.domElement);
@@ -95,7 +92,6 @@ export default class KpfaplusWebPart extends BaseClientSideWebPart<IKpfaplusWebP
       this.domElement.style.setProperty('--link', semanticColors.link || null);
       this.domElement.style.setProperty('--linkHovered', semanticColors.linkHovered || null);
     }
-
   }
 
   protected onDispose(): void {

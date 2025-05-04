@@ -1,4 +1,6 @@
-// src/webparts/kpfaplus/models/types.ts
+// models/types.ts
+import * as React from 'react';
+
 export interface IStaffMember {
   id: string;
   name: string;
@@ -9,12 +11,13 @@ export interface IStaffMember {
 }
 
 export interface IDepartment {
-  key: string;
-  text: string;
+  ID: number;
+  Title: string;
+  // Дополнительные поля департамента
 }
 
 export interface ITabProps {
-  selectedStaff: IStaffMember | null;
+  selectedStaff: IStaffMember | undefined; // Изменено с null на undefined
   autoSchedule?: boolean;
   onAutoScheduleChange?: (ev: React.MouseEvent<HTMLElement>, checked?: boolean) => void;
   srsFilePath?: string;

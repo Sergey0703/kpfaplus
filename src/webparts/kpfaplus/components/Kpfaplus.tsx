@@ -8,6 +8,9 @@ import { useDataContext } from '../context';
 import { LoadingProgress } from './LoadingProgress/LoadingProgress';
 import { LoadingSpinner } from './LoadingSpinner/LoadingSpinner';
 import { RefreshButton } from './RefreshButton/RefreshButton';
+import { IStaffMember } from '../models/types';
+import { IDepartment } from '../services/DepartmentService';
+import { ILoadingStep } from '../context/types';
 
 // Импортируем компоненты вкладок
 import { MainTab } from './Tabs/MainTab/MainTab';
@@ -58,7 +61,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
     setSelectedDepartmentId(e.target.value);
   };
 
-  const handleStaffSelect = (staff: any): void => {
+  const handleStaffSelect = (staff: IStaffMember): void => {
     setSelectedStaff(staff);
   };
 
@@ -196,7 +199,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
                 borderRadius: '3px'
               }}
             >
-              {departments.map((dept) => (
+              {departments.map((dept: IDepartment) => (
                 <option key={dept.ID} value={dept.ID.toString()}>
                   {dept.Title}
                 </option>
@@ -254,7 +257,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
               <div style={{ marginTop: '10px', maxHeight: '200px', overflowY: 'auto' }}>
                 <h4 style={{ margin: '0 0 5px 0', fontSize: '14px' }}>Loading Log:</h4>
                 <ul style={{ margin: 0, padding: '0 0 0 20px', fontSize: '11px' }}>
-                  {loadingState.loadingSteps.map((step, index) => (
+                  {loadingState.loadingSteps.map((step: ILoadingStep, index: number) => (
                     <li key={index} style={{ marginBottom: '2px' }}>
                       <span style={{ 
                         display: 'inline-block', 

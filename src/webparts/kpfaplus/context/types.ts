@@ -1,16 +1,8 @@
-// src/webparts/kpfaplus/context/types.ts
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { ICurrentUser } from "../services/UserService";
-import { IDepartment } from "../services/DepartmentService";
-import { IStaffMember } from "../models/types";
-
-// Состояние для загрузки данных
-export interface ILoadingState {
-  isLoading: boolean;
-  hasError: boolean;
-  errorMessage: string;
-  loadingSteps: ILoadingStep[]; // Массив шагов загрузки
-}
+// Уберем этот импорт, который конфликтует с локальным объявлением
+// import { IDepartment } from "../services/DepartmentService";
+import { IStaffMember, IDepartment } from "../models/types";
 
 // Интерфейс для шага загрузки
 export interface ILoadingStep {
@@ -21,13 +13,21 @@ export interface ILoadingStep {
   details?: string;
 }
 
+// Состояние для загрузки данных
+export interface ILoadingState {
+  isLoading: boolean;
+  hasError: boolean;
+  errorMessage: string;
+  loadingSteps: ILoadingStep[]; // Массив шагов загрузки
+}
+
 // Интерфейс для контекста данных
 export interface IDataContext {
   // Сервисные данные
-  spContext: WebPartContext | null;
+  spContext: WebPartContext | undefined;
   
   // Данные пользователя
-  currentUser: ICurrentUser | null;
+  currentUser: ICurrentUser | undefined;
   
   // Данные департаментов
   departments: IDepartment[];
@@ -36,7 +36,7 @@ export interface IDataContext {
   
   // Данные сотрудников
   staffMembers: IStaffMember[];
-  selectedStaff: IStaffMember | null;
+  selectedStaff: IStaffMember | undefined;
   setSelectedStaff: (staff: IStaffMember) => void;
   
   // Состояния загрузки
@@ -48,8 +48,7 @@ export interface IDataContext {
   refreshStaffMembers: (departmentId: string) => Promise<void>;
 }
 
-// Интерфейс для провайдера данных
 export interface IDataProviderProps {
   context: WebPartContext;
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }

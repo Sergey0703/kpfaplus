@@ -1,8 +1,7 @@
-// src/webparts/kpfaplus/context/DataProvider.tsx
 import * as React from 'react';
 import { useState, useEffect, useCallback } from 'react';
 import { DataContext } from './DataContext';
-import { IDataProviderProps, ILoadingState } from './types';
+import { IDataProviderProps, ILoadingState, ILoadingStep } from './types';
 import { DepartmentService, IDepartment } from '../services/DepartmentService';
 import { UserService, ICurrentUser } from '../services/UserService';
 import { IStaffMember } from '../models/types';
@@ -15,7 +14,7 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
   const userService = React.useMemo(() => new UserService(context), [context]);
   
   // Состояние для данных пользователя
-  const [currentUser, setCurrentUser] = useState<ICurrentUser | null>(null);
+  const [currentUser, setCurrentUser] = useState<ICurrentUser | undefined>(undefined);
   
   // Состояние для данных департаментов
   const [departments, setDepartments] = useState<IDepartment[]>([]);
@@ -23,7 +22,7 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
   
   // Состояние для данных сотрудников
   const [staffMembers, setStaffMembers] = useState<IStaffMember[]>([]);
-  const [selectedStaff, setSelectedStaff] = useState<IStaffMember | null>(null);
+  const [selectedStaff, setSelectedStaff] = useState<IStaffMember | undefined>(undefined);
   
   // Состояние загрузки
   const [loadingState, setLoadingState] = useState<ILoadingState>({
@@ -35,9 +34,9 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
   
   // Функция для добавления нового шага загрузки
   const addLoadingStep = (id: string, description: string, status: 'pending' | 'loading' | 'success' | 'error', details?: string): void => {
-    setLoadingState(prevState => {
+    setLoadingState((prevState: ILoadingState) => {
       // Проверяем, существует ли уже шаг с таким id
-      const existingStepIndex = prevState.loadingSteps.findIndex(step => step.id === id);
+      const existingStepIndex = prevState.loadingSteps.findIndex((step: ILoadingStep) => step.id === id);
       
       let newSteps;
       if (existingStepIndex !== -1) {
@@ -89,17 +88,17 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
       console.error("Error fetching current user:", error);
       addLoadingStep('fetch-current-user', 'Loading current user data', 'error', `Error: ${error}`);
       
-      setLoadingState(prevState => ({
+      setLoadingState((prevState: ILoadingState) => ({
         ...prevState,
         hasError: true,
         errorMessage: `Error fetching current user: ${error}`
       }));
-      return null;
+      return undefined;
     }
   }, [userService]);
   
   // Функция для загрузки данных департаментов
-  const fetchDepartments = useCallback(async (user: ICurrentUser | null | undefined) => {
+  const fetchDepartments = useCallback(async (user: ICurrentUser | undefined) => {
     try {
       if (user && user.ID) {
         // Если у нас есть пользователь, получаем его департаменты
@@ -138,7 +137,7 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
       console.error("Error fetching departments:", error);
       addLoadingStep('fetch-departments', 'Loading departments data', 'error', `Error: ${error}`);
       
-      setLoadingState(prevState => ({
+      setLoadingState((prevState: ILoadingState) => ({
         ...prevState,
         hasError: true,
         errorMessage: `Error fetching departments: ${error}`
@@ -181,7 +180,7 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
       console.error("Error fetching staff members:", error);
       addLoadingStep('fetch-staff', 'Loading staff members', 'error', `Error: ${error}`);
       
-      setLoadingState(prevState => ({
+      setLoadingState((prevState: ILoadingState) => ({
         ...prevState,
         hasError: true,
         errorMessage: `Error fetching staff members: ${error}`
@@ -217,7 +216,7 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
       
       addLoadingStep('refresh-complete', 'Data refresh complete', 'success', 'All data loaded successfully');
       
-      setLoadingState(prevState => ({
+      setLoadingState((prevState: ILoadingState) => ({
         ...prevState,
         isLoading: false
       }));
@@ -225,7 +224,7 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
       console.error("Error refreshing data:", error);
       addLoadingStep('refresh-error', 'Data refresh failed', 'error', `Error: ${error}`);
       
-      setLoadingState(prevState => ({
+      setLoadingState((prevState: ILoadingState) => ({
         ...prevState,
         isLoading: false,
         hasError: true,
@@ -260,20 +259,26 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
   
   // Инициализация приложения
   useEffect(() => {
-    addLoadingStep('init', 'Initializing application', 'loading', 'Setting up services and context');
+    const initializeApp = async (): Promise<void> => {
+      addLoadingStep('init', 'Initializing application', 'loading', 'Setting up services and context');
+      
+      // Подтверждаем инициализацию как выполненную
+      addLoadingStep('init', 'Initializing application', 'success', 'Application initialized successfully');
+      
+      // Загружаем начальные данные
+      await refreshData();
+    };
     
-    // Подтверждаем инициализацию как выполненную
-    addLoadingStep('init', 'Initializing application', 'success', 'Application initialized successfully');
-    
-    // Загружаем начальные данные
-    refreshData();
+    // Используем .catch() вместо void operator
+    initializeApp().catch(error => console.error("Initialization error:", error));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   
   // При изменении выбранного департамента загружаем его сотрудников
   useEffect(() => {
     if (selectedDepartmentId) {
-      fetchStaffMembers(selectedDepartmentId);
+      // Используем .catch() вместо void operator
+      fetchStaffMembers(selectedDepartmentId).catch(error => console.error("Error fetching staff:", error));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDepartmentId]);
