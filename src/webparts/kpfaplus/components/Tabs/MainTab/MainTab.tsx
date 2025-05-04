@@ -2,14 +2,19 @@
 import * as React from 'react';
 import { ITabProps } from '../../../models/types';
 import { Toggle } from '@fluentui/react/lib/Toggle';
+import { TextField } from '@fluentui/react/lib/TextField';
 import styles from './MainTab.module.scss';
-import { useDataContext } from '../../../context';
 
 export const MainTab: React.FC<ITabProps> = (props) => {
-  const { selectedStaff, autoSchedule, onAutoScheduleChange } = props;
-  
-  // Получаем дополнительные данные из контекста, если они понадобятся
-  const { departments } = useDataContext();
+  const { 
+    selectedStaff, 
+    autoSchedule, 
+    onAutoScheduleChange,
+    srsFilePath,
+    onSrsFilePathChange,
+    generalNote,
+    onGeneralNoteChange
+  } = props;
 
   if (!selectedStaff) {
     return <div>Please select a staff member</div>;
@@ -49,14 +54,28 @@ export const MainTab: React.FC<ITabProps> = (props) => {
           />
         </div>
       </div>
-      
-      {/* Информация о департаментах */}
-      {departments.length > 0 && (
-        <div style={{ marginTop: '20px' }}>
-          <h3>Department Information</h3>
-          <p>Total departments: {departments.length}</p>
-        </div>
-      )}
+
+      {/* Поле для пути SRS файла */}
+      <div className={styles.fieldContainer}>
+        <TextField
+          label="Path for SRS file:"
+          value={srsFilePath}
+          onChange={(_, newValue) => onSrsFilePathChange?.(newValue || '')}
+          className={styles.srsPathField}
+        />
+      </div>
+
+      {/* Поле для общей заметки */}
+      <div className={styles.fieldContainer}>
+        <TextField
+          label="General note:"
+          value={generalNote}
+          onChange={(_, newValue) => onGeneralNoteChange?.(newValue || '')}
+          multiline
+          rows={5}
+          className={styles.generalNoteField}
+        />
+      </div>
     </div>
   );
 };

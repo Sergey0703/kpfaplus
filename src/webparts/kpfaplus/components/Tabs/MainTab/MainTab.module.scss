@@ -1,51 +1,81 @@
+// src/webparts/kpfaplus/components/Tabs/MainTab/MainTab.module.scss
 .mainTab {
-    padding: 20px;
+  padding: 20px;
+}
+
+.staffInfo {
+  display: flex;
+  margin-bottom: 20px;
+}
+
+.profilePhoto {
+  margin-right: 20px;
+}
+
+.photoPlaceholder {
+  width: 100px;
+  height: 100px;
+  background-color: #f0f0f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23cccccc"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>');
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 60%;
+}
+
+.staffDetails {
+  flex: 1;
+  
+  h2 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    color: #333;
+    font-size: 24px;
+  }
+
+  label {
+    font-weight: 600;
+    margin-right: 10px;
+    color: #555;
+  }
+}
+
+.staffMetadata {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+  margin-bottom: 25px;
+  padding: 15px;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+  
+  > div {
+    margin-bottom: 10px;
   }
   
-  .staffInfo {
-    display: flex;
-    margin-bottom: 20px;
+  label {
+    display: inline-block;
+    margin-right: 10px;
+    font-weight: 600;
+    color: #555;
   }
-  
-  .profilePhoto {
-    margin-right: 20px;
-  }
-  
-  .photoPlaceholder {
-    width: 100px;
-    height: 100px;
-    background-color: #f0f0f0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-  }
-  
-  .staffDetails {
-    flex: 1;
-    
-    h2 {
-      margin-top: 0;
-      margin-bottom: 10px;
-    }
-  }
-  
-  .staffMetadata {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    
-    > div {
-      margin-bottom: 10px;
-    }
-    
-    label {
-      display: inline-block;
-      margin-right: 10px;
-      font-weight: 600;
-    }
-  }
-  
-  .autoSchedule {
-    grid-column: 1 / -1;
-  }
+}
+
+.autoSchedule {
+  grid-column: 1 / -1;
+}
+
+.fieldContainer {
+  margin-bottom: 20px;
+}
+
+.srsPathField {
+  width: 100%;
+}
+
+.generalNoteField {
+  width: 100%;
+}

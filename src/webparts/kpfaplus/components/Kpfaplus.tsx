@@ -43,6 +43,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
     // Данные сотрудников
     staffMembers,
     selectedStaff,
+    setSelectedStaff,
     
     // Состояние загрузки
     loadingState,
@@ -78,6 +79,15 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
     });
   }, [staffMembers]);
 
+  // Автоматически выбираем первого сотрудника, если никто не выбран
+  useEffect(() => {
+    // Если у нас есть сотрудники, но нет выбранного сотрудника - выбираем первого
+    if (staffMembers.length > 0 && !selectedStaff) {
+      logInfo(`Auto-selecting first staff member: ${staffMembers[0].name} (ID: ${staffMembers[0].id})`);
+      setSelectedStaff(staffMembers[0]);
+    }
+  }, [staffMembers, selectedStaff, setSelectedStaff]);
+
   // Логируем выбранный департамент
   useEffect(() => {
     if (selectedDepartmentId) {
@@ -90,6 +100,11 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
   useEffect(() => {
     if (selectedStaff) {
       logInfo(`Selected staff: ${selectedStaff.name} (ID: ${selectedStaff.id})`);
+      
+      // Обновляем состояния для вкладок при изменении выбранного сотрудника
+      setAutoSchedule(selectedStaff.autoSchedule || false);
+      setSrsFilePath(selectedStaff.pathForSRSFile || '');
+      setGeneralNote(selectedStaff.generalNote || '');
     }
   }, [selectedStaff]);
 
