@@ -2,6 +2,7 @@ import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { IKPFAprops } from './IKpfaplusProps';
 import { DepartmentService, IDepartment } from '../services/DepartmentService';
+import { UserService, ICurrentUser } from '../services/UserService';
 import { StaffGallery } from './StaffGallery/StaffGallery';
 import { Pivot, PivotItem } from '@fluentui/react/lib/Pivot';
 
@@ -23,12 +24,16 @@ interface IStaffMember {
 }
 
 const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
-  // Инициализируем сервис
+  // Инициализируем сервисы
   const departmentService = React.useMemo(() => new DepartmentService(props.context), [props.context]);
+  const userService = React.useMemo(() => new UserService(props.context), [props.context]);
   
   const [departments, setDepartments] = useState<IDepartment[]>([]);
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  
+  // Состояние для текущего пользователя
+  const [currentUser, setCurrentUser] = useState<ICurrentUser | undefined>(undefined);
   
   // Состояние для сотрудников
   const [staffMembers, setStaffMembers] = useState<IStaffMember[]>([]);
@@ -43,16 +48,33 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
   const [srsFilePath, setSrsFilePath] = useState<string>('');
   const [generalNote, setGeneralNote] = useState<string>('');
 
+  // Загрузка данных о текущем пользователе
+  const fetchUserData = async (): Promise<void> => {
+    try {
+      setIsLoading(true);
+      console.log("Fetching user data...");
+      
+      // Получаем текущего пользователя
+      const user = await userService.getCurrentUser();
+      setCurrentUser(user);
+      console.log(`Current user: ${user ? user.Title : 'Not found'}`);
+      
+      return;
+    } catch (error) {
+      console.error("Failed to fetch user data:", error);
+      throw error;
+    }
+  };
+
   // Загрузка департаментов
   const fetchDepartments = async (): Promise<void> => {
     try {
-      setIsLoading(true);
       console.log("Fetching departments...");
       const depts = await departmentService.fetchDepartments();
       console.log(`Fetched ${depts.length} departments`);
       setDepartments(depts);
       
-      // Если есть департаменты, выбираем первый
+      // Просто выбираем первый департамент, если он есть
       if (depts.length > 0) {
         setSelectedDepartmentId(depts[0].ID.toString());
       }
@@ -90,13 +112,22 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
     let isComponentMounted = true;
     
     const loadInitialData = async (): Promise<void> => {
-      await fetchDepartments();
+      try {
+        // Сначала загружаем данные пользователя
+        await fetchUserData();
+        
+        // Затем загружаем департаменты
+        if (isComponentMounted) {
+          await fetchDepartments();
+        }
+      } catch (error) {
+        console.error("Error loading initial data:", error);
+        setIsLoading(false);
+      }
     };
     
     if (isComponentMounted) {
-      loadInitialData().catch(error => {
-        console.error("Error loading initial data:", error);
-      });
+      loadInitialData();
     }
     
     return () => {
@@ -238,6 +269,19 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
           backgroundColor: '#ffffff',
           padding: '10px'
         }}>
+          {/* Информация о текущем пользователе */}
+          {currentUser && (
+            <div style={{ 
+              backgroundColor: '#f6f6f6', 
+              padding: '8px', 
+              marginBottom: '10px',
+              borderRadius: '4px',
+              fontSize: '12px'
+            }}>
+              Текущий пользователь: {currentUser.Title} (ID: {currentUser.ID})
+            </div>
+          )}
+
           {/* Панель с вкладками */}
           <Pivot 
             selectedKey={selectedTabKey} 
