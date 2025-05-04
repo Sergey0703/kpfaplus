@@ -1,10 +1,12 @@
+// src/webparts/kpfaplus/components/Kpfaplus.tsx
 import * as React from 'react';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { IKPFAprops } from './IKpfaplusProps';
-import { DepartmentService, IDepartment } from '../services/DepartmentService';
-import { UserService, ICurrentUser } from '../services/UserService';
 import { StaffGallery } from './StaffGallery/StaffGallery';
-import { Pivot, PivotItem } from '@fluentui/react/lib/Pivot';
+import { Pivot, PivotItem, Toggle } from '@fluentui/react';
+import { useDataContext } from '../context';
+import { LoadingProgress } from './LoadingProgress/LoadingProgress';
+import { RefreshButton } from './RefreshButton/RefreshButton';
 
 // Импортируем компоненты вкладок
 import { MainTab } from './Tabs/MainTab/MainTab';
@@ -14,150 +16,48 @@ import { LeavesTab } from './Tabs/LeavesTab/LeavesTab';
 import { LeaveTimeByYearsTab } from './Tabs/LeaveTimeByYearsTab/LeaveTimeByYearsTab';
 import { SRSTab } from './Tabs/SRSTab/SRSTab';
 
-// Интерфейс для сотрудника
-interface IStaffMember {
-  id: string;
-  name: string;
-  groupMemberId: string;
-  employeeId: string;
-  deleted?: boolean;
-}
-
 const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
-  // Инициализируем сервисы
-  const departmentService = React.useMemo(() => new DepartmentService(props.context), [props.context]);
-  const userService = React.useMemo(() => new UserService(props.context), [props.context]);
-  
-  const [departments, setDepartments] = useState<IDepartment[]>([]);
-  const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>("");
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  
-  // Состояние для текущего пользователя
-  const [currentUser, setCurrentUser] = useState<ICurrentUser | undefined>(undefined);
-  
-  // Состояние для сотрудников
-  const [staffMembers, setStaffMembers] = useState<IStaffMember[]>([]);
-  const [selectedStaff, setSelectedStaff] = useState<IStaffMember | undefined>(undefined);
-  const [showDeleted, setShowDeleted] = useState<boolean>(false);
+  // Получаем данные из контекста вместо локальных состояний
+  const {
+    // Данные пользователя
+    currentUser,
+    
+    // Данные департаментов
+    departments,
+    selectedDepartmentId,
+    setSelectedDepartmentId,
+    
+    // Данные сотрудников
+    staffMembers,
+    selectedStaff,
+    setSelectedStaff,
+    
+    // Состояние загрузки
+    loadingState,
+    
+    // Методы обновления данных
+    refreshData
+  } = useDataContext();
   
   // Состояние для вкладок
   const [selectedTabKey, setSelectedTabKey] = useState<string>('main');
+  
+  // Состояние для отображения удаленных сотрудников
+  const [showDeleted, setShowDeleted] = useState<boolean>(false);
+  
+  // Состояние для отображения деталей загрузки
+  const [showLoadingDetails, setShowLoadingDetails] = useState<boolean>(false);
   
   // Дополнительные состояния для данных в вкладках
   const [autoSchedule, setAutoSchedule] = useState<boolean>(true);
   const [srsFilePath, setSrsFilePath] = useState<string>('');
   const [generalNote, setGeneralNote] = useState<string>('');
 
-  // Загрузка данных о текущем пользователе
-  const fetchUserData = async (): Promise<ICurrentUser | undefined> => {
-    try {
-      setIsLoading(true);
-      console.log("Fetching user data...");
-      
-      // Получаем текущего пользователя
-      const user = await userService.getCurrentUser();
-      setCurrentUser(user);
-      console.log(`Current user: ${user ? user.Title : 'Not found'}`);
-      
-      return user; // Возвращаем пользователя для использования в цепочке промисов
-    } catch (error) {
-      console.error("Failed to fetch user data:", error);
-      return undefined;
-    }
-  };
-
-  // Загрузка департаментов
-  const fetchDepartments = async (user: ICurrentUser | undefined): Promise<void> => {
-    try {
-      console.log("Fetching departments...");
-      
-      // Если у нас есть текущий пользователь, получаем только его департаменты
-      if (user && user.ID) {
-        console.log(`Fetching departments for manager ID: ${user.ID}`);
-        const depts = await departmentService.fetchDepartmentsByManager(user.ID);
-        console.log(`Fetched ${depts.length} departments for manager ID: ${user.ID}`);
-        
-        setDepartments(depts);
-        
-        // Выбираем первый департамент из списка, если он есть
-        if (depts.length > 0) {
-          setSelectedDepartmentId(depts[0].ID.toString());
-        }
-      } else {
-        console.log("No current user found, cannot fetch departments by manager");
-      }
-      
-      setIsLoading(false);
-    } catch (error) {
-      console.error("Failed to fetch departments:", error);
-      setIsLoading(false);
-    }
-  };
-
-  // Временная функция для загрузки сотрудников
-  const loadMockStaffMembers = (departmentId: string): void => {
-    console.log(`Loading staff for department ${departmentId}`);
-    // Здесь в будущем будет реальный запрос к SharePoint
-    const mockStaff: IStaffMember[] = [
-      { id: '1', name: 'Adele Kerrisk', groupMemberId: '249', employeeId: '' },
-      { id: '2', name: 'Anna Mujeni', groupMemberId: '250', employeeId: '' },
-      { id: '3', name: 'Anne Casey', groupMemberId: '251', employeeId: '' },
-      { id: '4', name: 'aSerhii Baliasnyi', groupMemberId: '252', employeeId: '' },
-      { id: '5', name: 'Christina Leahy', groupMemberId: '253', employeeId: '' },
-      { id: '6', name: 'Christine Tyler Nolan', groupMemberId: '254', employeeId: '' },
-      { id: '7', name: 'Ciara Palmer', groupMemberId: '255', employeeId: '' },
-      { id: '8', name: 'Daniel Kelly', groupMemberId: '256', employeeId: '', deleted: true }
-    ];
-    
-    setStaffMembers(mockStaff);
-    if (mockStaff.length > 0) {
-      setSelectedStaff(mockStaff[0]);
-    }
-  };
-
-  // Загрузка данных при инициализации компонента
-  useEffect(() => {
-    let isComponentMounted = true;
-    
-    const loadInitialData = async (): Promise<void> => {
-      try {
-        // Сначала загружаем данные пользователя и передаем их в следующий шаг
-        const user = await fetchUserData();
-        
-        // Только затем загружаем департаменты, передавая пользователя напрямую
-        if (isComponentMounted) {
-          await fetchDepartments(user);
-        }
-      } catch (error) {
-        console.error("Error loading initial data:", error);
-        setIsLoading(false);
-      }
-    };
-    
-    // Вызов функции с обработкой промиса
-    loadInitialData().catch(error => {
-      console.error("Unhandled promise rejection in loadInitialData:", error);
-    });
-    
-    return () => {
-      isComponentMounted = false;
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Пустой массив зависимостей - выполняется только при монтировании
-
-  // При изменении выбранного департамента, загружаем его сотрудников
-  useEffect(() => {
-    if (selectedDepartmentId) {
-      loadMockStaffMembers(selectedDepartmentId);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDepartmentId]);
-
   const handleDepartmentChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
     setSelectedDepartmentId(e.target.value);
   };
 
-  const handleStaffSelect = (staff: IStaffMember): void => {
+  const handleStaffSelect = (staff: any): void => {
     setSelectedStaff(staff);
   };
 
@@ -168,6 +68,13 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
   const handleTabChange = (item?: PivotItem): void => {
     if (item && item.props.itemKey) {
       setSelectedTabKey(item.props.itemKey);
+    }
+  };
+
+  // Обработчик для переключения отображения деталей загрузки
+  const handleToggleLoadingDetails = (event: React.MouseEvent<HTMLElement>, checked?: boolean): void => {
+    if (checked !== undefined) {
+      setShowLoadingDetails(checked);
     }
   };
 
@@ -221,9 +128,52 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
     }
   };
 
-  // Если данные загружаются, показываем загрузчик
-  if (isLoading) {
-    return <div>Загрузка данных...</div>;
+  // Если данные загружаются, показываем компонент загрузки
+  if (loadingState.isLoading) {
+    return (
+      <div style={{ padding: '20px' }}>
+        <div style={{ marginBottom: '15px' }}>
+          <Toggle
+            label="Show loading details"
+            checked={showLoadingDetails}
+            onChange={handleToggleLoadingDetails}
+          />
+        </div>
+        <LoadingProgress showDetail={showLoadingDetails} />
+      </div>
+    );
+  }
+
+  // Если произошла ошибка, показываем компонент загрузки с ошибкой
+  if (loadingState.hasError) {
+    return (
+      <div style={{ padding: '20px' }}>
+        <div style={{ marginBottom: '15px' }}>
+          <Toggle
+            label="Show error details"
+            checked={showLoadingDetails}
+            onChange={handleToggleLoadingDetails}
+          />
+        </div>
+        <LoadingProgress showDetail={showLoadingDetails} />
+        
+        <div style={{ marginTop: '20px' }}>
+          <button 
+            onClick={() => refreshData()}
+            style={{ 
+              padding: '8px 16px', 
+              backgroundColor: '#0078d4', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -252,7 +202,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
                 borderRadius: '3px'
               }}
             >
-              {departments.map((dept: IDepartment) => (
+              {departments.map((dept) => (
                 <option key={dept.ID} value={dept.ID.toString()}>
                   {dept.Title}
                 </option>
@@ -278,19 +228,62 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
           backgroundColor: '#ffffff',
           padding: '10px'
         }}>
-          {/* Информация о текущем пользователе */}
-          {currentUser && (
-            <div style={{ 
-              backgroundColor: '#f6f6f6', 
-              padding: '8px', 
-              marginBottom: '10px',
-              borderRadius: '4px',
-              fontSize: '12px'
-            }}>
-              Текущий пользователь: {currentUser.Title} (ID: {currentUser.ID})
-              {departments.length > 0 && ` | Управляет департаментами: ${departments.length}`}
+          {/* Информация о текущем пользователе и система логирования */}
+          <div style={{ 
+            backgroundColor: '#f6f6f6', 
+            padding: '8px', 
+            marginBottom: '10px',
+            borderRadius: '4px',
+            fontSize: '12px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                {currentUser && `Текущий пользователь: ${currentUser.Title} (ID: ${currentUser.ID})`}
+                {departments.length > 0 && ` | Управляет департаментами: ${departments.length}`}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <RefreshButton title="Обновить данные" />
+                <Toggle
+                  label="Show loading log"
+                  checked={showLoadingDetails}
+                  onChange={handleToggleLoadingDetails}
+                  styles={{
+                    root: { margin: 0, marginLeft: '10px' },
+                    label: { fontSize: '12px' }
+                  }}
+                />
+              </div>
             </div>
-          )}
+            
+            {/* Показываем журнал загрузки, если включен */}
+            {showLoadingDetails && (
+              <div style={{ marginTop: '10px', maxHeight: '200px', overflowY: 'auto' }}>
+                <h4 style={{ margin: '0 0 5px 0', fontSize: '14px' }}>Loading Log:</h4>
+                <ul style={{ margin: 0, padding: '0 0 0 20px', fontSize: '11px' }}>
+                  {loadingState.loadingSteps.map((step, index) => (
+                    <li key={index} style={{ marginBottom: '2px' }}>
+                      <span style={{ 
+                        display: 'inline-block', 
+                        width: '16px',
+                        marginRight: '5px',
+                        textAlign: 'center'
+                      }}>
+                        {step.status === 'pending' && '⏱️'}
+                        {step.status === 'loading' && '🔄'}
+                        {step.status === 'success' && '✅'}
+                        {step.status === 'error' && '❌'}
+                      </span>
+                      <span style={{ fontWeight: 'bold' }}>{step.description}</span>
+                      {step.details && <span style={{ marginLeft: '5px', color: '#666' }}>- {step.details}</span>}
+                      <span style={{ color: '#888', marginLeft: '5px', fontSize: '10px' }}>
+                        ({step.timestamp.toLocaleTimeString()})
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
 
           {/* Панель с вкладками */}
           <Pivot 

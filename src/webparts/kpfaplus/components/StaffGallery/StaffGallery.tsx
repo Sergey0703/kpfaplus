@@ -1,3 +1,4 @@
+// src/webparts/kpfaplus/components/StaffGallery/StaffGallery.tsx
 import * as React from 'react';
 import { Toggle } from '@fluentui/react/lib/Toggle';
 import { List } from '@fluentui/react/lib/List';
@@ -7,7 +8,7 @@ import styles from './StaffGallery.module.scss';
 
 export interface IStaffGalleryProps {
   staffMembers: IStaffMember[];
-  selectedStaff: IStaffMember | undefined; // Изменил null на undefined
+  selectedStaff: IStaffMember | null;
   showDeleted: boolean;
   onShowDeletedChange: (showDeleted: boolean) => void;
   onStaffSelect: (staff: IStaffMember) => void;

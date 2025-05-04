@@ -1,3 +1,4 @@
+// src/webparts/kpfaplus/models/types.ts
 export interface IStaffMember {
   id: string;
   name: string;
@@ -13,6 +14,11 @@ export interface IDepartment {
 }
 
 export interface ITabProps {
-  selectedStaff: IStaffMember | undefined; // Изменил null на undefined
-  onStaffUpdate?: (staff: IStaffMember) => void;
+  selectedStaff: IStaffMember | null;
+  autoSchedule?: boolean;
+  onAutoScheduleChange?: (ev: React.MouseEvent<HTMLElement>, checked?: boolean) => void;
+  srsFilePath?: string;
+  onSrsFilePathChange?: (newValue: string) => void;
+  generalNote?: string;
+  onGeneralNoteChange?: (newValue: string) => void;
 }

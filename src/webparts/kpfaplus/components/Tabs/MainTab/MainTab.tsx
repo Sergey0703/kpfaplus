@@ -1,9 +1,15 @@
+// src/webparts/kpfaplus/components/Tabs/MainTab/MainTab.tsx
 import * as React from 'react';
 import { ITabProps } from '../../../models/types';
+import { Toggle } from '@fluentui/react/lib/Toggle';
 import styles from './MainTab.module.scss';
+import { useDataContext } from '../../../context';
 
 export const MainTab: React.FC<ITabProps> = (props) => {
-  const { selectedStaff } = props;
+  const { selectedStaff, autoSchedule, onAutoScheduleChange } = props;
+  
+  // Получаем дополнительные данные из контекста, если они понадобятся
+  const { departments } = useDataContext();
 
   if (!selectedStaff) {
     return <div>Please select a staff member</div>;
@@ -34,12 +40,23 @@ export const MainTab: React.FC<ITabProps> = (props) => {
           <label>GroupMemberID:</label>
           <span>{selectedStaff.groupMemberId || 'N/A'}</span>
         </div>
-        {/* Заглушка для переключателя Autoschedule */}
+        {/* Toggle для Autoschedule */}
         <div className={styles.autoSchedule}>
-          <label>Autoschedule</label>
-          {/* Здесь будет Toggle компонент */}
+          <Toggle
+            label="Autoschedule"
+            checked={autoSchedule}
+            onChange={onAutoScheduleChange}
+          />
         </div>
       </div>
+      
+      {/* Информация о департаментах */}
+      {departments.length > 0 && (
+        <div style={{ marginTop: '20px' }}>
+          <h3>Department Information</h3>
+          <p>Total departments: {departments.length}</p>
+        </div>
+      )}
     </div>
   );
 };

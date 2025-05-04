@@ -1,7 +1,9 @@
+// src/webparts/kpfaplus/components/Tabs/SRSTab/SRSTab.tsx
 import * as React from 'react';
 import { useState } from 'react';
 import { ITabProps } from '../../../models/types';
 import styles from './SRSTab.module.scss';
+import { useDataContext } from '../../../context';
 
 // Вспомогательные функции для генерации опций выпадающих списков
 const generateHoursOptions = (): JSX.Element[] => {
@@ -39,7 +41,10 @@ const tableCellStyle = {
 };
 
 export const SRSTab: React.FC<ITabProps> = (props) => {
-  const { selectedStaff } = props;
+  const { selectedStaff, srsFilePath, onSrsFilePathChange } = props;
+  
+  // Получаем дополнительные данные из контекста
+  const { currentUser } = useDataContext();
   
   // Состояния компонента
   const [fromDate, setFromDate] = useState<string>("03.05.2025");
@@ -82,18 +87,28 @@ export const SRSTab: React.FC<ITabProps> = (props) => {
 
   const handleRefresh = (): void => {
     console.log("Refreshing data...");
+    // В будущем здесь будет вызов метода из контекста для обновления данных
   };
 
   const handleExport = (): void => {
     console.log("Exporting SRS data...");
+    // В будущем здесь будет взаимодействие с контекстом для экспорта данных
   };
 
   const handleSave = (): void => {
     console.log("Saving data...");
+    // В будущем здесь будет взаимодействие с контекстом для сохранения данных
   };
 
   const handleCheckedSave = (): void => {
     console.log("Saving checked data...");
+    // В будущем здесь будет взаимодействие с контекстом для сохранения отмеченных данных
+  };
+
+  const handleSrsFilePathChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    if (onSrsFilePathChange) {
+      onSrsFilePathChange(e.target.value);
+    }
   };
 
   if (!selectedStaff) {
@@ -102,9 +117,14 @@ export const SRSTab: React.FC<ITabProps> = (props) => {
 
   return (
     <div className={styles.srsTab}>
-      {/* Заголовок */}
+      {/* Заголовок с информацией о текущем пользователе */}
       <div className={styles.srsHeader}>
         <div>SRS for {selectedStaff.name}</div>
+        {currentUser && (
+          <div style={{ fontSize: '12px', color: '#666' }}>
+            Manager: {currentUser.Title}
+          </div>
+        )}
       </div>
       
       {/* Выбор даты и кнопка обновления */}
@@ -130,6 +150,20 @@ export const SRSTab: React.FC<ITabProps> = (props) => {
         <button className={styles.refreshButton} onClick={handleRefresh}>
           Refresh
         </button>
+      </div>
+      
+      {/* Путь к файлу SRS */}
+      <div className={styles.dateRow} style={{ marginTop: '10px' }}>
+        <div className={styles.dateField} style={{ width: '100%' }}>
+          <span className={styles.dateLabel}>SRS File Path:</span>
+          <input 
+            type="text" 
+            className={styles.dateInput} 
+            style={{ width: '100%' }}
+            value={srsFilePath || ''} 
+            onChange={handleSrsFilePathChange}
+          />
+        </div>
       </div>
       
       {/* Общее количество часов и кнопки */}

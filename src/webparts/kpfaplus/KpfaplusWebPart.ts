@@ -1,3 +1,4 @@
+// src/webparts/kpfaplus/KpfaplusWebPart.ts
 import * as React from 'react';
 import * as ReactDom from 'react-dom';
 import { Version } from '@microsoft/sp-core-library';
@@ -11,6 +12,7 @@ import { IReadonlyTheme } from '@microsoft/sp-component-base';
 import * as strings from 'KpfaplusWebPartStrings';
 import Kpfaplus from './components/Kpfaplus';
 import { IKPFAprops } from './components/IKpfaplusProps';
+import { DataProvider } from './context';
 
 export interface IKpfaplusWebPartProps {
   description: string;
@@ -22,15 +24,24 @@ export default class KpfaplusWebPart extends BaseClientSideWebPart<IKpfaplusWebP
   private _environmentMessage: string = '';
 
   public render(): void {
-    const element: React.ReactElement<IKPFAprops> = React.createElement(
+    // Создаем элемент Kpfaplus с нужными пропсами
+    const kpfaplusElement: React.ReactElement<IKPFAprops> = React.createElement(
       Kpfaplus,
       {
         description: this.properties.description,
         isDarkTheme: this._isDarkTheme,
         environmentMessage: this._environmentMessage,
         hasTeamsContext: !!this.context.sdks.microsoftTeams,
-        userDisplayName: this.context.pageContext.user.displayName,
-        context: this.context
+        userDisplayName: this.context.pageContext.user.displayName
+      }
+    );
+
+    // Оборачиваем его в DataProvider
+    const element: React.ReactElement = React.createElement(
+      DataProvider,
+      {
+        context: this.context,
+        children: kpfaplusElement
       }
     );
 

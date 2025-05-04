@@ -1,11 +1,9 @@
-import { WebPartContext } from "@microsoft/sp-webpart-base";
-
+// src/webparts/kpfaplus/components/IKpfaplusProps.ts
 export interface IKPFAprops {
   description: string;
   isDarkTheme: boolean;
   environmentMessage: string;
   hasTeamsContext: boolean;
   userDisplayName: string;
-  context: WebPartContext;
-  // Используем undefined вместо null, как требуется линтером
+  // Удалены props context, т.к. они теперь доступны через контекст
 }
