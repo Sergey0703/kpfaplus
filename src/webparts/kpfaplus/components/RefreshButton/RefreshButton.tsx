@@ -1,6 +1,6 @@
 // src/webparts/kpfaplus/components/RefreshButton/RefreshButton.tsx
 import * as React from 'react';
-import { IconButton, Spinner, SpinnerSize } from '@fluentui/react';
+import { IconButton, Spinner, SpinnerSize, TooltipHost } from '@fluentui/react';
 import { useDataContext } from '../../context';
 
 export interface IRefreshButtonProps {
@@ -29,18 +29,28 @@ export const RefreshButton: React.FC<IRefreshButtonProps> = (props) => {
     }
   }, [loadingState.isLoading, isRefreshing, refreshData]);
   
+  // Получаем текущий шаг загрузки (если есть)
+  const getRefreshStatus = (): string => {
+    if (loadingState.loadingSteps.length === 0) return title;
+    
+    const lastStep = loadingState.loadingSteps[loadingState.loadingSteps.length - 1];
+    return `${lastStep.description} ${lastStep.details ? `- ${lastStep.details}` : ''}`;
+  };
+  
   return (
-    <div style={{ display: 'inline-block', position: 'relative' }}>
-      {isRefreshing ? (
-        <Spinner size={SpinnerSize.small} />
-      ) : (
-        <IconButton
-          iconProps={{ iconName: 'Refresh' }}
-          title={title}
-          onClick={handleRefresh}
-          disabled={loadingState.isLoading}
-        />
-      )}
-    </div>
+    <TooltipHost content={isRefreshing ? getRefreshStatus() : title}>
+      <div style={{ display: 'inline-block', position: 'relative', width: '32px', height: '32px' }}>
+        {isRefreshing ? (
+          <Spinner size={SpinnerSize.small} styles={{ root: { padding: '4px' } }} />
+        ) : (
+          <IconButton
+            iconProps={{ iconName: 'Refresh' }}
+            title={title}
+            onClick={handleRefresh}
+            disabled={loadingState.isLoading}
+          />
+        )}
+      </div>
+    </TooltipHost>
   );
 };

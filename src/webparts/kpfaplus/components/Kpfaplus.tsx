@@ -6,6 +6,7 @@ import { StaffGallery } from './StaffGallery/StaffGallery';
 import { Pivot, PivotItem, Toggle } from '@fluentui/react';
 import { useDataContext } from '../context';
 import { LoadingProgress } from './LoadingProgress/LoadingProgress';
+import { LoadingSpinner } from './LoadingSpinner/LoadingSpinner';
 import { RefreshButton } from './RefreshButton/RefreshButton';
 
 // Импортируем компоненты вкладок
@@ -128,18 +129,11 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
     }
   };
 
-  // Если данные загружаются, показываем компонент загрузки
+  // Если данные загружаются, показываем спиннер
   if (loadingState.isLoading) {
     return (
-      <div style={{ padding: '20px' }}>
-        <div style={{ marginBottom: '15px' }}>
-          <Toggle
-            label="Show loading details"
-            checked={showLoadingDetails}
-            onChange={handleToggleLoadingDetails}
-          />
-        </div>
-        <LoadingProgress showDetail={showLoadingDetails} />
+      <div style={{ height: '100%', width: '100%' }}>
+        <LoadingSpinner showDetails={showLoadingDetails} />
       </div>
     );
   }

@@ -2,12 +2,10 @@
 import * as React from 'react';
 import { useState, useEffect, useCallback } from 'react';
 import { DataContext } from './DataContext';
-import { IDataProviderProps, ILoadingState } from './types'; // Удалили неиспользуемый импорт ILoadingStep
+import { IDataProviderProps, ILoadingState } from './types';
 import { DepartmentService, IDepartment } from '../services/DepartmentService';
 import { UserService, ICurrentUser } from '../services/UserService';
 import { IStaffMember } from '../models/types';
-
-// Остальной код остается без изменений
 
 export const DataProvider: React.FC<IDataProviderProps> = (props) => {
   const { context, children } = props;
@@ -27,7 +25,7 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
   const [staffMembers, setStaffMembers] = useState<IStaffMember[]>([]);
   const [selectedStaff, setSelectedStaff] = useState<IStaffMember | null>(null);
   
-  // Состояние загрузки с шагами
+  // Состояние загрузки
   const [loadingState, setLoadingState] = useState<ILoadingState>({
     isLoading: true,
     hasError: false,
@@ -260,8 +258,14 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
     }
   }, [fetchStaffMembers]);
   
-  // Загрузка начальных данных при монтировании компонента
+  // Инициализация приложения
   useEffect(() => {
+    addLoadingStep('init', 'Initializing application', 'loading', 'Setting up services and context');
+    
+    // Подтверждаем инициализацию как выполненную
+    addLoadingStep('init', 'Initializing application', 'success', 'Application initialized successfully');
+    
+    // Загружаем начальные данные
     refreshData();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

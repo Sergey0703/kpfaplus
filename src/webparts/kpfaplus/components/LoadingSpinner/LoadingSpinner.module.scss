@@ -1,0 +1,109 @@
+// src/webparts/kpfaplus/components/LoadingSpinner/LoadingSpinner.module.scss
+.loadingSpinner {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    min-height: 300px;
+    padding: 20px;
+    background-color: rgba(255, 255, 255, 0.95);
+  }
+  
+  .spinnerContainer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 600px;
+    width: 100%;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 30px;
+  }
+  
+  .progressContainer {
+    width: 100%;
+    margin-top: 30px;
+    margin-bottom: 15px;
+  }
+  
+  .stepDetails {
+    font-size: 12px;
+    color: #666;
+    margin-top: 5px;
+    text-align: center;
+  }
+  
+  .stepsContainer {
+    width: 100%;
+    margin-top: 20px;
+    border-top: 1px solid #f0f0f0;
+    padding-top: 15px;
+  }
+  
+  .stepsTitle {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: #333;
+  }
+  
+  .stepsList {
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  
+  .step {
+    display: flex;
+    padding: 8px;
+    border-radius: 4px;
+    margin-bottom: 5px;
+    
+    &.pending {
+      background-color: #f9f9f9;
+    }
+    
+    &.loading {
+      background-color: #e8f5ff;
+    }
+    
+    &.success {
+      background-color: #eafbe8;
+    }
+    
+    &.error {
+      background-color: #ffeaea;
+    }
+  }
+  
+  .stepIcon {
+    margin-right: 10px;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+  }
+  
+  .stepContent {
+    flex: 1;
+  }
+  
+  .stepDescription {
+    font-weight: 500;
+    font-size: 13px;
+  }
+  
+  .stepDetails {
+    font-size: 12px;
+    color: #666;
+    margin-top: 3px;
+  }
+  
+  .stepTime {
+    font-size: 11px;
+    color: #888;
+    margin-top: 2px;
+  }
