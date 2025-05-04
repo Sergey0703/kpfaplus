@@ -41,7 +41,7 @@ const tableCellStyle = {
 };
 
 export const SRSTab: React.FC<ITabProps> = (props) => {
-  const { selectedStaff, srsFilePath, onSrsFilePathChange } = props;
+  const { selectedStaff } = props;
   
   // Получаем дополнительные данные из контекста
   const { currentUser } = useDataContext();
@@ -105,12 +105,6 @@ export const SRSTab: React.FC<ITabProps> = (props) => {
     // В будущем здесь будет взаимодействие с контекстом для сохранения отмеченных данных
   };
 
-  const handleSrsFilePathChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
-    if (onSrsFilePathChange) {
-      onSrsFilePathChange(e.target.value);
-    }
-  };
-
   if (!selectedStaff) {
     return <div>Please select a staff member</div>;
   }
@@ -150,20 +144,6 @@ export const SRSTab: React.FC<ITabProps> = (props) => {
         <button className={styles.refreshButton} onClick={handleRefresh}>
           Refresh
         </button>
-      </div>
-      
-      {/* Путь к файлу SRS */}
-      <div className={styles.dateRow} style={{ marginTop: '10px' }}>
-        <div className={styles.dateField} style={{ width: '100%' }}>
-          <span className={styles.dateLabel}>SRS File Path:</span>
-          <input 
-            type="text" 
-            className={styles.dateInput} 
-            style={{ width: '100%' }}
-            value={srsFilePath || ''} 
-            onChange={handleSrsFilePathChange}
-          />
-        </div>
       </div>
       
       {/* Общее количество часов и кнопки */}
