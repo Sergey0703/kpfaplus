@@ -17,10 +17,12 @@
   .list {
     flex: 1;
     overflow-y: auto;
+    border: 1px solid #eaeaea;
+    border-radius: 2px;
     
     .staffItem {
       padding: 8px;
-      margin-bottom: 4px;
+      margin-bottom: 2px;
       border-left: 3px solid transparent;
       cursor: pointer;
       transition: background-color 0.2s ease;
@@ -53,5 +55,22 @@
       text-align: center;
       color: #999;
     }
+  }
+  
+  .loadingContainer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+  }
+  
+  .error {
+    color: #a80000;
+    margin-top: 10px;
+    padding: 8px;
+    border: 1px solid #a80000;
+    border-radius: 2px;
+    background-color: #fde7e9;
+    font-size: 12px;
   }
 }

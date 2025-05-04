@@ -1,6 +1,6 @@
 // src/webparts/kpfaplus/components/Kpfaplus.tsx
 import * as React from 'react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { IKPFAprops } from './IKpfaplusProps';
 import { StaffGallery } from './StaffGallery/StaffGallery';
 import { Pivot, PivotItem, Toggle } from '@fluentui/react';
@@ -8,7 +8,6 @@ import { useDataContext } from '../context';
 import { LoadingProgress } from './LoadingProgress/LoadingProgress';
 import { LoadingSpinner } from './LoadingSpinner/LoadingSpinner';
 import { RefreshButton } from './RefreshButton/RefreshButton';
-import { IStaffMember } from '../models/types';
 import { IDepartment } from '../services/DepartmentService';
 import { ILoadingStep } from '../context/types';
 
@@ -21,6 +20,16 @@ import { LeaveTimeByYearsTab } from './Tabs/LeaveTimeByYearsTab/LeaveTimeByYears
 import { SRSTab } from './Tabs/SRSTab/SRSTab';
 
 const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
+  // Настроим логирование
+  const logSource = "KPFAPlus";
+  const logInfo = (message: string): void => {
+    console.log(`[${logSource}] ${message}`);
+  };
+  
+  const logError = (message: string): void => {
+    console.error(`[${logSource}] ${message}`);
+  };
+
   // Получаем данные из контекста вместо локальных состояний
   const {
     // Данные пользователя
@@ -34,7 +43,6 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
     // Данные сотрудников
     staffMembers,
     selectedStaff,
-    setSelectedStaff,
     
     // Состояние загрузки
     loadingState,
@@ -46,9 +54,6 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
   // Состояние для вкладок
   const [selectedTabKey, setSelectedTabKey] = useState<string>('main');
   
-  // Состояние для отображения удаленных сотрудников
-  const [showDeleted, setShowDeleted] = useState<boolean>(false);
-  
   // Состояние для отображения деталей загрузки
   const [showLoadingDetails, setShowLoadingDetails] = useState<boolean>(false);
   
@@ -57,20 +62,45 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
   const [srsFilePath, setSrsFilePath] = useState<string>('');
   const [generalNote, setGeneralNote] = useState<string>('');
 
+  // Добавляем логи при монтировании компонента
+  useEffect(() => {
+    logInfo("Component mounted");
+    return () => {
+      logInfo("Component unmounted");
+    };
+  }, []);
+
+  // Логируем обновление staffMembers
+  useEffect(() => {
+    logInfo(`Staff members updated: ${staffMembers.length} items`);
+    staffMembers.slice(0, 3).forEach((staff, index) => {
+      logInfo(`Staff [${index}]: id=${staff.id}, name=${staff.name}, deleted=${staff.deleted || false}`);
+    });
+  }, [staffMembers]);
+
+  // Логируем выбранный департамент
+  useEffect(() => {
+    if (selectedDepartmentId) {
+      const dept = departments.find(d => d.ID.toString() === selectedDepartmentId);
+      logInfo(`Selected department: ${dept ? dept.Title : 'Unknown'} (ID: ${selectedDepartmentId})`);
+    }
+  }, [selectedDepartmentId, departments]);
+
+  // Логируем выбранного сотрудника
+  useEffect(() => {
+    if (selectedStaff) {
+      logInfo(`Selected staff: ${selectedStaff.name} (ID: ${selectedStaff.id})`);
+    }
+  }, [selectedStaff]);
+
   const handleDepartmentChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
+    logInfo(`Department changed to ID: ${e.target.value}`);
     setSelectedDepartmentId(e.target.value);
-  };
-
-  const handleStaffSelect = (staff: IStaffMember): void => {
-    setSelectedStaff(staff);
-  };
-
-  const handleShowDeletedChange = (showDeleted: boolean): void => {
-    setShowDeleted(showDeleted);
   };
   
   const handleTabChange = (item?: PivotItem): void => {
     if (item && item.props.itemKey) {
+      logInfo(`Tab changed to: ${item.props.itemKey}`);
       setSelectedTabKey(item.props.itemKey);
     }
   };
@@ -78,6 +108,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
   // Обработчик для переключения отображения деталей загрузки
   const handleToggleLoadingDetails = (event: React.MouseEvent<HTMLElement>, checked?: boolean): void => {
     if (checked !== undefined) {
+      logInfo(`Show loading details toggled: ${checked}`);
       setShowLoadingDetails(checked);
     }
   };
@@ -85,15 +116,18 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
   // Обработчики для дополнительных данных
   const handleAutoScheduleChange = (ev: React.MouseEvent<HTMLElement>, checked?: boolean): void => {
     if (checked !== undefined) {
+      logInfo(`AutoSchedule changed: ${checked}`);
       setAutoSchedule(checked);
     }
   };
 
   const handleSrsFilePathChange = (newValue: string): void => {
+    logInfo(`SRS file path changed: ${newValue}`);
     setSrsFilePath(newValue);
   };
 
   const handleGeneralNoteChange = (newValue: string): void => {
+    logInfo(`General note changed to: ${newValue.substring(0, 20)}${newValue.length > 20 ? '...' : ''}`);
     setGeneralNote(newValue);
   };
 
@@ -113,6 +147,8 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
       generalNote,
       onGeneralNoteChange: handleGeneralNoteChange
     };
+
+    logInfo(`Rendering tab content for: ${selectedTabKey}`);
 
     switch (selectedTabKey) {
       case 'main':
@@ -134,6 +170,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
 
   // Если данные загружаются, показываем спиннер
   if (loadingState.isLoading) {
+    logInfo("Rendering loading spinner (isLoading=true)");
     return (
       <div style={{ height: '100%', width: '100%' }}>
         <LoadingSpinner showDetails={showLoadingDetails} />
@@ -143,6 +180,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
 
   // Если произошла ошибка, показываем компонент загрузки с ошибкой
   if (loadingState.hasError) {
+    logError(`Rendering error view: ${loadingState.errorMessage}`);
     return (
       <div style={{ padding: '20px' }}>
         <div style={{ marginBottom: '15px' }}>
@@ -156,7 +194,10 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
         
         <div style={{ marginTop: '20px' }}>
           <button 
-            onClick={() => refreshData()}
+            onClick={() => {
+              logInfo("Try Again button clicked");
+              refreshData();
+            }}
             style={{ 
               padding: '8px 16px', 
               backgroundColor: '#0078d4', 
@@ -172,6 +213,8 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
       </div>
     );
   }
+
+  logInfo("Rendering main component view");
 
   return (
     <div style={{ width: '100%', height: '100%', margin: 0, padding: 0, position: 'relative' }}>
@@ -207,14 +250,8 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
             </select>
           </div>
           
-          {/* Используем компонент StaffGallery */}
-          <StaffGallery
-            staffMembers={staffMembers}
-            selectedStaff={selectedStaff}
-            showDeleted={showDeleted}
-            onShowDeletedChange={handleShowDeletedChange}
-            onStaffSelect={handleStaffSelect}
-          />
+          {/* Используем компонент StaffGallery без пропсов */}
+          <StaffGallery />
         </div>
         
         {/* Правая панель */}
@@ -239,7 +276,9 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
                 {departments.length > 0 && ` | Управляет департаментами: ${departments.length}`}
               </div>
               <div style={{ display: 'flex', alignItems: 'center' }}>
-                <RefreshButton title="Обновить данные" />
+                <RefreshButton 
+                  title="Обновить данные" 
+                />
                 <Toggle
                   label="Show loading log"
                   checked={showLoadingDetails}
