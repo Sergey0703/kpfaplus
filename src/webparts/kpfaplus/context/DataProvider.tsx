@@ -2,9 +2,10 @@ import * as React from 'react';
 import { useState, useEffect, useCallback } from 'react';
 import { DataContext } from './DataContext';
 import { IDataProviderProps, ILoadingState, ILoadingStep } from './types';
-import { DepartmentService, IDepartment } from '../services/DepartmentService';
+import { DepartmentService } from '../services/DepartmentService';
 import { UserService, ICurrentUser } from '../services/UserService';
-import { IStaffMember } from '../models/types';
+import { IStaffMember, IGroupMember, IDepartment } from '../models/types';
+import { GroupMemberService } from '../services/GroupMemberService';
 
 export const DataProvider: React.FC<IDataProviderProps> = (props) => {
   const { context, children } = props;
@@ -12,6 +13,7 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
   // Инициализируем сервисы
   const departmentService = React.useMemo(() => new DepartmentService(context), [context]);
   const userService = React.useMemo(() => new UserService(context), [context]);
+  const groupMemberService = React.useMemo(() => new GroupMemberService(context), [context]);
   
   // Состояние для данных пользователя
   const [currentUser, setCurrentUser] = useState<ICurrentUser | undefined>(undefined);
@@ -145,39 +147,87 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
     }
   }, [departmentService]);
   
-  // Временная функция для загрузки сотрудников (заглушка)
-  const fetchStaffMembers = useCallback(async (departmentId: string) => {
+  // Функция для загрузки членов группы
+  const fetchGroupMembers = useCallback(async (departmentId: string) => {
     try {
-      // В будущем здесь будет реальный запрос к SharePoint
-      addLoadingStep('fetch-staff', 'Loading staff members', 'loading', `Loading staff for department ID: ${departmentId}`);
+      // Проверяем, что departmentId не пустой и числовой
+      if (!departmentId) {
+        throw new Error("Department ID is empty");
+      }
       
-      // Имитируем задержку сетевого запроса
-      await new Promise(resolve => setTimeout(resolve, 500));
+      const groupId = Number(departmentId);
+      if (isNaN(groupId)) {
+        throw new Error("Invalid Department ID format");
+      }
       
-      // Заглушка для данных
-      const mockStaff: IStaffMember[] = [
-        { id: '1', name: 'Adele Kerrisk', groupMemberId: '249', employeeId: '' },
-        { id: '2', name: 'Anna Mujeni', groupMemberId: '250', employeeId: '' },
-        { id: '3', name: 'Anne Casey', groupMemberId: '251', employeeId: '' },
-        { id: '4', name: 'Serhii Baliasnyi', groupMemberId: '252', employeeId: '' },
-        { id: '5', name: 'Christina Leahy', groupMemberId: '253', employeeId: '' },
-        { id: '6', name: 'Christine Tyler Nolan', groupMemberId: '254', employeeId: '' },
-        { id: '7', name: 'Ciara Palmer', groupMemberId: '255', employeeId: '' },
-        { id: '8', name: 'Daniel Kelly', groupMemberId: '256', employeeId: '', deleted: true }
-      ];
+      // Добавляем шаг в лог загрузки
+      addLoadingStep('fetch-group-members', 'Loading staff members', 'loading', `Loading staff for group ID: ${groupId}`);
       
-      addLoadingStep('fetch-staff', 'Loading staff members', 'success', `Loaded ${mockStaff.length} staff members (${mockStaff.filter(s => !s.deleted).length} active, ${mockStaff.filter(s => s.deleted).length} deleted)`);
-      setStaffMembers(mockStaff);
+      // Получаем данные от сервиса
+      const groupMembers: IGroupMember[] = await groupMemberService.fetchGroupMembersByGroupId(groupId);
       
-      // Выбираем первого сотрудника, если он есть
-      if (mockStaff.length > 0) {
-        setSelectedStaff(mockStaff[0]);
-        addLoadingStep('select-staff', 'Selecting default staff member', 'success', `Selected staff: ${mockStaff[0].name} (ID: ${mockStaff[0].id})`);
+      // Преобразуем данные в формат для отображения
+      const mappedStaffMembers: IStaffMember[] = groupMembers.map(gm => ({
+        id: gm.ID.toString(),
+        name: gm.Title || '',
+        groupMemberId: gm.ID.toString(),
+        employeeId: gm.Employee ? gm.Employee.Id : '',
+        autoSchedule: gm.AutoSchedule,
+        pathForSRSFile: gm.PathForSRSFile,
+        generalNote: gm.GeneralNote,
+        deleted: gm.Deleted,
+        contractedHours: gm.ContractedHours
+        // фото добавим позже, когда будем получать данные по сотрудникам
+      }));
+      
+      // Сортировка - сначала записи без Employee.Id, затем по Title
+      const sortedStaffMembers = mappedStaffMembers.sort((a, b) => {
+        const aHasEmployee = a.employeeId ? 1 : 0;
+        const bHasEmployee = b.employeeId ? 1 : 0;
+        
+        // Сначала сортируем по наличию employeeId
+        if (aHasEmployee !== bHasEmployee) {
+          return aHasEmployee - bHasEmployee;
+        }
+        
+        // Затем по имени (name)
+        return a.name.localeCompare(b.name);
+      });
+      
+      // Обновляем состояние
+      setStaffMembers(sortedStaffMembers);
+      
+      // Выбираем первого сотрудника если есть
+      if (sortedStaffMembers.length > 0) {
+        setSelectedStaff(sortedStaffMembers[0]);
+        addLoadingStep('select-staff', 'Selecting default staff member', 'success', `Selected staff: ${sortedStaffMembers[0].name} (ID: ${sortedStaffMembers[0].id})`);
       } else {
         addLoadingStep('select-staff', 'Selecting default staff member', 'error', 'No staff members available to select');
       }
+      
+      // Обновляем лог загрузки
+      addLoadingStep('fetch-group-members', 'Loading staff members', 'success', 
+        `Loaded ${groupMembers.length} staff members (${groupMembers.filter(gm => !gm.Deleted).length} active, ${groupMembers.filter(gm => gm.Deleted).length} deleted)`);
+      
     } catch (error) {
-      console.error("Error fetching staff members:", error);
+      console.error("Error fetching group members:", error);
+      addLoadingStep('fetch-group-members', 'Loading staff members', 'error', `Error: ${error}`);
+      
+      setLoadingState((prevState: ILoadingState) => ({
+        ...prevState,
+        hasError: true,
+        errorMessage: `Error fetching staff members: ${error}`
+      }));
+    }
+  }, [groupMemberService, addLoadingStep]);
+  
+  // Функция для загрузки сотрудников
+  const fetchStaffMembers = useCallback(async (departmentId: string) => {
+    try {
+      // Вызываем новый метод для получения данных
+      await fetchGroupMembers(departmentId);
+    } catch (error) {
+      console.error("Error in fetchStaffMembers:", error);
       addLoadingStep('fetch-staff', 'Loading staff members', 'error', `Error: ${error}`);
       
       setLoadingState((prevState: ILoadingState) => ({
@@ -186,7 +236,7 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
         errorMessage: `Error fetching staff members: ${error}`
       }));
     }
-  }, []);
+  }, [fetchGroupMembers, addLoadingStep]);
   
   // Функция для полного обновления данных
   const refreshData = useCallback(async () => {

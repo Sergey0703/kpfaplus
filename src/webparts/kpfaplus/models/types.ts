@@ -25,3 +25,36 @@ export interface ITabProps {
   generalNote?: string;
   onGeneralNoteChange?: (newValue: string) => void;
 }
+
+// src/webparts/kpfaplus/models/types.ts - добавим новые интерфейсы
+
+export interface IGroupMember {
+  ID: number;
+  Title: string;
+  Group: {  // Изменено с StaffGroup на Group
+    ID: number;
+    Title?: string;
+  };
+  Employee: {
+    Id: string;
+    Title?: string;
+  };
+  AutoSchedule: boolean;
+  PathForSRSFile: string;
+  GeneralNote: string;
+  Deleted: boolean;
+  ContractedHours: number;
+}
+// Формат данных для отображения в галерее
+export interface IStaffMember {
+  id: string;
+  name: string;
+  groupMemberId?: string; // Делаем необязательным
+  employeeId?: string;    // Делаем необязательным
+  autoSchedule?: boolean;
+  pathForSRSFile?: string;
+  generalNote?: string;
+  deleted?: boolean;
+  contractedHours?: number;
+  photo?: string;
+}
