@@ -49,7 +49,8 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
     loadingState,
     
     // Методы обновления данных
-    refreshData
+    refreshData,
+    refreshStaffMembers
   } = useDataContext();
   
   // Состояние для вкладок
@@ -107,6 +108,21 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
       setGeneralNote(selectedStaff.generalNote || '');
     }
   }, [selectedStaff]);
+
+  // При изменении выбранного департамента загружаем его сотрудников
+  useEffect(() => {
+    if (selectedDepartmentId) {
+      // Используем явный .then().catch() вместо void
+      refreshStaffMembers(selectedDepartmentId)
+        .then(() => {
+          logInfo(`Successfully loaded staff for department ID: ${selectedDepartmentId}`);
+        })
+        .catch(error => {
+          console.error("Error fetching staff:", error);
+        });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDepartmentId]);
 
   const handleDepartmentChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
     logInfo(`Department changed to ID: ${e.target.value}`);
@@ -211,7 +227,14 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
           <button 
             onClick={() => {
               logInfo("Try Again button clicked");
-              refreshData();
+              // Используем явный .then().catch() вместо void
+              refreshData()
+                .then(() => {
+                  logInfo("Data refresh completed successfully");
+                })
+                .catch(error => {
+                  logError(`Error during data refresh: ${error}`);
+                });
             }}
             style={{ 
               padding: '8px 16px', 

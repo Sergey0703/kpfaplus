@@ -45,7 +45,7 @@ export const StaffGallery: React.FC<IStaffGalleryProps> = () => {
   }, [staffMembers, showDeleted]);
 
   // Обработчик выбора сотрудника
-  const handleSelectStaff = (staffId: string) => {
+  const handleSelectStaff = (staffId: string): void => {
     const staff = staffMembers.find(s => s.id === staffId);
     if (staff) {
       logInfo(`Staff selected: id=${staff.id}, name=${staff.name}`);
@@ -57,7 +57,7 @@ export const StaffGallery: React.FC<IStaffGalleryProps> = () => {
   const handleToggleShowDeleted = (
     ev?: React.MouseEvent<HTMLElement, MouseEvent>,
     checked?: boolean
-  ) => {
+  ): void => {
     if (checked !== undefined) {
       logInfo(`Show deleted toggled: ${checked}`);
       setShowDeleted(checked);
