@@ -1,3 +1,4 @@
+// src/webparts/kpfaplus/services/DepartmentService.ts
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { spfi, SPFx } from "@pnp/sp";
 import "@pnp/sp/webs";
@@ -14,24 +15,23 @@ export interface IDepartment {
   EnterLunchTime: boolean;
   Manager: {
     Id: number;
-    Value: string;
+    Title: string;
   };
 }
 
-// Интерфейс для элемента списка департаментов в SharePoint
-interface IDepartmentItem {
+interface ISharePointItem {
   ID: number;
   Title: string;
-  Deleted: boolean;
-  LeaveExportFolder: string;
-  DayOfStartWeek: number;
-  TypeOfSRS: number;
-  EnterLunchTime: boolean;
+  Deleted?: boolean;
+  LeaveExportFolder?: string;
+  DayOfStartWeek?: number;
+  TypeOfSRS?: number;
+  EnterLunchTime?: boolean;
   Manager?: {
-    Id: number;
-    Title: string;
+    Id?: number;
+    Title?: string;
   };
-  [key: string]: unknown; // Для дополнительных полей
+  [key: string]: unknown;
 }
 
 export class DepartmentService {
@@ -39,45 +39,26 @@ export class DepartmentService {
   private logSource: string = "DepartmentService";
 
   constructor(context: WebPartContext) {
-    // Инициализация PnP JS с контекстом SPFx
     this.sp = spfi().using(SPFx(context));
   }
 
   /**
    * Fetches department list from SharePoint
-   * @returns Promise with department data
    */
   public async fetchDepartments(): Promise<IDepartment[]> {
     try {
       this.logInfo("Starting fetchDepartments");
       
-      // Получение элементов из списка "StaffGroups"
-      const items: IDepartmentItem[] = await this.sp.web.lists
-        .getByTitle("StaffGroups") // Название вашего списка
+      const items = await this.sp.web.lists
+        .getByTitle("StaffGroups")
         .items
         .select("ID,Title,Deleted,LeaveExportFolder,DayOfStartWeek,TypeOfSRS,EnterLunchTime,Manager/Id,Manager/Title")
-        .expand("Manager") // Раскрываем поле Manager для получения связанных данных
-        .top(1000) // Ограничиваем выборку, если нужно
-        .orderBy("Title", true) // Сортировка по названию
-        ();
+        .expand("Manager")
+        .top(1000)
+        .orderBy("Title", true)();
       
-      // Преобразуем полученные данные в нужный формат с явным указанием типа item
-      const departments: IDepartment[] = items.map((item: IDepartmentItem) => ({
-        ID: item.ID,
-        Title: item.Title,
-        Deleted: item.Deleted || false,
-        LeaveExportFolder: item.LeaveExportFolder || "",
-        DayOfStartWeek: item.DayOfStartWeek || 0,
-        TypeOfSRS: item.TypeOfSRS || 0,
-        EnterLunchTime: item.EnterLunchTime || false,
-        Manager: {
-          Id: item.Manager ? item.Manager.Id : 0,
-          Value: item.Manager ? item.Manager.Title : ""
-        }
-      }));
-      
-      this.logInfo(`Fetched ${departments.length} departments`);
-      return departments;
+      this.logInfo(`Fetched ${items.length} departments`);
+      return this.mapToDepartments(items);
     } catch (error) {
       this.logError(`Error fetching departments: ${error}`);
       throw error;
@@ -85,8 +66,68 @@ export class DepartmentService {
   }
 
   /**
+ * Fetches departments by manager ID using server-side filtering
+ * @param managerId ID of the manager
+ * @returns Promise with filtered department data
+ */
+public async fetchDepartmentsByManager(managerId: number): Promise<IDepartment[]> {
+  try {
+    this.logInfo(`Starting fetchDepartmentsByManager for manager ID: ${managerId}`);
+    
+    if (!managerId || managerId <= 0) {
+      this.logInfo(`Manager ID ${managerId} is invalid or 0. Returning empty array.`);
+      return []; 
+    }
+    
+    // Используем простую фильтрацию по ManagerId - этот вариант работает стабильно
+    const items = await this.sp.web.lists
+      .getByTitle("StaffGroups")
+      .items
+      .select("ID,Title,Deleted,LeaveExportFolder,DayOfStartWeek,TypeOfSRS,EnterLunchTime,Manager/Id,Manager/Title")
+      .expand("Manager")
+      .filter(`ManagerId eq ${managerId}`)
+      .top(1000)();
+    
+    this.logInfo(`Filtered ${items.length} departments for manager ID: ${managerId}`);
+    
+    // Преобразуем результат в нужный формат
+    const departments: IDepartment[] = this.mapToDepartments(items);
+    
+    return departments;
+  } catch (error) {
+    this.logError(`Error in fetchDepartmentsByManager: ${error}`);
+    throw error;
+  }
+}
+  /**
+   * Логирует данные об элементах для отладки
+   */
+  
+
+  /**
+   * Преобразует данные SharePoint в объекты департаментов
+   */
+  private mapToDepartments(items: ISharePointItem[]): IDepartment[] {
+    return items.map(item => ({
+      ID: item.ID,
+      Title: item.Title,
+      Deleted: item.Deleted || false,
+      LeaveExportFolder: item.LeaveExportFolder || "",
+      DayOfStartWeek: item.DayOfStartWeek || 0,
+      TypeOfSRS: item.TypeOfSRS || 0,
+      EnterLunchTime: item.EnterLunchTime || false,
+      Manager: item.Manager ? {
+        Id: item.Manager.Id || 0,
+        Title: item.Manager.Title || ""
+      } : {
+        Id: 0,
+        Title: ""
+      }
+    }));
+  }
+
+  /**
    * Helper method to log info messages
-   * @param message Message to log
    */
   private logInfo(message: string): void {
     console.log(`[${this.logSource}] ${message}`);
@@ -94,7 +135,6 @@ export class DepartmentService {
 
   /**
    * Helper method to log error messages
-   * @param message Error message to log
    */
   private logError(message: string): void {
     console.error(`[${this.logSource}] ${message}`);

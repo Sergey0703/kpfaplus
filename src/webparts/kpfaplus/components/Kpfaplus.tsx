@@ -49,7 +49,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
   const [generalNote, setGeneralNote] = useState<string>('');
 
   // Загрузка данных о текущем пользователе
-  const fetchUserData = async (): Promise<void> => {
+  const fetchUserData = async (): Promise<ICurrentUser | undefined> => {
     try {
       setIsLoading(true);
       console.log("Fetching user data...");
@@ -59,24 +59,32 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
       setCurrentUser(user);
       console.log(`Current user: ${user ? user.Title : 'Not found'}`);
       
-      return;
+      return user; // Возвращаем пользователя для использования в цепочке промисов
     } catch (error) {
       console.error("Failed to fetch user data:", error);
-      throw error;
+      return undefined;
     }
   };
 
   // Загрузка департаментов
-  const fetchDepartments = async (): Promise<void> => {
+  const fetchDepartments = async (user: ICurrentUser | undefined): Promise<void> => {
     try {
       console.log("Fetching departments...");
-      const depts = await departmentService.fetchDepartments();
-      console.log(`Fetched ${depts.length} departments`);
-      setDepartments(depts);
       
-      // Просто выбираем первый департамент, если он есть
-      if (depts.length > 0) {
-        setSelectedDepartmentId(depts[0].ID.toString());
+      // Если у нас есть текущий пользователь, получаем только его департаменты
+      if (user && user.ID) {
+        console.log(`Fetching departments for manager ID: ${user.ID}`);
+        const depts = await departmentService.fetchDepartmentsByManager(user.ID);
+        console.log(`Fetched ${depts.length} departments for manager ID: ${user.ID}`);
+        
+        setDepartments(depts);
+        
+        // Выбираем первый департамент из списка, если он есть
+        if (depts.length > 0) {
+          setSelectedDepartmentId(depts[0].ID.toString());
+        }
+      } else {
+        console.log("No current user found, cannot fetch departments by manager");
       }
       
       setIsLoading(false);
@@ -113,12 +121,12 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
     
     const loadInitialData = async (): Promise<void> => {
       try {
-        // Сначала загружаем данные пользователя
-        await fetchUserData();
+        // Сначала загружаем данные пользователя и передаем их в следующий шаг
+        const user = await fetchUserData();
         
-        // Затем загружаем департаменты
+        // Только затем загружаем департаменты, передавая пользователя напрямую
         if (isComponentMounted) {
-          await fetchDepartments();
+          await fetchDepartments(user);
         }
       } catch (error) {
         console.error("Error loading initial data:", error);
@@ -279,6 +287,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
               fontSize: '12px'
             }}>
               Текущий пользователь: {currentUser.Title} (ID: {currentUser.ID})
+              {departments.length > 0 && ` | 1Управляет департаментами: ${departments.length}`}
             </div>
           )}
 
