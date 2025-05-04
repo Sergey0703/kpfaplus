@@ -134,9 +134,10 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
       }
     };
     
-    if (isComponentMounted) {
-      loadInitialData();
-    }
+    // Вызов функции с обработкой промиса
+    loadInitialData().catch(error => {
+      console.error("Unhandled promise rejection in loadInitialData:", error);
+    });
     
     return () => {
       isComponentMounted = false;
@@ -287,7 +288,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
               fontSize: '12px'
             }}>
               Текущий пользователь: {currentUser.Title} (ID: {currentUser.ID})
-              {departments.length > 0 && ` | 1Управляет департаментами: ${departments.length}`}
+              {departments.length > 0 && ` | Управляет департаментами: ${departments.length}`}
             </div>
           )}
 
