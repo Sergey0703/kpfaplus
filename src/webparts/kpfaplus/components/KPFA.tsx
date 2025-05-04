@@ -1,103 +1,74 @@
 import * as React from 'react';
-import { useState, useEffect } from 'react';
-import styles from './KPFA.module.scss';
-// Исправляем импорт для соответствия регистру имени файла
+import { useEffect, useState } from 'react';
 import { IKPFAProps } from './IKPFAprops';
-import { escape } from '@microsoft/sp-lodash-subset';
-import { Dropdown, IDropdownOption } from '@fluentui/react/lib/Dropdown';
-import { Checkbox } from '@fluentui/react/lib/Checkbox';
 import { IDepartment } from '../services/DepartmentService';
 
-// This is our main component that includes the department selector
-export default function KPFA(props: IKPFAProps): React.ReactElement<IKPFAProps> {
-  const {
-    departments,
-    defaultDepartment,
-    hasTeamsContext,
-    userDisplayName
-  } = props;
-
-  // State for the selected department and show deleted checkbox
-  const [selectedDepartment, setSelectedDepartment] = useState<IDepartment | null>(defaultDepartment);
-  const [showDeleted, setShowDeleted] = useState<boolean>(false);
+export const KPFA: React.FC<IKPFAProps> = (props): JSX.Element => {
+  // Объявляем локальные состояния
+  const [selectedDepartment, setSelectedDepartment] = useState<IDepartment | null>(null);
   
-  // Create dropdown options from departments
-  const [departmentOptions, setDepartmentOptions] = useState<IDropdownOption[]>([]);
-  
-  // Effect to update dropdown options when departments change
+  // Используем useEffect для установки defaultDepartment при монтировании компонента
   useEffect(() => {
-    if (departments && departments.length > 0) {
-      // Filter departments based on showDeleted state
-      const filteredDepartments = showDeleted 
-        ? departments 
-        : departments.filter((dept: IDepartment) => !dept.Deleted);
-      
-      // Create dropdown options
-      const options = filteredDepartments.map((dept: IDepartment) => ({
-        key: dept.ID,
-        text: dept.Title
-      }));
-      
-      setDepartmentOptions(options);
-    }
-  }, [departments, showDeleted]);
-  
-  // Handle department selection change
-  const onDepartmentChange = (event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
-    if (option) {
-      // Используем цикл for вместо find() для обратной совместимости с ES5
-      let selectedDept: IDepartment | null = null;
-      for (let i = 0; i < departments.length; i++) {
-        if (departments[i].ID === option.key) {
-          selectedDept = departments[i];
-          break;
-        }
+    // Проверяем, есть ли departments и defaultDepartment в props
+    if (props.departments && props.departments.length > 0) {
+      // Если есть defaultDepartment, установим его
+      if (props.defaultDepartment) {
+        setSelectedDepartment(props.defaultDepartment);
+      } else {
+        // Иначе установим первый департамент из списка
+        setSelectedDepartment(props.departments[0]);
       }
-      setSelectedDepartment(selectedDept);
     }
-  };
-  
-  // Handle show deleted checkbox change
-  const onShowDeletedChange = (ev?: React.FormEvent<HTMLElement>, checked?: boolean): void => {
-    setShowDeleted(!!checked);
+  }, [props.departments, props.defaultDepartment]);
+
+  // Обработчик изменения выбранного департамента
+  const handleDepartmentChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
+    const departmentId = e.target.value;
+    // Безопасно ищем департамент по ID
+    if (props.departments) {
+      const department = props.departments.find(d => d.ID.toString() === departmentId);
+      if (department) {
+        setSelectedDepartment(department);
+      }
+    }
   };
 
   return (
-    <section className={`${styles.kpfa} ${hasTeamsContext ? styles.teams : ''}`}>
-      <div className={styles.header}>
-        <div className={styles.departmentSelectionContainer}>
-          <div className={styles.departmentLabel}>Select Group</div>
-          
-          <Dropdown
-            placeholder="Select a group"
-            label=""
-            options={departmentOptions}
-            selectedKey={selectedDepartment?.ID}
-            onChange={onDepartmentChange}
-            className={styles.departmentDropdown}
-          />
-          
-          <Checkbox
-            label="Show Deleted"
-            checked={showDeleted}
-            onChange={onShowDeletedChange}
-            className={styles.showDeletedCheckbox}
-          />
+    <div className="kpfa-container">
+      <div className="kpfa-header">
+        <h2>KPFA Component</h2>
+        
+        {/* Выпадающий список с департаментами */}
+        <div className="department-selector">
+          <label htmlFor="department-select">Select Department:</label>
+          <select 
+            id="department-select"
+            value={selectedDepartment?.ID.toString() || ''}
+            onChange={handleDepartmentChange}
+          >
+            {props.departments && props.departments.map((dept: IDepartment) => (
+              <option key={dept.ID} value={dept.ID.toString()}>
+                {dept.Title}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
       
-      {/* Rest of your component UI */}
-      <div className={styles.welcome}>
-        <h2>Welcome, {escape(userDisplayName)}!</h2>
-        <div>Selected department: {selectedDepartment?.Title || 'None'}</div>
+      {/* Основное содержимое */}
+      <div className="kpfa-content">
+        {selectedDepartment ? (
+          <div>
+            <h3>Selected Department: {selectedDepartment.Title}</h3>
+            <p>Department ID: {selectedDepartment.ID}</p>
+            {/* Добавьте здесь другие детали департамента */}
+          </div>
+        ) : (
+          <div>Please select a department</div>
+        )}
       </div>
-      
-      {/* Here you would include your staff list component and SRSTab component */}
-      <div className={styles.content}>
-        {/* This would be where you'd put your existing SRSTab component or other components */}
-        <div>The content for department {selectedDepartment?.Title} would be shown here.</div>
-        <div>This is where existing components like staff list and SRSTab would go.</div>
-      </div>
-    </section>
+    </div>
   );
-}
+};
+
+export default KPFA;

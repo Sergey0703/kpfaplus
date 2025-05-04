@@ -1,4 +1,5 @@
-import { IDepartment } from "../services/DepartmentService";
+import { WebPartContext } from "@microsoft/sp-webpart-base";
+import { IDepartment } from '../services/DepartmentService';
 
 export interface IKPFAProps {
   description: string;
@@ -6,7 +7,9 @@ export interface IKPFAProps {
   environmentMessage: string;
   hasTeamsContext: boolean;
   userDisplayName: string;
-  // Add department data properties
-  departments: IDepartment[];
-  defaultDepartment: IDepartment | null;
+  context: WebPartContext;
+  
+  // Опциональные свойства для департаментов
+  departments?: IDepartment[];
+  defaultDepartment?: IDepartment;
 }
