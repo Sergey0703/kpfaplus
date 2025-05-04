@@ -167,18 +167,18 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
       const groupMembers: IGroupMember[] = await groupMemberService.fetchGroupMembersByGroupId(groupId);
       
       // Преобразуем данные в формат для отображения
-      const mappedStaffMembers: IStaffMember[] = groupMembers.map(gm => ({
-        id: gm.ID.toString(),
-        name: gm.Title || '',
-        groupMemberId: gm.ID.toString(),
-        employeeId: gm.Employee ? gm.Employee.Id : '',
-        autoSchedule: gm.AutoSchedule,
-        pathForSRSFile: gm.PathForSRSFile,
-        generalNote: gm.GeneralNote,
-        deleted: gm.Deleted,
-        contractedHours: gm.ContractedHours
-        // фото добавим позже, когда будем получать данные по сотрудникам
-      }));
+const mappedStaffMembers: IStaffMember[] = groupMembers.map(gm => ({
+    id: gm.ID.toString(),
+    name: gm.Employee?.Title || gm.Title || '', // Используем имя сотрудника из Employee.Title
+    groupMemberId: gm.ID.toString(),
+    employeeId: gm.Employee ? gm.Employee.Id : '',
+    autoSchedule: gm.AutoSchedule,
+    pathForSRSFile: gm.PathForSRSFile,
+    generalNote: gm.GeneralNote,
+    deleted: gm.Deleted,
+    contractedHours: gm.ContractedHours
+    // фото добавим позже, когда будем получать данные по сотрудникам
+  }));
       
       // Сортировка - сначала записи без Employee.Id, затем по Title
       const sortedStaffMembers = mappedStaffMembers.sort((a, b) => {

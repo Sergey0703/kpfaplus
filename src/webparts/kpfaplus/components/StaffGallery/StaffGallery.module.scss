@@ -5,35 +5,32 @@
   height: 100%;
   
   .header {
-    display: flex;
-    flex-direction: column;
     margin-bottom: 10px;
     
     h3 {
       margin: 0 0 5px 0;
+      font-size: 16px;
     }
   }
   
-  .list {
+  .staffList {
     flex: 1;
     overflow-y: auto;
     border: 1px solid #eaeaea;
+    background-color: white;
     border-radius: 2px;
     
     .staffItem {
-      padding: 8px;
-      margin-bottom: 2px;
-      border-left: 3px solid transparent;
+      padding: 8px 10px;
       cursor: pointer;
-      transition: background-color 0.2s ease;
+      border-bottom: 1px solid #f3f3f3;
       
       &:hover {
-        background-color: #f0f0f0;
+        background-color: #f9f9f9;
       }
       
       &.selected {
-        background-color: #e6f2fc;
-        border-left: 3px solid #0078d4;
+        background-color: #e1f4ff;
       }
       
       &.deleted {
@@ -55,22 +52,5 @@
       text-align: center;
       color: #999;
     }
-  }
-  
-  .loadingContainer {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 20px;
-  }
-  
-  .error {
-    color: #a80000;
-    margin-top: 10px;
-    padding: 8px;
-    border: 1px solid #a80000;
-    border-radius: 2px;
-    background-color: #fde7e9;
-    font-size: 12px;
   }
 }
