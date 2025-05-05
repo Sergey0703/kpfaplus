@@ -252,8 +252,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
     setEditedStaff(null);
   };
   
-  // Обработчик для удаления/восстановления сотрудника
-  // Обработчик для удаления/восстановления сотрудника
+ // Обработчик для удаления/восстановления сотрудника
 const handleDeleteToggle = async (): Promise<void> => {
   if (!selectedStaff) return;
   
@@ -262,6 +261,7 @@ const handleDeleteToggle = async (): Promise<void> => {
   const action = currentDeletedState ? "восстановления" : "удаления";
   
   logInfo(`Toggling deletion status (${action}) for staff: ${selectedStaff.name} (ID: ${selectedStaff.id})`);
+  logInfo(`Current deleted state: ${selectedStaff.deleted} (${typeof selectedStaff.deleted}), new state will be: ${newDeletedState}`);
   
   try {
     // Обновляем статус удаления
@@ -293,6 +293,7 @@ const handleDeleteToggle = async (): Promise<void> => {
     setStatusMessage(null);
   }, 3000);
 };
+  
 
   // Рендеринг содержимого вкладки
   const renderTabContent = (): JSX.Element => {
