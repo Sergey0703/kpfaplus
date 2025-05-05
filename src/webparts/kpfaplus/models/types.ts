@@ -7,7 +7,7 @@ export interface IStaffMember {
   groupMemberId?: string;
   employeeId?: string;
   autoSchedule?: boolean;
-  deleted?: boolean;
+  deleted?: number; // Изменено с boolean на number
 }
 
 export interface IDepartment {
@@ -42,7 +42,7 @@ export interface IGroupMember {
   AutoSchedule: boolean;
   PathForSRSFile: string;
   GeneralNote: string;
-  Deleted: boolean;
+  Deleted: number; // Изменено с boolean на number
   ContractedHours: number;
 }
 // Формат данных для отображения в галерее
@@ -54,7 +54,7 @@ export interface IStaffMember {
   autoSchedule?: boolean;
   pathForSRSFile?: string;
   generalNote?: string;
-  deleted?: boolean;
+  deleted?: number; // Изменено с boolean на number
   contractedHours?: number;
   photo?: string;
 }
@@ -82,4 +82,5 @@ export interface IStaffMemberUpdateData {
   autoSchedule?: boolean;
   pathForSRSFile?: string;
   generalNote?: string;
+  deleted?: number; // Изменено с boolean на number
 }

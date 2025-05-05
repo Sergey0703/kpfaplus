@@ -29,7 +29,7 @@ export const StaffGallery: React.FC<IStaffGalleryProps> = () => {
   useEffect(() => {
     logInfo(`Staff members updated: ${staffMembers.length} items`);
     staffMembers.slice(0, 3).forEach((staff, index) => {
-      logInfo(`Staff [${index}]: id=${staff.id}, name=${staff.name}, deleted=${staff.deleted || false}`);
+      logInfo(`Staff [${index}]: id=${staff.id}, name=${staff.name}, deleted=${staff.deleted || 0}`);
     });
     
     if (staffMembers.length > 3) {
@@ -39,7 +39,7 @@ export const StaffGallery: React.FC<IStaffGalleryProps> = () => {
 
   // Фильтруем сотрудников (скрываем удаленных, если нужно)
   const filteredStaff = React.useMemo(() => {
-    const filtered = staffMembers.filter(staff => showDeleted ? true : !staff.deleted);
+    const filtered = staffMembers.filter(staff => showDeleted ? true : staff.deleted !== 1);
     logInfo(`Filtered staff: ${filtered.length} of ${staffMembers.length} items (showDeleted=${showDeleted})`);
     return filtered;
   }, [staffMembers, showDeleted]);
@@ -83,12 +83,12 @@ export const StaffGallery: React.FC<IStaffGalleryProps> = () => {
           filteredStaff.map(staff => (
             <div
               key={staff.id}
-              className={`${styles.staffItem} ${selectedStaff?.id === staff.id ? styles.selected : ''} ${staff.deleted ? styles.deleted : ''}`}
+              className={`${styles.staffItem} ${selectedStaff?.id === staff.id ? styles.selected : ''} ${staff.deleted === 1 ? styles.deleted : ''}`}
               onClick={() => handleSelectStaff(staff.id)}
             >
               <div className={styles.staffName}>
                 {staff.name}
-                {staff.deleted && <span className={styles.deletedMark}> (Deleted)</span>}
+                {staff.deleted === 1 && <span className={styles.deletedMark}> (Deleted)</span>}
               </div>
             </div>
           ))

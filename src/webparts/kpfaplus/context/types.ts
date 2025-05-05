@@ -27,7 +27,7 @@ export interface IStaffMemberUpdateData {
   autoSchedule?: boolean;
   pathForSRSFile?: string;
   generalNote?: string;
-  deleted?: boolean;
+  deleted?: number; // Изменено с boolean на number
 }
 
 // Интерфейс для контекста данных

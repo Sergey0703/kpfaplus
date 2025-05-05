@@ -13,7 +13,7 @@ interface ISharePointGroupMemberItem {
   AutoSchedule?: boolean;
   PathForSRSFile?: string;
   GeneralNote?: string;
-  Deleted?: boolean;
+  Deleted?: number; // Изменено с boolean на number
   ContractedHours?: number;
   Employee?: {
     Id?: string;
@@ -109,7 +109,7 @@ export class GroupMemberService {
       }
       
       if (data.deleted !== undefined) {
-        updateData.Deleted = data.deleted;
+        updateData.Deleted = Number(data.deleted); // Явное преобразование в число
       }
       
       // Если нет данных для обновления, выходим
@@ -156,7 +156,7 @@ export class GroupMemberService {
         AutoSchedule: item.AutoSchedule || false,
         PathForSRSFile: item.PathForSRSFile || "",
         GeneralNote: item.GeneralNote || "",
-        Deleted: item.Deleted || false,
+        Deleted: typeof item.Deleted === 'number' ? item.Deleted : (item.Deleted ? 1 : 0), // Преобразуем в число
         ContractedHours: item.ContractedHours || 0
       };
       

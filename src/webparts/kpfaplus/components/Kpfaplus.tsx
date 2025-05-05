@@ -253,24 +253,46 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
   };
   
   // Обработчик для удаления/восстановления сотрудника
-  const handleDeleteToggle = (): void => {
-    if (!selectedStaff) return;
+  // Обработчик для удаления/восстановления сотрудника
+const handleDeleteToggle = async (): Promise<void> => {
+  if (!selectedStaff) return;
+  
+  const currentDeletedState = selectedStaff.deleted === 1;
+  const newDeletedState = currentDeletedState ? 0 : 1;
+  const action = currentDeletedState ? "восстановления" : "удаления";
+  
+  logInfo(`Toggling deletion status (${action}) for staff: ${selectedStaff.name} (ID: ${selectedStaff.id})`);
+  
+  try {
+    // Обновляем статус удаления
+    const updateData: IStaffMemberUpdateData = {
+      deleted: newDeletedState
+    };
     
-    const action = selectedStaff.deleted ? "восстановления" : "удаления";
-    logInfo(`Toggling deletion status (${action}) for staff: ${selectedStaff.name} (ID: ${selectedStaff.id})`);
+    const success = await updateStaffMember(selectedStaff.id, updateData);
     
-    // На этом этапе просто выводим сообщение
-    // В следующем этапе добавим реальную функциональность
+    if (success) {
+      logInfo(`Successfully ${currentDeletedState ? 'restored' : 'deleted'} staff: ${selectedStaff.name}`);
+      setStatusMessage({
+        text: `Сотрудник успешно ${currentDeletedState ? 'восстановлен' : 'удален'}`,
+        type: MessageBarType.success
+      });
+    } else {
+      throw new Error(`Failed to ${currentDeletedState ? 'restore' : 'delete'} staff`);
+    }
+  } catch (error) {
+    logError(`Error toggling deletion status: ${error}`);
     setStatusMessage({
-      text: `Функция ${action} будет реализована на следующем этапе`,
-      type: MessageBarType.info
+      text: `Ошибка при ${action} сотрудника: ${error}`,
+      type: MessageBarType.error
     });
-    
-    // Временно очищаем сообщение через 3 секунды
-    setTimeout(() => {
-      setStatusMessage(null);
-    }, 3000);
-  };
+  }
+  
+  // Временно очищаем сообщение через 3 секунды
+  setTimeout(() => {
+    setStatusMessage(null);
+  }, 3000);
+};
 
   // Рендеринг содержимого вкладки
   const renderTabContent = (): JSX.Element => {
