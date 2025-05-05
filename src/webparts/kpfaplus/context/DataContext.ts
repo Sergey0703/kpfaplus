@@ -1,3 +1,4 @@
+// src/webparts/kpfaplus/context/DataContext.ts
 import { createContext, useContext } from 'react';
 import { IDataContext } from './types';
 
@@ -30,7 +31,10 @@ const initialContextState: IDataContext = {
   // Методы для управления данными
   refreshData: async () => {}, // Заглушка, будет заменена реальной функцией
   refreshDepartments: async () => {}, // Заглушка, будет заменена реальной функцией
-  refreshStaffMembers: async () => {} // Заглушка, будет заменена реальной функцией
+  refreshStaffMembers: async () => {}, // Заглушка, будет заменена реальной функцией
+  
+  // Добавляем метод обновления сотрудника в начальное значение контекста
+  updateStaffMember: async () => false // Заглушка, будет заменена реальной функцией
 };
 
 // Создаем контекст с начальным значением

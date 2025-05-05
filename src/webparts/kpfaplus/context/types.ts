@@ -1,3 +1,4 @@
+// src/webparts/kpfaplus/context/types.ts
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { ICurrentUser } from "../services/UserService";
 // Уберем этот импорт, который конфликтует с локальным объявлением
@@ -19,6 +20,14 @@ export interface ILoadingState {
   hasError: boolean;
   errorMessage: string;
   loadingSteps: ILoadingStep[]; // Массив шагов загрузки
+}
+
+// Тип данных для обновления сотрудника
+export interface IStaffMemberUpdateData {
+  autoSchedule?: boolean;
+  pathForSRSFile?: string;
+  generalNote?: string;
+  deleted?: boolean;
 }
 
 // Интерфейс для контекста данных
@@ -46,6 +55,9 @@ export interface IDataContext {
   refreshData: () => Promise<void>;
   refreshDepartments: () => Promise<void>;
   refreshStaffMembers: (departmentId: string) => Promise<void>;
+  
+  // Новый метод для обновления сотрудника
+  updateStaffMember: (staffId: string, data: IStaffMemberUpdateData) => Promise<boolean>;
 }
 
 export interface IDataProviderProps {

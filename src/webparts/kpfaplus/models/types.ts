@@ -58,3 +58,28 @@ export interface IStaffMember {
   contractedHours?: number;
   photo?: string;
 }
+// src/webparts/kpfaplus/models/types.ts - дополнение существующего файла
+
+export interface ITabProps {
+  selectedStaff: IStaffMember | undefined; 
+  autoSchedule?: boolean;
+  onAutoScheduleChange?: (ev: React.MouseEvent<HTMLElement>, checked?: boolean) => void;
+  srsFilePath?: string;
+  onSrsFilePathChange?: (newValue: string) => void;
+  generalNote?: string;
+  onGeneralNoteChange?: (newValue: string) => void;
+  // Новые свойства для режима редактирования
+  isEditMode?: boolean;
+  onSave?: () => Promise<void>;
+  onCancel?: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
+}
+
+// Интерфейс данных для обновления сотрудника
+export interface IStaffMemberUpdateData {
+  name?: string;
+  autoSchedule?: boolean;
+  pathForSRSFile?: string;
+  generalNote?: string;
+}

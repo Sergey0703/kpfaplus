@@ -3,13 +3,14 @@ import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { IKPFAprops } from './IKpfaplusProps';
 import { StaffGallery } from './StaffGallery/StaffGallery';
-import { Pivot, PivotItem, Toggle } from '@fluentui/react';
+import { Pivot, PivotItem, Toggle, MessageBar, MessageBarType } from '@fluentui/react';
 import { useDataContext } from '../context';
 import { LoadingProgress } from './LoadingProgress/LoadingProgress';
 import { LoadingSpinner } from './LoadingSpinner/LoadingSpinner';
 import { RefreshButton } from './RefreshButton/RefreshButton';
 import { IDepartment } from '../services/DepartmentService';
 import { ILoadingStep } from '../context/types';
+import { IStaffMemberUpdateData } from '../models/types';
 
 // Импортируем компоненты вкладок
 import { MainTab } from './Tabs/MainTab/MainTab';
@@ -50,7 +51,10 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
     
     // Методы обновления данных
     refreshData,
-    refreshStaffMembers
+    refreshStaffMembers,
+    
+    // Метод обновления сотрудника (новый)
+    updateStaffMember
   } = useDataContext();
   
   // Состояние для вкладок
@@ -63,6 +67,11 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
   const [autoSchedule, setAutoSchedule] = useState<boolean>(true);
   const [srsFilePath, setSrsFilePath] = useState<string>('');
   const [generalNote, setGeneralNote] = useState<string>('');
+
+  // Новые состояния для режима редактирования
+  const [isEditMode, setIsEditMode] = useState<boolean>(false);
+  const [editedStaff, setEditedStaff] = useState<IStaffMemberUpdateData | null>(null);
+  const [statusMessage, setStatusMessage] = useState<{text: string, type: MessageBarType} | null>(null);
 
   // Добавляем логи при монтировании компонента
   useEffect(() => {
@@ -106,6 +115,9 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
       setAutoSchedule(selectedStaff.autoSchedule || false);
       setSrsFilePath(selectedStaff.pathForSRSFile || '');
       setGeneralNote(selectedStaff.generalNote || '');
+      
+      // Сбрасываем режим редактирования при смене сотрудника
+      setIsEditMode(false);
     }
   }, [selectedStaff]);
 
@@ -133,6 +145,11 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
     if (item && item.props.itemKey) {
       logInfo(`Tab changed to: ${item.props.itemKey}`);
       setSelectedTabKey(item.props.itemKey);
+      
+      // Сбрасываем режим редактирования при переключении вкладок
+      if (isEditMode) {
+        handleCancel();
+      }
     }
   };
 
@@ -162,6 +179,99 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
     setGeneralNote(newValue);
   };
 
+  // Новые обработчики для функций редактирования
+  
+  // Обработчик для переключения в режим редактирования
+  const handleEdit = (): void => {
+    logInfo(`Entering edit mode for staff: ${selectedStaff?.name} (ID: ${selectedStaff?.id})`);
+    
+    // Сохраняем текущие значения для возможности отмены
+    setEditedStaff({
+      autoSchedule: autoSchedule,
+      pathForSRSFile: srsFilePath,
+      generalNote: generalNote
+    });
+    
+    setIsEditMode(true);
+  };
+  
+  // Обработчик для сохранения изменений
+  const handleSave = async (): Promise<void> => {
+    if (!selectedStaff) return;
+    
+    logInfo(`Saving changes for staff: ${selectedStaff.name} (ID: ${selectedStaff.id})`);
+    
+    try {
+      // Подготавливаем данные для обновления
+      const updateData: IStaffMemberUpdateData = {
+        autoSchedule: autoSchedule,
+        pathForSRSFile: srsFilePath,
+        generalNote: generalNote
+      };
+      
+      // Вызываем метод из контекста для обновления
+      const success = await updateStaffMember(selectedStaff.id, updateData);
+      
+      if (success) {
+        logInfo("Changes saved successfully");
+        setStatusMessage({
+          text: "Изменения сохранены успешно",
+          type: MessageBarType.success
+        });
+      } else {
+        throw new Error("Failed to save changes");
+      }
+      
+      setIsEditMode(false);
+      
+      // Временно очищаем сообщение через 3 секунды
+      setTimeout(() => {
+        setStatusMessage(null);
+      }, 3000);
+    } catch (error) {
+      logError(`Error saving staff data: ${error}`);
+      setStatusMessage({
+        text: `Ошибка при сохранении изменений: ${error}`,
+        type: MessageBarType.error
+      });
+    }
+  };
+  
+  // Обработчик для отмены изменений
+  const handleCancel = (): void => {
+    logInfo("Cancelling edit mode");
+    
+    // Восстанавливаем предыдущие значения
+    if (editedStaff) {
+      setAutoSchedule(editedStaff.autoSchedule || false);
+      setSrsFilePath(editedStaff.pathForSRSFile || '');
+      setGeneralNote(editedStaff.generalNote || '');
+    }
+    
+    setIsEditMode(false);
+    setEditedStaff(null);
+  };
+  
+  // Обработчик для удаления/восстановления сотрудника
+  const handleDeleteToggle = (): void => {
+    if (!selectedStaff) return;
+    
+    const action = selectedStaff.deleted ? "восстановления" : "удаления";
+    logInfo(`Toggling deletion status (${action}) for staff: ${selectedStaff.name} (ID: ${selectedStaff.id})`);
+    
+    // На этом этапе просто выводим сообщение
+    // В следующем этапе добавим реальную функциональность
+    setStatusMessage({
+      text: `Функция ${action} будет реализована на следующем этапе`,
+      type: MessageBarType.info
+    });
+    
+    // Временно очищаем сообщение через 3 секунды
+    setTimeout(() => {
+      setStatusMessage(null);
+    }, 3000);
+  };
+
   // Рендеринг содержимого вкладки
   const renderTabContent = (): JSX.Element => {
     if (!selectedStaff) {
@@ -176,7 +286,13 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
       srsFilePath,
       onSrsFilePathChange: handleSrsFilePathChange,
       generalNote,
-      onGeneralNoteChange: handleGeneralNoteChange
+      onGeneralNoteChange: handleGeneralNoteChange,
+      // Новые props для редактирования
+      isEditMode,
+      onSave: handleSave,
+      onCancel: handleCancel,
+      onEdit: handleEdit,
+      onDelete: handleDeleteToggle
     };
 
     logInfo(`Rendering tab content for: ${selectedTabKey}`);
@@ -358,6 +474,15 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
               </div>
             )}
           </div>
+
+          {/* Сообщение о статусе операции */}
+          {statusMessage && (
+            <div style={{ marginBottom: '15px' }}>
+              <MessageBar messageBarType={statusMessage.type}>
+                {statusMessage.text}
+              </MessageBar>
+            </div>
+          )}
 
           {/* Панель с вкладками */}
           <Pivot 

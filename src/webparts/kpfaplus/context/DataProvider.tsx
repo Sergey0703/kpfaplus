@@ -1,7 +1,8 @@
+// src/webparts/kpfaplus/context/DataProvider.tsx
 import * as React from 'react';
 import { useState, useEffect, useCallback } from 'react';
 import { DataContext } from './DataContext';
-import { IDataProviderProps, ILoadingState, ILoadingStep } from './types';
+import { IDataProviderProps, ILoadingState, ILoadingStep, IStaffMemberUpdateData } from './types';
 import { DepartmentService } from '../services/DepartmentService';
 import { UserService, ICurrentUser } from '../services/UserService';
 import { IStaffMember, IGroupMember, IDepartment } from '../models/types';
@@ -307,6 +308,87 @@ const mappedStaffMembers: IStaffMember[] = groupMembers.map(gm => ({
     }
   }, [fetchStaffMembers]);
   
+  // Функция для обновления сотрудника
+  const updateStaffMember = useCallback(async (staffId: string, data: IStaffMemberUpdateData): Promise<boolean> => {
+    try {
+      if (!staffId) {
+        throw new Error("Staff ID is empty");
+      }
+      
+      // Ищем сотрудника по ID
+      const staffMember = staffMembers.find(staff => staff.id === staffId);
+      if (!staffMember) {
+        throw new Error(`Staff member with ID ${staffId} not found`);
+      }
+      
+      // Логируем действие
+      addLoadingStep('update-staff', 'Updating staff member', 'loading', `Staff ID: ${staffId}`);
+      
+      // Подготавливаем данные для обновления
+      const updateData: any = {};
+      
+      if (data.autoSchedule !== undefined) {
+        updateData.autoSchedule = data.autoSchedule;
+      }
+      
+      if (data.pathForSRSFile !== undefined) {
+        updateData.pathForSRSFile = data.pathForSRSFile;
+      }
+      
+      if (data.generalNote !== undefined) {
+        updateData.generalNote = data.generalNote;
+      }
+      
+      // Если у сотрудника есть groupMemberId, используем его для обновления
+      if (staffMember.groupMemberId) {
+        const groupMemberId = Number(staffMember.groupMemberId);
+        
+        // Вызываем метод из GroupMemberService
+        const success = await groupMemberService.updateGroupMember(groupMemberId, {
+          autoSchedule: data.autoSchedule,
+          pathForSRSFile: data.pathForSRSFile,
+          generalNote: data.generalNote
+        });
+        
+        if (success) {
+          // Обновляем локальный список сотрудников
+          const updatedStaffMembers = staffMembers.map(staff => {
+            if (staff.id === staffId) {
+              return {
+                ...staff,
+                ...updateData
+              };
+            }
+            return staff;
+          });
+          
+          setStaffMembers(updatedStaffMembers);
+          
+          // Если обновляемый сотрудник выбран, обновляем и его
+          if (selectedStaff && selectedStaff.id === staffId) {
+            setSelectedStaff({
+              ...selectedStaff,
+              ...updateData
+            });
+          }
+          
+          addLoadingStep('update-staff', 'Updating staff member', 'success', `Staff ${staffMember.name} updated successfully`);
+          return true;
+        } else {
+          addLoadingStep('update-staff', 'Updating staff member', 'error', `Failed to update staff ${staffMember.name}`);
+          return false;
+        }
+      } else {
+        throw new Error(`Staff member with ID ${staffId} does not have a groupMemberId`);
+      }
+    } catch (error) {
+      console.error("Error updating staff member:", error);
+      addLoadingStep('update-staff', 'Updating staff member', 'error', `Error: ${error}`);
+      
+      return false;
+    }
+  }, [staffMembers, selectedStaff, groupMemberService, addLoadingStep]);
+  
   // Инициализация приложения
   useEffect(() => {
     const initializeApp = async (): Promise<void> => {
@@ -357,7 +439,10 @@ const mappedStaffMembers: IStaffMember[] = groupMembers.map(gm => ({
     // Методы для управления данными
     refreshData,
     refreshDepartments,
-    refreshStaffMembers
+    refreshStaffMembers,
+    
+    // Новый метод
+    updateStaffMember
   };
   
   return (

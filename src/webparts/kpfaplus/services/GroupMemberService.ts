@@ -1,3 +1,4 @@
+// src/webparts/kpfaplus/services/GroupMemberService.ts
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { spfi, SPFx } from "@pnp/sp";
 import "@pnp/sp/webs";
@@ -72,6 +73,62 @@ export class GroupMemberService {
       return groupMembers;
     } catch (error) {
       this.logError(`Error in fetchGroupMembersByGroupId: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Обновляет данные члена группы
+   * @param groupMemberId ID члена группы для обновления
+   * @param data Данные для обновления
+   * @returns Promise с результатом операции
+   */
+  public async updateGroupMember(groupMemberId: number, data: any): Promise<boolean> {
+    try {
+      this.logInfo(`Starting updateGroupMember for ID: ${groupMemberId}`);
+      
+      if (!groupMemberId || groupMemberId <= 0) {
+        this.logInfo(`Group Member ID ${groupMemberId} is invalid or 0. Update failed.`);
+        return false;
+      }
+      
+      // Подготавливаем данные для обновления
+      const updateData: any = {};
+      
+      // Добавляем только те поля, которые были переданы
+      if (data.autoSchedule !== undefined) {
+        updateData.AutoSchedule = data.autoSchedule;
+      }
+      
+      if (data.pathForSRSFile !== undefined) {
+        updateData.PathForSRSFile = data.pathForSRSFile;
+      }
+      
+      if (data.generalNote !== undefined) {
+        updateData.GeneralNote = data.generalNote;
+      }
+      
+      if (data.deleted !== undefined) {
+        updateData.Deleted = data.deleted;
+      }
+      
+      // Если нет данных для обновления, выходим
+      if (Object.keys(updateData).length === 0) {
+        this.logInfo("No data provided for update");
+        return false;
+      }
+      
+      // Обновляем элемент в списке SharePoint
+      await this.sp.web.lists
+        .getByTitle("GroupMembers")
+        .items
+        .getById(groupMemberId)
+        .update(updateData);
+      
+      this.logInfo(`Successfully updated GroupMember with ID: ${groupMemberId}`);
+      return true;
+    } catch (error) {
+      this.logError(`Error in updateGroupMember: ${error}`);
       throw error;
     }
   }
