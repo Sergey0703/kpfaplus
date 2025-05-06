@@ -554,7 +554,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 {currentUser && `Current user: ${currentUser.Title} (ID: ${currentUser.ID})`}
-                {departments.length > 0 && ` | Managing departments: ${departments.length}`}
+                {departments.length > 0 && ` | Managing groups: ${departments.length}`}
               </div>
               <div style={{ display: 'flex', alignItems: 'center' }}>
                 <RefreshButton 
