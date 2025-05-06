@@ -11,6 +11,7 @@ import { RefreshButton } from './RefreshButton/RefreshButton';
 import { IDepartment } from '../services/DepartmentService';
 import { ILoadingStep } from '../context/types';
 import { IStaffMemberUpdateData } from '../models/types';
+import { ConfirmDialog } from './ConfirmDialog/ConfirmDialog';
 
 // Импортируем компоненты вкладок
 import { MainTab } from './Tabs/MainTab/MainTab';
@@ -72,6 +73,22 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
   const [isEditMode, setIsEditMode] = useState<boolean>(false);
   const [editedStaff, setEditedStaff] = useState<IStaffMemberUpdateData | null>(null);
   const [statusMessage, setStatusMessage] = useState<{text: string, type: MessageBarType} | null>(null);
+
+  // Состояния для диалога подтверждения
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState<boolean>(false);
+  const [confirmDialogProps, setConfirmDialogProps] = useState<{
+    title: string;
+    message: string;
+    confirmButtonText: string;
+    confirmButtonColor?: string;
+    onConfirm: () => void;
+  }>({
+    title: '',
+    message: '',
+    confirmButtonText: 'Confirm',
+    confirmButtonColor: undefined,
+    onConfirm: () => {}
+  });
 
   // Добавляем логи при монтировании компонента
   useEffect(() => {
@@ -179,6 +196,11 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
     setGeneralNote(newValue);
   };
 
+  // Обработчик закрытия диалога подтверждения
+  const handleDismissConfirmDialog = (): void => {
+    setIsConfirmDialogOpen(false);
+  };
+
   // Новые обработчики для функций редактирования
   
   // Обработчик для переключения в режим редактирования
@@ -202,7 +224,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
     // Здесь мы могли бы открыть панель для создания нового сотрудника
     // Пока просто покажем сообщение об успехе
     setStatusMessage({
-      text: "Режим добавления нового сотрудника",
+      text: "Enter new staff mode",
       type: MessageBarType.info
     });
     
@@ -212,6 +234,29 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
     setTimeout(() => {
       setStatusMessage(null);
     }, 3000);
+  };
+
+  // Обработчик для добавления нового сотрудника с подтверждением
+  const handleAddNewStaffWithConfirm = (): void => {
+    const selectedDepartment = departments.find(d => d.ID.toString() === selectedDepartmentId);
+    const departmentName = selectedDepartment ? selectedDepartment.Title : 'selected department';
+    
+    // Настраиваем параметры диалога подтверждения
+    setConfirmDialogProps({
+      title: 'Confirm Addition',
+      message: `Are you sure you want to add a new staff member to department "${departmentName}"?`,
+      confirmButtonText: 'Add',
+      confirmButtonColor: '#107c10', // Зеленый цвет для добавления
+      onConfirm: () => {
+        // Закрываем диалог
+        setIsConfirmDialogOpen(false);
+        // Выполняем операцию добавления
+        handleAddNewStaff();
+      }
+    });
+    
+    // Открываем диалог
+    setIsConfirmDialogOpen(true);
   };
   
   // Обработчик для сохранения изменений
@@ -234,7 +279,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
       if (success) {
         logInfo("Changes saved successfully");
         setStatusMessage({
-          text: "Изменения сохранены успешно",
+          text: "Changes saved successfully",
           type: MessageBarType.success
         });
       } else {
@@ -250,7 +295,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
     } catch (error) {
       logError(`Error saving staff data: ${error}`);
       setStatusMessage({
-        text: `Ошибка при сохранении изменений: ${error}`,
+        text: `Error saving changes: ${error}`,
         type: MessageBarType.error
       });
     }
@@ -271,47 +316,72 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
     setEditedStaff(null);
   };
   
- // Обработчик для удаления/восстановления сотрудника
-const handleDeleteToggle = async (): Promise<void> => {
-  if (!selectedStaff) return;
-  
-  const currentDeletedState = selectedStaff.deleted === 1;
-  const newDeletedState = currentDeletedState ? 0 : 1;
-  const action = currentDeletedState ? "восстановления" : "удаления";
-  
-  logInfo(`Toggling deletion status (${action}) for staff: ${selectedStaff.name} (ID: ${selectedStaff.id})`);
-  logInfo(`Current deleted state: ${selectedStaff.deleted} (${typeof selectedStaff.deleted}), new state will be: ${newDeletedState}`);
-  
-  try {
-    // Обновляем статус удаления
-    const updateData: IStaffMemberUpdateData = {
-      deleted: newDeletedState
-    };
+  // Обработчик для удаления/восстановления сотрудника
+  const handleDeleteToggle = async (): Promise<void> => {
+    if (!selectedStaff) return;
     
-    const success = await updateStaffMember(selectedStaff.id, updateData);
+    const currentDeletedState = selectedStaff.deleted === 1;
+    const newDeletedState = currentDeletedState ? 0 : 1;
+    const action = currentDeletedState ? "restoration" : "deletion";
     
-    if (success) {
-      logInfo(`Successfully ${currentDeletedState ? 'restored' : 'deleted'} staff: ${selectedStaff.name}`);
+    logInfo(`Toggling deletion status (${action}) for staff: ${selectedStaff.name} (ID: ${selectedStaff.id})`);
+    logInfo(`Current deleted state: ${selectedStaff.deleted} (${typeof selectedStaff.deleted}), new state will be: ${newDeletedState}`);
+    
+    try {
+      // Обновляем статус удаления
+      const updateData: IStaffMemberUpdateData = {
+        deleted: newDeletedState
+      };
+      
+      const success = await updateStaffMember(selectedStaff.id, updateData);
+      
+      if (success) {
+        logInfo(`Successfully ${currentDeletedState ? 'restored' : 'deleted'} staff: ${selectedStaff.name}`);
+        setStatusMessage({
+          text: `Staff member successfully ${currentDeletedState ? 'restored' : 'deleted'}`,
+          type: MessageBarType.success
+        });
+      } else {
+        throw new Error(`Failed to ${currentDeletedState ? 'restore' : 'delete'} staff`);
+      }
+    } catch (error) {
+      logError(`Error toggling deletion status: ${error}`);
       setStatusMessage({
-        text: `Сотрудник успешно ${currentDeletedState ? 'восстановлен' : 'удален'}`,
-        type: MessageBarType.success
+        text: `Error during staff ${action}: ${error}`,
+        type: MessageBarType.error
       });
-    } else {
-      throw new Error(`Failed to ${currentDeletedState ? 'restore' : 'delete'} staff`);
     }
-  } catch (error) {
-    logError(`Error toggling deletion status: ${error}`);
-    setStatusMessage({
-      text: `Ошибка при ${action} сотрудника: ${error}`,
-      type: MessageBarType.error
+    
+    // Временно очищаем сообщение через 3 секунды
+    setTimeout(() => {
+      setStatusMessage(null);
+    }, 3000);
+  };
+
+  // Обработчик для удаления/восстановления сотрудника с подтверждением
+  const handleDeleteToggleWithConfirm = (): void => {
+    if (!selectedStaff) return;
+    
+    const currentDeletedState = selectedStaff.deleted === 1;
+    const action = currentDeletedState ? 'restore' : 'delete';
+    
+    // Настраиваем параметры диалога подтверждения
+    setConfirmDialogProps({
+      title: currentDeletedState ? 'Confirm Restoration' : 'Confirm Deletion',
+      message: `Are you sure you want to ${action} staff member "${selectedStaff.name}"?`,
+      confirmButtonText: currentDeletedState ? 'Restore' : 'Delete',
+      confirmButtonColor: currentDeletedState ? '#00b7c3' : '#d83b01', // Цвета для восстановления и удаления
+      onConfirm: () => {
+        // Закрываем диалог
+        setIsConfirmDialogOpen(false);
+        // Выполняем операцию удаления/восстановления
+        handleDeleteToggle();
+      }
     });
-  }
-  
-  // Временно очищаем сообщение через 3 секунды
-  setTimeout(() => {
-    setStatusMessage(null);
-  }, 3000);
-};
+    
+    // Открываем диалог
+    setIsConfirmDialogOpen(true);
+  };
 
   // Рендеринг содержимого вкладки
   const renderTabContent = (): JSX.Element => {
@@ -333,9 +403,8 @@ const handleDeleteToggle = async (): Promise<void> => {
       onSave: handleSave,
       onCancel: handleCancel,
       onEdit: handleEdit,
-      onDelete: handleDeleteToggle,
-      // Добавляем обработчик для создания нового сотрудника
-      onAddNewStaff: handleAddNewStaff
+      onDelete: handleDeleteToggleWithConfirm, // Используем обработчик с подтверждением
+      onAddNewStaff: handleAddNewStaffWithConfirm // Используем обработчик с подтверждением
     };
 
     logInfo(`Rendering tab content for: ${selectedTabKey}`);
@@ -469,12 +538,12 @@ const handleDeleteToggle = async (): Promise<void> => {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                {currentUser && `Текущий пользователь: ${currentUser.Title} (ID: ${currentUser.ID})`}
-                {departments.length > 0 && ` | Управляет департаментами: ${departments.length}`}
+                {currentUser && `Current user: ${currentUser.Title} (ID: ${currentUser.ID})`}
+                {departments.length > 0 && ` | Managing departments: ${departments.length}`}
               </div>
               <div style={{ display: 'flex', alignItems: 'center' }}>
                 <RefreshButton 
-                  title="Обновить данные" 
+                  title="Refresh data" 
                 />
                 <Toggle
                   label="Show loading log"
@@ -545,6 +614,18 @@ const handleDeleteToggle = async (): Promise<void> => {
           {renderTabContent()}
         </div>
       </div>
+
+      {/* Диалог подтверждения */}
+      <ConfirmDialog
+        isOpen={isConfirmDialogOpen}
+        title={confirmDialogProps.title}
+        message={confirmDialogProps.message}
+        confirmButtonText={confirmDialogProps.confirmButtonText}
+        cancelButtonText="Cancel"
+        onDismiss={handleDismissConfirmDialog}
+        onConfirm={confirmDialogProps.onConfirm}
+        confirmButtonColor={confirmDialogProps.confirmButtonColor}
+      />
     </div>
   );
 };
