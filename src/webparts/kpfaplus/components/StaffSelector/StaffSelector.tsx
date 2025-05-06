@@ -17,7 +17,7 @@ export interface IStaffSelectorProps {
   isOpen: boolean;
   onDismiss: () => void;
   departmentId: string;
-  onAddStaff: (staffId: number, staffName: string) => Promise<boolean>; // Добавляем обратно это свойство
+  onAddStaff: (staffId: number, staffName: string) => Promise<boolean>;
 }
 
 export const StaffSelector: React.FC<IStaffSelectorProps> = (props) => {
@@ -223,6 +223,44 @@ export const StaffSelector: React.FC<IStaffSelectorProps> = (props) => {
           value={generalNote}
           onChange={handleGeneralNoteChange}
         />
+        
+        {/* Блок предварительного просмотра выбранных данных */}
+        {selectedStaffId && (
+          <div style={{ 
+            marginTop: '10px', 
+            padding: '10px', 
+            backgroundColor: '#f0f0f0', 
+            borderRadius: '4px',
+            border: '1px solid #ddd'
+          }}>
+            <h3 style={{ margin: '0 0 8px 0' }}>Selected Staff Information (Preview):</h3>
+            <div>
+              <strong>Staff ID:</strong> {selectedStaffId}
+            </div>
+            <div>
+              <strong>Staff Name:</strong> {staffList.find(s => s.ID === selectedStaffId)?.Title || 'Unknown'}
+            </div>
+            <div>
+              <strong>Department ID:</strong> {departmentId}
+            </div>
+            <div>
+              <strong>Department:</strong> {currentDepartment?.Title || 'Unknown'}
+            </div>
+            <div>
+              <strong>Auto Schedule:</strong> {autoSchedule ? 'Yes' : 'No'}
+            </div>
+            {srsFilePath && (
+              <div>
+                <strong>SRS File Path:</strong> {srsFilePath}
+              </div>
+            )}
+            {generalNote && (
+              <div>
+                <strong>General Note:</strong> {generalNote}
+              </div>
+            )}
+          </div>
+        )}
       </Stack>
     </Panel>
   );
