@@ -12,6 +12,7 @@ import { IDepartment } from '../services/DepartmentService';
 import { ILoadingStep } from '../context/types';
 import { IStaffMemberUpdateData } from '../models/types';
 import { ConfirmDialog } from './ConfirmDialog/ConfirmDialog';
+import { StaffSelector } from './StaffSelector/StaffSelector';
 
 // Импортируем компоненты вкладок
 import { MainTab } from './Tabs/MainTab/MainTab';
@@ -89,6 +90,9 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
     confirmButtonColor: undefined,
     onConfirm: () => {}
   });
+
+  // Состояние для селектора сотрудника
+  const [isStaffSelectorOpen, setIsStaffSelectorOpen] = useState<boolean>(false);
 
   // Добавляем логи при монтировании компонента
   useEffect(() => {
@@ -201,6 +205,11 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
     setIsConfirmDialogOpen(false);
   };
 
+  // Обработчик закрытия селектора сотрудника
+  const handleStaffSelectorDismiss = (): void => {
+    setIsStaffSelectorOpen(false);
+  };
+
   // Новые обработчики для функций редактирования
   
   // Обработчик для переключения в режим редактирования
@@ -217,23 +226,29 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
     setIsEditMode(true);
   };
 
-  // Обработчик для добавления нового сотрудника
+  // Обработчик для добавления нового сотрудника - открываем селектор
   const handleAddNewStaff = (): void => {
-    logInfo(`Entering add new staff mode for department: ${selectedDepartmentId}`);
+    logInfo(`Opening staff selector for department: ${selectedDepartmentId}`);
+    setIsStaffSelectorOpen(true);
+  };
+
+  // Обработчик для добавления сотрудника из селектора
+  const handleAddStaffMember = async (staffId: number, staffName: string): Promise<boolean> => {
+    logInfo(`Adding staff member: ${staffName} (ID: ${staffId}) to department ${selectedDepartmentId}`);
     
-    // Здесь мы могли бы открыть панель для создания нового сотрудника
-    // Пока просто покажем сообщение об успехе
+    // На этапе 1 просто показываем сообщение
     setStatusMessage({
-      text: "Enter new staff mode",
+      text: `Will add staff member: ${staffName} (ID: ${staffId}) to department`,
       type: MessageBarType.info
     });
     
-    // В будущем здесь будет открытие формы или панели для создания нового сотрудника
-    
-    // Временно очищаем сообщение через 3 секунды
+    // Очищаем сообщение через некоторое время
     setTimeout(() => {
       setStatusMessage(null);
     }, 3000);
+    
+    // Возвращаем успех (это будет заменено реальной логикой на следующем этапе)
+    return true;
   };
 
   // Обработчик для добавления нового сотрудника с подтверждением
@@ -250,7 +265,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
       onConfirm: () => {
         // Закрываем диалог
         setIsConfirmDialogOpen(false);
-        // Выполняем операцию добавления
+        // Открываем селектор сотрудника
         handleAddNewStaff();
       }
     });
@@ -625,6 +640,14 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
         onDismiss={handleDismissConfirmDialog}
         onConfirm={confirmDialogProps.onConfirm}
         confirmButtonColor={confirmDialogProps.confirmButtonColor}
+      />
+
+      {/* Селектор сотрудника */}
+      <StaffSelector 
+        isOpen={isStaffSelectorOpen}
+        onDismiss={handleStaffSelectorDismiss}
+        departmentId={selectedDepartmentId}
+        onAddStaff={handleAddStaffMember}
       />
     </div>
   );
