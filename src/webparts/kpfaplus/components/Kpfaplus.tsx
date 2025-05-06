@@ -194,6 +194,25 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
     
     setIsEditMode(true);
   };
+
+  // Обработчик для добавления нового сотрудника
+  const handleAddNewStaff = (): void => {
+    logInfo(`Entering add new staff mode for department: ${selectedDepartmentId}`);
+    
+    // Здесь мы могли бы открыть панель для создания нового сотрудника
+    // Пока просто покажем сообщение об успехе
+    setStatusMessage({
+      text: "Режим добавления нового сотрудника",
+      type: MessageBarType.info
+    });
+    
+    // В будущем здесь будет открытие формы или панели для создания нового сотрудника
+    
+    // Временно очищаем сообщение через 3 секунды
+    setTimeout(() => {
+      setStatusMessage(null);
+    }, 3000);
+  };
   
   // Обработчик для сохранения изменений
   const handleSave = async (): Promise<void> => {
@@ -293,7 +312,6 @@ const handleDeleteToggle = async (): Promise<void> => {
     setStatusMessage(null);
   }, 3000);
 };
-  
 
   // Рендеринг содержимого вкладки
   const renderTabContent = (): JSX.Element => {
@@ -315,7 +333,9 @@ const handleDeleteToggle = async (): Promise<void> => {
       onSave: handleSave,
       onCancel: handleCancel,
       onEdit: handleEdit,
-      onDelete: handleDeleteToggle
+      onDelete: handleDeleteToggle,
+      // Добавляем обработчик для создания нового сотрудника
+      onAddNewStaff: handleAddNewStaff
     };
 
     logInfo(`Rendering tab content for: ${selectedTabKey}`);

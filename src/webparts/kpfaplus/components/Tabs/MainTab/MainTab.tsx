@@ -23,7 +23,8 @@ export const MainTab: React.FC<ITabProps> = (props) => {
     onSave,
     onCancel,
     onEdit,
-    onDelete
+    onDelete,
+    onAddNewStaff
   } = props;
 
   if (!selectedStaff) {
@@ -59,6 +60,10 @@ export const MainTab: React.FC<ITabProps> = (props) => {
   const restoreButtonStyle = {
     color: '#00b7c3' // яркий бирюзовый цвет для восстановления
   };
+  
+  const addButtonStyle = {
+    color: '#107c10' // зеленый цвет для добавления
+  };
 
   return (
     <div className={styles.mainTab}>
@@ -91,6 +96,16 @@ export const MainTab: React.FC<ITabProps> = (props) => {
           </>
         ) : (
           <>
+            {/* Добавляем новую кнопку для создания сотрудника */}
+            <IconButton 
+              iconProps={{ iconName: 'AddFriend' }} 
+              title="Добавить нового сотрудника" 
+              ariaLabel="Добавить нового сотрудника" 
+              onClick={onAddNewStaff}
+              styles={{
+                icon: addButtonStyle
+              }}
+            />
             <IconButton 
               iconProps={{ iconName: 'Edit' }} 
               title="Редактировать" 

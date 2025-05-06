@@ -68,12 +68,14 @@ export interface ITabProps {
   onSrsFilePathChange?: (newValue: string) => void;
   generalNote?: string;
   onGeneralNoteChange?: (newValue: string) => void;
-  // Новые свойства для режима редактирования
+  // Существующие свойства
   isEditMode?: boolean;
   onSave?: () => Promise<void>;
   onCancel?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
+  // Новое свойство
+  onAddNewStaff?: () => void; // Добавляем обработчик для создания нового сотрудника
 }
 
 // Интерфейс данных для обновления сотрудника
