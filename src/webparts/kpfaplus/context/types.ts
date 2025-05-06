@@ -64,3 +64,14 @@ export interface IDataProviderProps {
   context: WebPartContext;
   children?: React.ReactNode;
 }
+
+// Добавьте в интерфейс IDataContext
+addStaffToGroup: (
+  departmentId: string, 
+  staffId: number, 
+  additionalData: {
+    autoSchedule?: boolean,
+    pathForSRSFile?: string,
+    generalNote?: string
+  }
+) => Promise<boolean>;

@@ -394,6 +394,63 @@ const mappedStaffMembers: IStaffMember[] = groupMembers.map(gm => ({
    }
  }, [staffMembers, selectedStaff, groupMemberService, addLoadingStep]);
  
+//////////////////////////////////
+// Метод для добавления сотрудника в группу
+const addStaffToGroup = useCallback(async (
+  departmentId: string, 
+  staffId: number, 
+  additionalData: {
+    autoSchedule?: boolean,
+    pathForSRSFile?: string,
+    generalNote?: string
+  }
+): Promise<boolean> => {
+  try {
+    if (!departmentId) {
+      throw new Error("Department ID is empty");
+    }
+    
+    const groupId = Number(departmentId);
+    if (isNaN(groupId)) {
+      throw new Error("Invalid Department ID format");
+    }
+    
+    if (!staffId || staffId <= 0) {
+      throw new Error("Invalid Staff ID");
+    }
+    
+    // Логируем действие
+    addLoadingStep('add-staff-to-group', 'Adding staff to group', 'loading', 
+      `Department ID: ${departmentId}, Staff ID: ${staffId}`);
+    
+    // Вызываем метод из GroupMemberService
+    const success = await groupMemberService.createGroupMemberFromStaff(
+      groupId, 
+      staffId, 
+      additionalData
+    );
+    
+    if (success) {
+      addLoadingStep('add-staff-to-group', 'Adding staff to group', 'success', 
+        `Successfully added staff ID: ${staffId} to group ID: ${groupId}`);
+      
+      // Обновляем список сотрудников после добавления
+      await refreshStaffMembers(departmentId);
+      
+      return true;
+    } else {
+      addLoadingStep('add-staff-to-group', 'Adding staff to group', 'error', 
+        `Failed to add staff ID: ${staffId} to group ID: ${groupId}`);
+      return false;
+    }
+  } catch (error) {
+    console.error(`Error adding staff to group: ${error}`);
+    addLoadingStep('add-staff-to-group', 'Adding staff to group', 'error', `Error: ${error}`);
+    return false;
+  }
+}, [groupMemberService, refreshStaffMembers, addLoadingStep]);
+///////////////////////////////////////////////////////////////////
+
  // Инициализация приложения
  useEffect(() => {
    const initializeApp = async (): Promise<void> => {
@@ -447,7 +504,8 @@ const mappedStaffMembers: IStaffMember[] = groupMembers.map(gm => ({
    refreshStaffMembers,
    
    // Новый метод
-   updateStaffMember
+   updateStaffMember,
+   addStaffToGroup // Новый метод
  };
  
  return (

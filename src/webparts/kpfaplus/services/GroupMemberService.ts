@@ -1,75 +1,80 @@
 // src/webparts/kpfaplus/services/GroupMemberService.ts
 import { WebPartContext } from "@microsoft/sp-webpart-base";
-import { spfi, SPFx } from "@pnp/sp";
+import { SPFI, spfi, SPFx } from "@pnp/sp";
 import "@pnp/sp/webs";
 import "@pnp/sp/lists";
 import "@pnp/sp/items";
-import { IGroupMember } from '../models/types';
-
-// Интерфейс для элементов, возвращаемых из SharePoint
-interface ISharePointGroupMemberItem {
-  ID: number;
-  Title: string;
-  AutoSchedule?: boolean;
-  PathForSRSFile?: string;
-  GeneralNote?: string;
-  Deleted?: number; // Изменено с boolean на number
-  ContractedHours?: number;
-  Employee?: {
-    Id?: string;
-    Title?: string;
-  };
-  Group?: {
-    ID?: number;
-    Title?: string;
-  };
-  [key: string]: unknown;
-}
+import "@pnp/sp/fields";
+import { IGroupMember } from "../models/types";
 
 export class GroupMemberService {
-  private sp: ReturnType<typeof spfi>;
-  private logSource: string = "GroupMemberService";
+  private sp: SPFI;
+  private logSource = "GroupMemberService";
 
   constructor(context: WebPartContext) {
-    // Инициализация PnP JS с контекстом SPFx
     this.sp = spfi().using(SPFx(context));
   }
 
+  // Логирование
+  private logInfo(message: string): void {
+    console.log(`[${this.logSource}] ${message}`);
+  }
+
+  private logError(message: string): void {
+    console.error(`[${this.logSource}] ${message}`);
+  }
+
   /**
-   * Получение членов группы по ID группы
-   * @param groupId ID группы для фильтрации
-   * @returns Promise с массивом GroupMembers
+   * Получает список членов группы по ID группы
+   * @param groupId ID группы
+   * @returns Promise с массивом членов группы
    */
   public async fetchGroupMembersByGroupId(groupId: number): Promise<IGroupMember[]> {
     try {
-      this.logInfo(`Starting fetchGroupMembersByGroupId for group ID: ${groupId}`);
-      
-      if (!groupId || groupId <= 0) {
-        this.logInfo(`Group ID ${groupId} is invalid or 0. Returning empty array.`);
-        return []; 
+      this.logInfo(`Fetching group members for group ID: ${groupId}`);
+
+      if (!groupId) {
+        this.logInfo("Group ID is empty. Returning empty array.");
+        return [];
       }
-      
-      // Используем фильтрацию по Group/ID
-      this.logInfo(`Constructing query for GroupMembers with Group/ID = ${groupId}`);
-      
+
+      // Получаем записи из списка GroupMembers
       const items = await this.sp.web.lists
         .getByTitle("GroupMembers")
         .items
-        .select("ID,Title,AutoSchedule,PathForSRSFile,GeneralNote,Deleted,ContractedHours,Employee/Id,Employee/Title,Group/ID,Group/Title")
+        .filter(`GroupId eq ${groupId}`)
         .expand("Employee,Group")
-        .filter(`Group/ID eq ${groupId}`)
-        .top(1000)();
-      
-      this.logInfo(`Fetched ${items.length} group members for group ID: ${groupId}`);
-      
-      // Логирование полученных результатов для отладки
-      items.forEach((item: ISharePointGroupMemberItem, index: number) => {
-        this.logInfo(`Result #${index + 1}: ID=${item.ID}, Title=${item.Title}, Employee=${JSON.stringify(item.Employee)}, Group=${JSON.stringify(item.Group)}, Deleted=${item.Deleted}`);
-      });
-      
-      // Преобразуем результат в нужный формат
-      const groupMembers: IGroupMember[] = this.mapToGroupMembers(items);
-      
+        .select(
+          "ID,Title,Group/ID,Group/Title,Employee/Id,Employee/Title,AutoSchedule,PathForSRSFile,GeneralNote,Deleted,ContractedHours"
+        )();
+
+      this.logInfo(`Retrieved ${items.length} group members for group ID: ${groupId}`);
+
+      // Преобразуем в формат IGroupMember
+      const groupMembers: IGroupMember[] = [];
+
+      for (const item of items) {
+        const groupMember: IGroupMember = {
+          ID: item.ID,
+          Title: item.Title || "",
+          Group: {
+            ID: item.Group ? item.Group.ID : groupId,
+            Title: item.Group ? item.Group.Title : ""
+          },
+          Employee: {
+            Id: item.Employee ? item.Employee.Id : "",
+            Title: item.Employee ? item.Employee.Title : ""
+          },
+          AutoSchedule: item.AutoSchedule || false,
+          PathForSRSFile: item.PathForSRSFile || "",
+          GeneralNote: item.GeneralNote || "",
+          Deleted: item.Deleted || 0,
+          ContractedHours: item.ContractedHours || 0
+        };
+
+        groupMembers.push(groupMember);
+      }
+
       return groupMembers;
     } catch (error) {
       this.logError(`Error in fetchGroupMembersByGroupId: ${error}`);
@@ -79,105 +84,113 @@ export class GroupMemberService {
 
   /**
    * Обновляет данные члена группы
-   * @param groupMemberId ID члена группы для обновления
-   * @param data Данные для обновления
+   * @param groupMemberId ID члена группы
+   * @param updateData Данные для обновления
    * @returns Promise с результатом операции
    */
-  public async updateGroupMember(groupMemberId: number, data: any): Promise<boolean> {
+  public async updateGroupMember(
+    groupMemberId: number,
+    updateData: {
+      autoSchedule?: boolean,
+      pathForSRSFile?: string,
+      generalNote?: string,
+      deleted?: number
+    }
+  ): Promise<boolean> {
     try {
-      this.logInfo(`Starting updateGroupMember for ID: ${groupMemberId}`);
-      
-      if (!groupMemberId || groupMemberId <= 0) {
-        this.logInfo(`Group Member ID ${groupMemberId} is invalid or 0. Update failed.`);
+      this.logInfo(`Updating group member ID: ${groupMemberId}`);
+
+      if (!groupMemberId) {
+        this.logInfo("Group member ID is empty. Update failed.");
         return false;
       }
-      
-      // Подготавливаем данные для обновления
-      const updateData: any = {};
-      
+
+      // Создаем объект данных для обновления
+      const data: any = {};
+
       // Добавляем только те поля, которые были переданы
-      if (data.autoSchedule !== undefined) {
-        updateData.AutoSchedule = data.autoSchedule;
+      if (updateData.autoSchedule !== undefined) {
+        data.AutoSchedule = updateData.autoSchedule;
       }
-      
-      if (data.pathForSRSFile !== undefined) {
-        updateData.PathForSRSFile = data.pathForSRSFile;
+
+      if (updateData.pathForSRSFile !== undefined) {
+        data.PathForSRSFile = updateData.pathForSRSFile;
       }
-      
-      if (data.generalNote !== undefined) {
-        updateData.GeneralNote = data.generalNote;
+
+      if (updateData.generalNote !== undefined) {
+        data.GeneralNote = updateData.generalNote;
       }
-      
-      if (data.deleted !== undefined) {
-        updateData.Deleted = Number(data.deleted); // Явное преобразование в число
+
+      if (updateData.deleted !== undefined) {
+        data.Deleted = updateData.deleted;
       }
-      
-      // Если нет данных для обновления, выходим
-      if (Object.keys(updateData).length === 0) {
-        this.logInfo("No data provided for update");
-        return false;
-      }
-      
-      // Обновляем элемент в списке SharePoint
+
+      // Выполняем обновление
       await this.sp.web.lists
         .getByTitle("GroupMembers")
         .items
         .getById(groupMemberId)
-        .update(updateData);
-      
-      this.logInfo(`Successfully updated GroupMember with ID: ${groupMemberId}`);
+        .update(data);
+
+      this.logInfo(`Successfully updated group member ID: ${groupMemberId}`);
       return true;
     } catch (error) {
-      this.logError(`Error in updateGroupMember: ${error}`);
+      this.logError(`Error updating group member: ${error}`);
       throw error;
     }
   }
 
   /**
-   * Преобразует данные SharePoint в объекты GroupMember
-   * @param items Данные из SharePoint
-   * @returns Массив объектов IGroupMember
+   * Создает нового члена группы, связывая сотрудника из Staff с группой
+   * @param groupId ID группы
+   * @param staffId ID сотрудника из списка Staff
+   * @param additionalData Дополнительные данные для члена группы
+   * @returns Promise с результатом операции
    */
-  private mapToGroupMembers(items: ISharePointGroupMemberItem[]): IGroupMember[] {
-    this.logInfo(`Mapping ${items.length} items to IGroupMember objects`);
-    
-    return items.map(item => {
-      const result: IGroupMember = {
-        ID: item.ID,
-        Title: item.Title || "",
-        Group: {
-          ID: item.Group?.ID || 0,
-          Title: item.Group?.Title || ""
-        },
-        Employee: {
-          Id: item.Employee?.Id || "",
-          Title: item.Employee?.Title || ""
-        },
-        AutoSchedule: item.AutoSchedule || false,
-        PathForSRSFile: item.PathForSRSFile || "",
-        GeneralNote: item.GeneralNote || "",
-        Deleted: typeof item.Deleted === 'number' ? item.Deleted : (item.Deleted ? 1 : 0), // Преобразуем в число
-        ContractedHours: item.ContractedHours || 0
+  public async createGroupMemberFromStaff(
+    groupId: number, 
+    staffId: number, 
+    additionalData: { 
+      autoSchedule?: boolean, 
+      pathForSRSFile?: string, 
+      generalNote?: string 
+    }
+  ): Promise<boolean> {
+    try {
+      this.logInfo(`Starting createGroupMemberFromStaff for group ID: ${groupId}, staff ID: ${staffId}`);
+      
+      if (!groupId || groupId <= 0) {
+        this.logInfo(`Group ID ${groupId} is invalid or 0. Create failed.`);
+        return false;
+      }
+      
+      if (!staffId || staffId <= 0) {
+        this.logInfo(`Staff ID ${staffId} is invalid or 0. Create failed.`);
+        return false;
+      }
+      
+      // Подготавливаем данные для создания записи в GroupMembers
+      const createData: any = {
+        GroupId: groupId,
+        EmployeeId: staffId,
+        AutoSchedule: additionalData.autoSchedule || false,
+        PathForSRSFile: additionalData.pathForSRSFile || "",
+        GeneralNote: additionalData.generalNote || "",
+        Deleted: 0, // По умолчанию не удален
+        ContractedHours: 0 // По умолчанию 0
       };
       
-      this.logInfo(`Mapped item ID=${item.ID} to GroupMember object`);
-      return result;
-    });
-  }
-
-  /**
-   * Helper method to log info messages
-   * @param message Message to log
-   */
-  private logInfo(message: string): void {
-    console.log(`[${this.logSource}] ${message}`);
-  }
-
-  /**
-   * Helper method to log error messages
-   * @param message Error message to log
-   */
-  private logError(message: string): void {
-    console.error(`[${this.logSource}] ${message}`);
+      // Создаем запись в списке GroupMembers
+      const result = await this.sp.web.lists
+        .getByTitle("GroupMembers")
+        .items
+        .add(createData);
+      
+      this.logInfo(`Successfully created GroupMember with ID: ${result.data.ID}`);
+      return true;
+    } catch (error) {
+      this.logError(`Error in createGroupMemberFromStaff: ${error}`);
+      throw error;
+    }
   }
 }
