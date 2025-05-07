@@ -37,7 +37,7 @@ const initialContextState: IDataContext = {
   updateStaffMember: async () => false ,// Заглушка, будет заменена реальной функцией
   
   // Добавляем новый метод добавления сотрудника в группу
-  addStaffToGroup: async () => false // Заглушка, будет заменена реальной функцией
+  addStaffToGroup: async () => ({ success: false, alreadyExists: false })
 };
 
 // Создаем контекст с начальным значением

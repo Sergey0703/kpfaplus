@@ -395,6 +395,7 @@ const mappedStaffMembers: IStaffMember[] = groupMembers.map(gm => ({
  }, [staffMembers, selectedStaff, groupMemberService, addLoadingStep]);
  
 //////////////////////////////////
+
 // Метод для добавления сотрудника в группу
 const addStaffToGroup = useCallback(async (
   departmentId: string, 
@@ -404,7 +405,7 @@ const addStaffToGroup = useCallback(async (
     pathForSRSFile?: string,
     generalNote?: string
   }
-): Promise<boolean> => {
+): Promise<{ success: boolean; alreadyExists: boolean }> => {
   try {
     if (!departmentId) {
       throw new Error("Department ID is empty");
@@ -423,32 +424,45 @@ const addStaffToGroup = useCallback(async (
     addLoadingStep('add-staff-to-group', 'Adding staff to group', 'loading', 
       `Department ID: ${departmentId}, Staff ID: ${staffId}`);
     
-    // Вызываем метод из GroupMemberService
-    const success = await groupMemberService.createGroupMemberFromStaff(
+    // Добавляем ID текущего пользователя к additionalData
+    const extendedData = {
+      ...additionalData,
+      currentUserId: currentUser?.ID
+    };
+    
+    // Вызываем метод из GroupMemberService с изменённым возвратом
+    const result = await groupMemberService.createGroupMemberFromStaff(
       groupId, 
       staffId, 
-      additionalData
+      extendedData
     );
     
-    if (success) {
-      addLoadingStep('add-staff-to-group', 'Adding staff to group', 'success', 
-        `Successfully added staff ID: ${staffId} to group ID: ${groupId}`);
+    if (result.success) {
+      // Если сотрудник уже существует, используем другое сообщение
+      if (result.alreadyExists) {
+        addLoadingStep('add-staff-to-group', 'Adding staff to group', 'success', 
+          `Staff ID: ${staffId} is already in group ID: ${groupId}`);
+      } else {
+        addLoadingStep('add-staff-to-group', 'Adding staff to group', 'success', 
+          `Successfully added staff ID: ${staffId} to group ID: ${groupId}`);
+      }
       
       // Обновляем список сотрудников после добавления
       await refreshStaffMembers(departmentId);
       
-      return true;
+      return result;
     } else {
       addLoadingStep('add-staff-to-group', 'Adding staff to group', 'error', 
         `Failed to add staff ID: ${staffId} to group ID: ${groupId}`);
-      return false;
+      return { success: false, alreadyExists: false };
     }
   } catch (error) {
     console.error(`Error adding staff to group: ${error}`);
     addLoadingStep('add-staff-to-group', 'Adding staff to group', 'error', `Error: ${error}`);
-    return false;
+    return { success: false, alreadyExists: false };
   }
-}, [groupMemberService, refreshStaffMembers, addLoadingStep]);
+}, [groupMemberService, refreshStaffMembers, addLoadingStep, currentUser]);
+
 ///////////////////////////////////////////////////////////////////
 
  // Инициализация приложения

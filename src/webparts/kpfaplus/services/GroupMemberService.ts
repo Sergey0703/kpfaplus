@@ -147,27 +147,36 @@ export class GroupMemberService {
    * @param additionalData Дополнительные данные для члена группы
    * @returns Promise с результатом операции
    */
-  // Обновленная версия createGroupMemberFromStaff с дополнительной проверкой
+  
   public async createGroupMemberFromStaff(
     groupId: number, 
     staffId: number, 
     additionalData: { 
       autoSchedule?: boolean, 
       pathForSRSFile?: string, 
-      generalNote?: string 
+      generalNote?: string,
+      currentUserId?: number
     }
-  ): Promise<boolean> {
+  ): Promise<{ success: boolean; alreadyExists: boolean }> {
     try {
       this.logInfo(`Starting createGroupMemberFromStaff for group ID: ${groupId}, staff ID: ${staffId}`);
       
+      // Проверяем валидность входных данных
       if (!groupId || groupId <= 0) {
         this.logInfo(`Group ID ${groupId} is invalid or 0. Create failed.`);
-        return false;
+        return { success: false, alreadyExists: false };
       }
       
       if (!staffId || staffId <= 0) {
         this.logInfo(`Staff ID ${staffId} is invalid or 0. Create failed.`);
-        return false;
+        return { success: false, alreadyExists: false };
+      }
+      
+      // Проверяем, есть ли уже сотрудник в группе
+      const isAlreadyInGroup = await this.isStaffInGroup(groupId, staffId);
+      if (isAlreadyInGroup) {
+        this.logInfo(`Staff ID: ${staffId} is already in group ID: ${groupId}. Skipping.`);
+        return { success: true, alreadyExists: true }; // Указываем, что сотрудник уже существует
       }
       
       // Подготавливаем данные для создания записи в GroupMembers
@@ -181,6 +190,11 @@ export class GroupMemberService {
         ContractedHours: 0           // По умолчанию 0 часов
       };
       
+      // Добавляем Manager, если currentUserId был передан
+      if (additionalData.currentUserId) {
+        createData.ManagerId = additionalData.currentUserId; // Устанавливаем поле ManagerId
+      }
+      
       this.logInfo(`Prepared data for creating GroupMember: ${JSON.stringify(createData)}`);
       
       // Создаем запись в списке GroupMembers
@@ -192,12 +206,12 @@ export class GroupMemberService {
         
         if (result && result.data) {
           this.logInfo(`Successfully created GroupMember with ID: ${result.data.ID}`);
-          return true;
+          return { success: true, alreadyExists: false };
         } else {
           this.logInfo(`Create operation completed but no data returned`);
-          // Даже если данные не возвращены, считаем операцию успешной,
+          // Даже если данные не возвращены, считаем операцию успешной, 
           // если не было исключения
-          return true;
+          return { success: true, alreadyExists: false };
         }
       } catch (spError) {
         this.logError(`Error adding item to SharePoint: ${spError}`);
@@ -208,5 +222,28 @@ export class GroupMemberService {
       throw error;
     }
   }
+
+  // В GroupMemberService добавим новый метод для проверки
+public async isStaffInGroup(groupId: number, staffId: number): Promise<boolean> {
+  try {
+    this.logInfo(`Checking if staff ID: ${staffId} is already in group ID: ${groupId}`);
+    
+    // Получаем записи из списка GroupMembers, которые соответствуют критериям
+    const items = await this.sp.web.lists
+      .getByTitle("GroupMembers")
+      .items
+      .filter(`GroupId eq ${groupId} and EmployeeId eq ${staffId} and Deleted ne 1`)();
+    
+    // Если найдена хотя бы одна запись, значит сотрудник уже в группе
+    const isInGroup = items && items.length > 0;
+    this.logInfo(`Staff ID: ${staffId} is ${isInGroup ? 'already' : 'not'} in group ID: ${groupId}`);
+    
+    return isInGroup;
+  } catch (error) {
+    this.logError(`Error checking if staff is in group: ${error}`);
+    // В случае ошибки, предполагаем что сотрудника нет в группе
+    return false;
+  }
+}
 
 }

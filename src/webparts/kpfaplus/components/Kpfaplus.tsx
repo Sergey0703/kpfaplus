@@ -248,23 +248,30 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
       console.log("Additional data:", additionalData);
   
       // Используем метод из контекста для добавления сотрудника в группу
-      const success = await addStaffToGroup(
+      const result = await addStaffToGroup(
         selectedDepartmentId, 
         staffId, 
         additionalData
       );
       
-      if (success) {
-        // Показываем сообщение об успехе
-        setStatusMessage({
-          text: `Staff member ${staffName} has been successfully added to department`,
-          type: MessageBarType.success
-        });
+      if (result.success) {
+        // Показываем разные сообщения в зависимости от того, существует ли уже сотрудник
+        if (result.alreadyExists) {
+          setStatusMessage({
+            text: `Staff member ${staffName} is already in this department`,
+            type: MessageBarType.warning
+          });
+        } else {
+          setStatusMessage({
+            text: `Staff member ${staffName} has been successfully added to department`,
+            type: MessageBarType.success
+          });
+        }
         
         // Скрываем сообщение через 3 секунды
         setTimeout(() => {
           setStatusMessage(null);
-        }, 3000);
+        }, 5000);
         
         return true;
       } else {

@@ -59,15 +59,16 @@ export interface IDataContext {
   // Новый метод для обновления сотрудника
   updateStaffMember: (staffId: string, data: IStaffMemberUpdateData) => Promise<boolean>;
 
-  addStaffToGroup: (
-    departmentId: string, 
-    staffId: number, 
-    additionalData: {
-      autoSchedule?: boolean,
-      pathForSRSFile?: string,
-      generalNote?: string
-    }
-  ) => Promise<boolean>;
+  // В types.ts обновите сигнатуру метода addStaffToGroup
+addStaffToGroup: (
+  departmentId: string, 
+  staffId: number, 
+  additionalData: {
+    autoSchedule?: boolean,
+    pathForSRSFile?: string,
+    generalNote?: string
+  }
+) => Promise<{ success: boolean; alreadyExists: boolean }>;
 }
 
 export interface IDataProviderProps {
