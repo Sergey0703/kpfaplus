@@ -459,7 +459,8 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
       onCancel: handleCancel,
       onEdit: handleEdit,
       onDelete: handleDeleteToggleWithConfirm, // Используем обработчик с подтверждением
-      onAddNewStaff: handleAddNewStaffWithConfirm // Используем обработчик с подтверждением
+      onAddNewStaff: handleAddNewStaffWithConfirm, // Используем обработчик с подтверждением
+      context: props.context // Передаем контекст из пропсов
     };
 
     logInfo(`Rendering tab content for: ${selectedTabKey}`);

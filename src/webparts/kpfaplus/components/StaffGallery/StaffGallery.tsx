@@ -69,7 +69,7 @@ export const StaffGallery: React.FC<IStaffGalleryProps> = () => {
       <div className={styles.header}>
         <h3>Staff Members</h3>
         <Toggle
-          label="Show Deleted"
+          label="Show Deleted(end of the list)"
           checked={showDeleted}
           onChange={handleToggleShowDeleted}
           styles={{ root: { margin: '5px 0' } }}

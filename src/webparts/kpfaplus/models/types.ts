@@ -1,5 +1,6 @@
 // models/types.ts
 import * as React from 'react';
+import { WebPartContext } from "@microsoft/sp-webpart-base";
 
 export interface IStaffMember {
   id: string;
@@ -45,6 +46,7 @@ export interface IGroupMember {
   Deleted: number; // Изменено с boolean на number
   ContractedHours: number;
 }
+
 // Формат данных для отображения в галерее
 export interface IStaffMember {
   id: string;
@@ -58,10 +60,11 @@ export interface IStaffMember {
   contractedHours?: number;
   photo?: string;
 }
+
 // src/webparts/kpfaplus/models/types.ts - дополнение существующего файла
 
 export interface ITabProps {
-  selectedStaff: IStaffMember | undefined; 
+  selectedStaff: IStaffMember | undefined;
   autoSchedule?: boolean;
   onAutoScheduleChange?: (ev: React.MouseEvent<HTMLElement>, checked?: boolean) => void;
   srsFilePath?: string;
@@ -76,6 +79,8 @@ export interface ITabProps {
   onDelete?: () => void;
   // Новое свойство
   onAddNewStaff?: () => void; // Добавляем обработчик для создания нового сотрудника
+  // Добавляем контекст веб-части как необязательный параметр
+  context?: WebPartContext;
 }
 
 // Интерфейс данных для обновления сотрудника

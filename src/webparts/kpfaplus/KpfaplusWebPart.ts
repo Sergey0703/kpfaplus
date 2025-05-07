@@ -13,6 +13,7 @@ import Kpfaplus from './components/Kpfaplus';
 import { IKPFAprops } from './components/IKpfaplusProps';
 import { DataProvider } from './context';
 
+
 export interface IKpfaplusWebPartProps {
   description: string;
 }
@@ -31,7 +32,8 @@ export default class KpfaplusWebPart extends BaseClientSideWebPart<IKpfaplusWebP
         isDarkTheme: this._isDarkTheme,
         environmentMessage: this._environmentMessage,
         hasTeamsContext: !!this.context.sdks.microsoftTeams,
-        userDisplayName: this.context.pageContext.user.displayName
+        userDisplayName: this.context.pageContext.user.displayName,
+        context: this.context // Добавляем контекст веб-части
       }
     );
 
