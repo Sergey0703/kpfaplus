@@ -58,6 +58,16 @@ export interface IDataContext {
   
   // Новый метод для обновления сотрудника
   updateStaffMember: (staffId: string, data: IStaffMemberUpdateData) => Promise<boolean>;
+
+  addStaffToGroup: (
+    departmentId: string, 
+    staffId: number, 
+    additionalData: {
+      autoSchedule?: boolean,
+      pathForSRSFile?: string,
+      generalNote?: string
+    }
+  ) => Promise<boolean>;
 }
 
 export interface IDataProviderProps {
@@ -65,13 +75,3 @@ export interface IDataProviderProps {
   children?: React.ReactNode;
 }
 
-// Добавьте в интерфейс IDataContext
-addStaffToGroup: (
-  departmentId: string, 
-  staffId: number, 
-  additionalData: {
-    autoSchedule?: boolean,
-    pathForSRSFile?: string,
-    generalNote?: string
-  }
-) => Promise<boolean>;

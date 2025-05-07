@@ -56,7 +56,8 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
     refreshStaffMembers,
     
     // Метод обновления сотрудника (новый)
-    updateStaffMember
+    updateStaffMember,
+    addStaffToGroup 
   } = useDataContext();
   
   // Состояние для вкладок
@@ -232,23 +233,55 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
     setIsStaffSelectorOpen(true);
   };
 
-  // Обработчик для добавления сотрудника из селектора
-  const handleAddStaffMember = async (staffId: number, staffName: string): Promise<boolean> => {
-    logInfo(`Adding staff member: ${staffName} (ID: ${staffId}) to department ${selectedDepartmentId}`);
-    
-    // На этапе 1 просто показываем сообщение
-    setStatusMessage({
-      text: `Will add staff member: ${staffName} (ID: ${staffId}) to department`,
-      type: MessageBarType.info
-    });
-    
-    // Очищаем сообщение через некоторое время
-    setTimeout(() => {
-      setStatusMessage(null);
-    }, 3000);
-    
-    // Возвращаем успех (это будет заменено реальной логикой на следующем этапе)
-    return true;
+  const handleAddStaffMember = async (
+    staffId: number, 
+    staffName: string,
+    additionalData: {
+      autoSchedule: boolean,
+      pathForSRSFile: string,
+      generalNote: string
+    }
+  ): Promise<boolean> => {
+    try {
+      // Логируем начало операции
+      console.log(`Adding staff member: ${staffName} (ID: ${staffId}) to department ${selectedDepartmentId}`);
+      console.log("Additional data:", additionalData);
+  
+      // Используем метод из контекста для добавления сотрудника в группу
+      const success = await addStaffToGroup(
+        selectedDepartmentId, 
+        staffId, 
+        additionalData
+      );
+      
+      if (success) {
+        // Показываем сообщение об успехе
+        setStatusMessage({
+          text: `Staff member ${staffName} has been successfully added to department`,
+          type: MessageBarType.success
+        });
+        
+        // Скрываем сообщение через 3 секунды
+        setTimeout(() => {
+          setStatusMessage(null);
+        }, 3000);
+        
+        return true;
+      } else {
+        throw new Error("Failed to add staff member to department");
+      }
+    } catch (error) {
+      // Логируем ошибку
+      console.error("Error adding staff member:", error);
+      
+      // Показываем сообщение об ошибке
+      setStatusMessage({
+        text: `Error adding staff member: ${error}`,
+        type: MessageBarType.error
+      });
+      
+      return false;
+    }
   };
 
   // Обработчик для добавления нового сотрудника с подтверждением

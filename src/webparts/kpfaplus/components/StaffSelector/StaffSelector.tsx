@@ -13,12 +13,26 @@ import { useDataContext } from '../../context';
 import { ICurrentUser } from '../../services/UserService';
 import { UserService } from '../../services/UserService';
 
-export interface IStaffSelectorProps {
+/*export interface IStaffSelectorProps {
   isOpen: boolean;
   onDismiss: () => void;
   departmentId: string;
   onAddStaff: (staffId: number, staffName: string) => Promise<boolean>;
-}
+} */
+  export interface IStaffSelectorProps {
+    isOpen: boolean;
+    onDismiss: () => void;
+    departmentId: string;
+    onAddStaff: (
+      staffId: number, 
+      staffName: string, 
+      additionalData: {
+        autoSchedule: boolean, 
+        pathForSRSFile: string, 
+        generalNote: string
+      }
+    ) => Promise<boolean>;
+  }
 
 export const StaffSelector: React.FC<IStaffSelectorProps> = (props) => {
   const { isOpen, onDismiss, departmentId, onAddStaff } = props;
@@ -110,7 +124,8 @@ export const StaffSelector: React.FC<IStaffSelectorProps> = (props) => {
   };
   
   // Обработчик добавления сотрудника - тестовая версия
-  const handleAddStaff = async (): Promise<void> => {
+// В StaffSelector.tsx обновите метод handleAddStaff
+const handleAddStaff = async (): Promise<void> => {
     if (!selectedStaffId) {
       setErrorMessage('Please select a staff member');
       return;
@@ -124,19 +139,24 @@ export const StaffSelector: React.FC<IStaffSelectorProps> = (props) => {
       const selectedStaff = staffList.find(staff => staff.ID === selectedStaffId);
       const staffName = selectedStaff?.Title || 'Unknown';
       
+      // Собираем дополнительные данные из формы
+      const additionalData = {
+        autoSchedule: autoSchedule,
+        pathForSRSFile: srsFilePath,
+        generalNote: generalNote
+      };
+      
       // Выводим выбранные данные в консоль для проверки
       console.log("Selected staff for adding to department:", {
         staffId: selectedStaffId,
         staffName: staffName,
         departmentId: departmentId,
         departmentName: currentDepartment?.Title,
-        autoSchedule: autoSchedule,
-        srsFilePath: srsFilePath,
-        generalNote: generalNote
+        ...additionalData
       });
       
-      // Вызываем функцию обратного вызова для добавления сотрудника
-      const success = await onAddStaff(selectedStaffId, staffName);
+      // Вызываем функцию обратного вызова для добавления сотрудника, передавая дополнительные данные
+      const success = await onAddStaff(selectedStaffId, staffName, additionalData);
       
       if (success) {
         // Если добавление прошло успешно, закрываем форму

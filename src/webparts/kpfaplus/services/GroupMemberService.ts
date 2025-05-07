@@ -147,6 +147,7 @@ export class GroupMemberService {
    * @param additionalData Дополнительные данные для члена группы
    * @returns Promise с результатом операции
    */
+  // Обновленная версия createGroupMemberFromStaff с дополнительной проверкой
   public async createGroupMemberFromStaff(
     groupId: number, 
     staffId: number, 
@@ -171,26 +172,41 @@ export class GroupMemberService {
       
       // Подготавливаем данные для создания записи в GroupMembers
       const createData: any = {
-        GroupId: groupId,
-        EmployeeId: staffId,
-        AutoSchedule: additionalData.autoSchedule || false,
-        PathForSRSFile: additionalData.pathForSRSFile || "",
-        GeneralNote: additionalData.generalNote || "",
-        Deleted: 0, // По умолчанию не удален
-        ContractedHours: 0 // По умолчанию 0
+        GroupId: groupId,            // Поле для связи с группой
+        EmployeeId: staffId,         // Поле для связи с сотрудником
+        AutoSchedule: additionalData.autoSchedule ?? false,
+        PathForSRSFile: additionalData.pathForSRSFile ?? "",
+        GeneralNote: additionalData.generalNote ?? "",
+        Deleted: 0,                  // По умолчанию не удален
+        ContractedHours: 0           // По умолчанию 0 часов
       };
       
-      // Создаем запись в списке GroupMembers
-      const result = await this.sp.web.lists
-        .getByTitle("GroupMembers")
-        .items
-        .add(createData);
+      this.logInfo(`Prepared data for creating GroupMember: ${JSON.stringify(createData)}`);
       
-      this.logInfo(`Successfully created GroupMember with ID: ${result.data.ID}`);
-      return true;
+      // Создаем запись в списке GroupMembers
+      try {
+        const result = await this.sp.web.lists
+          .getByTitle("GroupMembers")
+          .items
+          .add(createData);
+        
+        if (result && result.data) {
+          this.logInfo(`Successfully created GroupMember with ID: ${result.data.ID}`);
+          return true;
+        } else {
+          this.logInfo(`Create operation completed but no data returned`);
+          // Даже если данные не возвращены, считаем операцию успешной,
+          // если не было исключения
+          return true;
+        }
+      } catch (spError) {
+        this.logError(`Error adding item to SharePoint: ${spError}`);
+        throw new Error(`Error adding staff to group: ${spError}`);
+      }
     } catch (error) {
       this.logError(`Error in createGroupMemberFromStaff: ${error}`);
       throw error;
     }
   }
+
 }
