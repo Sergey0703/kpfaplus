@@ -31,17 +31,70 @@ export class ContractsService {
    * @param staffMemberId ID сотрудника
    * @returns Promise с массивом контрактов
    */
-  public async getContractsForStaffMember(staffMemberId: string): Promise<IContract[]> {
+  /**
+ * Получает контракты для указанного сотрудника
+ * @param staffMemberId ID сотрудника (число)
+ * @returns Promise с массивом контрактов
+ */
+/**
+ * Получает контракты, отфильтрованные по менеджеру, группе и сотруднику
+ * @param staffMemberId ID сотрудника
+ * @param managerId ID менеджера
+ * @param staffGroupId ID группы сотрудников
+ * @returns Promise с массивом контрактов
+ */
+/**
+ * Получает контракты для указанного сотрудника, с опциональной фильтрацией по менеджеру и группе
+ * @param staffMemberId ID сотрудника
+ * @param managerId ID менеджера (необязательно)
+ * @param staffGroupId ID группы сотрудников (необязательно)
+ * @returns Promise с массивом контрактов
+ */
+/**
+ * Получает контракты для указанного сотрудника по его Employee ID
+ * @param employeeId ID сотрудника (EmployeeID)
+ * @param managerId ID менеджера (необязательно)
+ * @param staffGroupId ID группы сотрудников (необязательно)
+ * @returns Promise с массивом контрактов
+ */
+public async getContractsForStaffMember(
+    employeeId: string,
+    managerId?: string,
+    staffGroupId?: string
+  ): Promise<IContract[]> {
     try {
-      this.logInfo(`Fetching contracts for staff member ID: ${staffMemberId}`);
+      // Логируем параметры запроса
+      if (managerId && staffGroupId) {
+        this.logInfo(`Fetching contracts for employee ID: ${employeeId}, manager ID: ${managerId}, staff group ID: ${staffGroupId}`);
+      } else {
+        this.logInfo(`Fetching contracts for employee ID: ${employeeId}`);
+      }
+      
+      // Преобразуем ID в число для корректной фильтрации (если это числовые ID)
+      const employeeIdNum = parseInt(employeeId);
+      
+      // Создаем базовый фильтр по EmployeeID
+      // Важное изменение: меняем StaffMemberSchedule/Id на StaffMemberSchedule/Employee/Id
+      let filter = `StaffMemberSchedule/Employee/Id eq ${employeeIdNum}`;
+      
+      // Добавляем дополнительные условия, если они указаны
+      if (managerId) {
+        const managerIdNum = parseInt(managerId);
+        filter += ` and Manager/Id eq ${managerIdNum}`;
+      }
+      
+      if (staffGroupId) {
+        const staffGroupIdNum = parseInt(staffGroupId);
+        filter += ` and StaffGroup/Id eq ${staffGroupIdNum}`;
+      }
       
       // Получение данных из списка WeeklySchedule
       const items = await this._sp.web.lists.getByTitle(this._listName).items
-      .select("ID,Title,Deleted,TypeOfWorker/Id,TypeOfWorker/Title,ContractedHoursSchedule,StartDate,FinishDate,Manager/Id,Manager/Title,StaffGroup/Id,StaffGroup/Title,StaffMemberSchedule/Id,StaffMemberSchedule/Title")
-      .expand("TypeOfWorker,Manager,StaffGroup,StaffMemberSchedule")
-      .filter(`StaffMemberSchedule/Id eq ${staffMemberId}`)();
+        .select("ID,Title,Deleted,TypeOfWorker/Id,TypeOfWorker/Title,ContractedHoursSchedule,StartDate,FinishDate,Manager/Id,Manager/Title,StaffGroup/Id,StaffGroup/Title,StaffMemberSchedule/Id,StaffMemberSchedule/Title,StaffMemberSchedule/Employee/Id")
+        .expand("TypeOfWorker,Manager,StaffGroup,StaffMemberSchedule,StaffMemberSchedule/Employee")
+        .filter(filter)();
       
-      this.logInfo(`Fetched ${items.length} contracts for staff member ID: ${staffMemberId}`);
+      this.logInfo(`Fetched ${items.length} contracts for employee ID: ${employeeId}`);
       
       // Маппинг данных в формат IContract
       return items.map((item: any) => this.mapSharePointItemToContract(item));
@@ -120,29 +173,34 @@ export class ContractsService {
    * @param item Элемент из SharePoint
    * @returns Отформатированный объект контракта
    */
-  private mapSharePointItemToContract(item: any): IContract {
+  /**
+ * Преобразует элемент SharePoint в формат IContract
+ * @param item Элемент из SharePoint
+ * @returns Отформатированный объект контракта
+ */
+private mapSharePointItemToContract(item: any): IContract {
     return {
       id: item.ID.toString(),
       template: item.Title || '',
       typeOfWorker: item.TypeOfWorker ? {
-        id: item.TypeOfWorker.Id,
-        value: item.TypeOfWorker.Value
+        id: item.TypeOfWorker.Id.toString(),
+        value: item.TypeOfWorker.Title || ''
       } : { id: '', value: '' },
       contractedHours: item.ContractedHoursSchedule || 0,
       startDate: item.StartDate ? new Date(item.StartDate) : null,
       finishDate: item.FinishDate ? new Date(item.FinishDate) : null,
-      isDeleted: item.Deleted === true,
+      isDeleted: item.Deleted === 1, // Преобразуем числовое значение в boolean
       manager: item.Manager ? {
-        id: item.Manager.Id,
-        value: item.Manager.Value
+        id: item.Manager.Id.toString(),
+        value: item.Manager.Title || ''
       } : undefined,
       staffGroup: item.StaffGroup ? {
-        id: item.StaffGroup.Id,
-        value: item.StaffGroup.Value
+        id: item.StaffGroup.Id.toString(),
+        value: item.StaffGroup.Title || ''
       } : undefined,
       staffMember: item.StaffMemberSchedule ? {
-        id: item.StaffMemberSchedule.Id,
-        value: item.StaffMemberSchedule.Value
+        id: item.StaffMemberSchedule.Id.toString(),
+        value: item.StaffMemberSchedule.Title || ''
       } : undefined
     };
   }
