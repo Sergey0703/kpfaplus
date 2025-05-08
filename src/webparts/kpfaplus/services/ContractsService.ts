@@ -80,48 +80,106 @@ public async getContractsForStaffMember(
     }
   }
 
-  /**
-   * Сохраняет изменения в существующем контракте или создает новый
-   * @param contractData Данные контракта для сохранения
-   * @returns ID сохраненного контракта
-   */
-  public async saveContract(contractData: IContractFormData): Promise<string> {
-    try {
-      this.logInfo(`Saving contract: ${JSON.stringify(contractData)}`);
-      
-      const list = this._sp.web.lists.getByTitle(this._listName);
-      
-      // Подготавливаем данные для SharePoint
-      const itemData = {
-        Title: contractData.template,
-        TypeOfWorkerId: parseInt(contractData.typeOfWorkerId) || null,
-        ContractedHoursSchedule: contractData.contractedHours,
-        StartDate: contractData.startDate,
-        FinishDate: contractData.finishDate,
-        Deleted: contractData.isDeleted || 0
-      //  StaffMemberScheduleId: contractData.staffMemberId ? parseInt(contractData.staffMemberId) : null
-      };
-      
-      let result;
-      
-      // Если есть ID, то обновляем, иначе создаем новый
-      if (contractData.id && contractData.id !== 'new') {
-        this.logInfo(`Updating existing contract ID: ${contractData.id}`);
-        await list.items.getById(parseInt(contractData.id)).update(itemData);
-        result = contractData.id;
-      } else {
-        this.logInfo('Creating new contract');
-        const response = await list.items.add(itemData);
-        result = response.data.ID.toString();
-        this.logInfo(`Created new contract with ID: ${result}`);
+ /**
+ * Сохраняет изменения в существующем контракте или создает новый
+ * @param contractData Данные контракта для сохранения
+ * @returns ID сохраненного контракта
+ */
+public async saveContract(contractData: IContractFormData): Promise<string> {
+  try {
+    this.logInfo(`Saving contract: ${JSON.stringify(contractData)}`);
+    
+    const list = this._sp.web.lists.getByTitle(this._listName);
+    
+    // Подготавливаем данные для SharePoint
+    const itemData: any = {
+      Title: contractData.template || '',
+      ContractedHoursSchedule: contractData.contractedHours || 0,
+      Deleted: contractData.isDeleted === true ? 1 : 0
+    };
+    
+    // Добавляем ID типа работника, если он есть
+    if (contractData.typeOfWorkerId && contractData.typeOfWorkerId !== '') {
+      try {
+        itemData.TypeOfWorkerId = parseInt(contractData.typeOfWorkerId);
+      } catch (e) {
+        console.warn(`Could not parse typeOfWorkerId: ${contractData.typeOfWorkerId}`, e);
       }
-      
-      return result;
-    } catch (error) {
-      this.logError(`Error saving contract: ${error}`);
-      throw error;
     }
+    
+    // Добавляем дату начала, если она есть
+    if (contractData.startDate) {
+      itemData.StartDate = contractData.startDate;
+    }
+    
+    // Добавляем дату окончания, если она есть
+    if (contractData.finishDate) {
+      itemData.FinishDate = contractData.finishDate;
+    }
+    
+    // Добавляем ID сотрудника, если он есть
+    if (contractData.staffMemberId) {
+      try {
+        // Преобразуем в число, если это строка
+        const staffMemberId = typeof contractData.staffMemberId === 'string' 
+          ? parseInt(contractData.staffMemberId) 
+          : contractData.staffMemberId;
+          
+        if (!isNaN(staffMemberId)) {
+          itemData.StaffMemberScheduleId = staffMemberId;
+        } else {
+          console.warn(`Invalid staffMemberId: ${contractData.staffMemberId}`);
+        }
+      } catch (e) {
+        console.warn(`Error setting StaffMemberScheduleId: ${e}`);
+      }
+    }
+    
+    let result;
+    
+    // Если есть ID, то обновляем, иначе создаем новый
+    if (contractData.id && contractData.id !== 'new') {
+      this.logInfo(`Updating existing contract ID: ${contractData.id}`);
+      await list.items.getById(parseInt(contractData.id)).update(itemData);
+      result = contractData.id;
+    } else {
+      this.logInfo('Creating new contract with data: ' + JSON.stringify(itemData));
+      
+      try {
+        // Добавляем элемент в список
+        const addResult = await list.items.add(itemData);
+        
+        // Получаем ID созданного элемента безопасным способом
+        if (addResult && addResult.data && addResult.data.ID) {
+          result = addResult.data.ID.toString();
+          this.logInfo(`Created new contract with ID: ${result}`);
+        } else {
+          throw new Error('Failed to get ID from the created item');
+        }
+      } catch (error) {
+        this.logError(`Error in add operation: ${error}`);
+        
+        // План Б: попробуем найти только что созданный элемент используя правильный метод для PnP JS
+        const newItems = await list.items
+          .filter(`Title eq '${itemData.Title}'`)
+          .orderBy('Created', false)
+          .top(1)(); // Используем () вместо get() для вызова запроса
+          
+        if (newItems && newItems.length > 0) {
+          result = newItems[0].ID.toString();
+          this.logInfo(`Found newly created item with ID: ${result}`);
+        } else {
+          throw error; // Если не нашли элемент, пробрасываем исходную ошибку
+        }
+      }
+    }
+    
+    return result;
+  } catch (error) {
+    this.logError(`Error saving contract: ${error}`);
+    throw error;
   }
+}
 
   /**
    * Помечает контракт как удаленный (не удаляет физически)

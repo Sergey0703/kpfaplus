@@ -162,14 +162,14 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
  const openAddContractPanel = (): void => {
    if (!selectedStaff?.id) return;
    
-   // Создаем новую форму контракта
+   // Создаем новую форму контракта с учетом staffMemberId
    setCurrentContract({
      template: '',
      typeOfWorkerId: '',
      contractedHours: 0,
      startDate: null,
      finishDate: null,
-     staffMemberId: selectedStaff.id
+     staffMemberId: selectedStaff.employeeId // Используем employeeId, не id
    });
    
    // Открываем панель
@@ -187,7 +187,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
      startDate: contract.startDate,
      finishDate: contract.finishDate,
      isDeleted: contract.isDeleted,
-     staffMemberId: selectedStaff.id
+     staffMemberId: selectedStaff.employeeId // Используем employeeId, не id
    });
    
    // Открываем панель
@@ -214,15 +214,38 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
    setError(null);
    
    try {
-     await contractsService.saveContract(currentContract);
-     await fetchContracts(); // Обновляем список после сохранения
+     console.log("Preparing to save contract with data:", currentContract);
      
-     // Закрываем панель
+     // Проверяем обязательные поля
+     if (!currentContract.template || currentContract.template.trim() === '') {
+       throw new Error("Template name is required");
+     }
+     
+     // Создаем копию данных для безопасного изменения
+     const contractToSave = { ...currentContract };
+     
+     // Убеждаемся, что числовые поля имеют корректный тип
+     if (typeof contractToSave.contractedHours !== 'number') {
+       contractToSave.contractedHours = Number(contractToSave.contractedHours) || 0;
+     }
+     
+     // Делаем глубокое логирование для отладки
+     console.log("Contract data being saved:", JSON.stringify(contractToSave, null, 2));
+     console.log("Selected staff member:", selectedStaff);
+     
+     // Вызываем метод сохранения
+     await contractsService.saveContract(contractToSave);
+     console.log("Contract saved successfully");
+     
+     // Обновляем список контрактов
+     await fetchContracts();
+     
+     // Закрываем панель и очищаем состояние
      setCurrentContract(null);
      setIsContractPanelOpen(false);
    } catch (err) {
      console.error('Error saving contract:', err);
-     setError(`Failed to save the contract. ${err.message || ''}`);
+     setError(`Failed to save the contract: ${err.message || 'Unknown error'}`);
    } finally {
      setIsLoading(false);
    }
