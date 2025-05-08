@@ -275,7 +275,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
         
         return true;
       } else {
-        throw new Error("Failed to add staff member to department");
+        throw new Error("Failed to add staff member to Group");
       }
     } catch (error) {
       // Логируем ошибку

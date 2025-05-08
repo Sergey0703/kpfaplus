@@ -179,7 +179,7 @@ const handleAddStaff = async (): Promise<void> => {
     <Panel
       isOpen={isOpen}
       onDismiss={onDismiss}
-      headerText="Add Staff Member to Department"
+      headerText="Add Staff Member to Group"
       type={PanelType.medium}
       closeButtonAriaLabel="Close"
       isFooterAtBottom={true}
