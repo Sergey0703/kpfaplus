@@ -75,7 +75,7 @@ public async getContractsForStaffMember(
       
       // Создаем базовый фильтр по EmployeeID
       // Важное изменение: меняем StaffMemberSchedule/Id на StaffMemberSchedule/Employee/Id
-      let filter = `StaffMemberSchedule/Employee/Id eq ${employeeIdNum}`;
+      let filter = `StaffMemberSchedule eq ${employeeIdNum}`;
       
       // Добавляем дополнительные условия, если они указаны
       if (managerId) {
@@ -90,8 +90,8 @@ public async getContractsForStaffMember(
       
       // Получение данных из списка WeeklySchedule
       const items = await this._sp.web.lists.getByTitle(this._listName).items
-        .select("ID,Title,Deleted,TypeOfWorker/Id,TypeOfWorker/Title,ContractedHoursSchedule,StartDate,FinishDate,Manager/Id,Manager/Title,StaffGroup/Id,StaffGroup/Title,StaffMemberSchedule/Id,StaffMemberSchedule/Title,StaffMemberSchedule/Employee/Id")
-        .expand("TypeOfWorker,Manager,StaffGroup,StaffMemberSchedule,StaffMemberSchedule/Employee")
+        .select("ID,Title,Deleted,ContractedHoursSchedule,StartDate,FinishDate,StaffMemberSchedule/Id,StaffMemberSchedule/Title")
+        .expand("StaffMemberSchedule")
         .filter(filter)();
       
       this.logInfo(`Fetched ${items.length} contracts for employee ID: ${employeeId}`);
