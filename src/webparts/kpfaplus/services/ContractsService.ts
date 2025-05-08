@@ -80,7 +80,7 @@ public async getContractsForStaffMember(
     }
   }
 
- /**
+  /**
  * Сохраняет изменения в существующем контракте или создает новый
  * @param contractData Данные контракта для сохранения
  * @returns ID сохраненного контракта
@@ -135,6 +135,44 @@ public async saveContract(contractData: IContractFormData): Promise<string> {
       }
     }
     
+    // Добавляем ID менеджера, если он есть
+    if (contractData.managerId) {
+      try {
+        // Преобразуем в число, если это строка
+        const managerId = typeof contractData.managerId === 'string' 
+          ? parseInt(contractData.managerId) 
+          : contractData.managerId;
+          
+        if (!isNaN(managerId)) {
+          itemData.ManagerId = managerId;
+        } else {
+          console.warn(`Invalid managerId: ${contractData.managerId}`);
+        }
+      } catch (e) {
+        console.warn(`Error setting ManagerId: ${e}`);
+      }
+    }
+    
+    // Добавляем ID группы сотрудников, если он есть
+    if (contractData.staffGroupId) {
+      try {
+        // Преобразуем в число, если это строка
+        const staffGroupId = typeof contractData.staffGroupId === 'string' 
+          ? parseInt(contractData.staffGroupId) 
+          : contractData.staffGroupId;
+          
+        if (!isNaN(staffGroupId)) {
+          itemData.StaffGroupId = staffGroupId;
+        } else {
+          console.warn(`Invalid staffGroupId: ${contractData.staffGroupId}`);
+        }
+      } catch (e) {
+        console.warn(`Error setting StaffGroupId: ${e}`);
+      }
+    }
+    
+    this.logInfo(`Prepared item data for save: ${JSON.stringify(itemData, null, 2)}`);
+    
     let result;
     
     // Если есть ID, то обновляем, иначе создаем новый
@@ -180,7 +218,6 @@ public async saveContract(contractData: IContractFormData): Promise<string> {
     throw error;
   }
 }
-
   /**
    * Помечает контракт как удаленный (не удаляет физически)
    * @param contractId ID контракта

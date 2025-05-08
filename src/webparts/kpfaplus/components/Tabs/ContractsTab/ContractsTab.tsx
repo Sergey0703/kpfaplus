@@ -160,39 +160,56 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
  };
  
  const openAddContractPanel = (): void => {
-   if (!selectedStaff?.id) return;
-   
-   // Создаем новую форму контракта с учетом staffMemberId
-   setCurrentContract({
-     template: '',
-     typeOfWorkerId: '',
-     contractedHours: 0,
-     startDate: null,
-     finishDate: null,
-     staffMemberId: selectedStaff.employeeId // Используем employeeId, не id
-   });
-   
-   // Открываем панель
-   setIsContractPanelOpen(true);
- };
+  if (!selectedStaff?.id) return;
+  
+  console.log("Opening add contract panel with values:", {
+    employeeId: selectedStaff.employeeId,
+    managerId: props.currentUserId,
+    staffGroupId: props.managingGroupId
+  });
+  
+  // Создаем новую форму контракта с учетом всех необходимых ID
+  setCurrentContract({
+    template: '',
+    typeOfWorkerId: '',
+    contractedHours: 0,
+    startDate: null,
+    finishDate: null,
+    staffMemberId: selectedStaff.employeeId, // ID сотрудника
+    managerId: props.currentUserId?.toString(), // ID менеджера
+    staffGroupId: props.managingGroupId?.toString() // ID группы
+  });
+  
+  // Открываем панель
+  setIsContractPanelOpen(true);
+};
  
- const handleEditContract = (contract: IContract): void => {
-   if (!selectedStaff?.id) return;
-   
-   setCurrentContract({
-     id: contract.id,
-     template: contract.template,
-     typeOfWorkerId: contract.typeOfWorker?.id || '',
-     contractedHours: contract.contractedHours,
-     startDate: contract.startDate,
-     finishDate: contract.finishDate,
-     isDeleted: contract.isDeleted,
-     staffMemberId: selectedStaff.employeeId // Используем employeeId, не id
-   });
-   
-   // Открываем панель
-   setIsContractPanelOpen(true);
- };
+const handleEditContract = (contract: IContract): void => {
+  if (!selectedStaff?.id) return;
+  
+  console.log("Opening edit contract panel with values:", {
+    employeeId: selectedStaff.employeeId,
+    managerId: props.currentUserId,
+    staffGroupId: props.managingGroupId
+  });
+  
+  // Создаем форму редактирования с учетом всех необходимых ID
+  setCurrentContract({
+    id: contract.id,
+    template: contract.template,
+    typeOfWorkerId: contract.typeOfWorker?.id || '',
+    contractedHours: contract.contractedHours,
+    startDate: contract.startDate,
+    finishDate: contract.finishDate,
+    isDeleted: contract.isDeleted,
+    staffMemberId: selectedStaff.employeeId, // ID сотрудника
+    managerId: props.currentUserId?.toString(), // ID менеджера
+    staffGroupId: props.managingGroupId?.toString() // ID группы
+  });
+  
+  // Открываем панель
+  setIsContractPanelOpen(true);
+};
  
  // Обработчики для закрытия панели
  const handlePanelDismiss = (): void => {

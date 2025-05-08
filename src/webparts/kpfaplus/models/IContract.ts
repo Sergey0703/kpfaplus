@@ -33,4 +33,6 @@ export interface IContract {
     finishDate: Date | null;
     isDeleted?: boolean;
     staffMemberId?: string;
+    managerId?: string; // Добавлено
+    staffGroupId?: string; // Добавлено
   }
