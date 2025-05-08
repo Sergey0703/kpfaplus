@@ -98,8 +98,8 @@ public async getContractsForStaffMember(
         ContractedHoursSchedule: contractData.contractedHours,
         StartDate: contractData.startDate,
         FinishDate: contractData.finishDate,
-        Deleted: contractData.isDeleted || false,
-        StaffMemberScheduleId: contractData.staffMemberId ? parseInt(contractData.staffMemberId) : null
+        Deleted: contractData.isDeleted || 0
+      //  StaffMemberScheduleId: contractData.staffMemberId ? parseInt(contractData.staffMemberId) : null
       };
       
       let result;
@@ -134,7 +134,7 @@ public async getContractsForStaffMember(
       await this._sp.web.lists.getByTitle(this._listName).items
         .getById(parseInt(contractId))
         .update({
-          Deleted: true
+          Deleted: 1
         });
         
       this.logInfo(`Successfully marked contract as deleted, ID: ${contractId}`);
@@ -143,6 +143,25 @@ public async getContractsForStaffMember(
       throw error;
     }
   }
+
+  // В файле ContractsService.ts
+public async markContractAsNotDeleted(contractId: string): Promise<void> {
+  try {
+    this.logInfo(`Marking contract as not deleted: ${contractId}`);
+    
+    // Обновляем флаг Deleted в SharePoint
+    await this._sp.web.lists.getByTitle(this._listName)
+      .items.getById(parseInt(contractId))
+      .update({
+        Deleted: 0
+      });
+    
+    this.logInfo(`Contract ${contractId} marked as not deleted successfully`);
+  } catch (error) {
+    this.logError(`Error marking contract as not deleted: ${error}`);
+    throw error;
+  }
+}
 
   /**
    * Преобразует элемент SharePoint в формат IContract

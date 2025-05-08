@@ -343,8 +343,46 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
          );
      }
    },
-   {
-     key: 'actions',
+   
+    {
+      key: 'actions',
+      name: '',
+      minWidth: 120,
+      onRender: (item: IContract) => {
+        return (
+          <div className={styles.actionButtons}>
+            <span>{item.id}</span>
+            {item.isDeleted ? (
+              // Для удаленных контрактов показываем иконку восстановления
+              <IconButton 
+                iconProps={{ iconName: 'Refresh' }} 
+                title="Restore" 
+                onClick={() => handleRestoreContract(item.id)}
+                styles={{
+                  root: {
+                    color: '#107c10' // зеленый цвет для восстановления
+                  }
+                }}
+              />
+            ) : (
+              // Для активных контрактов показываем иконку удаления
+              <IconButton 
+                iconProps={{ iconName: 'Delete' }} 
+                title="Delete" 
+                onClick={() => handleDeleteContract(item.id)}
+                styles={deleteIconButtonStyles}
+              />
+            )}
+            <PrimaryButton 
+              text="Show Template" 
+              onClick={() => handleShowTemplate(item.id)}
+              styles={showTemplateButtonStyles}
+            />
+          </div>
+        );
+      }
+    }
+     /*key: 'actions',
      name: '',
      minWidth: 120,
      onRender: (item: IContract) => {
@@ -365,9 +403,34 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
          </div>
        );
      }
-   }
+   } */
  ];
  
+ // Добавляем функцию для восстановления удаленного контракта
+const handleRestoreContract = async (contractId: string): Promise<void> => {
+  if (!contractsService) return;
+  
+  setIsLoading(true);
+  setError(null);
+  
+  try {
+    await contractsService.markContractAsNotDeleted(contractId);
+    
+    // Обновляем локальное состояние без запроса к серверу
+    setContracts(prevContracts => 
+      prevContracts.map(c => 
+        c.id === contractId 
+          ? {...c, isDeleted: false} 
+          : c
+      )
+    );
+  } catch (err) {
+    console.error('Error restoring contract:', err);
+    setError(`Failed to restore the contract. ${err.message || ''}`);
+  } finally {
+    setIsLoading(false);
+  }
+};
  // Фильтруем контракты по статусу удаления
  const filteredContracts = contracts.filter(contract => 
    showDeleted ? true : !contract.isDeleted
