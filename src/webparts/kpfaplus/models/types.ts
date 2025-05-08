@@ -25,6 +25,8 @@ export interface ITabProps {
   onSrsFilePathChange?: (newValue: string) => void;
   generalNote?: string;
   onGeneralNoteChange?: (newValue: string) => void;
+  currentUserId?: string;
+  managingGroupId?: string;
 }
 
 // src/webparts/kpfaplus/models/types.ts - добавим новые интерфейсы

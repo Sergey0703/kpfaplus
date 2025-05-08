@@ -26,30 +26,6 @@ export class ContractsService {
     return ContractsService._instance;
   }
 
-  /**
-   * Получает контракты для указанного сотрудника
-   * @param staffMemberId ID сотрудника
-   * @returns Promise с массивом контрактов
-   */
-  /**
- * Получает контракты для указанного сотрудника
- * @param staffMemberId ID сотрудника (число)
- * @returns Promise с массивом контрактов
- */
-/**
- * Получает контракты, отфильтрованные по менеджеру, группе и сотруднику
- * @param staffMemberId ID сотрудника
- * @param managerId ID менеджера
- * @param staffGroupId ID группы сотрудников
- * @returns Promise с массивом контрактов
- */
-/**
- * Получает контракты для указанного сотрудника, с опциональной фильтрацией по менеджеру и группе
- * @param staffMemberId ID сотрудника
- * @param managerId ID менеджера (необязательно)
- * @param staffGroupId ID группы сотрудников (необязательно)
- * @returns Promise с массивом контрактов
- */
 /**
  * Получает контракты для указанного сотрудника по его Employee ID
  * @param employeeId ID сотрудника (EmployeeID)
@@ -90,8 +66,8 @@ public async getContractsForStaffMember(
       
       // Получение данных из списка WeeklySchedule
       const items = await this._sp.web.lists.getByTitle(this._listName).items
-        .select("ID,Title,Deleted,ContractedHoursSchedule,StartDate,FinishDate,StaffMemberSchedule/Id,StaffMemberSchedule/Title")
-        .expand("StaffMemberSchedule")
+        .select("ID,Title,Deleted,TypeOfWorker/Id,TypeOfWorker/Title,ContractedHoursSchedule,StartDate,FinishDate,StaffMemberSchedule/Id,StaffMemberSchedule/Title")
+        .expand("TypeOfWorker,StaffMemberSchedule")
         .filter(filter)();
       
       this.logInfo(`Fetched ${items.length} contracts for employee ID: ${employeeId}`);

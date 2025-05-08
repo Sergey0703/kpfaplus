@@ -443,7 +443,8 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
     if (!selectedStaff) {
       return <div>Please select a staff member</div>;
     }
-
+    const currentUserId = currentUser?.ID !== undefined ? currentUser.ID.toString() : undefined;
+    const managingGroupId = '54'; 
     // Общие props для передачи во вкладки
     const tabProps = {
       selectedStaff,
@@ -460,7 +461,9 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
       onEdit: handleEdit,
       onDelete: handleDeleteToggleWithConfirm, // Используем обработчик с подтверждением
       onAddNewStaff: handleAddNewStaffWithConfirm, // Используем обработчик с подтверждением
-      context: props.context // Передаем контекст из пропсов
+      context: props.context, // Передаем контекст из пропсов
+      currentUserId,
+      managingGroupId
     };
 
     logInfo(`Rendering tab content for: ${selectedTabKey}`);

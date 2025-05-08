@@ -65,29 +65,39 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
  
  // Получение контрактов из сервиса
  const fetchContracts = async (): Promise<void> => {
-   if (!selectedStaff?.id || !contractsService) {
-     return;
-   }
-   
-   setIsLoading(true);
-   setError(null);
-   
-   try {
-     // Изменяем на использование employeeId вместо id
-     if (selectedStaff && selectedStaff.employeeId) {
-       const contractsData = await contractsService.getContractsForStaffMember(selectedStaff.employeeId);
-       setContracts(contractsData);
-     } else {
-       console.log("Employee ID is missing, cannot fetch contracts");
-       setContracts([]);
-     }
-   } catch (err) {
-     console.error('Error fetching contracts:', err);
-     setError(`Failed to refresh the view. ${err.message || ''}`);
-   } finally {
-     setIsLoading(false);
-   }
- };
+  if (!selectedStaff?.id || !contractsService) {
+    return;
+  }
+  
+  setIsLoading(true);
+  setError(null);
+  
+  try {
+    // Изменяем на использование employeeId вместо id, и добавляем staffGroupId и managerId
+    if (selectedStaff && selectedStaff.employeeId) {
+      // Получаем staffGroupId и managerId из selectedStaff, если они есть
+      const staffGroupId: string | undefined = props.managingGroupId;
+      const managerId = props.currentUserId || undefined;
+      
+      // Вызываем метод с тремя параметрами
+      const contractsData = await contractsService.getContractsForStaffMember(
+        selectedStaff.employeeId,
+        managerId,
+        staffGroupId
+      );
+      
+      setContracts(contractsData);
+    } else {
+      console.log("Employee ID is missing, cannot fetch contracts");
+      setContracts([]);
+    }
+  } catch (err) {
+    console.error('Error fetching contracts:', err);
+    setError(`Failed to refresh the view. ${err.message || ''}`);
+  } finally {
+    setIsLoading(false);
+  }
+};
  
  // Обработчики UI
  const handleShowDeletedChange = (ev: React.MouseEvent<HTMLElement>, checked?: boolean): void => {
