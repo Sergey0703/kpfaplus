@@ -160,21 +160,29 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
  };
  
  const openAddContractPanel = (): void => {
-   if (!selectedStaff?.id) return;
-   
-   // Создаем новую форму контракта с учетом staffMemberId
-   setCurrentContract({
-     template: '',
-     typeOfWorkerId: '',
-     contractedHours: 0,
-     startDate: null,
-     finishDate: null,
-     staffMemberId: selectedStaff.employeeId // Используем employeeId, не id
-   });
-   
-   // Открываем панель
-   setIsContractPanelOpen(true);
- };
+  if (!selectedStaff?.id) return;
+  
+  console.log("Opening add contract panel with values:", {
+    employeeId: selectedStaff.employeeId,
+    managerId: props.currentUserId,
+    staffGroupId: props.managingGroupId
+  });
+  
+  // Создаем новую форму контракта с учетом всех необходимых ID
+  setCurrentContract({
+    template: '',
+    typeOfWorkerId: '',
+    contractedHours: 0,
+    startDate: null,
+    finishDate: null,
+    staffMemberId: selectedStaff.employeeId, // ID сотрудника
+    managerId: props.currentUserId?.toString(), // ID менеджера
+    staffGroupId: props.managingGroupId?.toString() // ID группы
+  });
+  
+  // Открываем панель
+  setIsContractPanelOpen(true);
+};
  
  const handleEditContract = (contract: IContract): void => {
    if (!selectedStaff?.id) return;
@@ -187,7 +195,9 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
      startDate: contract.startDate,
      finishDate: contract.finishDate,
      isDeleted: contract.isDeleted,
-     staffMemberId: selectedStaff.employeeId // Используем employeeId, не id
+     staffMemberId: selectedStaff.employeeId,
+     managerId: props.currentUserId?.toString(), // ID менеджера
+     staffGroupId: props.managingGroupId?.toString() // ID группы // Используем employeeId, не id
    });
    
    // Открываем панель
@@ -691,15 +701,20 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
            
            {/* Содержимое формы */}
            <div className={styles.formContainer}>
-             <TextField 
-               label="Template Name" 
-               value={currentContract.template || ''}
-               onChange={(_, newValue) => setCurrentContract({
-                 ...currentContract,
-                 template: newValue || ''
-               })}
-               required
-             />
+           <TextField 
+  label="Template Name" 
+  value={currentContract.template || ''}
+  onChange={(_, newValue) => setCurrentContract({
+    ...currentContract,
+    template: newValue || ''
+  })}
+  required
+  styles={{
+    fieldGroup: {
+      borderColor: (!currentContract.template || currentContract.template.trim() === '') ? '#a4262c' : undefined,
+    }
+  }}
+/>
              
              <ComboBox
                label="Type of Worker"
@@ -743,12 +758,12 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
              />
              
              <div className={styles.formButtons}>
-               <PrimaryButton
-                 text="Save"
-                 onClick={handleSaveContract}
-                 styles={{ root: { backgroundColor: '#0078d4' } }}
-                 disabled={isLoading}
-               />
+             <PrimaryButton
+  text="Save"
+  onClick={handleSaveContract}
+  styles={{ root: { backgroundColor: '#0078d4' } }}
+  disabled={isLoading || !currentContract.template || currentContract.template.trim() === ''}
+/>
                <DefaultButton
                  text="Cancel"
                  onClick={handleCancelButtonClick}
