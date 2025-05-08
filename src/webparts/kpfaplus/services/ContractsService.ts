@@ -127,22 +127,36 @@ public async getContractsForStaffMember(
    * Помечает контракт как удаленный (не удаляет физически)
    * @param contractId ID контракта
    */
-  public async markContractAsDeleted(contractId: string): Promise<void> {
-    try {
-      this.logInfo(`Marking contract as deleted, ID: ${contractId}`);
-      
-      await this._sp.web.lists.getByTitle(this._listName).items
-        .getById(parseInt(contractId))
-        .update({
-          Deleted: 1
-        });
-        
-      this.logInfo(`Successfully marked contract as deleted, ID: ${contractId}`);
-    } catch (error) {
-      this.logError(`Error marking contract as deleted: ${error}`);
-      throw error;
+// In ContractsService.ts, check the markContractAsDeleted method:
+public async markContractAsDeleted(contractId: string): Promise<void> {
+  try {
+    this.logInfo(`Marking contract as deleted, ID: ${contractId}`);
+    
+    if (!contractId) {
+      throw new Error("Contract ID is empty or invalid");
     }
+    
+    const contractIdNumber = parseInt(contractId);
+    if (isNaN(contractIdNumber)) {
+      throw new Error(`Invalid contract ID format: ${contractId}`);
+    }
+    
+    // Add more verbose logging
+    this.logInfo(`About to update contract ${contractId} in list ${this._listName}`);
+    
+    const result = await this._sp.web.lists.getByTitle(this._listName).items
+      .getById(contractIdNumber)
+      .update({
+        Deleted: 1
+      });
+      
+    this.logInfo(`Update result: ${JSON.stringify(result)}`);
+    this.logInfo(`Successfully marked contract as deleted, ID: ${contractId}`);
+  } catch (error) {
+    this.logError(`Error marking contract as deleted: ${error}`);
+    throw error;
   }
+}
 
   // В файле ContractsService.ts
 public async markContractAsNotDeleted(contractId: string): Promise<void> {
