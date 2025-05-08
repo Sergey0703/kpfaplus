@@ -8,9 +8,9 @@ import {
  IColumn,
  Toggle,
  PrimaryButton, 
+ DefaultButton,
  TextField,
  DatePicker,
- Panel,
  IconButton,
  ComboBox,
  IComboBoxOption,
@@ -171,6 +171,8 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
      finishDate: null,
      staffMemberId: selectedStaff.id
    });
+   
+   // Открываем панель
    setIsContractPanelOpen(true);
  };
  
@@ -187,12 +189,22 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
      isDeleted: contract.isDeleted,
      staffMemberId: selectedStaff.id
    });
+   
+   // Открываем панель
    setIsContractPanelOpen(true);
  };
  
- const closeContractPanel = (): void => {
-   setIsContractPanelOpen(false);
+ // Обработчики для закрытия панели
+ const handlePanelDismiss = (): void => {
+   console.log("Panel dismissed");
    setCurrentContract(null);
+   setIsContractPanelOpen(false);
+ };
+ 
+ const handleCancelButtonClick = (): void => {
+   console.log("Cancel button clicked directly");
+   setCurrentContract(null);
+   setIsContractPanelOpen(false);
  };
  
  const handleSaveContract = async (): Promise<void> => {
@@ -204,7 +216,10 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
    try {
      await contractsService.saveContract(currentContract);
      await fetchContracts(); // Обновляем список после сохранения
-     closeContractPanel();
+     
+     // Закрываем панель
+     setCurrentContract(null);
+     setIsContractPanelOpen(false);
    } catch (err) {
      console.error('Error saving contract:', err);
      setError(`Failed to save the contract. ${err.message || ''}`);
@@ -245,12 +260,6 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
    });
  };
  
- // Закрытие диалога подтверждения
- const closeConfirmDialog = (): void => {
-   setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-   // Не очищаем pendingActionContractIdRef здесь, чтобы сохранить ID для операции
- };
- 
  // Подтверждение удаления контракта
  const confirmDeleteContract = async (): Promise<void> => {
    const contractId = pendingActionContractIdRef.current;
@@ -259,7 +268,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
    
    if (!contractId || !contractsService) {
      console.error(`Missing contractId (${contractId}) or contractsService (${!!contractsService})`);
-     closeConfirmDialog();
+     setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
      return;
    }
    
@@ -283,7 +292,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
      setError(`Failed to delete the contract. ${err.message || ''}`);
    } finally {
      setIsLoading(false);
-     closeConfirmDialog();
+     setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
      pendingActionContractIdRef.current = null; // Сбрасываем ID после операции
    }
  };
@@ -296,7 +305,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
    
    if (!contractId || !contractsService) {
      console.error(`Missing contractId (${contractId}) or contractsService (${!!contractsService})`);
-     closeConfirmDialog();
+     setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
      return;
    }
    
@@ -320,7 +329,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
      setError(`Failed to restore the contract. ${err.message || ''}`);
    } finally {
      setIsLoading(false);
-     closeConfirmDialog();
+     setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
      pendingActionContractIdRef.current = null; // Сбрасываем ID после операции
    }
  };
@@ -382,7 +391,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
      isResizable: true,
      onRender: (item: IContract) => {
        return (
-         <div className={styles.templateCell} onClick={() => handleEditContract(item)}>
+         <div className={styles.templateCell}>
            {item.template}
          </div>
        );
@@ -459,7 +468,11 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
              <IconButton 
                iconProps={{ iconName: 'Refresh' }} 
                title="Restore" 
-               onClick={() => showRestoreConfirmDialog(item.id)}
+               onClick={(e) => {
+                 // Останавливаем распространение события, чтобы не открывать форму редактирования
+                 e.stopPropagation();
+                 showRestoreConfirmDialog(item.id);
+               }}
                styles={{
                  root: {
                    color: '#107c10' // зеленый цвет для восстановления
@@ -471,13 +484,21 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
              <IconButton 
                iconProps={{ iconName: 'Delete' }} 
                title="Delete" 
-               onClick={() => showDeleteConfirmDialog(item.id)}
+               onClick={(e) => {
+                 // Останавливаем распространение события, чтобы не открывать форму редактирования
+                 e.stopPropagation();
+                 showDeleteConfirmDialog(item.id);
+               }}
                styles={deleteIconButtonStyles}
              />
            )}
            <PrimaryButton 
              text="Show Template" 
-             onClick={() => handleShowTemplate(item.id)}
+             onClick={(e) => {
+               // Останавливаем распространение события, чтобы не открывать форму редактирования
+               e.stopPropagation();
+               handleShowTemplate(item.id);
+             }}
              styles={showTemplateButtonStyles}
            />
          </div>
@@ -581,86 +602,156 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
          selectionMode={SelectionMode.none}
          layoutMode={DetailsListLayoutMode.justified}
          className={styles.contractsList}
+         isHeaderVisible={true}
+         onRenderRow={(props, defaultRender) => {
+           if (!props || !defaultRender) return null;
+           
+           return (
+             <div onClick={() => props.item && handleEditContract(props.item)}>
+               {defaultRender(props)}
+             </div>
+           );
+         }}
+         styles={{
+           root: {
+             selectors: {
+               '.ms-DetailsRow': {
+                 cursor: 'pointer',
+                 '&:hover': {
+                   backgroundColor: '#f3f2f1',
+                 }
+               }
+             }
+           }
+         }}
        />
      )}
-     
-     <Panel
-       isOpen={isContractPanelOpen}
-       onDismiss={closeContractPanel}
-       headerText={currentContract?.id ? "Edit Contract" : "Add New Contract"}
-       closeButtonAriaLabel="Close"
-     >
-       {currentContract && (
-         <div className={styles.formContainer}>
-           <TextField 
-             label="Template Name" 
-             value={currentContract.template || ''}
-             onChange={(_, newValue) => setCurrentContract({
-               ...currentContract,
-               template: newValue || ''
-             })}
-             required
-           />
+
+     {/* Кастомная панель редактирования */}
+     {isContractPanelOpen && currentContract && (
+       <>
+         {/* Теневой фон */}
+         <div 
+           style={{
+             position: 'fixed',
+             top: 0,
+             left: 0,
+             right: 0,
+             bottom: 0,
+             backgroundColor: 'rgba(0,0,0,0.3)',
+             zIndex: 999
+           }} 
+           onClick={handlePanelDismiss}
+         />
+       
+         {/* Сама панель */}
+         <div style={{
+           position: 'fixed',
+           top: 0,
+           right: 0,
+           bottom: 0,
+           width: '400px',
+           backgroundColor: 'white',
+           boxShadow: '0 0 10px rgba(0,0,0,0.2)',
+           zIndex: 1000,
+           overflow: 'auto',
+           padding: '20px'
+         }}>
+           {/* Заголовок с кнопкой закрытия */}
+           <div style={{
+             display: 'flex',
+             justifyContent: 'space-between',
+             alignItems: 'center',
+             borderBottom: '1px solid #e0e0e0',
+             paddingBottom: '10px',
+             marginBottom: '20px'
+           }}>
+             <h2 style={{ margin: 0 }}>{currentContract.id ? "Edit Contract" : "Add New Contract"}</h2>
+             <button 
+               onClick={handlePanelDismiss}
+               style={{
+                 background: 'none',
+                 border: 'none',
+                 fontSize: '20px',
+                 cursor: 'pointer'
+               }}
+             >
+               &times;
+             </button>
+           </div>
            
-           <ComboBox
-             label="Type of Worker"
-             options={workerTypeOptions}
-             selectedKey={currentContract.typeOfWorkerId}
-             onChange={(_, option) => option && setCurrentContract({
-               ...currentContract,
-               typeOfWorkerId: option.key.toString()
-             })}
-             disabled={isLoadingWorkerTypes}
-           />
-           
-           <TextField
-             label="Contracted Hours"
-             type="number"
-             value={currentContract.contractedHours?.toString() || ''}
-             onChange={(_, newValue) => setCurrentContract({
-               ...currentContract,
-               contractedHours: Number(newValue) || 0
-             })}
-           />
-           
-           <DatePicker
-             label="Start Date"
-             value={currentContract.startDate ? new Date(currentContract.startDate) : undefined}
-             onSelectDate={(date) => setCurrentContract({
-               ...currentContract,
-               startDate: date || null
-             })}
-             formatDate={(date): string => date ? date.toLocaleDateString() : ''}
-           />
-           
-           <DatePicker
-             label="Finish Date"
-             value={currentContract.finishDate ? new Date(currentContract.finishDate) : undefined}
-             onSelectDate={(date) => setCurrentContract({
-               ...currentContract,
-               finishDate: date || null
-             })}
-             formatDate={(date): string => date ? date.toLocaleDateString() : ''}
-           />
-           
-           <div className={styles.formButtons}>
-             <PrimaryButton
-               text="Save"
-               onClick={handleSaveContract}
-               styles={{ root: { backgroundColor: '#0078d4' } }}
-               disabled={isLoading}
+           {/* Содержимое формы */}
+           <div className={styles.formContainer}>
+             <TextField 
+               label="Template Name" 
+               value={currentContract.template || ''}
+               onChange={(_, newValue) => setCurrentContract({
+                 ...currentContract,
+                 template: newValue || ''
+               })}
+               required
              />
-             <PrimaryButton
-               text="Cancel"
-               onClick={closeContractPanel}
-               styles={{ root: { backgroundColor: '#8a8886' } }}
-               disabled={isLoading}
+             
+             <ComboBox
+               label="Type of Worker"
+               options={workerTypeOptions}
+               selectedKey={currentContract.typeOfWorkerId}
+               onChange={(_, option) => option && setCurrentContract({
+                 ...currentContract,
+                 typeOfWorkerId: option.key.toString()
+               })}
+               disabled={isLoadingWorkerTypes}
              />
+             
+             <TextField
+               label="Contracted Hours"
+               type="number"
+               value={currentContract.contractedHours?.toString() || ''}
+               onChange={(_, newValue) => setCurrentContract({
+                 ...currentContract,
+                 contractedHours: Number(newValue) || 0
+               })}
+             />
+             
+             <DatePicker
+               label="Start Date"
+               value={currentContract.startDate ? new Date(currentContract.startDate) : undefined}
+               onSelectDate={(date) => setCurrentContract({
+                 ...currentContract,
+                 startDate: date || null
+               })}
+               formatDate={(date): string => date ? date.toLocaleDateString() : ''}
+             />
+             
+             <DatePicker
+               label="Finish Date"
+               value={currentContract.finishDate ? new Date(currentContract.finishDate) : undefined}
+               onSelectDate={(date) => setCurrentContract({
+                 ...currentContract,
+                 finishDate: date || null
+               })}
+               formatDate={(date): string => date ? date.toLocaleDateString() : ''}
+             />
+             
+             <div className={styles.formButtons}>
+               <PrimaryButton
+                 text="Save"
+                 onClick={handleSaveContract}
+                 styles={{ root: { backgroundColor: '#0078d4' } }}
+                 disabled={isLoading}
+               />
+               <DefaultButton
+                 text="Cancel"
+                 onClick={handleCancelButtonClick}
+                 styles={{ root: { marginLeft: 8 } }}
+                 disabled={isLoading}
+               />
+             </div>
            </div>
          </div>
-       )}
-     </Panel>
-     
+       </>
+     )}
+
      {/* Добавляем компонент диалога подтверждения */}
      <ConfirmDialog
        isOpen={confirmDialogProps.isOpen}
@@ -669,7 +760,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
        confirmButtonText={confirmDialogProps.confirmButtonText}
        cancelButtonText={confirmDialogProps.cancelButtonText}
        onConfirm={confirmDialogProps.onConfirm}
-       onDismiss={closeConfirmDialog}
+       onDismiss={() => setConfirmDialogProps(prev => ({ ...prev, isOpen: false }))}
        confirmButtonColor={confirmDialogProps.confirmButtonColor}
      />
    </div>
