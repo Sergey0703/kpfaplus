@@ -27,6 +27,7 @@ import { ITabProps } from '../../../models/types';
 import { IContract, IContractFormData } from '../../../models/IContract';
 import { ContractsService } from '../../../services/ContractsService';
 import styles from './ContractsTab.module.scss';
+import { ConfirmDialog } from '../../ConfirmDialog/ConfirmDialog';
 
 export const ContractsTab: React.FC<ITabProps> = (props) => {
  const { selectedStaff, context } = props;
@@ -48,6 +49,20 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
  // Состояние для типов работников
  const [workerTypeOptions, setWorkerTypeOptions] = useState<IComboBoxOption[]>([]);
  const [isLoadingWorkerTypes, setIsLoadingWorkerTypes] = useState<boolean>(false);
+ 
+ // Состояние для диалогов подтверждения
+ const [confirmDialogProps, setConfirmDialogProps] = useState({
+   isOpen: false,
+   title: '',
+   message: '',
+   confirmButtonText: '',
+   cancelButtonText: 'Cancel',
+   onConfirm: () => {},
+   confirmButtonColor: ''
+ });
+ 
+ // Состояние для хранения ID контракта, с которым производится действие
+ const [pendingActionContractId, setPendingActionContractId] = useState<string | null>(null);
  
  // Проверка наличия контекста перед инициализацией сервиса
  const contractsService = context 
@@ -198,19 +213,57 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
    }
  };
  
- const handleDeleteContract = async (contractId: string): Promise<void> => {
-   if (!contractsService) return;
+ // Обработчик для показа диалога подтверждения удаления
+ const showDeleteConfirmDialog = (contractId: string): void => {
+   setConfirmDialogProps({
+     isOpen: true,
+     title: 'Confirm Delete',
+     message: 'Are you sure you want to delete this contract? It will be marked as deleted but can be restored later.',
+     confirmButtonText: 'Delete',
+     cancelButtonText: 'Cancel',
+     onConfirm: () => confirmDeleteContract(),
+     confirmButtonColor: '#d83b01' // красный цвет для удаления
+   });
+   setPendingActionContractId(contractId);
+ };
+ 
+ // Обработчик для показа диалога подтверждения восстановления
+ const showRestoreConfirmDialog = (contractId: string): void => {
+   setConfirmDialogProps({
+     isOpen: true,
+     title: 'Confirm Restore',
+     message: 'Are you sure you want to restore this deleted contract?',
+     confirmButtonText: 'Restore',
+     cancelButtonText: 'Cancel',
+     onConfirm: () => confirmRestoreContract(),
+     confirmButtonColor: '#107c10' // зеленый цвет для восстановления
+   });
+   setPendingActionContractId(contractId);
+ };
+ 
+ // Закрытие диалога подтверждения
+ const closeConfirmDialog = (): void => {
+   setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
+   setPendingActionContractId(null);
+ };
+ 
+ // Подтверждение удаления контракта
+ const confirmDeleteContract = async (): Promise<void> => {
+   if (!pendingActionContractId || !contractsService) {
+     closeConfirmDialog();
+     return;
+   }
    
    setIsLoading(true);
    setError(null);
    
    try {
-     await contractsService.markContractAsDeleted(contractId);
+     await contractsService.markContractAsDeleted(pendingActionContractId);
      
      // Обновляем локальное состояние без запроса к серверу
      setContracts(prevContracts => 
        prevContracts.map(c => 
-         c.id === contractId 
+         c.id === pendingActionContractId 
            ? {...c, isDeleted: true} 
            : c
        )
@@ -220,6 +273,37 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
      setError(`Failed to delete the contract. ${err.message || ''}`);
    } finally {
      setIsLoading(false);
+     closeConfirmDialog();
+   }
+ };
+ 
+ // Подтверждение восстановления контракта
+ const confirmRestoreContract = async (): Promise<void> => {
+   if (!pendingActionContractId || !contractsService) {
+     closeConfirmDialog();
+     return;
+   }
+   
+   setIsLoading(true);
+   setError(null);
+   
+   try {
+     await contractsService.markContractAsNotDeleted(pendingActionContractId);
+     
+     // Обновляем локальное состояние без запроса к серверу
+     setContracts(prevContracts => 
+       prevContracts.map(c => 
+         c.id === pendingActionContractId 
+           ? {...c, isDeleted: false} 
+           : c
+       )
+     );
+   } catch (err) {
+     console.error('Error restoring contract:', err);
+     setError(`Failed to restore the contract. ${err.message || ''}`);
+   } finally {
+     setIsLoading(false);
+     closeConfirmDialog();
    }
  };
  
@@ -357,7 +441,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
               <IconButton 
                 iconProps={{ iconName: 'Refresh' }} 
                 title="Restore" 
-                onClick={() => handleRestoreContract(item.id)}
+                onClick={() => showRestoreConfirmDialog(item.id)}
                 styles={{
                   root: {
                     color: '#107c10' // зеленый цвет для восстановления
@@ -369,7 +453,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
               <IconButton 
                 iconProps={{ iconName: 'Delete' }} 
                 title="Delete" 
-                onClick={() => handleDeleteContract(item.id)}
+                onClick={() => showDeleteConfirmDialog(item.id)}
                 styles={deleteIconButtonStyles}
               />
             )}
@@ -406,31 +490,10 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
    } */
  ];
  
- // Добавляем функцию для восстановления удаленного контракта
-const handleRestoreContract = async (contractId: string): Promise<void> => {
-  if (!contractsService) return;
-  
-  setIsLoading(true);
-  setError(null);
-  
-  try {
-    await contractsService.markContractAsNotDeleted(contractId);
-    
-    // Обновляем локальное состояние без запроса к серверу
-    setContracts(prevContracts => 
-      prevContracts.map(c => 
-        c.id === contractId 
-          ? {...c, isDeleted: false} 
-          : c
-      )
-    );
-  } catch (err) {
-    console.error('Error restoring contract:', err);
-    setError(`Failed to restore the contract. ${err.message || ''}`);
-  } finally {
-    setIsLoading(false);
-  }
-};
+ // Удалим неиспользуемую функцию handleRestoreContract, так как она заменена на showRestoreConfirmDialog
+ // (Оставим только комментарий для отслеживания изменений)
+ // Эта функция больше не используется, так как мы используем диалог подтверждения
+
  // Фильтруем контракты по статусу удаления
  const filteredContracts = contracts.filter(contract => 
    showDeleted ? true : !contract.isDeleted
@@ -605,6 +668,18 @@ const handleRestoreContract = async (contractId: string): Promise<void> => {
          </div>
        )}
      </Panel>
+     
+     {/* Добавляем компонент диалога подтверждения */}
+     <ConfirmDialog
+       isOpen={confirmDialogProps.isOpen}
+       title={confirmDialogProps.title}
+       message={confirmDialogProps.message}
+       confirmButtonText={confirmDialogProps.confirmButtonText}
+       cancelButtonText={confirmDialogProps.cancelButtonText}
+       onConfirm={confirmDialogProps.onConfirm}
+       onDismiss={closeConfirmDialog}
+       confirmButtonColor={confirmDialogProps.confirmButtonColor}
+     />
    </div>
  );
 };
