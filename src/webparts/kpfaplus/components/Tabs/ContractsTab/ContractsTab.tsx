@@ -19,6 +19,10 @@ import {
  MessageBar,
  MessageBarType
 } from '@fluentui/react';
+import { spfi, SPFx } from "@pnp/sp";
+import "@pnp/sp/webs";
+import "@pnp/sp/lists";
+import "@pnp/sp/items";
 import { ITabProps } from '../../../models/types';
 import { IContract, IContractFormData } from '../../../models/IContract';
 import { ContractsService } from '../../../services/ContractsService';
@@ -41,18 +45,52 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
  const [isContractPanelOpen, setIsContractPanelOpen] = useState<boolean>(false);
  const [currentContract, setCurrentContract] = useState<IContractFormData | null>(null);
  
+ // Состояние для типов работников
+ const [workerTypeOptions, setWorkerTypeOptions] = useState<IComboBoxOption[]>([]);
+ const [isLoadingWorkerTypes, setIsLoadingWorkerTypes] = useState<boolean>(false);
+ 
  // Проверка наличия контекста перед инициализацией сервиса
  const contractsService = context 
    ? ContractsService.getInstance(context) 
    : null;
+   
+ // Загружаем типы работников при монтировании компонента
+ useEffect(() => {
+   if (context) {
+     fetchWorkerTypes();
+   }
+ }, [context]);
  
- // Опции для типов работников
- const workerTypeOptions: IComboBoxOption[] = [
-   { key: '1', text: 'Social Care Worker' },
-   { key: '2', text: 'Bus Driver' },
-   { key: '3', text: 'Administrative Staff' },
-   { key: '4', text: 'Manager' }
- ];
+ // Функция загрузки типов работников из списка TypeOfWorkers
+ const fetchWorkerTypes = async (): Promise<void> => {
+   if (!context) {
+     return;
+   }
+   
+   setIsLoadingWorkerTypes(true);
+   
+   try {
+     // Используем PnP JS для получения данных из списка
+     const sp = spfi().using(SPFx(context));
+     
+     const items = await sp.web.lists.getByTitle("TypeOfWorkers").items
+       .select("ID,Title")
+       .orderBy("Title", true)();
+     
+     // Преобразуем данные в формат IComboBoxOption
+     const options: IComboBoxOption[] = items.map((item) => ({
+       key: item.ID.toString(),
+       text: item.Title
+     }));
+     
+     setWorkerTypeOptions(options);
+     console.log("[ContractsTab] Loaded worker types:", options);
+   } catch (err) {
+     console.error("Error loading worker types:", err);
+   } finally {
+     setIsLoadingWorkerTypes(false);
+   }
+ };
  
  // Загружаем контракты при изменении selectedStaff или контекста
  useEffect(() => {
@@ -454,6 +492,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
                ...currentContract,
                typeOfWorkerId: option.key.toString()
              })}
+             disabled={isLoadingWorkerTypes}
            />
            
            <TextField

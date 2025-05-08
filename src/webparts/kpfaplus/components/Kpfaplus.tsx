@@ -444,7 +444,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
       return <div>Please select a staff member</div>;
     }
     const currentUserId = currentUser?.ID !== undefined ? currentUser.ID.toString() : undefined;
-    const managingGroupId = '54'; 
+    const managingGroupId = selectedDepartmentId; 
     // Общие props для передачи во вкладки
     const tabProps = {
       selectedStaff,
