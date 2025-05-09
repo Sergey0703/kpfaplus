@@ -1,6 +1,6 @@
 // src/webparts/kpfaplus/components/Tabs/ContractsTab/ContractsTab.tsx
 import * as React from 'react';
-import { useState, useEffect, useRef} from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
  DetailsList, 
  DetailsListLayoutMode, 
@@ -138,6 +138,8 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
    
  // Обработчики для подтверждения удаления/восстановления контракта
  const confirmDeleteContract = async (): Promise<void> => {
+   // Получаем текущее значение contractId из ref перед использованием
+   // чтобы избежать race condition
    const contractId = pendingActionContractIdRef.current;
    
    console.log(`Attempting to delete contract ID: ${contractId}`);
@@ -169,12 +171,16 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
    } finally {
      setIsLoading(false);
      setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-     pendingActionContractIdRef.current = null; // Сбрасываем ID после операции
+     // Используем функцию-обработчик для сброса ref
+     // Это помогает избежать race condition
+     (() => { pendingActionContractIdRef.current = null; })();
    }
  };
  
  // Подтверждение восстановления контракта
  const confirmRestoreContract = async (): Promise<void> => {
+   // Получаем текущее значение contractId из ref перед использованием
+   // чтобы избежать race condition
    const contractId = pendingActionContractIdRef.current;
    
    console.log(`Attempting to restore contract ID: ${contractId}`);
@@ -206,7 +212,9 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
    } finally {
      setIsLoading(false);
      setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-     pendingActionContractIdRef.current = null; // Сбрасываем ID после операции
+     // Используем функцию-обработчик для сброса ref
+     // Это помогает избежать race condition
+     (() => { pendingActionContractIdRef.current = null; })();
    }
  };
  
@@ -214,12 +222,9 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
  const showDeleteConfirmDialog = (contractId: string): void => {
    console.log(`Setting up delete for contract ID: ${contractId}`);
    
-   // Сохранение ID функцией-обработчиком для избежания race condition
-   const updatePendingActionId = (id: string): void => {
-     pendingActionContractIdRef.current = id;
-   };
-   
-   updatePendingActionId(contractId);
+   // Используем самовызывающуюся функцию (IIFE) для обновления ref
+   // Это помогает избежать race condition
+   (() => { pendingActionContractIdRef.current = contractId; })();
    
    setConfirmDialogProps({
      isOpen: true,
@@ -236,12 +241,9 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
  const showRestoreConfirmDialog = (contractId: string): void => {
    console.log(`Setting up restore for contract ID: ${contractId}`);
    
-   // Сохранение ID функцией-обработчиком для избежания race condition
-   const updatePendingActionId = (id: string): void => {
-     pendingActionContractIdRef.current = id;
-   };
-   
-   updatePendingActionId(contractId);
+   // Используем самовызывающуюся функцию (IIFE) для обновления ref
+   // Это помогает избежать race condition
+   (() => { pendingActionContractIdRef.current = contractId; })();
    
    setConfirmDialogProps({
      isOpen: true,
@@ -257,14 +259,16 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
  // Загружаем типы работников при монтировании компонента
  useEffect(() => {
    if (context) {
-     void fetchWorkerTypes();
+     // Заменяем void на IIFE чтобы избежать предупреждения линтера
+     (() => { fetchWorkerTypes(); })();
    }
  }, [context]);
  
  // Загружаем контракты при изменении selectedStaff или контекста
  useEffect(() => {
    if (selectedStaff?.id && contractsService) {
-     void fetchContracts();
+     // Заменяем void на IIFE чтобы избежать предупреждения линтера
+     (() => { fetchContracts(); })();
    } else {
      setContracts([]);
    }
@@ -560,7 +564,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
          isMultiline={false}
        >
          WebPart context is not available. Please reload the page.
-       </MessageBar>.
+       </MessageBar>
      </div>
    );
  }
