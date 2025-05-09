@@ -92,7 +92,20 @@ public async saveContract(contractData: IContractFormData): Promise<string> {
     const list = this._sp.web.lists.getByTitle(this._listName);
     
     // Подготавливаем данные для SharePoint
-    const itemData: any = {
+    // Используем интерфейс для itemData вместо any
+    interface ISharePointContractData {
+      Title?: string;
+      ContractedHoursSchedule?: number;
+      Deleted?: number;
+      TypeOfWorkerId?: number;
+      StartDate?: Date;
+      FinishDate?: Date;
+      StaffMemberScheduleId?: number;
+      ManagerId?: number;
+      StaffGroupId?: number;
+    }
+    
+    const itemData: ISharePointContractData = {
       Title: contractData.template || '',
       ContractedHoursSchedule: contractData.contractedHours || 0,
       Deleted: contractData.isDeleted === true ? 1 : 0
@@ -291,8 +304,8 @@ private mapSharePointItemToContract(item: any): IContract {
         value: item.TypeOfWorker.Title || ''
       } : { id: '', value: '' },
       contractedHours: item.ContractedHoursSchedule || 0,
-      startDate: item.StartDate ? new Date(item.StartDate) : null,
-      finishDate: item.FinishDate ? new Date(item.FinishDate) : null,
+      startDate: item.StartDate ? new Date(item.StartDate) : undefined, // Изменено с null на undefined
+      finishDate: item.FinishDate ? new Date(item.FinishDate) : undefined, // Изменено с null на undefined
       isDeleted: item.Deleted === 1, // Преобразуем числовое значение в boolean
       manager: item.Manager ? {
         id: item.Manager.Id.toString(),

@@ -1,6 +1,6 @@
 // src/webparts/kpfaplus/components/Tabs/ContractsTab/ContractsTab.tsx
 import * as React from 'react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef} from 'react';
 import { 
  DetailsList, 
  DetailsListLayoutMode, 
@@ -68,14 +68,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
  const contractsService = context 
    ? ContractsService.getInstance(context) 
    : null;
-   
- // Загружаем типы работников при монтировании компонента
- useEffect(() => {
-   if (context) {
-     fetchWorkerTypes();
-   }
- }, [context]);
- 
+
  // Функция загрузки типов работников из списка TypeOfWorkers
  const fetchWorkerTypes = async (): Promise<void> => {
    if (!context) {
@@ -106,16 +99,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
      setIsLoadingWorkerTypes(false);
    }
  };
- 
- // Загружаем контракты при изменении selectedStaff или контекста
- useEffect(() => {
-   if (selectedStaff?.id && contractsService) {
-     fetchContracts();
-   } else {
-     setContracts([]);
-   }
- }, [selectedStaff, contractsService]);
- 
+
  // Получение контрактов из сервиса
  const fetchContracts = async (): Promise<void> => {
   if (!selectedStaff?.id || !contractsService) {
@@ -151,6 +135,140 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
     setIsLoading(false);
   }
 };
+   
+ // Обработчики для подтверждения удаления/восстановления контракта
+ const confirmDeleteContract = async (): Promise<void> => {
+   const contractId = pendingActionContractIdRef.current;
+   
+   console.log(`Attempting to delete contract ID: ${contractId}`);
+   
+   if (!contractId || !contractsService) {
+     console.error(`Missing contractId (${contractId}) or contractsService (${!!contractsService})`);
+     setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
+     return;
+   }
+   
+   setIsLoading(true);
+   setError(null);
+   
+   try {
+     await contractsService.markContractAsDeleted(contractId);
+     console.log(`Successfully marked contract ${contractId} as deleted`);
+     
+     // Обновляем локальное состояние без запроса к серверу
+     setContracts(prevContracts => 
+       prevContracts.map(c => 
+         c.id === contractId 
+           ? {...c, isDeleted: true} 
+           : c
+       )
+     );
+   } catch (err) {
+     console.error('Error deleting contract:', err);
+     setError(`Failed to delete the contract. ${err.message || ''}`);
+   } finally {
+     setIsLoading(false);
+     setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
+     pendingActionContractIdRef.current = null; // Сбрасываем ID после операции
+   }
+ };
+ 
+ // Подтверждение восстановления контракта
+ const confirmRestoreContract = async (): Promise<void> => {
+   const contractId = pendingActionContractIdRef.current;
+   
+   console.log(`Attempting to restore contract ID: ${contractId}`);
+   
+   if (!contractId || !contractsService) {
+     console.error(`Missing contractId (${contractId}) or contractsService (${!!contractsService})`);
+     setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
+     return;
+   }
+   
+   setIsLoading(true);
+   setError(null);
+   
+   try {
+     await contractsService.markContractAsNotDeleted(contractId);
+     console.log(`Successfully restored contract ${contractId}`);
+     
+     // Обновляем локальное состояние без запроса к серверу
+     setContracts(prevContracts => 
+       prevContracts.map(c => 
+         c.id === contractId 
+           ? {...c, isDeleted: false} 
+           : c
+       )
+     );
+   } catch (err) {
+     console.error('Error restoring contract:', err);
+     setError(`Failed to restore the contract. ${err.message || ''}`);
+   } finally {
+     setIsLoading(false);
+     setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
+     pendingActionContractIdRef.current = null; // Сбрасываем ID после операции
+   }
+ };
+ 
+ // Обработчик для показа диалога подтверждения удаления
+ const showDeleteConfirmDialog = (contractId: string): void => {
+   console.log(`Setting up delete for contract ID: ${contractId}`);
+   
+   // Сохранение ID функцией-обработчиком для избежания race condition
+   const updatePendingActionId = (id: string): void => {
+     pendingActionContractIdRef.current = id;
+   };
+   
+   updatePendingActionId(contractId);
+   
+   setConfirmDialogProps({
+     isOpen: true,
+     title: 'Confirm Delete',
+     message: 'Are you sure you want to delete this contract? It will be marked as deleted but can be restored later.',
+     confirmButtonText: 'Delete',
+     cancelButtonText: 'Cancel',
+     onConfirm: () => confirmDeleteContract(),
+     confirmButtonColor: '#d83b01' // красный цвет для удаления
+   });
+ };
+ 
+ // Обработчик для показа диалога подтверждения восстановления
+ const showRestoreConfirmDialog = (contractId: string): void => {
+   console.log(`Setting up restore for contract ID: ${contractId}`);
+   
+   // Сохранение ID функцией-обработчиком для избежания race condition
+   const updatePendingActionId = (id: string): void => {
+     pendingActionContractIdRef.current = id;
+   };
+   
+   updatePendingActionId(contractId);
+   
+   setConfirmDialogProps({
+     isOpen: true,
+     title: 'Confirm Restore',
+     message: 'Are you sure you want to restore this deleted contract?',
+     confirmButtonText: 'Restore',
+     cancelButtonText: 'Cancel',
+     onConfirm: () => confirmRestoreContract(),
+     confirmButtonColor: '#107c10' // зеленый цвет для восстановления
+   });
+ };
+
+ // Загружаем типы работников при монтировании компонента
+ useEffect(() => {
+   if (context) {
+     void fetchWorkerTypes();
+   }
+ }, [context]);
+ 
+ // Загружаем контракты при изменении selectedStaff или контекста
+ useEffect(() => {
+   if (selectedStaff?.id && contractsService) {
+     void fetchContracts();
+   } else {
+     setContracts([]);
+   }
+ }, [selectedStaff, contractsService]);
  
  // Обработчики UI
  const handleShowDeletedChange = (ev: React.MouseEvent<HTMLElement>, checked?: boolean): void => {
@@ -173,8 +291,8 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
     template: '',
     typeOfWorkerId: '',
     contractedHours: 0,
-    startDate: null,
-    finishDate: null,
+    startDate: undefined, // Изменено с null на undefined
+    finishDate: undefined, // Изменено с null на undefined
     staffMemberId: selectedStaff.employeeId, // ID сотрудника
     managerId: props.currentUserId?.toString(), // ID менеджера
     staffGroupId: props.managingGroupId?.toString() // ID группы
@@ -258,112 +376,6 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
      setError(`Failed to save the contract: ${err.message || 'Unknown error'}`);
    } finally {
      setIsLoading(false);
-   }
- };
- 
- // Обработчик для показа диалога подтверждения удаления
- const showDeleteConfirmDialog = (contractId: string): void => {
-   console.log(`Setting up delete for contract ID: ${contractId}`);
-   pendingActionContractIdRef.current = contractId; // Сохраняем ID в ref
-   
-   setConfirmDialogProps({
-     isOpen: true,
-     title: 'Confirm Delete',
-     message: 'Are you sure you want to delete this contract? It will be marked as deleted but can be restored later.',
-     confirmButtonText: 'Delete',
-     cancelButtonText: 'Cancel',
-     onConfirm: () => confirmDeleteContract(),
-     confirmButtonColor: '#d83b01' // красный цвет для удаления
-   });
- };
- 
- // Обработчик для показа диалога подтверждения восстановления
- const showRestoreConfirmDialog = (contractId: string): void => {
-   console.log(`Setting up restore for contract ID: ${contractId}`);
-   pendingActionContractIdRef.current = contractId; // Сохраняем ID в ref
-   
-   setConfirmDialogProps({
-     isOpen: true,
-     title: 'Confirm Restore',
-     message: 'Are you sure you want to restore this deleted contract?',
-     confirmButtonText: 'Restore',
-     cancelButtonText: 'Cancel',
-     onConfirm: () => confirmRestoreContract(),
-     confirmButtonColor: '#107c10' // зеленый цвет для восстановления
-   });
- };
- 
- // Подтверждение удаления контракта
- const confirmDeleteContract = async (): Promise<void> => {
-   const contractId = pendingActionContractIdRef.current;
-   
-   console.log(`Attempting to delete contract ID: ${contractId}`);
-   
-   if (!contractId || !contractsService) {
-     console.error(`Missing contractId (${contractId}) or contractsService (${!!contractsService})`);
-     setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-     return;
-   }
-   
-   setIsLoading(true);
-   setError(null);
-   
-   try {
-     await contractsService.markContractAsDeleted(contractId);
-     console.log(`Successfully marked contract ${contractId} as deleted`);
-     
-     // Обновляем локальное состояние без запроса к серверу
-     setContracts(prevContracts => 
-       prevContracts.map(c => 
-         c.id === contractId 
-           ? {...c, isDeleted: true} 
-           : c
-       )
-     );
-   } catch (err) {
-     console.error('Error deleting contract:', err);
-     setError(`Failed to delete the contract. ${err.message || ''}`);
-   } finally {
-     setIsLoading(false);
-     setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-     pendingActionContractIdRef.current = null; // Сбрасываем ID после операции
-   }
- };
- 
- // Подтверждение восстановления контракта
- const confirmRestoreContract = async (): Promise<void> => {
-   const contractId = pendingActionContractIdRef.current;
-   
-   console.log(`Attempting to restore contract ID: ${contractId}`);
-   
-   if (!contractId || !contractsService) {
-     console.error(`Missing contractId (${contractId}) or contractsService (${!!contractsService})`);
-     setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-     return;
-   }
-   
-   setIsLoading(true);
-   setError(null);
-   
-   try {
-     await contractsService.markContractAsNotDeleted(contractId);
-     console.log(`Successfully restored contract ${contractId}`);
-     
-     // Обновляем локальное состояние без запроса к серверу
-     setContracts(prevContracts => 
-       prevContracts.map(c => 
-         c.id === contractId 
-           ? {...c, isDeleted: false} 
-           : c
-       )
-     );
-   } catch (err) {
-     console.error('Error restoring contract:', err);
-     setError(`Failed to restore the contract. ${err.message || ''}`);
-   } finally {
-     setIsLoading(false);
-     setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-     pendingActionContractIdRef.current = null; // Сбрасываем ID после операции
    }
  };
  
@@ -548,7 +560,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
          isMultiline={false}
        >
          WebPart context is not available. Please reload the page.
-       </MessageBar>
+       </MessageBar>.
      </div>
    );
  }
@@ -742,7 +754,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
                value={currentContract.startDate ? new Date(currentContract.startDate) : undefined}
                onSelectDate={(date) => setCurrentContract({
                  ...currentContract,
-                 startDate: date || null
+                 startDate: date || undefined // Изменено с null на undefined
                })}
                formatDate={(date): string => date ? date.toLocaleDateString() : ''}
              />
@@ -752,7 +764,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
                value={currentContract.finishDate ? new Date(currentContract.finishDate) : undefined}
                onSelectDate={(date) => setCurrentContract({
                  ...currentContract,
-                 finishDate: date || null
+                 finishDate: date || undefined // Изменено с null на undefined
                })}
                formatDate={(date): string => date ? date.toLocaleDateString() : ''}
              />
