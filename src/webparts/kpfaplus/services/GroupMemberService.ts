@@ -7,6 +7,31 @@ import "@pnp/sp/items";
 import "@pnp/sp/fields";
 import { IGroupMember } from "../models/types";
 
+// Интерфейс для создания записи члена группы
+interface ICreateGroupMemberData {
+  GroupId: number;
+  EmployeeId: number;
+  AutoSchedule: boolean;
+  PathForSRSFile: string;
+  GeneralNote: string;
+  Deleted: number;
+  ContractedHours: number;
+  ManagerId?: number; // Опциональное поле
+}
+
+// Интерфейс для элемента списка GroupMembers
+interface IGroupMemberItem {
+  ID: number;
+  GroupId: number;
+  EmployeeId: number;
+  Deleted?: number;
+  Title?: string;
+  AutoSchedule?: boolean;
+  PathForSRSFile?: string;
+  GeneralNote?: string;
+  ContractedHours?: number;
+}
+
 export class GroupMemberService {
   private sp: SPFI;
   private logSource = "GroupMemberService";
@@ -106,7 +131,14 @@ export class GroupMemberService {
       }
 
       // Создаем объект данных для обновления
-      const data: any = {};
+      interface IUpdateData {
+        AutoSchedule?: boolean;
+        PathForSRSFile?: string;
+        GeneralNote?: string;
+        Deleted?: number;
+      }
+
+      const data: IUpdateData = {};
 
       // Добавляем только те поля, которые были переданы
       if (updateData.autoSchedule !== undefined) {
@@ -147,7 +179,6 @@ export class GroupMemberService {
    * @param additionalData Дополнительные данные для члена группы
    * @returns Promise с результатом операции
    */
-  
   public async createGroupMemberFromStaff(
     groupId: number, 
     staffId: number, 
@@ -180,7 +211,7 @@ export class GroupMemberService {
       }
       
       // Подготавливаем данные для создания записи в GroupMembers
-      const createData: any = {
+      const createData: ICreateGroupMemberData = {
         GroupId: groupId,            // Поле для связи с группой
         EmployeeId: staffId,         // Поле для связи с сотрудником
         AutoSchedule: additionalData.autoSchedule ?? false,
@@ -199,10 +230,22 @@ export class GroupMemberService {
       
       // Создаем запись в списке GroupMembers
       try {
+        // Тип для результата операции добавления
+        interface IAddItemResult {
+          data?: {
+            ID?: number;
+            [key: string]: unknown;
+          };
+          item?: {
+            ID?: number;
+            [key: string]: unknown;
+          };
+        }
+
         const result = await this.sp.web.lists
           .getByTitle("GroupMembers")
           .items
-          .add(createData);
+          .add(createData) as IAddItemResult;
         
         if (result && result.data) {
           this.logInfo(`Successfully created GroupMember with ID: ${result.data.ID}`);
@@ -224,26 +267,25 @@ export class GroupMemberService {
   }
 
   // В GroupMemberService добавим новый метод для проверки
-public async isStaffInGroup(groupId: number, staffId: number): Promise<boolean> {
-  try {
-    this.logInfo(`Checking if staff ID: ${staffId} is already in group ID: ${groupId}`);
-    
-    // Получаем записи из списка GroupMembers, которые соответствуют критериям
-    const items = await this.sp.web.lists
-      .getByTitle("GroupMembers")
-      .items
-      .filter(`GroupId eq ${groupId} and EmployeeId eq ${staffId} and Deleted ne 1`)();
-    
-    // Если найдена хотя бы одна запись, значит сотрудник уже в группе
-    const isInGroup = items && items.length > 0;
-    this.logInfo(`Staff ID: ${staffId} is ${isInGroup ? 'already' : 'not'} in group ID: ${groupId}`);
-    
-    return isInGroup;
-  } catch (error) {
-    this.logError(`Error checking if staff is in group: ${error}`);
-    // В случае ошибки, предполагаем что сотрудника нет в группе
-    return false;
+  public async isStaffInGroup(groupId: number, staffId: number): Promise<boolean> {
+    try {
+      this.logInfo(`Checking if staff ID: ${staffId} is already in group ID: ${groupId}`);
+      
+      // Получаем записи из списка GroupMembers, которые соответствуют критериям
+      const items: IGroupMemberItem[] = await this.sp.web.lists
+        .getByTitle("GroupMembers")
+        .items
+        .filter(`GroupId eq ${groupId} and EmployeeId eq ${staffId} and Deleted ne 1`)();
+      
+      // Если найдена хотя бы одна запись, значит сотрудник уже в группе
+      const isInGroup = items && items.length > 0;
+      this.logInfo(`Staff ID: ${staffId} is ${isInGroup ? 'already' : 'not'} in group ID: ${groupId}`);
+      
+      return isInGroup;
+    } catch (error) {
+      this.logError(`Error checking if staff is in group: ${error}`);
+      // В случае ошибки, предполагаем что сотрудника нет в группе
+      return false;
+    }
   }
-}
-
 }
