@@ -60,21 +60,7 @@ export const StaffSelector: React.FC<IStaffSelectorProps> = (props) => {
     data: staff
   }));
   
-  // Сбрасываем форму при открытии
-  useEffect(() => {
-    if (isOpen) {
-      setSelectedStaffId(null);
-      setAutoSchedule(false);
-      setSrsFilePath('');
-      setGeneralNote('');
-      setErrorMessage(null);
-      
-      // Загружаем список сотрудников
-      loadStaffList();
-    }
-  }, [isOpen]);
-  
-  // Функция загрузки списка сотрудников
+  // Функция загрузки списка сотрудников (определена перед её использованием)
   const loadStaffList = async (): Promise<void> => {
     setLoading(true);
     setErrorMessage(null);
@@ -101,6 +87,26 @@ export const StaffSelector: React.FC<IStaffSelectorProps> = (props) => {
     }
   };
   
+  // Сбрасываем форму при открытии
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedStaffId(null);
+      setAutoSchedule(false);
+      setSrsFilePath('');
+      setGeneralNote('');
+      setErrorMessage(null);
+      
+      // Загружаем список сотрудников с правильной обработкой Promise
+      loadStaffList()
+        .then(() => {
+          console.log("Staff list loaded successfully");
+        })
+        .catch(error => {
+          console.error("Error loading staff list:", error);
+        });
+    }
+  }, [isOpen]);
+  
   // Обработчик выбора сотрудника
   const handleStaffChange = (event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
     if (option) {
@@ -124,8 +130,8 @@ export const StaffSelector: React.FC<IStaffSelectorProps> = (props) => {
   };
   
   // Обработчик добавления сотрудника - тестовая версия
-// В StaffSelector.tsx обновите метод handleAddStaff
-const handleAddStaff = async (): Promise<void> => {
+  // В StaffSelector.tsx обновите метод handleAddStaff
+  const handleAddStaff = async (): Promise<void> => {
     if (!selectedStaffId) {
       setErrorMessage('Please select a staff member');
       return;
@@ -193,7 +199,16 @@ const handleAddStaff = async (): Promise<void> => {
           />
           <PrimaryButton
             text="Add Staff"
-            onClick={handleAddStaff}
+            onClick={() => {
+              // Используем явный .then().catch() для обработки Promise
+              handleAddStaff()
+                .then(() => {
+                  console.log("Staff adding operation completed");
+                })
+                .catch(error => {
+                  console.error("Error during staff adding:", error);
+                });
+            }}
             disabled={!selectedStaffId || isSaving}
           />
         </div>
