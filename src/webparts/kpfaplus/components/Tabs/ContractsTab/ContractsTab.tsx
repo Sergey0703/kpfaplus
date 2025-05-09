@@ -232,7 +232,12 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
      message: 'Are you sure you want to delete this contract? It will be marked as deleted but can be restored later.',
      confirmButtonText: 'Delete',
      cancelButtonText: 'Cancel',
-     onConfirm: () => confirmDeleteContract(),
+     onConfirm: () => {
+       // Используем .then().catch() для обработки Promise
+       confirmDeleteContract()
+         .then(() => console.log(`Contract ${contractId} deleted successfully`))
+         .catch(err => console.error(`Error deleting contract ${contractId}:`, err));
+     },
      confirmButtonColor: '#d83b01' // красный цвет для удаления
    });
  };
@@ -251,7 +256,12 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
      message: 'Are you sure you want to restore this deleted contract?',
      confirmButtonText: 'Restore',
      cancelButtonText: 'Cancel',
-     onConfirm: () => confirmRestoreContract(),
+     onConfirm: () => {
+       // Используем .then().catch() для обработки Promise
+       confirmRestoreContract()
+         .then(() => console.log(`Contract ${contractId} restored successfully`))
+         .catch(err => console.error(`Error restoring contract ${contractId}:`, err));
+     },
      confirmButtonColor: '#107c10' // зеленый цвет для восстановления
    });
  };
@@ -259,16 +269,30 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
  // Загружаем типы работников при монтировании компонента
  useEffect(() => {
    if (context) {
-     // Заменяем void на IIFE чтобы избежать предупреждения линтера
-     (() => { fetchWorkerTypes(); })();
+     (async () => {
+       try {
+         await fetchWorkerTypes();
+       } catch (err) {
+         console.error("Error loading worker types:", err);
+       }
+     })()
+       .then(() => console.log("Worker types loaded successfully"))
+       .catch(err => console.error("Error in worker types loading IIFE:", err));
    }
  }, [context]);
  
  // Загружаем контракты при изменении selectedStaff или контекста
  useEffect(() => {
    if (selectedStaff?.id && contractsService) {
-     // Заменяем void на IIFE чтобы избежать предупреждения линтера
-     (() => { fetchContracts(); })();
+     (async () => {
+       try {
+         await fetchContracts();
+       } catch (err) {
+         console.error("Error fetching contracts:", err);
+       }
+     })()
+       .then(() => console.log("Contracts loaded successfully"))
+       .catch(err => console.error("Error in contracts loading IIFE:", err));
    } else {
      setContracts([]);
    }
@@ -776,7 +800,12 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
              <div className={styles.formButtons}>
              <PrimaryButton
   text="Save"
-  onClick={handleSaveContract}
+  onClick={() => {
+    // Используем .then().catch() для обработки Promise
+    handleSaveContract()
+      .then(() => console.log("Contract saved successfully"))
+      .catch(err => console.error("Error saving contract:", err));
+  }}
   styles={{ root: { backgroundColor: '#0078d4' } }}
   disabled={isLoading || !currentContract.template || currentContract.template.trim() === ''}
 />
