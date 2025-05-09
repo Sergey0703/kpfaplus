@@ -8,6 +8,20 @@ import "@pnp/sp/fields";
 
 import { IContract, IContractFormData } from '../models/IContract';
 
+// Интерфейс для данных, которые отправляются в SharePoint
+interface ISharePointContractData {
+  Title?: string;
+  ContractedHoursSchedule?: number;
+  Deleted?: number;
+  TypeOfWorkerId?: number;
+  StartDate?: Date;
+  FinishDate?: Date;
+  StaffMemberScheduleId?: number;
+  ManagerId?: number;
+  StaffGroupId?: number;
+  [key: string]: unknown; // Для дополнительных полей
+}
+
 export class ContractsService {
   private static _instance: ContractsService;
   private _listName: string = "WeeklySchedule";
@@ -73,7 +87,7 @@ public async getContractsForStaffMember(
       this.logInfo(`Fetched ${items.length} contracts for employee ID: ${employeeId}`);
       
       // Маппинг данных в формат IContract
-      return items.map((item: any) => this.mapSharePointItemToContract(item));
+      return items.map((item: Record<string, unknown>) => this.mapSharePointItemToContract(item));
     } catch (error) {
       this.logError(`Error fetching contracts: ${error}`);
       throw error;
@@ -92,19 +106,6 @@ public async saveContract(contractData: IContractFormData): Promise<string> {
     const list = this._sp.web.lists.getByTitle(this._listName);
     
     // Подготавливаем данные для SharePoint
-    // Используем интерфейс для itemData вместо any
-    interface ISharePointContractData {
-      Title?: string;
-      ContractedHoursSchedule?: number;
-      Deleted?: number;
-      TypeOfWorkerId?: number;
-      StartDate?: Date;
-      FinishDate?: Date;
-      StaffMemberScheduleId?: number;
-      ManagerId?: number;
-      StaffGroupId?: number;
-    }
-    
     const itemData: ISharePointContractData = {
       Title: contractData.template || '',
       ContractedHoursSchedule: contractData.contractedHours || 0,
@@ -295,29 +296,29 @@ public async markContractAsNotDeleted(contractId: string): Promise<void> {
  * @param item Элемент из SharePoint
  * @returns Отформатированный объект контракта
  */
-private mapSharePointItemToContract(item: any): IContract {
+private mapSharePointItemToContract(item: Record<string, unknown>): IContract {
     return {
-      id: item.ID.toString(),
-      template: item.Title || '',
+      id: (item.ID as number).toString(),
+      template: (item.Title as string) || '',
       typeOfWorker: item.TypeOfWorker ? {
-        id: item.TypeOfWorker.Id.toString(),
-        value: item.TypeOfWorker.Title || ''
+        id: ((item.TypeOfWorker as Record<string, unknown>).Id as number).toString(),
+        value: ((item.TypeOfWorker as Record<string, unknown>).Title as string) || ''
       } : { id: '', value: '' },
-      contractedHours: item.ContractedHoursSchedule || 0,
-      startDate: item.StartDate ? new Date(item.StartDate) : undefined, // Изменено с null на undefined
-      finishDate: item.FinishDate ? new Date(item.FinishDate) : undefined, // Изменено с null на undefined
-      isDeleted: item.Deleted === 1, // Преобразуем числовое значение в boolean
+      contractedHours: (item.ContractedHoursSchedule as number) || 0,
+      startDate: item.StartDate ? new Date(item.StartDate as string) : undefined, // Изменено с null на undefined
+      finishDate: item.FinishDate ? new Date(item.FinishDate as string) : undefined, // Изменено с null на undefined
+      isDeleted: (item.Deleted as number) === 1, // Преобразуем числовое значение в boolean
       manager: item.Manager ? {
-        id: item.Manager.Id.toString(),
-        value: item.Manager.Title || ''
+        id: ((item.Manager as Record<string, unknown>).Id as number).toString(),
+        value: ((item.Manager as Record<string, unknown>).Title as string) || ''
       } : undefined,
       staffGroup: item.StaffGroup ? {
-        id: item.StaffGroup.Id.toString(),
-        value: item.StaffGroup.Title || ''
+        id: ((item.StaffGroup as Record<string, unknown>).Id as number).toString(),
+        value: ((item.StaffGroup as Record<string, unknown>).Title as string) || ''
       } : undefined,
       staffMember: item.StaffMemberSchedule ? {
-        id: item.StaffMemberSchedule.Id.toString(),
-        value: item.StaffMemberSchedule.Title || ''
+        id: ((item.StaffMemberSchedule as Record<string, unknown>).Id as number).toString(),
+        value: ((item.StaffMemberSchedule as Record<string, unknown>).Title as string) || ''
       } : undefined
     };
   }
