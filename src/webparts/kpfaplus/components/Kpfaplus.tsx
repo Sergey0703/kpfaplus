@@ -95,6 +95,21 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
   // Состояние для селектора сотрудника
   const [isStaffSelectorOpen, setIsStaffSelectorOpen] = useState<boolean>(false);
 
+  // Обработчик для отмены изменений - определен раньше, чтобы использовать в handleTabChange
+  const handleCancel = (): void => {
+    logInfo("Cancelling edit mode");
+    
+    // Восстанавливаем предыдущие значения
+    if (editedStaff) {
+      setAutoSchedule(editedStaff.autoSchedule || false);
+      setSrsFilePath(editedStaff.pathForSRSFile || '');
+      setGeneralNote(editedStaff.generalNote || '');
+    }
+    
+    setIsEditMode(false);
+    setEditedStaff(null);
+  };
+
   // Добавляем логи при монтировании компонента
   useEffect(() => {
     logInfo("Component mounted");
@@ -356,21 +371,6 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
     }
   };
   
-  // Обработчик для отмены изменений
-  const handleCancel = (): void => {
-    logInfo("Cancelling edit mode");
-    
-    // Восстанавливаем предыдущие значения
-    if (editedStaff) {
-      setAutoSchedule(editedStaff.autoSchedule || false);
-      setSrsFilePath(editedStaff.pathForSRSFile || '');
-      setGeneralNote(editedStaff.generalNote || '');
-    }
-    
-    setIsEditMode(false);
-    setEditedStaff(null);
-  };
-  
   // Обработчик для удаления/восстановления сотрудника
   const handleDeleteToggle = async (): Promise<void> => {
     if (!selectedStaff) return;
@@ -430,7 +430,14 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
         // Закрываем диалог
         setIsConfirmDialogOpen(false);
         // Выполняем операцию удаления/восстановления
-        handleDeleteToggle();
+        // Используем .then().catch() для обработки Promise
+        handleDeleteToggle()
+          .then(() => {
+            logInfo(`Successfully completed ${action} operation`);
+          })
+          .catch(error => {
+            logError(`Error during ${action} operation: ${error}`);
+          });
       }
     });
     
