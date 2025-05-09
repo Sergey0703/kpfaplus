@@ -8,6 +8,14 @@ import { UserService, ICurrentUser } from '../services/UserService';
 import { IStaffMember, IGroupMember, IDepartment } from '../models/types';
 import { GroupMemberService } from '../services/GroupMemberService';
 
+// Интерфейс для данных обновления сотрудника, передаваемых в GroupMemberService
+interface IGroupMemberUpdateData {
+  autoSchedule?: boolean;
+  pathForSRSFile?: string;
+  generalNote?: string;
+  deleted?: number;
+}
+
 export const DataProvider: React.FC<IDataProviderProps> = (props) => {
  const { context, children } = props;
  
@@ -340,7 +348,7 @@ const fetchGroupMembers = useCallback(async (departmentId: string) => {
      addLoadingStep('update-staff', 'Updating staff member', 'loading', `Staff ID: ${staffId}`);
      
      // Подготавливаем данные для обновления
-     const updateData: any = {};
+     const updateData: IGroupMemberUpdateData = {};
      
      if (data.autoSchedule !== undefined) {
        updateData.autoSchedule = data.autoSchedule;
