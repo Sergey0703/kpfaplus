@@ -29,7 +29,7 @@ export const RemoteConnectionTest: React.FC<IRemoteConnectionTestProps> = (props
   }, [remoteSiteService]);
   
   // Обработчики событий
-  const handleTestConnection = async () => {
+  const handleTestConnection = async (): Promise<void> => {
     setIsLoading(true);
     setError(null);
     setSiteInfo(null);
@@ -47,7 +47,7 @@ export const RemoteConnectionTest: React.FC<IRemoteConnectionTestProps> = (props
     }
   };
   
-  const handleCheckLists = async () => {
+  const handleCheckLists = async (): Promise<void> => {
     setIsLoading(true);
     setError(null);
     setListsInfo(null);
