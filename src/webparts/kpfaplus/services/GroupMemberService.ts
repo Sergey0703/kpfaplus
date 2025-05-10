@@ -299,12 +299,6 @@ public async fetchGroupMembersByGroupId(groupId: number): Promise<IGroupMember[]
     }
   }
   
-  /**
-   * Обновляет данные члена группы
-   * @param groupMemberId ID члена группы
-   * @param updateData Данные для обновления
-   * @returns Promise с результатом операции
-   */
   public async updateGroupMember(
     groupMemberId: number,
     updateData: {
@@ -315,51 +309,40 @@ public async fetchGroupMembersByGroupId(groupId: number): Promise<IGroupMember[]
     }
   ): Promise<boolean> {
     try {
-      this.logInfo(`Updating group member ID: ${groupMemberId}`);
-
+      this.logInfo(`Updating group member ID: ${groupMemberId} via RemoteSiteService`);
+  
       if (!groupMemberId) {
         this.logInfo("Group member ID is empty. Update failed.");
         return false;
       }
-
+  
       // Создаем объект данных для обновления
-      interface IUpdateData {
-        AutoSchedule?: boolean;
-        PathForSRSFile?: string;
-        GeneralNote?: string;
-        Deleted?: number;
-      }
-
-      const data: IUpdateData = {};
-
+      const data: Record<string, unknown> = {};
+  
       // Добавляем только те поля, которые были переданы
       if (updateData.autoSchedule !== undefined) {
         data.AutoSchedule = updateData.autoSchedule;
       }
-
+  
       if (updateData.pathForSRSFile !== undefined) {
         data.PathForSRSFile = updateData.pathForSRSFile;
       }
-
+  
       if (updateData.generalNote !== undefined) {
         data.GeneralNote = updateData.generalNote;
       }
-
+  
       if (updateData.deleted !== undefined) {
         data.Deleted = updateData.deleted;
       }
-
-      // Выполняем обновление
-      await this.sp.web.lists
-        .getByTitle("GroupMembers")
-        .items
-        .getById(groupMemberId)
-        .update(data);
-
-      this.logInfo(`Successfully updated group member ID: ${groupMemberId}`);
-      return true;
+  
+      // Используем метод из RemoteSiteService для обновления
+      const success = await this.remoteSiteService.updateListItem("GroupMembers", groupMemberId, data);
+  
+      this.logInfo(`Update result for group member ID: ${groupMemberId}: ${success}`);
+      return success;
     } catch (error) {
-      this.logError(`Error updating group member: ${error}`);
+      this.logError(`Error updating group member via RemoteSiteService: ${error}`);
       throw error;
     }
   }

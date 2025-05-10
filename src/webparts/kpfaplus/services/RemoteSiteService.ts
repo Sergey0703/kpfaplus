@@ -338,6 +338,43 @@ public async getListItems(
     }
   }
 
+
+// Добавьте в RemoteSiteService.ts (если еще нет)
+
+/**
+ * Обновляет элемент списка через Graph API
+ * @param listTitle Название списка
+ * @param itemId ID элемента списка
+ * @param fields Поля для обновления
+ * @returns Promise с результатом операции
+ */
+public async updateListItem(
+  listTitle: string,
+  itemId: number,
+  fields: Record<string, unknown>
+): Promise<boolean> {
+  try {
+    await this.ensureAuthorization();
+    
+    // Получаем ID списка
+    const listId = await this.getListId(listTitle);
+    
+    // Получаем Graph клиент
+    const graphClient = await this.getGraphClient();
+    
+    // Выполняем запрос на обновление
+    await graphClient
+      .api(`/sites/${this._targetSiteId}/lists/${listId}/items/${itemId}/fields`)
+      .update(fields);
+    
+    this.logInfo(`Successfully updated item ID: ${itemId} in list "${listTitle}"`);
+    return true;
+  } catch (error) {
+    this.logError(`Error updating item ID: ${itemId} in list "${listTitle}": ${error}`);
+    throw error;
+  }
+}
+
   /**
    * Проверяет доступность списка на удаленном сайте используя авторизованный доступ
    * @param listTitle Название списка для проверки
