@@ -1,6 +1,6 @@
 // src/webparts/kpfaplus/services/ContractsService.ts
 import { WebPartContext } from "@microsoft/sp-webpart-base";
-import { SPFI, spfi, SPFx } from "@pnp/sp";
+//import { SPFI, spfi, SPFx } from "@pnp/sp";
 import "@pnp/sp/webs";
 import "@pnp/sp/lists";
 import "@pnp/sp/items";
@@ -10,7 +10,7 @@ import { IContract, IContractFormData } from '../models/IContract';
 import { RemoteSiteService } from './RemoteSiteService';
 
 // Интерфейс для данных, которые отправляются в SharePoint
-interface ISharePointContractData {
+/*interface ISharePointContractData {
   Title?: string;
   ContractedHoursSchedule?: number;
   Deleted?: number;
@@ -21,18 +21,18 @@ interface ISharePointContractData {
   ManagerId?: number;
   StaffGroupId?: number;
   [key: string]: unknown; // Для дополнительных полей
-}
+} */
 
 export class ContractsService {
   private static _instance: ContractsService;
   private _listName: string = "WeeklySchedule";
-  private _sp: SPFI;
+  //private _sp: SPFI;
   private _logSource: string = "ContractsService";
   private _remoteSiteService: RemoteSiteService;
 
   private constructor(context: WebPartContext) {
     // Инициализация PnP JS с контекстом для локальных операций (будем постепенно уходить от этого)
-    this._sp = spfi().using(SPFx(context));
+   // this._sp = spfi().using(SPFx(context));
     
     // Инициализация RemoteSiteService для работы с удаленным сайтом
     this._remoteSiteService = RemoteSiteService.getInstance(context);
@@ -406,196 +406,240 @@ public async getContractsForStaffMember(
   }
 }
 
-  /**
-   * Сохраняет изменения в существующем контракте или создает новый
-   * @param contractData Данные контракта для сохранения
-   * @returns ID сохраненного контракта
-   */
-  public async saveContract(contractData: IContractFormData): Promise<string> {
-    try {
-      this.logInfo(`Saving contract: ${JSON.stringify(contractData)}`);
-      
-      const list = this._sp.web.lists.getByTitle(this._listName);
-      
-      // Подготавливаем данные для SharePoint
-      const itemData: ISharePointContractData = {
-        Title: contractData.template || '',
-        ContractedHoursSchedule: contractData.contractedHours || 0,
-        Deleted: contractData.isDeleted === true ? 1 : 0
-      };
-      
-      // Добавляем ID типа работника, если он есть
-      if (contractData.typeOfWorkerId && contractData.typeOfWorkerId !== '') {
-        try {
-          itemData.TypeOfWorkerId = parseInt(contractData.typeOfWorkerId);
-        } catch (e) {
-          console.warn(`Could not parse typeOfWorkerId: ${contractData.typeOfWorkerId}`, e);
+  
+
+/**
+ * Сохраняет изменения в существующем контракте или создает новый
+ * @param contractData Данные контракта для сохранения
+ * @returns Promise с ID сохраненного контракта
+ */
+public async saveContract(contractData: IContractFormData): Promise<string> {
+  try {
+    this.logInfo(`Saving contract: ${JSON.stringify(contractData)}`);
+    
+    // Подготавливаем данные для MS Graph API
+    const itemData: Record<string, unknown> = {
+      Title: contractData.template || ''
+    };
+    
+    // Добавляем ContractedHours
+    if (contractData.contractedHours !== undefined) {
+      itemData.ContractedHoursSchedule = contractData.contractedHours;
+    }
+    
+    // Добавляем Deleted статус
+    if (contractData.isDeleted !== undefined) {
+      itemData.Deleted = contractData.isDeleted ? 1 : 0;
+    }
+    
+    // Добавляем ID типа работника, если он есть
+    if (contractData.typeOfWorkerId && contractData.typeOfWorkerId !== '') {
+      try {
+        // В MS Graph API для lookup полей используются поля с суффиксом LookupId
+        itemData.TypeOfWorkerLookupId = parseInt(contractData.typeOfWorkerId);
+      } catch (e) {
+        console.warn(`Could not parse typeOfWorkerId: ${contractData.typeOfWorkerId}`, e);
+      }
+    }
+    
+    // Добавляем дату начала, если она есть
+    if (contractData.startDate) {
+      itemData.StartDate = contractData.startDate;
+    }
+    
+    // Добавляем дату окончания, если она есть
+    if (contractData.finishDate) {
+      itemData.FinishDate = contractData.finishDate;
+    }
+    
+    // Добавляем ID сотрудника, если он есть
+    if (contractData.staffMemberId) {
+      try {
+        // Преобразуем в число, если это строка
+        const staffMemberId = typeof contractData.staffMemberId === 'string' 
+          ? parseInt(contractData.staffMemberId) 
+          : contractData.staffMemberId;
+          
+        if (!isNaN(staffMemberId)) {
+          // В MS Graph API для lookup полей используются поля с суффиксом LookupId
+          itemData.StaffMemberScheduleLookupId = staffMemberId;
+        } else {
+          console.warn(`Invalid staffMemberId: ${contractData.staffMemberId}`);
         }
+      } catch (e) {
+        console.warn(`Error setting StaffMemberScheduleLookupId: ${e}`);
       }
-      
-      // Добавляем дату начала, если она есть
-      if (contractData.startDate) {
-        itemData.StartDate = contractData.startDate;
-      }
-      
-      // Добавляем дату окончания, если она есть
-      if (contractData.finishDate) {
-        itemData.FinishDate = contractData.finishDate;
-      }
-      
-      // Добавляем ID сотрудника, если он есть
-      if (contractData.staffMemberId) {
-        try {
-          // Преобразуем в число, если это строка
-          const staffMemberId = typeof contractData.staffMemberId === 'string' 
-            ? parseInt(contractData.staffMemberId) 
-            : contractData.staffMemberId;
-            
-          if (!isNaN(staffMemberId)) {
-            itemData.StaffMemberScheduleId = staffMemberId;
-          } else {
-            console.warn(`Invalid staffMemberId: ${contractData.staffMemberId}`);
-          }
-        } catch (e) {
-          console.warn(`Error setting StaffMemberScheduleId: ${e}`);
+    }
+    
+    // Добавляем ID менеджера, если он есть
+    if (contractData.managerId) {
+      try {
+        // Преобразуем в число, если это строка
+        const managerId = typeof contractData.managerId === 'string' 
+          ? parseInt(contractData.managerId) 
+          : contractData.managerId;
+          
+        if (!isNaN(managerId)) {
+          // В MS Graph API для lookup полей используются поля с суффиксом LookupId
+          itemData.ManagerLookupId = managerId;
+        } else {
+          console.warn(`Invalid managerId: ${contractData.managerId}`);
         }
+      } catch (e) {
+        console.warn(`Error setting ManagerLookupId: ${e}`);
       }
-      
-      // Добавляем ID менеджера, если он есть
-      if (contractData.managerId) {
-        try {
-          // Преобразуем в число, если это строка
-          const managerId = typeof contractData.managerId === 'string' 
-            ? parseInt(contractData.managerId) 
-            : contractData.managerId;
-            
-          if (!isNaN(managerId)) {
-            itemData.ManagerId = managerId;
-          } else {
-            console.warn(`Invalid managerId: ${contractData.managerId}`);
-          }
-        } catch (e) {
-          console.warn(`Error setting ManagerId: ${e}`);
+    }
+    
+    // Добавляем ID группы сотрудников, если он есть
+    if (contractData.staffGroupId) {
+      try {
+        // Преобразуем в число, если это строка
+        const staffGroupId = typeof contractData.staffGroupId === 'string' 
+          ? parseInt(contractData.staffGroupId) 
+          : contractData.staffGroupId;
+          
+        if (!isNaN(staffGroupId)) {
+          // В MS Graph API для lookup полей используются поля с суффиксом LookupId
+          itemData.StaffGroupLookupId = staffGroupId;
+        } else {
+          console.warn(`Invalid staffGroupId: ${contractData.staffGroupId}`);
         }
+      } catch (e) {
+        console.warn(`Error setting StaffGroupLookupId: ${e}`);
       }
+    }
+    
+    this.logInfo(`Prepared item data for save: ${JSON.stringify(itemData, null, 2)}`);
+    
+    let result: string;
+    
+    // Для сохранения используем RemoteSiteService вместо прямого PnP JS
+    // Если есть ID, то обновляем, иначе создаем новый
+    if (contractData.id && contractData.id !== 'new') {
+      this.logInfo(`Updating existing contract ID: ${contractData.id}`);
       
-      // Добавляем ID группы сотрудников, если он есть
-      if (contractData.staffGroupId) {
-        try {
-          // Преобразуем в число, если это строка
-          const staffGroupId = typeof contractData.staffGroupId === 'string' 
-            ? parseInt(contractData.staffGroupId) 
-            : contractData.staffGroupId;
-            
-          if (!isNaN(staffGroupId)) {
-            itemData.StaffGroupId = staffGroupId;
-          } else {
-            console.warn(`Invalid staffGroupId: ${contractData.staffGroupId}`);
-          }
-        } catch (e) {
-          console.warn(`Error setting StaffGroupId: ${e}`);
-        }
-      }
+      // Обновляем существующий элемент через RemoteSiteService
+      const success = await this._remoteSiteService.updateListItem(
+        this._listName,
+        parseInt(contractData.id),
+        itemData
+      );
       
-      this.logInfo(`Prepared item data for save: ${JSON.stringify(itemData, null, 2)}`);
-      
-      let result;
-      
-      // Если есть ID, то обновляем, иначе создаем новый
-      if (contractData.id && contractData.id !== 'new') {
-        this.logInfo(`Updating existing contract ID: ${contractData.id}`);
-        await list.items.getById(parseInt(contractData.id)).update(itemData);
+      if (success) {
+        this.logInfo(`Successfully updated contract with ID: ${contractData.id}`);
         result = contractData.id;
       } else {
-        this.logInfo('Creating new contract with data: ' + JSON.stringify(itemData));
-        
-        try {
-          // Добавляем элемент в список
-          const addResult = await list.items.add(itemData);
-          
-          // Получаем ID созданного элемента безопасным способом
-          if (addResult && addResult.data && addResult.data.ID) {
-            result = addResult.data.ID.toString();
-            this.logInfo(`Created new contract with ID: ${result}`);
-          } else {
-            throw new Error('Failed to get ID from the created item');
-          }
-        } catch (error) {
-          this.logError(`Error in add operation: ${error}`);
-          
-          // План Б: попробуем найти только что созданный элемент используя правильный метод для PnP JS
-          const newItems = await list.items
-            .filter(`Title eq '${itemData.Title}'`)
-            .orderBy('Created', false)
-            .top(1)(); // Используем () вместо get() для вызова запроса
-            
-          if (newItems && newItems.length > 0) {
-            result = newItems[0].ID.toString();
-            this.logInfo(`Found newly created item with ID: ${result}`);
-          } else {
-            throw error; // Если не нашли элемент, пробрасываем исходную ошибку
-          }
-        }
+        throw new Error(`Failed to update contract with ID: ${contractData.id}`);
       }
+    } else {
+      this.logInfo('Creating new contract with data: ' + JSON.stringify(itemData));
       
-      return result;
-    } catch (error) {
-      this.logError(`Error saving contract: ${error}`);
-      throw error;
+      try {
+        // Получаем ID списка для использования в addListItem
+        const listId = await this._remoteSiteService.getListId(this._listName);
+        
+        // Создаем новый элемент через RemoteSiteService
+        const response = await this._remoteSiteService.addListItem(
+          listId,
+          itemData
+        );
+        
+        if (response && response.id) {
+          result = this.ensureString(response.id);
+          this.logInfo(`Created new contract with ID: ${result}`);
+        } else {
+          throw new Error('Failed to get ID from the created item');
+        }
+      } catch (error) {
+        this.logError(`Error creating new contract: ${error}`);
+        throw error;
+      }
     }
+    
+    return result;
+  } catch (error) {
+    this.logError(`Error saving contract: ${error}`);
+    throw error;
   }
+}
 
   /**
-   * Помечает контракт как удаленный (не удаляет физически)
-   * @param contractId ID контракта
-   */
-  public async markContractAsDeleted(contractId: string): Promise<void> {
-    try {
-      this.logInfo(`Marking contract as deleted, ID: ${contractId}`);
-      
-      if (!contractId) {
-        throw new Error("Contract ID is empty or invalid");
+ * Помечает контракт как удаленный (не удаляет физически)
+ * @param contractId ID контракта
+ * @returns Promise с результатом операции
+ */
+public async markContractAsDeleted(contractId: string): Promise<boolean> {
+  try {
+    this.logInfo(`Marking contract as deleted, ID: ${contractId}`);
+    
+    if (!contractId) {
+      throw new Error("Contract ID is empty or invalid");
+    }
+    
+    const contractIdNumber = parseInt(contractId);
+    if (isNaN(contractIdNumber)) {
+      throw new Error(`Invalid contract ID format: ${contractId}`);
+    }
+    
+    // Используем метод updateListItem из RemoteSiteService
+    const success = await this._remoteSiteService.updateListItem(
+      this._listName,
+      contractIdNumber,
+      {
+        Deleted: 1
       }
-      
-      const contractIdNumber = parseInt(contractId);
-      if (isNaN(contractIdNumber)) {
-        throw new Error(`Invalid contract ID format: ${contractId}`);
-      }
-      
-      // Add more verbose logging
-      this.logInfo(`About to update contract ${contractId} in list ${this._listName}`);
-      
-      const result = await this._sp.web.lists.getByTitle(this._listName).items
-        .getById(contractIdNumber)
-        .update({
-          Deleted: 1
-        });
-        
-      this.logInfo(`Update result: ${JSON.stringify(result)}`);
+    );
+    
+    if (success) {
       this.logInfo(`Successfully marked contract as deleted, ID: ${contractId}`);
-    } catch (error) {
-      this.logError(`Error marking contract as deleted: ${error}`);
-      throw error;
+      return true;
+    } else {
+      throw new Error(`Failed to mark contract as deleted, ID: ${contractId}`);
     }
+  } catch (error) {
+    this.logError(`Error marking contract as deleted: ${error}`);
+    throw error;
   }
+}
 
-  public async markContractAsNotDeleted(contractId: string): Promise<void> {
-    try {
-      this.logInfo(`Marking contract as not deleted: ${contractId}`);
-      
-      // Обновляем флаг Deleted в SharePoint
-      await this._sp.web.lists.getByTitle(this._listName)
-        .items.getById(parseInt(contractId))
-        .update({
-          Deleted: 0
-        });
-      
-      this.logInfo(`Contract ${contractId} marked as not deleted successfully`);
-    } catch (error) {
-      this.logError(`Error marking contract as not deleted: ${error}`);
-      throw error;
+/**
+ * Снимает отметку удаления с контракта
+ * @param contractId ID контракта
+ * @returns Promise с результатом операции
+ */
+public async markContractAsNotDeleted(contractId: string): Promise<boolean> {
+  try {
+    this.logInfo(`Marking contract as not deleted, ID: ${contractId}`);
+    
+    if (!contractId) {
+      throw new Error("Contract ID is empty or invalid");
     }
+    
+    const contractIdNumber = parseInt(contractId);
+    if (isNaN(contractIdNumber)) {
+      throw new Error(`Invalid contract ID format: ${contractId}`);
+    }
+    
+    // Используем метод updateListItem из RemoteSiteService
+    const success = await this._remoteSiteService.updateListItem(
+      this._listName,
+      contractIdNumber,
+      {
+        Deleted: 0
+      }
+    );
+    
+    if (success) {
+      this.logInfo(`Successfully marked contract as not deleted, ID: ${contractId}`);
+      return true;
+    } else {
+      throw new Error(`Failed to mark contract as not deleted, ID: ${contractId}`);
+    }
+  } catch (error) {
+    this.logError(`Error marking contract as not deleted: ${error}`);
+    throw error;
   }
+}
   
   /**
    * Helper method to log info messages
