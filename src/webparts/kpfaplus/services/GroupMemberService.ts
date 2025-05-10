@@ -64,45 +64,75 @@ export class GroupMemberService {
    */
   public async fetchGroupMembersByGroupId(groupId: number): Promise<IGroupMember[]> {
     try {
-      this.logInfo(`Fetching group members for group ID: ${groupId}`);
+      this.logInfo(`Fetching group members for group ID: ${groupId} using RemoteSiteService`);
 
       if (!groupId) {
         this.logInfo("Group ID is empty. Returning empty array.");
         return [];
       }
 
-      // Получаем записи из списка GroupMembers
-      const items = await this.sp.web.lists
-        .getByTitle("GroupMembers")
-        .items
-        .filter(`GroupId eq ${groupId}`)
-        .expand("Employee,Group")
-        .select(
-          "ID,Title,Group/ID,Group/Title,Employee/Id,Employee/Title,AutoSchedule,PathForSRSFile,GeneralNote,Deleted,ContractedHours"
-        )();
+      // Используем уже инициализированный remoteSiteService
+      // Формируем фильтр для запроса
+      const filter = `GroupId eq ${groupId}`;
+      
+      // Получаем записи из списка GroupMembers через RemoteSiteService
+      const items = await this.remoteSiteService.getListItems(
+        "GroupMembers",
+        true, // expandFields = true
+        filter,
+        { field: "Title", ascending: true }
+      );
 
-      this.logInfo(`Retrieved ${items.length} group members for group ID: ${groupId}`);
+      this.logInfo(`Retrieved ${items.length} group members for group ID: ${groupId} via RemoteSiteService`);
 
       // Преобразуем в формат IGroupMember
       const groupMembers: IGroupMember[] = [];
 
       for (const item of items) {
+        const fields = item.fields || {};
+        
+        // Обработка Employee (связанная сущность)
+        let employeeId = "";
+        let employeeTitle = "";
+        
+        // Проверяем наличие данных о сотруднике в разных возможных форматах
+        if (fields.EmployeeLookupId) {
+          employeeId = fields.EmployeeLookupId.toString();
+        } else if (fields.EmployeeId) {
+          employeeId = fields.EmployeeId.toString();
+        }
+        
+        if (fields.EmployeeLookup) {
+          employeeTitle = fields.EmployeeLookup;
+        } else if (fields.Employee && typeof fields.Employee === 'object') {
+          employeeTitle = fields.Employee.Title || "";
+        }
+        
+        // Обработка Group (связанная сущность)
+        let groupTitle = "";
+        if (fields.GroupLookup) {
+          groupTitle = fields.GroupLookup;
+        } else if (fields.Group && typeof fields.Group === 'object') {
+          groupTitle = fields.Group.Title || "";
+        }
+        
+        // Создаем объект члена группы
         const groupMember: IGroupMember = {
-          ID: item.ID,
-          Title: item.Title || "",
+          ID: parseInt(item.id) || 0,
+          Title: fields.Title || "",
           Group: {
-            ID: item.Group ? item.Group.ID : groupId,
-            Title: item.Group ? item.Group.Title : ""
+            ID: groupId,
+            Title: groupTitle
           },
           Employee: {
-            Id: item.Employee ? item.Employee.Id : "",
-            Title: item.Employee ? item.Employee.Title : ""
+            Id: employeeId,
+            Title: employeeTitle
           },
-          AutoSchedule: item.AutoSchedule || false,
-          PathForSRSFile: item.PathForSRSFile || "",
-          GeneralNote: item.GeneralNote || "",
-          Deleted: item.Deleted || 0,
-          ContractedHours: item.ContractedHours || 0
+          AutoSchedule: fields.AutoSchedule || false,
+          PathForSRSFile: fields.PathForSRSFile || "",
+          GeneralNote: fields.GeneralNote || "",
+          Deleted: fields.Deleted || 0,
+          ContractedHours: fields.ContractedHours || 0
         };
 
         groupMembers.push(groupMember);
@@ -110,7 +140,7 @@ export class GroupMemberService {
 
       return groupMembers;
     } catch (error) {
-      this.logError(`Error in fetchGroupMembersByGroupId: ${error}`);
+      this.logError(`Error in fetchGroupMembersByGroupIdRemote via RemoteSiteService: ${error}`);
       throw error;
     }
   }
@@ -384,4 +414,37 @@ export class GroupMemberService {
       return false;
     }
   }
+
+  /**
+ * Проверяет наличие сотрудника в группе с использованием RemoteSiteService
+ * @param groupId ID группы
+ * @param staffId ID сотрудника
+ * @returns Promise с результатом проверки
+ */
+public async isStaffInGroupRemote(groupId: number, staffId: number): Promise<boolean> {
+  try {
+    this.logInfo(`Checking if staff ID: ${staffId} is already in group ID: ${groupId} via RemoteSiteService`);
+    
+    // Формируем фильтр для запроса
+    const filter = `GroupId eq ${groupId} and EmployeeId eq ${staffId} and Deleted ne 1`;
+    
+    // Получаем записи из списка GroupMembers через RemoteSiteService
+    const items = await this.remoteSiteService.getListItems(
+      "GroupMembers",
+      true, // expandFields = true
+      filter,
+      undefined // без сортировки
+    );
+    
+    // Если найдена хотя бы одна запись, значит сотрудник уже в группе
+    const isInGroup = items && items.length > 0;
+    this.logInfo(`Staff ID: ${staffId} is ${isInGroup ? 'already' : 'not'} in group ID: ${groupId} (via RemoteSiteService)`);
+    
+    return isInGroup;
+  } catch (error) {
+    this.logError(`Error checking if staff is in group via RemoteSiteService: ${error}`);
+    // В случае ошибки, предполагаем что сотрудника нет в группе
+    return false;
+  }
+}
 }
