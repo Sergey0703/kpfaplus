@@ -104,6 +104,7 @@ public async getCurrentUser(): Promise<ICurrentUser | undefined> {
   }
 }
 
+
   /**
    * Получает всех сотрудников из списка Staff на удаленном сайте
    * @returns Promise со списком всех сотрудников

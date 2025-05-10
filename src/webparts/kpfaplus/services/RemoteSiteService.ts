@@ -431,6 +431,107 @@ public async updateListItem(
     }
   }
 
+
+
+
+/**
+ * Получает информацию о списке
+ * @param listTitle Название списка
+ * @returns Promise с информацией о списке
+ */
+public async getListInfo(listTitle: string): Promise<any> {
+  try {
+    await this.ensureAuthorization();
+    
+    // Получаем Graph клиент
+    const graphClient = await this.getGraphClient();
+    
+    // Получаем информацию о списке
+    const response = await graphClient
+      .api(`/sites/${this._targetSiteId}/lists?$filter=displayName eq '${listTitle}'`)
+      .get();
+    
+    if (response && response.value && response.value.length > 0) {
+      return response.value[0];
+    } else {
+      throw new Error(`List "${listTitle}" not found`);
+    }
+  } catch (error) {
+    this.logError(`Error getting list info for "${listTitle}": ${error}`);
+    throw error;
+  }
+}
+
+/**
+ * Получает поля списка
+ * @param listTitle Название списка
+ * @returns Promise с полями списка
+ */
+public async getListFields(listTitle: string): Promise<any[]> {
+  try {
+    await this.ensureAuthorization();
+    
+    // Получаем ID списка
+    const listId = await this.getListId(listTitle);
+    
+    // Получаем Graph клиент
+    const graphClient = await this.getGraphClient();
+    
+    // Получаем поля списка
+    const response = await graphClient
+      .api(`/sites/${this._targetSiteId}/lists/${listId}/columns`)
+      .get();
+    
+    if (response && response.value) {
+      return response.value;
+    } else {
+      return [];
+    }
+  } catch (error) {
+    this.logError(`Error getting list fields for "${listTitle}": ${error}`);
+    throw error;
+  }
+}
+  /**
+ * Создает новый элемент списка
+ * @param listTitle Название списка
+ * @param fields Поля для создания
+ * @returns Promise с созданным элементом
+ */
+public async createListItem(
+  listTitle: string,
+  fields: Record<string, unknown>
+): Promise<{ id: string; fields: Record<string, unknown> }> {
+  try {
+    this.logInfo(`Creating new item in list "${listTitle}"`);
+    await this.ensureAuthorization();
+    
+    // Получаем ID списка
+    const listId = await this.getListId(listTitle);
+    
+    // Получаем Graph клиент
+    const graphClient = await this.getGraphClient();
+    
+    // Создаем элемент списка через Graph API
+    const response = await graphClient
+      .api(`/sites/${this._targetSiteId}/lists/${listId}/items`)
+      .post({
+        fields: fields
+      });
+    
+    this.logInfo(`Successfully created item in list "${listTitle}" with ID: ${response?.id}`);
+    
+    // Возвращаем созданный элемент
+    return {
+      id: response.id,
+      fields: response.fields || {}
+    };
+  } catch (error) {
+    this.logError(`Error creating item in list "${listTitle}": ${error}`);
+    throw error;
+  }
+}
+
   /**
    * Проверяет все необходимые списки на удаленном сайте используя авторизованный доступ
    * @returns Promise с результатами проверки
@@ -473,6 +574,40 @@ public async updateListItem(
     return results;
   }
 
+ /**
+ * Добавляет новый элемент в список через MS Graph API
+ * @param listId ID списка
+ * @param fields Поля элемента
+ * @returns Promise с добавленным элементом
+ */
+public async addListItem(
+  listId: string, 
+  fields: Record<string, unknown>
+): Promise<{ id: string; fields: Record<string, unknown> }> {
+  try {
+    this.logInfo(`Adding item to list with ID: ${listId}`);
+    
+    // Получаем инстанс графа
+    const graphClient = await this.getGraphClient();
+    
+    // Выполняем запрос к MS Graph API
+    const response = await graphClient
+      .api(`/sites/${this._targetSiteId}/lists/${listId}/items`)
+      .post({
+        fields: fields
+      });
+    
+    this.logInfo(`Successfully added item to list: ${JSON.stringify(response)}`);
+    
+    return {
+      id: response.id,
+      fields: response.fields || {}
+    };
+  } catch (error) {
+    this.logError(`Error adding item to list: ${error}`);
+    throw error;
+  }
+}
   /**
    * Логирует информационное сообщение
    * @param message сообщение для логирования

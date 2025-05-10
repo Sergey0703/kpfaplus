@@ -1,6 +1,7 @@
 // src/webparts/kpfaplus/services/GroupMemberService.ts
 import { WebPartContext } from "@microsoft/sp-webpart-base";
-import { SPFI, spfi, SPFx } from "@pnp/sp";
+//import { SPFI, spfi, SPFx } from "@pnp/sp";
+//import { SPHttpClient } from '@microsoft/sp-http';
 import "@pnp/sp/webs";
 import "@pnp/sp/lists";
 import "@pnp/sp/items";
@@ -8,33 +9,9 @@ import "@pnp/sp/fields";
 import { IGroupMember } from "../models/types";
 import { RemoteSiteService } from "./RemoteSiteService";
 
-// Интерфейс для создания записи члена группы
-interface ICreateGroupMemberData {
-  GroupId: number;
-  EmployeeId: number;
-  AutoSchedule: boolean;
-  PathForSRSFile: string;
-  GeneralNote: string;
-  Deleted: number;
-  ContractedHours: number;
-  ManagerId?: number; // Опциональное поле
-}
-
-// Интерфейс для элемента списка GroupMembers
-interface IGroupMemberItem {
-  ID: number;
-  GroupId: number;
-  EmployeeId: number;
-  Deleted?: number;
-  Title?: string;
-  AutoSchedule?: boolean;
-  PathForSRSFile?: string;
-  GeneralNote?: string;
-  ContractedHours?: number;
-}
 
 export class GroupMemberService {
-  private sp: SPFI;
+  //private sp: SPFI;
   private logSource = "GroupMemberService";
   // Добавляем контекст и remoteSiteService как поля класса
   private _context: WebPartContext;
@@ -42,7 +19,7 @@ export class GroupMemberService {
 
   constructor(context: WebPartContext) {
     this._context = context;
-    this.sp = spfi().using(SPFx(context));
+   // this.sp = spfi().using(SPFx(context));
     // Инициализируем RemoteSiteService
     this.remoteSiteService = RemoteSiteService.getInstance(context);
     this.logInfo(`GroupMemberService initialized for web: ${this._context.pageContext.web.title}`);
@@ -347,148 +324,129 @@ public async fetchGroupMembersByGroupId(groupId: number): Promise<IGroupMember[]
     }
   }
 
-  /**
-   * Создает нового члена группы, связывая сотрудника из Staff с группой
-   * @param groupId ID группы
-   * @param staffId ID сотрудника из списка Staff
-   * @param additionalData Дополнительные данные для члена группы
-   * @returns Promise с результатом операции
-   */
-  public async createGroupMemberFromStaff(
-    groupId: number, 
-    staffId: number, 
-    additionalData: { 
-      autoSchedule?: boolean, 
-      pathForSRSFile?: string, 
-      generalNote?: string,
-      currentUserId?: number
+/**
+ * Создает нового члена группы через RemoteSiteService (MS Graph API)
+ * @param groupId ID группы
+ * @param staffId ID сотрудника из списка Staff
+ * @param additionalData Дополнительные данные для члена группы
+ * @returns Promise с результатом операции
+ */
+public async createGroupMemberFromStaff(
+  groupId: number, 
+  staffId: number, 
+  additionalData: { 
+    autoSchedule?: boolean, 
+    pathForSRSFile?: string, 
+    generalNote?: string,
+    currentUserId?: number
+  }
+): Promise<{ success: boolean; alreadyExists: boolean; newItemId?: number }> {
+  try {
+    this.logInfo(`Starting createGroupMemberFromStaffRemote for group ID: ${groupId}, staff ID: ${staffId}`);
+    
+    // Проверяем валидность входных данных
+    if (!groupId || groupId <= 0) {
+      this.logInfo(`Group ID ${groupId} is invalid or 0. Create failed.`);
+      return { success: false, alreadyExists: false };
     }
-  ): Promise<{ success: boolean; alreadyExists: boolean }> {
+    
+    if (!staffId || staffId <= 0) {
+      this.logInfo(`Staff ID ${staffId} is invalid or 0. Create failed.`);
+      return { success: false, alreadyExists: false };
+    }
+    
+    // Проверяем, есть ли уже сотрудник в группе
+    const isAlreadyInGroup = await this.isStaffInGroup(groupId, staffId);
+    if (isAlreadyInGroup) {
+      this.logInfo(`Staff ID: ${staffId} is already in group ID: ${groupId}. Skipping.`);
+      return { success: true, alreadyExists: true };
+    }
+    
+    // Подготавливаем данные для создания записи в GroupMembers
+    // Используем ПРАВИЛЬНЫЕ имена полей из логов существующих элементов
+    const createData: Record<string, unknown> = {
+      GroupLookupId: groupId,         // Правильное имя поля из логов
+      EmployeeLookupId: staffId,      // Правильное имя поля из логов
+      AutoSchedule: additionalData.autoSchedule ?? false,
+      PathForSRSFile: additionalData.pathForSRSFile ?? "",
+      GeneralNote: additionalData.generalNote ?? "",
+      Deleted: 0,
+      ContractedHours: 0
+    };
+    
+    // Добавляем Manager, если currentUserId был передан
+    if (additionalData.currentUserId) {
+      createData.ManagerLookupId = additionalData.currentUserId; // Правильное имя поля из логов
+    }
+    
+    this.logInfo(`Prepared data for creating GroupMember: ${JSON.stringify(createData)}`);
+    
+    // Создаем элемент списка через RemoteSiteService
     try {
-      this.logInfo(`Starting createGroupMemberFromStaff for group ID: ${groupId}, staff ID: ${staffId}`);
+      // Получаем идентификатор списка GroupMembers
+      const listId = await this.remoteSiteService.getListId("GroupMembers");
       
-      // Проверяем валидность входных данных
-      if (!groupId || groupId <= 0) {
-        this.logInfo(`Group ID ${groupId} is invalid or 0. Create failed.`);
+      // Добавляем элемент в список через MS Graph API
+      const response = await this.remoteSiteService.addListItem(listId, createData);
+      
+      if (response && response.id) {
+        this.logInfo(`Successfully created GroupMember with ID: ${response.id}`);
+        return { success: true, alreadyExists: false, newItemId: parseInt(response.id) };
+      } else {
+        this.logInfo(`Create operation completed but no valid response returned`);
         return { success: false, alreadyExists: false };
       }
-      
-      if (!staffId || staffId <= 0) {
-        this.logInfo(`Staff ID ${staffId} is invalid or 0. Create failed.`);
-        return { success: false, alreadyExists: false };
-      }
-      
-      // Проверяем, есть ли уже сотрудник в группе
-      const isAlreadyInGroup = await this.isStaffInGroup(groupId, staffId);
-      if (isAlreadyInGroup) {
-        this.logInfo(`Staff ID: ${staffId} is already in group ID: ${groupId}. Skipping.`);
-        return { success: true, alreadyExists: true }; // Указываем, что сотрудник уже существует
-      }
-      
-      // Подготавливаем данные для создания записи в GroupMembers
-      const createData: ICreateGroupMemberData = {
-        GroupId: groupId,            // Поле для связи с группой
-        EmployeeId: staffId,         // Поле для связи с сотрудником
-        AutoSchedule: additionalData.autoSchedule ?? false,
-        PathForSRSFile: additionalData.pathForSRSFile ?? "",
-        GeneralNote: additionalData.generalNote ?? "",
-        Deleted: 0,                  // По умолчанию не удален
-        ContractedHours: 0           // По умолчанию 0 часов
-      };
-      
-      // Добавляем Manager, если currentUserId был передан
-      if (additionalData.currentUserId) {
-        createData.ManagerId = additionalData.currentUserId; // Устанавливаем поле ManagerId
-      }
-      
-      this.logInfo(`Prepared data for creating GroupMember: ${JSON.stringify(createData)}`);
-      
-      // Создаем запись в списке GroupMembers
-      try {
-        // Тип для результата операции добавления
-        interface IAddItemResult {
-          data?: {
-            ID?: number;
-            [key: string]: unknown;
-          };
-          item?: {
-            ID?: number;
-            [key: string]: unknown;
-          };
-        }
-
-        const result = await this.sp.web.lists
-          .getByTitle("GroupMembers")
-          .items
-          .add(createData) as IAddItemResult;
-        
-        if (result && result.data) {
-          this.logInfo(`Successfully created GroupMember with ID: ${result.data.ID}`);
-          return { success: true, alreadyExists: false };
-        } else {
-          this.logInfo(`Create operation completed but no data returned`);
-          // Даже если данные не возвращены, считаем операцию успешной, 
-          // если не было исключения
-          return { success: true, alreadyExists: false };
-        }
-      } catch (spError) {
-        this.logError(`Error adding item to SharePoint: ${spError}`);
-        throw new Error(`Error adding staff to group: ${spError}`);
-      }
-    } catch (error) {
-      this.logError(`Error in createGroupMemberFromStaff: ${error}`);
-      throw error;
+    } catch (createError) {
+      this.logError(`Error creating item via RemoteSiteService: ${createError}`);
+      throw new Error(`Error adding staff to group: ${createError}`);
     }
+  } catch (error) {
+    this.logError(`Error in createGroupMemberFromStaffRemote: ${error}`);
+    throw error;
   }
+}
 
-  // В GroupMemberService добавим новый метод для проверки
-  public async isStaffInGroup(groupId: number, staffId: number): Promise<boolean> {
-    try {
-      this.logInfo(`Checking if staff ID: ${staffId} is already in group ID: ${groupId}`);
-      
-      // Получаем записи из списка GroupMembers, которые соответствуют критериям
-      const items: IGroupMemberItem[] = await this.sp.web.lists
-        .getByTitle("GroupMembers")
-        .items
-        .filter(`GroupId eq ${groupId} and EmployeeId eq ${staffId} and Deleted ne 1`)();
-      
-      // Если найдена хотя бы одна запись, значит сотрудник уже в группе
-      const isInGroup = items && items.length > 0;
-      this.logInfo(`Staff ID: ${staffId} is ${isInGroup ? 'already' : 'not'} in group ID: ${groupId}`);
-      
-      return isInGroup;
-    } catch (error) {
-      this.logError(`Error checking if staff is in group: ${error}`);
-      // В случае ошибки, предполагаем что сотрудника нет в группе
-      return false;
-    }
-  }
-
-  /**
- * Проверяет наличие сотрудника в группе с использованием RemoteSiteService
+/**
+ * Проверяет наличие сотрудника в группе через RemoteSiteService (MS Graph API)
  * @param groupId ID группы
  * @param staffId ID сотрудника
  * @returns Promise с результатом проверки
  */
-public async isStaffInGroupRemote(groupId: number, staffId: number): Promise<boolean> {
+public async isStaffInGroup(groupId: number, staffId: number): Promise<boolean> {
   try {
     this.logInfo(`Checking if staff ID: ${staffId} is already in group ID: ${groupId} via RemoteSiteService`);
     
-    // Формируем фильтр для запроса
-    const filter = `GroupId eq ${groupId} and EmployeeId eq ${staffId} and Deleted ne 1`;
-    
-    // Получаем записи из списка GroupMembers через RemoteSiteService
+    // Получаем все элементы для группы (без фильтра)
     const items = await this.remoteSiteService.getListItems(
       "GroupMembers",
       true, // expandFields = true
-      filter,
+      undefined, // Без фильтра, так как MS Graph может иметь проблемы с фильтрацией по lookups
       undefined // без сортировки
     );
     
-    // Если найдена хотя бы одна запись, значит сотрудник уже в группе
-    const isInGroup = items && items.length > 0;
-    this.logInfo(`Staff ID: ${staffId} is ${isInGroup ? 'already' : 'not'} in group ID: ${groupId} (via RemoteSiteService)`);
+    // Вручную проверяем, есть ли сотрудник в группе
+    const isInGroup = items.some(item => {
+      const fields = item.fields || {};
+      
+      // Используем правильные имена полей из логов существующих элементов
+      let groupValue = null;
+      if (fields.GroupLookupId !== undefined) {
+        groupValue = parseInt(fields.GroupLookupId);
+      }
+      
+      let employeeValue = null;
+      if (fields.EmployeeLookupId !== undefined) {
+        employeeValue = parseInt(fields.EmployeeLookupId);
+      }
+      
+      // Проверяем значение Deleted
+      const isDeleted = fields.Deleted === 1 || fields.Deleted === true;
+      
+      // Сотрудник в группе, если найден элемент с соответствующими ID и он не удален
+      return groupValue === groupId && employeeValue === staffId && !isDeleted;
+    });
     
+    this.logInfo(`Staff ID: ${staffId} is ${isInGroup ? 'already' : 'not'} in group ID: ${groupId} (manual check)`);
     return isInGroup;
   } catch (error) {
     this.logError(`Error checking if staff is in group via RemoteSiteService: ${error}`);
@@ -496,4 +454,6 @@ public async isStaffInGroupRemote(groupId: number, staffId: number): Promise<boo
     return false;
   }
 }
+
+
 }
