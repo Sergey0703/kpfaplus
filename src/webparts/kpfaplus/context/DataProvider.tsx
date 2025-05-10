@@ -174,7 +174,7 @@ const fetchGroupMembers = useCallback(async (departmentId: string) => {
     addLoadingStep('fetch-group-members', 'Loading staff members', 'loading', `Loading staff for group ID: ${groupId}`);
     
     // Получаем данные от сервиса
-    const groupMembers: IGroupMember[] = await groupMemberService.fetchGroupMembersByGroupId(groupId);
+    const groupMembers: IGroupMember[] = await groupMemberService.fetchGroupMembersByGroupIdRemote(groupId);
     
     // Преобразуем данные в формат для отображения
     const mappedStaffMembers: IStaffMember[] = groupMembers.map(gm => ({

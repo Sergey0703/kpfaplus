@@ -6,6 +6,7 @@ import "@pnp/sp/lists";
 import "@pnp/sp/items";
 import "@pnp/sp/fields";
 import { IGroupMember } from "../models/types";
+import { RemoteSiteService } from "./RemoteSiteService";
 
 // Интерфейс для создания записи члена группы
 interface ICreateGroupMemberData {
@@ -35,9 +36,16 @@ interface IGroupMemberItem {
 export class GroupMemberService {
   private sp: SPFI;
   private logSource = "GroupMemberService";
+  // Добавляем контекст и remoteSiteService как поля класса
+  private _context: WebPartContext;
+  private remoteSiteService: RemoteSiteService;
 
   constructor(context: WebPartContext) {
+    this._context = context;
     this.sp = spfi().using(SPFx(context));
+    // Инициализируем RemoteSiteService
+    this.remoteSiteService = RemoteSiteService.getInstance(context);
+    this.logInfo(`GroupMemberService initialized for web: ${this._context.pageContext.web.title}`);
   }
 
   // Логирование
@@ -107,6 +115,94 @@ export class GroupMemberService {
     }
   }
 
+  /**
+   * Получает список членов группы по ID группы через RemoteSiteService
+   * @param groupId ID группы
+   * @returns Promise с массивом членов группы
+   */
+  public async fetchGroupMembersByGroupIdRemote(groupId: number): Promise<IGroupMember[]> {
+    try {
+      this.logInfo(`Fetching group members for group ID: ${groupId} using RemoteSiteService`);
+
+      if (!groupId) {
+        this.logInfo("Group ID is empty. Returning empty array.");
+        return [];
+      }
+
+      // Используем уже инициализированный remoteSiteService
+      // Формируем фильтр для запроса
+      const filter = `GroupId eq ${groupId}`;
+      
+      // Получаем записи из списка GroupMembers через RemoteSiteService
+      const items = await this.remoteSiteService.getListItems(
+        "GroupMembers",
+        true, // expandFields = true
+        filter,
+        { field: "Title", ascending: true }
+      );
+
+      this.logInfo(`Retrieved ${items.length} group members for group ID: ${groupId} via RemoteSiteService`);
+
+      // Преобразуем в формат IGroupMember
+      const groupMembers: IGroupMember[] = [];
+
+      for (const item of items) {
+        const fields = item.fields || {};
+        
+        // Обработка Employee (связанная сущность)
+        let employeeId = "";
+        let employeeTitle = "";
+        
+        // Проверяем наличие данных о сотруднике в разных возможных форматах
+        if (fields.EmployeeLookupId) {
+          employeeId = fields.EmployeeLookupId.toString();
+        } else if (fields.EmployeeId) {
+          employeeId = fields.EmployeeId.toString();
+        }
+        
+        if (fields.EmployeeLookup) {
+          employeeTitle = fields.EmployeeLookup;
+        } else if (fields.Employee && typeof fields.Employee === 'object') {
+          employeeTitle = fields.Employee.Title || "";
+        }
+        
+        // Обработка Group (связанная сущность)
+        let groupTitle = "";
+        if (fields.GroupLookup) {
+          groupTitle = fields.GroupLookup;
+        } else if (fields.Group && typeof fields.Group === 'object') {
+          groupTitle = fields.Group.Title || "";
+        }
+        
+        // Создаем объект члена группы
+        const groupMember: IGroupMember = {
+          ID: parseInt(item.id) || 0,
+          Title: fields.Title || "",
+          Group: {
+            ID: groupId,
+            Title: groupTitle
+          },
+          Employee: {
+            Id: employeeId,
+            Title: employeeTitle
+          },
+          AutoSchedule: fields.AutoSchedule || false,
+          PathForSRSFile: fields.PathForSRSFile || "",
+          GeneralNote: fields.GeneralNote || "",
+          Deleted: fields.Deleted || 0,
+          ContractedHours: fields.ContractedHours || 0
+        };
+
+        groupMembers.push(groupMember);
+      }
+
+      return groupMembers;
+    } catch (error) {
+      this.logError(`Error in fetchGroupMembersByGroupIdRemote via RemoteSiteService: ${error}`);
+      throw error;
+    }
+  }
+  
   /**
    * Обновляет данные члена группы
    * @param groupMemberId ID члена группы
