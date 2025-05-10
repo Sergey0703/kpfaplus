@@ -242,7 +242,7 @@ export class RemoteSiteService {
     }
   }
 
- /**
+/**
  * Получает элементы списка с удаленного сайта
  * @param listTitle Название списка
  * @param expandFields Поля для expand
@@ -268,28 +268,27 @@ public async getListItems(
         .api(`/sites/${this._targetSiteId}/lists/${listId}/items`);
       
       // Заголовки для разрешения запросов по неиндексированным полям
-      // Используем ИМЕННО этот формат заголовка, который требуется для Graph API
       request = request
         .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly')
-        .header('ConsistencyLevel', 'eventual');  // Добавляем для улучшения работы с фильтрами
+        .header('ConsistencyLevel', 'eventual');
       
       // Обязательно добавляем expand fields перед любой фильтрацией
       if (expandFields) {
         request = request.expand('fields');
       }
       
-      // Если фильтр указан, добавляем префикс fields/ если он отсутствует
+      // Обрабатываем фильтр
       if (filter) {
-        // Проверяем, содержит ли фильтр уже префикс fields/
-        const modifiedFilter = filter.includes('fields/') ? filter : `fields/${filter}`;
+        // Всегда добавляем prefix fields/ для фильтрации
+        const modifiedFilter = filter.startsWith('fields/') ? filter : `fields/${filter}`;
         this.logInfo(`Applying filter: ${modifiedFilter}`);
         request = request.filter(modifiedFilter);
       }
       
       // Аналогично для сортировки
       if (orderBy) {
-        // Добавляем префикс fields/ к полю, если отсутствует
-        const fieldWithPrefix = orderBy.field.includes('fields/') ? 
+        // Добавляем префикс fields/ к полю
+        const fieldWithPrefix = orderBy.field.startsWith('fields/') ? 
           orderBy.field : `fields/${orderBy.field}`;
         
         const orderByString = `${fieldWithPrefix} ${orderBy.ascending ? 'asc' : 'desc'}`;
@@ -297,45 +296,39 @@ public async getListItems(
         request = request.orderby(orderByString);
       }
       
-      // Добавляем обработку ошибок с повторными попытками
-      let maxRetries = 3;
-      let retryCount = 0;
+      // Выполняем запрос с обработкой ошибок
       let response;
-      
-      while (retryCount < maxRetries) {
-        try {
-          this.logInfo(`Executing request to get items from list "${listTitle}" (attempt ${retryCount + 1})`);
-          response = await request.get();
-          break; // Если успешно, выходим из цикла
-        } catch (requestError) {
-          retryCount++;
-          
-          // Логируем ошибку
-          this.logError(`Error (attempt ${retryCount}) getting items from list "${listTitle}": ${JSON.stringify({
-            message: requestError.message,
-            statusCode: requestError.statusCode,
-            code: requestError.code,
-            requestId: requestError.requestId,
-            body: requestError.body
-          }, null, 2)}`);
-          
-          if (retryCount < maxRetries) {
-            // Ждем перед повторной попыткой (экспоненциальная задержка)
-            const delay = Math.pow(2, retryCount) * 1000;
-            this.logInfo(`Retrying in ${delay}ms...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-          } else {
-            throw requestError;
-          }
+      try {
+        this.logInfo(`Executing request to get items from list "${listTitle}"`);
+        response = await request.get();
+      } catch (requestError) {
+        // Детальное логирование ошибки для отладки
+        const errorDetails = {
+          message: requestError.message,
+          statusCode: requestError.statusCode,
+          code: requestError.code,
+          requestId: requestError.requestId,
+          body: requestError.body
+        };
+        
+        this.logError(`Error getting items from list "${listTitle}": ${JSON.stringify(errorDetails, null, 2)}`);
+        
+        // Если ошибка связана с фильтром, логируем оригинальный фильтр для отладки
+        if (filter && 
+           (requestError.message.includes("filter") || 
+            requestError.message.includes("query"))) {
+          this.logError(`Original filter: "${filter}"`);
         }
+        
+        throw requestError;
       }
       
       const items = response?.value || [];
       this.logInfo(`Successfully retrieved ${items.length} items from list "${listTitle}"`);
       
-      // Выводим первые несколько элементов для отладки
+      // Выводим первый элемент для анализа структуры
       if (items.length > 0) {
-        this.logInfo(`First item sample: ${JSON.stringify(items[0], null, 2).substring(0, 300)}...`);
+        this.logInfo(`First item sample: ${JSON.stringify(items[0], null, 2)}`);
       }
       
       return items;
