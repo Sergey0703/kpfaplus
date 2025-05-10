@@ -274,12 +274,12 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
         // Показываем разные сообщения в зависимости от того, существует ли уже сотрудник
         if (result.alreadyExists) {
           setStatusMessage({
-            text: `Staff member ${staffName} is already in this department`,
+            text: `Staff member ${staffName} is already in this department. If you can not find -check, please, in Deleted`,
             type: MessageBarType.error  // Изменили с warning на error для красного цвета
           });
         } else {
           setStatusMessage({
-            text: `Staff member ${staffName} has been successfully added to department. If you can not find -check, please, in Deleted`,
+            text: `Staff member ${staffName} has been successfully added to department.`,
             type: MessageBarType.success
           });
         }
