@@ -54,7 +54,7 @@ export class DepartmentService {
     }
   }
 
- /**
+   /**
  * Fetches departments by manager ID using server-side filtering
  * @param managerId ID of the manager
  * @returns Promise with filtered department data
@@ -133,6 +133,7 @@ public async fetchDepartmentsByManager(managerId: number): Promise<IDepartment[]
   }
 }
 
+ ///////////
 /**
  * Преобразует данные из Graph API в объекты департаментов
  * @param items Данные из Graph API
