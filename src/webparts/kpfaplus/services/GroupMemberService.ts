@@ -1,7 +1,5 @@
 // src/webparts/kpfaplus/services/GroupMemberService.ts
 import { WebPartContext } from "@microsoft/sp-webpart-base";
-//import { SPFI, spfi, SPFx } from "@pnp/sp";
-//import { SPHttpClient } from '@microsoft/sp-http';
 import "@pnp/sp/webs";
 import "@pnp/sp/lists";
 import "@pnp/sp/items";
@@ -9,9 +7,7 @@ import "@pnp/sp/fields";
 import { IGroupMember } from "../models/types";
 import { RemoteSiteService } from "./RemoteSiteService";
 
-
 export class GroupMemberService {
-  //private sp: SPFI;
   private logSource = "GroupMemberService";
   // Добавляем контекст и remoteSiteService как поля класса
   private _context: WebPartContext;
@@ -19,10 +15,32 @@ export class GroupMemberService {
 
   constructor(context: WebPartContext) {
     this._context = context;
-   // this.sp = spfi().using(SPFx(context));
     // Инициализируем RemoteSiteService
     this.remoteSiteService = RemoteSiteService.getInstance(context);
     this.logInfo(`GroupMemberService initialized for web: ${this._context.pageContext.web.title}`);
+  }
+
+  // Вспомогательные методы для преобразования типов
+  private ensureString(value: unknown): string {
+    if (value === null || value === undefined) {
+      return '';
+    }
+    return String(value);
+  }
+
+  private ensureNumber(value: unknown): number {
+    if (value === null || value === undefined) {
+      return 0;
+    }
+    const num = Number(value);
+    return isNaN(num) ? 0 : num;
+  }
+
+  private ensureBoolean(value: unknown): boolean {
+    if (value === null || value === undefined) {
+      return false;
+    }
+    return Boolean(value);
   }
 
   // Логирование
@@ -76,9 +94,9 @@ public async fetchGroupMembersByGroupId(groupId: number): Promise<IGroupMember[]
       let employeeId = "";
       
       if (fields.EmployeeLookupId) {
-        employeeId = fields.EmployeeLookupId.toString();
+        employeeId = this.ensureString(fields.EmployeeLookupId);
       } else if (fields.EmployeeId) {
-        employeeId = fields.EmployeeId.toString();
+        employeeId = this.ensureString(fields.EmployeeId);
       }
       
       // Получаем имя сотрудника - наиболее важная часть
@@ -87,13 +105,14 @@ public async fetchGroupMembersByGroupId(groupId: number): Promise<IGroupMember[]
       
       if (fields.EmployeeLookup) {
         // Если есть прямое поле EmployeeLookup
-        employeeTitle = fields.EmployeeLookup;
-      } else if (fields.Employee && typeof fields.Employee === 'object' && fields.Employee.Title) {
+        employeeTitle = this.ensureString(fields.EmployeeLookup);
+      } else if (fields.Employee && typeof fields.Employee === 'object') {
         // Если есть вложенный объект Employee с полем Title
-        employeeTitle = fields.Employee.Title;
+        const employeeObj = fields.Employee as Record<string, unknown>;
+        employeeTitle = this.ensureString(employeeObj.Title);
       } else if (fields.Title) {
         // Если нет специальных полей для имени сотрудника, используем Title самого элемента
-        employeeTitle = fields.Title;
+        employeeTitle = this.ensureString(fields.Title);
       } else {
         // Если ничего не помогло, пробуем найти любое поле, которое может содержать имя
         for (const key of Object.keys(fields)) {
@@ -102,7 +121,7 @@ public async fetchGroupMembersByGroupId(groupId: number): Promise<IGroupMember[]
             (key.includes("Title") || key.includes("Name"))
           ) {
             if (fields[key] && typeof fields[key] === 'string') {
-              employeeTitle = fields[key];
+              employeeTitle = this.ensureString(fields[key]);
               break;
             }
           }
@@ -116,21 +135,21 @@ public async fetchGroupMembersByGroupId(groupId: number): Promise<IGroupMember[]
       
       // Создаем объект члена группы
       const groupMember: IGroupMember = {
-        ID: parseInt(item.id) || 0,
+        ID: this.ensureNumber(item.id),
         Title: employeeTitle || `Staff #${item.id}`, // Используем найденное имя или заглушку
         Group: {
           ID: groupId,
-          Title: fields.GroupLookup || "" // Название группы
+          Title: this.ensureString(fields.GroupLookup) // Название группы
         },
         Employee: {
           Id: employeeId,
           Title: employeeTitle
         },
-        AutoSchedule: Boolean(fields.AutoSchedule),
-        PathForSRSFile: fields.PathForSRSFile || "",
-        GeneralNote: fields.GeneralNote || "",
-        Deleted: typeof fields.Deleted === 'number' ? fields.Deleted : (fields.Deleted === true ? 1 : 0), // Преобразуем в число
-        ContractedHours: parseFloat(fields.ContractedHours) || 0
+        AutoSchedule: this.ensureBoolean(fields.AutoSchedule),
+        PathForSRSFile: this.ensureString(fields.PathForSRSFile),
+        GeneralNote: this.ensureString(fields.GeneralNote),
+        Deleted: typeof fields.Deleted === 'number' ? fields.Deleted as number : (this.ensureBoolean(fields.Deleted) ? 1 : 0), // Преобразуем в число
+        ContractedHours: this.ensureNumber(fields.ContractedHours)
       };
 
       // Логируем созданный объект для отладки
@@ -156,11 +175,11 @@ public async fetchGroupMembersByGroupId(groupId: number): Promise<IGroupMember[]
       
       for (const staff of staffItems) {
         const fields = staff.fields || {};
-        const staffId = staff.id;
-        const staffTitle = fields.Title || "";
+        const staffId = this.ensureString(staff.id);
+        const staffTitle = this.ensureString(fields.Title);
         
         if (staffId && staffTitle) {
-          staffMap.set(staffId.toString(), staffTitle);
+          staffMap.set(staffId, staffTitle);
           this.logInfo(`Staff mapping: ID=${staffId}, Title=${staffTitle}`);
         }
       }
@@ -228,29 +247,31 @@ public async fetchGroupMembersByGroupId(groupId: number): Promise<IGroupMember[]
         
         // Проверяем наличие данных о сотруднике в разных возможных форматах
         if (fields.EmployeeLookupId) {
-          employeeId = fields.EmployeeLookupId.toString();
+          employeeId = this.ensureString(fields.EmployeeLookupId);
         } else if (fields.EmployeeId) {
-          employeeId = fields.EmployeeId.toString();
+          employeeId = this.ensureString(fields.EmployeeId);
         }
         
         if (fields.EmployeeLookup) {
-          employeeTitle = fields.EmployeeLookup;
+          employeeTitle = this.ensureString(fields.EmployeeLookup);
         } else if (fields.Employee && typeof fields.Employee === 'object') {
-          employeeTitle = fields.Employee.Title || "";
+          const employeeObj = fields.Employee as Record<string, unknown>;
+          employeeTitle = this.ensureString(employeeObj.Title);
         }
         
         // Обработка Group (связанная сущность)
         let groupTitle = "";
         if (fields.GroupLookup) {
-          groupTitle = fields.GroupLookup;
+          groupTitle = this.ensureString(fields.GroupLookup);
         } else if (fields.Group && typeof fields.Group === 'object') {
-          groupTitle = fields.Group.Title || "";
+          const groupObj = fields.Group as Record<string, unknown>;
+          groupTitle = this.ensureString(groupObj.Title);
         }
         
         // Создаем объект члена группы
         const groupMember: IGroupMember = {
-          ID: parseInt(item.id) || 0,
-          Title: fields.Title || "",
+          ID: this.ensureNumber(item.id),
+          Title: this.ensureString(fields.Title),
           Group: {
             ID: groupId,
             Title: groupTitle
@@ -259,11 +280,11 @@ public async fetchGroupMembersByGroupId(groupId: number): Promise<IGroupMember[]
             Id: employeeId,
             Title: employeeTitle
           },
-          AutoSchedule: fields.AutoSchedule || false,
-          PathForSRSFile: fields.PathForSRSFile || "",
-          GeneralNote: fields.GeneralNote || "",
-          Deleted: fields.Deleted || 0,
-          ContractedHours: fields.ContractedHours || 0
+          AutoSchedule: this.ensureBoolean(fields.AutoSchedule),
+          PathForSRSFile: this.ensureString(fields.PathForSRSFile),
+          GeneralNote: this.ensureString(fields.GeneralNote),
+          Deleted: this.ensureNumber(fields.Deleted),
+          ContractedHours: this.ensureNumber(fields.ContractedHours)
         };
 
         groupMembers.push(groupMember);
@@ -391,7 +412,7 @@ public async createGroupMemberFromStaff(
       
       if (response && response.id) {
         this.logInfo(`Successfully created GroupMember with ID: ${response.id}`);
-        return { success: true, alreadyExists: false, newItemId: parseInt(response.id) };
+        return { success: true, alreadyExists: false, newItemId: this.ensureNumber(response.id) };
       } else {
         this.logInfo(`Create operation completed but no valid response returned`);
         return { success: false, alreadyExists: false };
@@ -431,16 +452,16 @@ public async isStaffInGroup(groupId: number, staffId: number): Promise<boolean> 
       // Используем правильные имена полей из логов существующих элементов
       let groupValue = null;
       if (fields.GroupLookupId !== undefined) {
-        groupValue = parseInt(fields.GroupLookupId);
+        groupValue = this.ensureNumber(fields.GroupLookupId);
       }
       
       let employeeValue = null;
       if (fields.EmployeeLookupId !== undefined) {
-        employeeValue = parseInt(fields.EmployeeLookupId);
+        employeeValue = this.ensureNumber(fields.EmployeeLookupId);
       }
       
       // Проверяем значение Deleted
-      const isDeleted = fields.Deleted === 1 || fields.Deleted === true;
+      const isDeleted = this.ensureNumber(fields.Deleted) === 1 || this.ensureBoolean(fields.Deleted);
       
       // Сотрудник в группе, если найден элемент с соответствующими ID и он не удален
       return groupValue === groupId && employeeValue === staffId && !isDeleted;
@@ -454,6 +475,4 @@ public async isStaffInGroup(groupId: number, staffId: number): Promise<boolean> 
     return false;
   }
 }
-
-
 }

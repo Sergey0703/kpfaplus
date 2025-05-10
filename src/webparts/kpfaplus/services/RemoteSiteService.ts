@@ -1,6 +1,7 @@
 // src/webparts/kpfaplus/services/RemoteSiteService.ts
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { MSGraphClientV3 } from '@microsoft/sp-http';
+import { DataTypeAdapter } from '../utils/DataTypeAdapter';
 
 // Интерфейс для информации о сайте
 export interface IRemoteSiteInfo {
@@ -26,8 +27,41 @@ export interface IRemoteListInfo {
   [key: string]: unknown; // Индексная сигнатура для дополнительных полей
 }
 
+// Интерфейс для полей Lookup
+export interface ILookupField {
+  Id: number;
+  Title: string;
+  [key: string]: unknown;
+}
+
+// Интерфейс для элементов списка с типизированными полями
+export interface IRemoteListItemField {
+  [key: string]: unknown;
+}
+
+// Интерфейс для элементов списка
+export interface IRemoteListItemResponse {
+  id: string;
+  fields?: IRemoteListItemField;
+  [key: string]: unknown;
+}
+
+// Интерфейс для полей списка
+export interface IRemoteListFieldInfo {
+  id: string;
+  name: string;
+  displayName: string;
+  description?: string;
+  columnGroup?: string;
+  enforceUniqueValues?: boolean;
+  indexed?: boolean;
+  required?: boolean;
+  readOnly?: boolean;
+  [key: string]: unknown;
+}
+
 export class RemoteSiteService {
-  private static _instance: RemoteSiteService | null = null;
+  private static _instance: RemoteSiteService | undefined = undefined;
   protected _context: WebPartContext;
   protected _logSource: string;
   
@@ -35,8 +69,8 @@ export class RemoteSiteService {
   protected _remoteSiteUrl: string = "https://kpfaie.sharepoint.com/sites/KPFAData";
   
   // ID сайта для Graph API (заполняется при инициализации)
-  protected _targetSiteId: string | null = null;
-  protected _targetSiteDriveId: string | null = null;
+  protected _targetSiteId: string | undefined = undefined;
+  protected _targetSiteDriveId: string | undefined = undefined;
   
   // Флаг авторизации
   protected _isAuthorized: boolean = false;
@@ -73,7 +107,7 @@ export class RemoteSiteService {
         const myProfile = await graphClient.api('/me').select('displayName,userPrincipalName,mail').get();
         this.logInfo(`Successfully authenticated as: ${myProfile.displayName} (${myProfile.userPrincipalName || myProfile.mail})`);
       } catch (profileError) {
-        this.logError(`Failed to get user profile: ${profileError.message || profileError}`);
+        this.logError(`Failed to get user profile: ${(profileError as Error).message || String(profileError)}`);
         this.logInfo("Continuing with site authorization despite profile error...");
       }
       
@@ -102,23 +136,30 @@ export class RemoteSiteService {
         this._isAuthorized = false;
         
         // Детальное логирование ошибки
+        const error = authError as {
+          message: string;
+          statusCode: number;
+          code: string;
+          requestId: string;
+        };
+        
         this.logError(`Remote site authentication error: ${JSON.stringify({
-          message: authError.message,
-          statusCode: authError.statusCode,
-          code: authError.code,
-          requestId: authError.requestId
+          message: error.message,
+          statusCode: error.statusCode,
+          code: error.code,
+          requestId: error.requestId
         }, null, 2)}`);
         
-        if (authError.statusCode === 401 || authError.statusCode === 403) {
+        if (error.statusCode === 401 || error.statusCode === 403) {
           this.logError("Authorization to remote site failed - insufficient permissions.");
           this.logError("Ensure that app permissions are approved in SharePoint Admin Center:");
           this.logError("1. Go to SharePoint Admin Center > Advanced > API access");
           this.logError("2. Approve pending requests for Microsoft Graph permissions");
         } else {
-          this.logError(`Remote site authorization error: ${authError.message}`);
+          this.logError(`Remote site authorization error: ${error.message}`);
         }
         
-        throw new Error(`Failed to authorize access to remote site: ${authError.message}`);
+        throw new Error(`Failed to authorize access to remote site: ${error.message}`);
       }
     } catch (error) {
       this.logError(`Failed to initialize Graph authorization: ${error instanceof Error ? error.message : String(error)}`);
@@ -151,9 +192,9 @@ export class RemoteSiteService {
   
   /**
    * Получает ID целевого сайта
-   * @returns ID целевого сайта или null, если авторизация не выполнена
+   * @returns ID целевого сайта или undefined, если авторизация не выполнена
    */
-  public getTargetSiteId(): string | null {
+  public getTargetSiteId(): string | undefined {
     return this._targetSiteId;
   }
   
@@ -162,7 +203,7 @@ export class RemoteSiteService {
    * @returns true если авторизация выполнена, иначе false
    */
   public isAuthorized(): boolean {
-    return this._isAuthorized && this._targetSiteId !== null;
+    return this._isAuthorized && this._targetSiteId !== undefined;
   }
   
   /**
@@ -193,14 +234,14 @@ export class RemoteSiteService {
       
       // Преобразуем данные из Graph API в наш интерфейс IRemoteSiteInfo
       const siteInfo: IRemoteSiteInfo = {
-        id: siteData.id,
-        title: siteData.displayName,
-        url: siteData.webUrl,
-        created: siteData.createdDateTime,
-        lastModifiedDateTime: siteData.lastModifiedDateTime,
-        description: siteData.description,
-        serverRelativeUrl: new URL(siteData.webUrl).pathname,
-        webTemplate: siteData.template?.displayName
+        id: DataTypeAdapter.toString(siteData.id),
+        title: DataTypeAdapter.toString(siteData.displayName),
+        url: DataTypeAdapter.toString(siteData.webUrl),
+        created: DataTypeAdapter.toString(siteData.createdDateTime),
+        lastModifiedDateTime: DataTypeAdapter.toString(siteData.lastModifiedDateTime),
+        description: DataTypeAdapter.toString(siteData.description),
+        serverRelativeUrl: DataTypeAdapter.toString(new URL(siteData.webUrl).pathname),
+        webTemplate: DataTypeAdapter.toString(siteData.template?.displayName)
       };
       
       return siteInfo;
@@ -232,7 +273,7 @@ export class RemoteSiteService {
         throw new Error(`List "${listTitle}" not found on remote site`);
       }
       
-      const listId = listsResponse.value[0].id;
+      const listId = DataTypeAdapter.toString(listsResponse.value[0].id);
       this.logInfo(`Successfully found list "${listTitle}" with ID: ${listId}`);
       
       return listId;
@@ -255,7 +296,7 @@ public async getListItems(
     expandFields: boolean = true,
     filter?: string,
     orderBy?: { field: string, ascending: boolean }
-  ): Promise<any[]> {
+  ): Promise<IRemoteListItemResponse[]> {
     try {
       await this.ensureAuthorization();
       
@@ -304,19 +345,19 @@ public async getListItems(
       } catch (requestError) {
         // Детальное логирование ошибки для отладки
         const errorDetails = {
-          message: requestError.message,
-          statusCode: requestError.statusCode,
-          code: requestError.code,
-          requestId: requestError.requestId,
-          body: requestError.body
+          message: (requestError as Error).message,
+          statusCode: (requestError as { statusCode?: number }).statusCode,
+          code: (requestError as { code?: string }).code,
+          requestId: (requestError as { requestId?: string }).requestId,
+          body: (requestError as { body?: unknown }).body
         };
         
         this.logError(`Error getting items from list "${listTitle}": ${JSON.stringify(errorDetails, null, 2)}`);
         
         // Если ошибка связана с фильтром, логируем оригинальный фильтр для отладки
         if (filter && 
-           (requestError.message.includes("filter") || 
-            requestError.message.includes("query"))) {
+           ((requestError as Error).message.includes("filter") || 
+            (requestError as Error).message.includes("query"))) {
           this.logError(`Original filter: "${filter}"`);
         }
         
@@ -331,15 +372,28 @@ public async getListItems(
         this.logInfo(`First item sample: ${JSON.stringify(items[0], null, 2)}`);
       }
       
-      return items;
+      // Просто возвращаем элементы, не модифицируя их
+      // Преобразование типов будет выполняться в сервисах-потребителях с использованием DataTypeAdapter
+      return items.map((item: Record<string, unknown>) => {
+        const responseItem: IRemoteListItemResponse = {
+          id: DataTypeAdapter.toString(item.id),
+          fields: item.fields as IRemoteListItemField || {}
+        };
+        
+        // Копируем остальные свойства
+        for (const key in item) {
+          if (Object.prototype.hasOwnProperty.call(item, key) && key !== 'id' && key !== 'fields') {
+            responseItem[key] = item[key];
+          }
+        }
+        
+        return responseItem;
+      });
     } catch (error) {
       this.logError(`Failed to get items from list "${listTitle}": ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
   }
-
-
-// Добавьте в RemoteSiteService.ts (если еще нет)
 
 /**
  * Обновляет элемент списка через Graph API
@@ -416,12 +470,12 @@ public async updateListItem(
       
       // Преобразуем данные из Graph API в наш интерфейс IRemoteListInfo
       const listInfo: IRemoteListInfo = {
-        id: listData.id,
-        title: listData.displayName,
-        itemCount: itemCount,
-        description: listData.description,
-        defaultViewUrl: listData.webUrl,
-        lastModifiedDateTime: listData.lastModifiedDateTime
+        id: DataTypeAdapter.toString(listData.id),
+        title: DataTypeAdapter.toString(listData.displayName),
+        itemCount: DataTypeAdapter.toNumber(itemCount),
+        description: DataTypeAdapter.toString(listData.description),
+        defaultViewUrl: DataTypeAdapter.toString(listData.webUrl),
+        lastModifiedDateTime: DataTypeAdapter.toString(listData.lastModifiedDateTime)
       };
       
       return listInfo;
@@ -431,15 +485,12 @@ public async updateListItem(
     }
   }
 
-
-
-
 /**
  * Получает информацию о списке
  * @param listTitle Название списка
  * @returns Promise с информацией о списке
  */
-public async getListInfo(listTitle: string): Promise<any> {
+public async getListInfo(listTitle: string): Promise<IRemoteListInfo> {
   try {
     await this.ensureAuthorization();
     
@@ -452,7 +503,16 @@ public async getListInfo(listTitle: string): Promise<any> {
       .get();
     
     if (response && response.value && response.value.length > 0) {
-      return response.value[0];
+      const listData = response.value[0];
+      
+      return {
+        id: DataTypeAdapter.toString(listData.id),
+        title: DataTypeAdapter.toString(listData.displayName),
+        itemCount: DataTypeAdapter.toNumber(listData.items?.count),
+        description: DataTypeAdapter.toString(listData.description),
+        defaultViewUrl: DataTypeAdapter.toString(listData.webUrl),
+        lastModifiedDateTime: DataTypeAdapter.toString(listData.lastModifiedDateTime)
+      };
     } else {
       throw new Error(`List "${listTitle}" not found`);
     }
@@ -467,7 +527,7 @@ public async getListInfo(listTitle: string): Promise<any> {
  * @param listTitle Название списка
  * @returns Promise с полями списка
  */
-public async getListFields(listTitle: string): Promise<any[]> {
+public async getListFields(listTitle: string): Promise<IRemoteListFieldInfo[]> {
   try {
     await this.ensureAuthorization();
     
@@ -483,7 +543,17 @@ public async getListFields(listTitle: string): Promise<any[]> {
       .get();
     
     if (response && response.value) {
-      return response.value;
+      return response.value.map((field: Record<string, unknown>) => ({
+        id: DataTypeAdapter.toString(field.id),
+        name: DataTypeAdapter.toString(field.name),
+        displayName: DataTypeAdapter.toString(field.displayName),
+        description: DataTypeAdapter.toString(field.description),
+        columnGroup: DataTypeAdapter.toString(field.columnGroup),
+        enforceUniqueValues: DataTypeAdapter.toBoolean(field.enforceUniqueValues),
+        indexed: DataTypeAdapter.toBoolean(field.indexed),
+        required: DataTypeAdapter.toBoolean(field.required),
+        readOnly: DataTypeAdapter.toBoolean(field.readOnly)
+      }));
     } else {
       return [];
     }
@@ -492,6 +562,7 @@ public async getListFields(listTitle: string): Promise<any[]> {
     throw error;
   }
 }
+
   /**
  * Создает новый элемент списка
  * @param listTitle Название списка
@@ -501,7 +572,7 @@ public async getListFields(listTitle: string): Promise<any[]> {
 public async createListItem(
   listTitle: string,
   fields: Record<string, unknown>
-): Promise<{ id: string; fields: Record<string, unknown> }> {
+): Promise<{ id: string; fields: IRemoteListItemField }> {
   try {
     this.logInfo(`Creating new item in list "${listTitle}"`);
     await this.ensureAuthorization();
@@ -523,7 +594,7 @@ public async createListItem(
     
     // Возвращаем созданный элемент
     return {
-      id: response.id,
+      id: DataTypeAdapter.toString(response.id),
       fields: response.fields || {}
     };
   } catch (error) {
@@ -550,11 +621,12 @@ public async createListItem(
     // Сначала проверяем авторизацию
     try {
       await this.ensureAuthorization();
-    } catch (authError) {
+    } catch (error) {
       // Если авторизация не удалась, возвращаем ошибку для всех списков
+      const errorMessage = error instanceof Error ? error.message : String(error);
       for (const listTitle of requiredLists) {
         results[listTitle] = {
-          error: "Authorization to remote site failed. Check application permissions."
+          error: `Authorization to remote site failed: ${errorMessage}`
         };
       }
       return results;
@@ -583,7 +655,7 @@ public async createListItem(
 public async addListItem(
   listId: string, 
   fields: Record<string, unknown>
-): Promise<{ id: string; fields: Record<string, unknown> }> {
+): Promise<{ id: string; fields: IRemoteListItemField }> {
   try {
     this.logInfo(`Adding item to list with ID: ${listId}`);
     
@@ -600,7 +672,7 @@ public async addListItem(
     this.logInfo(`Successfully added item to list: ${JSON.stringify(response)}`);
     
     return {
-      id: response.id,
+      id: DataTypeAdapter.toString(response.id),
       fields: response.fields || {}
     };
   } catch (error) {
@@ -608,6 +680,7 @@ public async addListItem(
     throw error;
   }
 }
+
   /**
    * Логирует информационное сообщение
    * @param message сообщение для логирования

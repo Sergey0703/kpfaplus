@@ -20,90 +20,115 @@ export class UserService {
   }
 
   /**
- * Получает информацию о текущем пользователе из списка Staff на удаленном сайте
- * @returns Promise с данными текущего пользователя
- */
-public async getCurrentUser(): Promise<ICurrentUser | undefined> {
-  try {
-    this.logInfo("Starting getCurrentUser from remote site");
-    
-    // Получаем информацию о пользователе из контекста SharePoint
-    // Вместо Graph API используем контекст SharePoint, который более надежен
-    const spUser = this.context.pageContext.user;
-    this.logInfo(`Current SharePoint user: ${spUser.displayName} (${spUser.email})`);
-    
-    if (!spUser.email) {
-      this.logError("Unable to get user email from SharePoint context");
-      return {
-        ID: 0,
-        Title: spUser.displayName || "Unknown",
-        Email: ""
-      };
+   * Преобразует значение в строку
+   * @param value Любое значение
+   * @returns Строковое представление
+   */
+  private ensureString(value: unknown): string {
+    if (value === null || value === undefined) {
+      return '';
     }
-    
-    // Получаем все элементы Staff и фильтруем локально
+    return String(value);
+  }
+
+  /**
+   * Преобразует значение в число
+   * @param value Любое значение
+   * @returns Числовое представление
+   */
+  private ensureNumber(value: unknown): number {
+    if (value === null || value === undefined) {
+      return 0;
+    }
+    const num = Number(value);
+    return isNaN(num) ? 0 : num;
+  }
+
+  /**
+   * Получает информацию о текущем пользователе из списка Staff на удаленном сайте
+   * @returns Promise с данными текущего пользователя
+   */
+  public async getCurrentUser(): Promise<ICurrentUser | undefined> {
     try {
-      const allStaffItems = await this.remoteSiteService.getListItems("Staff", true);
-      this.logInfo(`Retrieved ${allStaffItems.length} staff members, checking for match with email ${spUser.email}`);
+      this.logInfo("Starting getCurrentUser from remote site");
       
-      // Фильтруем локально
-      const matchingItems = allStaffItems.filter(item => {
-        const fields = item.fields || {};
-        // Проверяем поле Email без учета регистра
-        return fields.Email && fields.Email.toLowerCase() === spUser.email.toLowerCase();
-      });
+      // Получаем информацию о пользователе из контекста SharePoint
+      // Вместо Graph API используем контекст SharePoint, который более надежен
+      const spUser = this.context.pageContext.user;
+      this.logInfo(`Current SharePoint user: ${spUser.displayName} (${spUser.email})`);
       
-      this.logInfo(`Found ${matchingItems.length} matching staff members for email ${spUser.email}`);
-      
-      if (matchingItems.length > 0) {
-        const userItem = matchingItems[0];
-        const fields = userItem.fields || {};
-        
-        // Логируем найденный элемент для отладки
-        this.logInfo(`Staff member data: ${JSON.stringify({
-          id: userItem.id,
-          title: fields.Title,
-          email: fields.Email
-        })}`);
-        
-        const currentUser: ICurrentUser = {
-          ID: parseInt(userItem.id) || 0,
-          Title: fields.Title || spUser.displayName,
-          Email: fields.Email || spUser.email
+      if (!spUser.email) {
+        this.logError("Unable to get user email from SharePoint context");
+        return {
+          ID: 0,
+          Title: spUser.displayName || "Unknown",
+          Email: ""
         };
+      }
+      
+      // Получаем все элементы Staff и фильтруем локально
+      try {
+        const allStaffItems = await this.remoteSiteService.getListItems("Staff", true);
+        this.logInfo(`Retrieved ${allStaffItems.length} staff members, checking for match with email ${spUser.email}`);
         
-        this.logInfo(`Found current user in Staff list: ${currentUser.Title}`);
-        return currentUser;
-      } else {
-        this.logInfo(`Current user with email ${spUser.email} not found in Staff list`);
+        // Фильтруем локально
+        const matchingItems = allStaffItems.filter(item => {
+          const fields = item.fields || {};
+          // Преобразуем Email в строку и проверяем без учета регистра
+          const email = this.ensureString(fields.Email);
+          return email && email.toLowerCase() === spUser.email.toLowerCase();
+        });
         
-        // Возвращаем информацию из контекста SharePoint
+        this.logInfo(`Found ${matchingItems.length} matching staff members for email ${spUser.email}`);
+        
+        if (matchingItems.length > 0) {
+          const userItem = matchingItems[0];
+          const fields = userItem.fields || {};
+          
+          // Логируем найденный элемент для отладки
+          this.logInfo(`Staff member data: ${JSON.stringify({
+            id: userItem.id,
+            title: fields.Title,
+            email: fields.Email
+          })}`);
+          
+          const currentUser: ICurrentUser = {
+            ID: this.ensureNumber(userItem.id),
+            Title: this.ensureString(fields.Title) || spUser.displayName,
+            Email: this.ensureString(fields.Email) || spUser.email
+          };
+          
+          this.logInfo(`Found current user in Staff list: ${currentUser.Title}`);
+          return currentUser;
+        } else {
+          this.logInfo(`Current user with email ${spUser.email} not found in Staff list`);
+          
+          // Возвращаем информацию из контекста SharePoint
+          return {
+            ID: 0,
+            Title: spUser.displayName || "Unknown",
+            Email: spUser.email
+          };
+        }
+      } catch (staffError) {
+        this.logError(`Error getting staff list: ${staffError}`);
+        // В случае ошибки все равно возвращаем данные из контекста
         return {
           ID: 0,
           Title: spUser.displayName || "Unknown",
           Email: spUser.email
         };
       }
-    } catch (staffError) {
-      this.logError(`Error getting staff list: ${staffError}`);
-      // В случае ошибки все равно возвращаем данные из контекста
+    } catch (error) {
+      this.logError(`Error getting current user: ${error}`);
+      // Возвращаем минимальные данные
       return {
         ID: 0,
-        Title: spUser.displayName || "Unknown",
-        Email: spUser.email
+        Title: "Unknown User",
+        Email: ""
       };
     }
-  } catch (error) {
-    this.logError(`Error getting current user: ${error}`);
-    // Возвращаем минимальные данные
-    return {
-      ID: 0,
-      Title: "Unknown User",
-      Email: ""
-    };
   }
-}
-
 
   /**
    * Получает всех сотрудников из списка Staff на удаленном сайте
@@ -117,7 +142,7 @@ public async getCurrentUser(): Promise<ICurrentUser | undefined> {
         "Staff", 
         true,
         undefined,
-        { field: "Title", ascending: true } // Убран префикс fields/
+        { field: "Title", ascending: true }
       );
       
       this.logInfo(`Fetched ${items.length} staff members from remote site`);
@@ -125,9 +150,9 @@ public async getCurrentUser(): Promise<ICurrentUser | undefined> {
       const staff: ICurrentUser[] = items.map(item => {
         const fields = item.fields || {};
         return {
-          ID: parseInt(item.id) || 0,
-          Title: fields.Title || "Unknown",
-          Email: fields.Email || ""
+          ID: this.ensureNumber(item.id),
+          Title: this.ensureString(fields.Title),
+          Email: this.ensureString(fields.Email)
         };
       });
       
