@@ -16,6 +16,12 @@ export interface IDepartment {
   };
 }
 
+// Определим интерфейс для элементов, возвращаемых из RemoteSiteService
+export interface IRemoteListItem {
+  id: string;
+  fields?: Record<string, unknown>;
+}
+
 export class DepartmentService {
   private logSource: string = "DepartmentService";
   private remoteSiteService: RemoteSiteService;
@@ -54,132 +60,134 @@ export class DepartmentService {
     }
   }
 
-   /**
- * Fetches departments by manager ID using server-side filtering
- * @param managerId ID of the manager
- * @returns Promise with filtered department data
- */
-public async fetchDepartmentsByManager(managerId: number): Promise<IDepartment[]> {
-  try {
-    this.logInfo(`Starting fetchDepartmentsByManager for manager ID: ${managerId} from remote site`);
-    
-    if (!managerId || managerId <= 0) {
-      this.logInfo(`Manager ID ${managerId} is invalid or 0. Returning empty array.`);
+  /**
+   * Fetches departments by manager ID using server-side filtering
+   * @param managerId ID of the manager
+   * @returns Promise with filtered department data
+   */
+  public async fetchDepartmentsByManager(managerId: number): Promise<IDepartment[]> {
+    try {
+      this.logInfo(`Starting fetchDepartmentsByManager for manager ID: ${managerId} from remote site`);
+      
+      if (!managerId || managerId <= 0) {
+        this.logInfo(`Manager ID ${managerId} is invalid or 0. Returning empty array.`);
+        return [];
+      }
+      
+      // Проверяем структуру данных, запрашивая один элемент для анализа
+      const sampleItems = await this.remoteSiteService.getListItems(
+        "StaffGroups", 
+        true,
+        undefined,
+        undefined
+      );
+      
+      // Если есть хотя бы один элемент, анализируем его структуру
+      if (sampleItems.length > 0) {
+        const sampleItem = sampleItems[0];
+        const fields = sampleItem.fields || {};
+        
+        // Логируем подробную структуру элемента для анализа
+        this.logInfo(`Sample StaffGroup item structure: ${JSON.stringify(fields, null, 2)}`);
+        
+        // Определяем, какое поле использовать для фильтрации менеджера
+        // Из логов видно, что поле может называться ManagerLookupId вместо ManagerId
+        let managerFieldName = "ManagerId";
+        
+        if (Object.prototype.hasOwnProperty.call(fields, 'ManagerLookupId')) {
+          managerFieldName = "ManagerLookupId";
+          this.logInfo(`Using field "ManagerLookupId" for manager filtering`);
+        } else if (Object.prototype.hasOwnProperty.call(fields, 'ManagerId')) {
+          this.logInfo(`Using field "ManagerId" for manager filtering`);
+        } else {
+          // Ищем любое поле, содержащее "Manager" и "Id"
+          for (const key of Object.keys(fields)) {
+            if (key.includes("Manager") && key.includes("Id")) {
+              managerFieldName = key;
+              this.logInfo(`Found manager ID field: "${key}"`);
+              break;
+            }
+          }
+        }
+        
+        // Формируем фильтр с использованием найденного имени поля
+        const filter = `${managerFieldName} eq ${managerId}`;
+        this.logInfo(`Using filter: ${filter}`);
+        
+        // Запрашиваем элементы с фильтрацией на сервере
+        const items = await this.remoteSiteService.getListItems(
+          "StaffGroups", 
+          true,
+          filter,
+          { field: "Title", ascending: true }
+        );
+        
+        this.logInfo(`Filtered ${items.length} departments for manager ID: ${managerId} from remote site`);
+        
+        // Преобразуем результат в нужный формат
+        const departments: IDepartment[] = this.mapToDepartments(items);
+        
+        return departments;
+      } else {
+        this.logError("Cannot analyze StaffGroups structure - no items found");
+        return [];
+      }
+    } catch (error) {
+      this.logError(`Error in fetchDepartmentsByManager from remote site: ${error}`);
+      // Возвращаем пустой массив вместо выбрасывания исключения
       return [];
     }
-    
-    // Проверяем структуру данных, запрашивая один элемент для анализа
-    let sampleItems = await this.remoteSiteService.getListItems(
-      "StaffGroups", 
-      true,
-      undefined,
-      undefined
-    );
-    
-    // Если есть хотя бы один элемент, анализируем его структуру
-    if (sampleItems.length > 0) {
-      const sampleItem = sampleItems[0];
-      const fields = sampleItem.fields || {};
+  }
+
+  /**
+   * Преобразует данные из Graph API в объекты департаментов
+   * @param items Данные из Graph API
+   * @returns Массив объектов IDepartment
+   */
+  private mapToDepartments(items: IRemoteListItem[]): IDepartment[] {
+    return items.map(item => {
+      const fields = item.fields || {};
       
-      // Логируем подробную структуру элемента для анализа
-      this.logInfo(`Sample StaffGroup item structure: ${JSON.stringify(fields, null, 2)}`);
+      // Получение ID менеджера
+      let managerId = 0;
+      // Проверяем различные возможные имена полей для ID менеджера
+      if (fields.ManagerLookupId !== undefined) {
+        managerId = parseInt(String(fields.ManagerLookupId)) || 0;
+      } else if (fields.ManagerId !== undefined) {
+        managerId = parseInt(String(fields.ManagerId)) || 0;
+      }
       
-      // Определяем, какое поле использовать для фильтрации менеджера
-      // Из логов видно, что поле может называться ManagerLookupId вместо ManagerId
-      let managerFieldName = "ManagerId";
-      
-      if (fields.hasOwnProperty('ManagerLookupId')) {
-        managerFieldName = "ManagerLookupId";
-        this.logInfo(`Using field "ManagerLookupId" for manager filtering`);
-      } else if (fields.hasOwnProperty('ManagerId')) {
-        this.logInfo(`Using field "ManagerId" for manager filtering`);
-      } else {
-        // Ищем любое поле, содержащее "Manager" и "Id"
-        for (const key of Object.keys(fields)) {
-          if (key.includes("Manager") && key.includes("Id")) {
-            managerFieldName = key;
-            this.logInfo(`Found manager ID field: "${key}"`);
-            break;
+      // Получение имени менеджера
+      let managerTitle = "";
+      if (fields.ManagerLookup !== undefined) {
+        managerTitle = String(fields.ManagerLookup);
+      } else if (fields.Manager !== undefined) {
+        if (typeof fields.Manager === 'object' && fields.Manager !== null) {
+          const managerObj = fields.Manager as { Title?: string };
+          if (managerObj.Title) {
+            managerTitle = managerObj.Title;
           }
+        } else if (typeof fields.Manager === 'string') {
+          managerTitle = fields.Manager;
         }
       }
       
-      // Формируем фильтр с использованием найденного имени поля
-      const filter = `${managerFieldName} eq ${managerId}`;
-      this.logInfo(`Using filter: ${filter}`);
-      
-      // Запрашиваем элементы с фильтрацией на сервере
-      const items = await this.remoteSiteService.getListItems(
-        "StaffGroups", 
-        true,
-        filter,
-        { field: "Title", ascending: true }
-      );
-      
-      this.logInfo(`Filtered ${items.length} departments for manager ID: ${managerId} from remote site`);
-      
-      // Преобразуем результат в нужный формат
-      const departments: IDepartment[] = this.mapToDepartments(items);
-      
-      return departments;
-    } else {
-      this.logError("Cannot analyze StaffGroups structure - no items found");
-      return [];
-    }
-  } catch (error) {
-    this.logError(`Error in fetchDepartmentsByManager from remote site: ${error}`);
-    // Возвращаем пустой массив вместо выбрасывания исключения
-    return [];
+      // Создаем объект департамента
+      return {
+        ID: parseInt(item.id || "0"),
+        Title: typeof fields.Title === 'string' ? fields.Title : "Unknown",
+        Deleted: Boolean(fields.Deleted),
+        LeaveExportFolder: typeof fields.LeaveExportFolder === 'string' ? fields.LeaveExportFolder : "",
+        DayOfStartWeek: parseInt(String(fields.DayOfStartWeek || "0")),
+        TypeOfSRS: parseInt(String(fields.TypeOfSRS || "0")),
+        EnterLunchTime: Boolean(fields.EnterLunchTime),
+        Manager: {
+          Id: managerId,
+          Title: managerTitle
+        }
+      };
+    });
   }
-}
-
- ///////////
-/**
- * Преобразует данные из Graph API в объекты департаментов
- * @param items Данные из Graph API
- * @returns Массив объектов IDepartment
- */
-private mapToDepartments(items: any[]): IDepartment[] {
-  return items.map(item => {
-    const fields = item.fields || {};
-    
-    // Получение ID менеджера
-    let managerId = 0;
-    // Проверяем различные возможные имена полей для ID менеджера
-    if (fields.ManagerLookupId !== undefined) {
-      managerId = parseInt(fields.ManagerLookupId) || 0;
-    } else if (fields.ManagerId !== undefined) {
-      managerId = parseInt(fields.ManagerId) || 0;
-    }
-    
-    // Получение имени менеджера
-    let managerTitle = "";
-    if (fields.ManagerLookup !== undefined) {
-      managerTitle = fields.ManagerLookup;
-    } else if (fields.Manager !== undefined) {
-      if (typeof fields.Manager === 'object' && fields.Manager.Title) {
-        managerTitle = fields.Manager.Title;
-      } else if (typeof fields.Manager === 'string') {
-        managerTitle = fields.Manager;
-      }
-    }
-    
-    // Создаем объект департамента
-    return {
-      ID: parseInt(item.id || "0"),
-      Title: fields.Title || "Unknown",
-      Deleted: Boolean(fields.Deleted),
-      LeaveExportFolder: fields.LeaveExportFolder || "",
-      DayOfStartWeek: parseInt(fields.DayOfStartWeek || "0"),
-      TypeOfSRS: parseInt(fields.TypeOfSRS || "0"),
-      EnterLunchTime: Boolean(fields.EnterLunchTime),
-      Manager: {
-        Id: managerId,
-        Title: managerTitle
-      }
-    };
-  });
-}
 
   /**
    * Helper method to log info messages
