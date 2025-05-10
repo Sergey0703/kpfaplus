@@ -13,6 +13,7 @@ import { ILoadingStep } from '../context/types';
 import { IStaffMemberUpdateData } from '../models/types';
 import { ConfirmDialog } from './ConfirmDialog/ConfirmDialog';
 import { StaffSelector } from './StaffSelector/StaffSelector';
+import { RemoteConnectionTest } from './RemoteConnectionTest/RemoteConnectionTest';
 
 // Импортируем компоненты вкладок
 import { MainTab } from './Tabs/MainTab/MainTab';
@@ -447,7 +448,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
 
   // Рендеринг содержимого вкладки
   const renderTabContent = (): JSX.Element => {
-    if (!selectedStaff) {
+    if (!selectedStaff && selectedTabKey !== 'remoteConnection') {
       return <div>Please select a staff member</div>;
     }
     const currentUserId = currentUser?.ID !== undefined ? currentUser.ID.toString() : undefined;
@@ -488,6 +489,8 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
         return <LeaveTimeByYearsTab {...tabProps} />;
       case 'srs':
         return <SRSTab {...tabProps} />;
+      case 'remoteConnection':
+        return <RemoteConnectionTest context={props.context} />;
       default:
         return <div>Select a tab</div>;
     }
@@ -674,6 +677,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
             <PivotItem itemKey="leaves" headerText="Leaves" />
             <PivotItem itemKey="leaveTimeByYears" headerText="Leave Time by Years" />
             <PivotItem itemKey="srs" headerText="SRS" />
+            <PivotItem itemKey="remoteConnection" headerText="Remote Connection" />
           </Pivot>
           
           {/* Содержимое активной вкладки */}
