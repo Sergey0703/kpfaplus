@@ -14,6 +14,7 @@ export interface IStaffMember {
 export interface IDepartment {
   ID: number;
   Title: string;
+  DayOfStartWeek?: number;
   // Дополнительные поля департамента
 }
 
