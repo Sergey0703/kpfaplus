@@ -315,8 +315,8 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
   const handleEditContract = (contract: IContract): void => {
     if (!selectedStaff?.id) return;
     
-    // Устанавливаем выбранный контракт для недельного расписания
-    setSelectedContract(contract);
+    // НЕ устанавливаем выбранный контракт для недельного расписания при редактировании
+    // setSelectedContract(contract); - Удаляем эту строку
     
     setCurrentContract({
       id: contract.id,
