@@ -49,6 +49,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
  // Состояние для типов работников
  const [workerTypeOptions, setWorkerTypeOptions] = useState<IComboBoxOption[]>([]);
  const [isLoadingWorkerTypes, setIsLoadingWorkerTypes] = useState<boolean>(false);
+ const [workerTypesLoaded, setWorkerTypesLoaded] = useState<boolean>(false);
  
  // Используем useRef вместо useState для ID контракта
  const pendingActionContractIdRef = useRef<string | null>(null);
@@ -103,6 +104,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
      });
      
      setWorkerTypeOptions(options);
+     setWorkerTypesLoaded(true);
      console.log("[ContractsTab] Loaded worker types:", options);
    } catch (err) {
      console.error("Error loading worker types:", err);
@@ -138,7 +140,38 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
       );
       
       console.log(`[ContractsTab] Retrieved ${contractsData.length} contracts`);
-      setContracts(contractsData);
+      
+      // Обогащаем контракты информацией о типах работников, если они загружены
+      if (workerTypesLoaded && workerTypeOptions.length > 0) {
+        const enrichedContracts = contractsData.map(contract => {
+          // Если у контракта есть typeOfWorkerId и он есть в нашем списке типов
+          if (contract.typeOfWorker && contract.typeOfWorker.id) {
+            const workerType = workerTypeOptions.find(
+              option => option.key === contract.typeOfWorker.id
+            );
+            
+            if (workerType) {
+              // Обновляем значение с текстом из нашего списка типов
+              return {
+                ...contract,
+                typeOfWorker: {
+                  ...contract.typeOfWorker,
+                  value: workerType.text // Используем текст из загруженных типов
+                }
+              };
+            }
+          }
+          
+          // Если не нашли совпадений, возвращаем контракт без изменений
+          return contract;
+        });
+        
+        console.log(`[ContractsTab] Enriched contracts with worker type information`);
+        setContracts(enrichedContracts);
+      } else {
+        console.log(`[ContractsTab] Worker types not loaded yet, using original contracts`);
+        setContracts(contractsData);
+      }
     } else {
       console.log("Employee ID is missing, cannot fetch contracts");
       setContracts([]);
@@ -304,7 +337,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
    }
  }, [context]);
  
- // Загружаем контракты при изменении selectedStaff или контекста
+ // Загружаем контракты при изменении selectedStaff, контекста или после загрузки типов работников
  useEffect(() => {
    if (selectedStaff?.id && contractsService) {
      (async () => {
@@ -319,7 +352,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
    } else {
      setContracts([]);
    }
- }, [selectedStaff, contractsService]);
+ }, [selectedStaff, contractsService, workerTypesLoaded]);
  
  // Обработчики UI
  const handleShowDeletedChange = (ev: React.MouseEvent<HTMLElement>, checked?: boolean): void => {
