@@ -122,3 +122,25 @@
   align-items: center;
   padding: 40px 0;
 }
+/* Добавьте эти стили в WeeklyTimeTable.module.scss */
+
+.statusMessageContainer {
+    margin: 10px 0;
+  }
+  
+  .changesInfoContainer {
+    margin: 10px 0;
+    padding: 8px;
+    background-color: #f3f2f1;
+    border-left: 3px solid #0078d4;
+  }
+  
+  .changesInfoText {
+    font-size: 14px;
+    color: #323130;
+  }
+  
+  .changedCell {
+    background-color: rgba(255, 255, 0, 0.1);
+    border: 1px solid #ffcc00;
+  }

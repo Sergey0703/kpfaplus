@@ -54,6 +54,18 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
     ? ContractsService.getInstance(context) 
     : null;
 
+  // Обработчик завершения сохранения недельного расписания
+  const handleSaveComplete = (success: boolean) => {
+    if (success) {
+      // Можно обновить данные или показать уведомление
+      console.log('Weekly time table saved successfully');
+    } else {
+      // Можно показать сообщение об ошибке
+      console.error('Failed to save weekly time table');
+      setError('Failed to save weekly time table. Please try again.');
+    }
+  };
+
   // Функция загрузки типов работников из списка TypeOfWorkers с использованием RemoteSiteService
   const fetchWorkerTypes = async (): Promise<void> => {
     if (!context || !remoteSiteService) {
@@ -576,6 +588,8 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
           weeklyTimeData={weeklyTimeData}
           isLoading={isLoadingWeeklyTime}
           dayOfStartWeek={dayOfStartWeek}
+          context={context}
+          onSaveComplete={handleSaveComplete}
         />
       )}
     </div>

@@ -8,7 +8,9 @@ import {
   Dropdown,
   IDropdownOption,
   Spinner,
-  SpinnerSize
+  SpinnerSize,
+  MessageBar,
+  MessageBarType
 } from '@fluentui/react';
 import styles from './WeeklyTimeTable.module.scss';
 import { 
@@ -16,6 +18,8 @@ import {
   WeeklyTimeTableUtils,
   IDayHours
 } from '../../../models/IWeeklyTimeTable';
+import { WebPartContext } from '@microsoft/sp-webpart-base';
+import { WeeklyTimeTableService, IWeeklyTimeTableUpdateItem } from '../../../services/WeeklyTimeTableService';
 
 // Интерфейс пропсов для компонента WeeklyTimeTable
 export interface IWeeklyTimeTableProps {
@@ -24,6 +28,8 @@ export interface IWeeklyTimeTableProps {
   weeklyTimeData?: any[]; // Данные из списка WeeklyTimeTables
   isLoading?: boolean;
   dayOfStartWeek?: number; // День начала недели
+  context: WebPartContext; // Контекст веб-части для доступа к API
+  onSaveComplete?: (success: boolean) => void; // Функция обратного вызова после сохранения
 }
 
 export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
@@ -32,7 +38,9 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     contractName,
     weeklyTimeData,
     isLoading: propsIsLoading,
-    dayOfStartWeek = 7 // По умолчанию начало недели - суббота (7)
+    dayOfStartWeek = 7, // По умолчанию начало недели - суббота (7)
+    context,
+    onSaveComplete
   } = props;
 
   // Состояние для отображения удаленных записей
@@ -43,6 +51,18 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   
   // Состояние для загрузки
   const [isTableLoading, setIsTableLoading] = useState<boolean>(false);
+
+  // Состояние для отслеживания изменений
+  const [changedRows, setChangedRows] = useState<Set<string>>(new Set());
+
+  // Состояние для отслеживания процесса сохранения
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  
+  // Состояние для сообщений об ошибках или успешном сохранении
+  const [statusMessage, setStatusMessage] = useState<{
+    type: MessageBarType;
+    message: string;
+  } | null>(null);
 
   // Добавляем отладочный вывод при изменении dayOfStartWeek
   useEffect(() => {
@@ -63,12 +83,13 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     }
   };
 
+  // Эффект для загрузки данных при изменении входных параметров
   useEffect(() => {
     // Если есть данные из props, используем их
     if (weeklyTimeData && weeklyTimeData.length > 0) {
       console.log(`Processing ${weeklyTimeData.length} weekly time table entries from props`);
       // Преобразуем данные из списка в формат для отображения
-      // Создаем временную функцию, которая вызывает formatWeeklyTimeTableData с нужным параметром
+      // Создаем временную функцию, которая вызывает formatWeeklyTimeTableData
       const getFormattedData = () => {
         // Временно изменяем оригинальный метод для поддержки dayOfStartWeek
         const origMethod = WeeklyTimeTableUtils.formatWeeklyTimeTableData;
@@ -94,6 +115,9 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
       console.log(`Formatted ${formattedData.length} rows for display`);
       console.log("Sample formatted row:", formattedData.length > 0 ? formattedData[0] : "No data");
       setTimeTableData(formattedData);
+      
+      // Сбрасываем список измененных строк при получении новых данных
+      setChangedRows(new Set());
     } else if (contractId) {
       console.log(`No weekly time data provided for contract ${contractId}`);
       // Устанавливаем пустой массив, если нет данных
@@ -102,7 +126,10 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
       console.log("No contract ID or data, showing empty table");
       setTimeTableData([]);
     }
-  }, [contractId, weeklyTimeData, dayOfStartWeek]); // Добавили dayOfStartWeek в зависимости
+    
+    // Сбрасываем статусное сообщение при изменении данных
+    setStatusMessage(null);
+  }, [contractId, weeklyTimeData, dayOfStartWeek]);
   
   // Обновляем состояние загрузки, если оно изменилось в пропсах
   useEffect(() => {
@@ -118,21 +145,16 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     }
   };
 
-  // Обработчик сохранения данных
-  const handleSave = (): void => {
-    console.log('Saving weekly time table data:', timeTableData);
-    // Здесь в будущем будет логика сохранения данных в SharePoint
-  };
-
   // Обработчик изменения времени
   const handleTimeChange = (rowIndex: number, dayName: string, field: 'hours' | 'minutes', value: string): void => {
     const newData = [...timeTableData];
     const rowDay = dayName.toLowerCase() as keyof IFormattedWeeklyTimeRow;
+    const rowId = newData[rowIndex].id;
     
     // Проверяем, что rowDay - это день недели (не id, name, lunch или total)
     if (rowDay === 'saturday' || rowDay === 'sunday' || rowDay === 'monday' || 
         rowDay === 'tuesday' || rowDay === 'wednesday' || rowDay === 'thursday' || rowDay === 'friday') {
-      // Обновляем нужное поле в объекте ITimeCell
+      // Обновляем нужное поле в объекте IDayHours
       const dayData = newData[rowIndex][rowDay] as IDayHours;
       if (dayData) {
         // Безопасно обновляем поле в объекте
@@ -143,6 +165,14 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
             [field]: value
           }
         };
+        
+        // Отмечаем строку как измененную
+        const newChangedRows = new Set(changedRows);
+        newChangedRows.add(rowId);
+        setChangedRows(newChangedRows);
+        
+        // Сбрасываем статусное сообщение при внесении изменений
+        setStatusMessage(null);
       }
     }
     
@@ -152,8 +182,164 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   // Обработчик изменения времени обеда
   const handleLunchChange = (rowIndex: number, value: string): void => {
     const newData = [...timeTableData];
+    const rowId = newData[rowIndex].id;
+    
     newData[rowIndex].lunch = value;
     setTimeTableData(newData);
+    
+    // Отмечаем строку как измененную
+    const newChangedRows = new Set(changedRows);
+    newChangedRows.add(rowId);
+    setChangedRows(newChangedRows);
+    
+    // Сбрасываем статусное сообщение при внесении изменений
+    setStatusMessage(null);
+  };
+  
+  // Обработчик изменения контракта
+  const handleContractChange = (rowIndex: number, value: string): void => {
+    const newData = [...timeTableData];
+    const rowId = newData[rowIndex].id;
+    
+    newData[rowIndex].total = value;
+    setTimeTableData(newData);
+    
+    // Отмечаем строку как измененную
+    const newChangedRows = new Set(changedRows);
+    newChangedRows.add(rowId);
+    setChangedRows(newChangedRows);
+    
+    // Сбрасываем статусное сообщение при внесении изменений
+    setStatusMessage(null);
+  };
+
+  // Обработчик сохранения данных
+const handleSave = async (): Promise<void> => {
+    // Если нет измененных строк, ничего не делаем
+    if (changedRows.size === 0) {
+      console.log('No changes to save');
+      return;
+    }
+    
+    // Обновляем состояние для индикации процесса сохранения
+    setIsSaving(true);
+    setStatusMessage(null);
+    
+    try {
+      // Создаем сервис для работы с данными
+      const service = new WeeklyTimeTableService(context);
+      
+      // Формируем массив данных для обновления
+      const itemsToUpdate: IWeeklyTimeTableUpdateItem[] = [];
+      
+      // Обрабатываем каждую измененную строку
+      for (const row of timeTableData.filter(row => changedRows.has(row.id))) {
+        // Проверяем, является ли ID временным (новая строка)
+        const isNewRow = row.id.startsWith('new_');
+        
+        if (isNewRow) {
+          // Если новая строка, сначала создаем ее
+          try {
+            // Создаем объект для нового элемента
+            const newItem: IWeeklyTimeTableUpdateItem = {
+              id: row.id, // Временный ID
+              mondayStart: row.monday as IDayHours,
+              tuesdayStart: row.tuesday as IDayHours,
+              wednesdayStart: row.wednesday as IDayHours,
+              thursdayStart: row.thursday as IDayHours,
+              fridayStart: row.friday as IDayHours,
+              saturdayStart: row.saturday as IDayHours,
+              sundayStart: row.sunday as IDayHours,
+              lunchMinutes: row.lunch,
+              contractNumber: row.total
+            };
+            
+            // Вызываем метод создания и получаем реальный ID
+            const realId = await service.createWeeklyTimeTableItem(
+              newItem, 
+              contractId || '', 
+              context.pageContext.user.loginName
+            );
+            
+            // Обновляем ID в локальных данных
+            const rowIndex = timeTableData.findIndex(r => r.id === row.id);
+            if (rowIndex >= 0) {
+              const updatedRow = {...timeTableData[rowIndex], id: realId};
+              const newData = [...timeTableData];
+              newData[rowIndex] = updatedRow;
+              setTimeTableData(newData);
+            }
+            
+            // Удаляем этот элемент из списка измененных строк
+            const newChangedRows = new Set(changedRows);
+            newChangedRows.delete(row.id);
+            // Добавляем новый ID в список измененных строк
+            newChangedRows.add(realId);
+            setChangedRows(newChangedRows);
+            
+            console.log(`Created new time table row with ID: ${realId}`);
+          } catch (createError) {
+            console.error('Error creating new time table row:', createError);
+            throw new Error(`Failed to create new row: ${createError instanceof Error ? createError.message : 'Unknown error'}`);
+          }
+        } else {
+          // Если существующая строка, добавляем в список для обновления
+          itemsToUpdate.push({
+            id: row.id,
+            mondayStart: row.monday as IDayHours,
+            tuesdayStart: row.tuesday as IDayHours,
+            wednesdayStart: row.wednesday as IDayHours,
+            thursdayStart: row.thursday as IDayHours,
+            fridayStart: row.friday as IDayHours,
+            saturdayStart: row.saturday as IDayHours,
+            sundayStart: row.sunday as IDayHours,
+            lunchMinutes: row.lunch,
+            contractNumber: row.total
+          });
+        }
+      }
+      
+      if (itemsToUpdate.length > 0) {
+        console.log('Saving changes for items:', itemsToUpdate);
+        
+        // Выполняем обновление данных
+        const results = await service.batchUpdateWeeklyTimeTable(itemsToUpdate);
+        
+        console.log('Save results:', results);
+      } else {
+        console.log('No existing items to update after handling new rows');
+      }
+      
+      // Очищаем список измененных строк
+      setChangedRows(new Set());
+      
+      // Устанавливаем сообщение об успешном сохранении
+      setStatusMessage({
+        type: MessageBarType.success,
+        message: `Successfully saved changes.`
+      });
+      
+      // Вызываем коллбэк завершения сохранения, если он задан
+      if (onSaveComplete) {
+        onSaveComplete(true);
+      }
+    } catch (error) {
+      console.error('Error saving weekly time table data:', error);
+      
+      // Устанавливаем сообщение об ошибке
+      setStatusMessage({
+        type: MessageBarType.error,
+        message: `Failed to save changes: ${error instanceof Error ? error.message : 'Unknown error'}`
+      });
+      
+      // Вызываем коллбэк завершения сохранения с ошибкой, если он задан
+      if (onSaveComplete) {
+        onSaveComplete(false);
+      }
+    } finally {
+      // В любом случае снимаем индикацию процесса сохранения
+      setIsSaving(false);
+    }
   };
 
   // Получение опций для выпадающего списка часов
@@ -221,9 +407,17 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   // Получаем упорядоченные дни недели на основе dayOfStartWeek
   const orderedWeekDays = getOrderedWeekDays();
 
+  // Рендеринг ячейки с выбором времени
   const renderTimeCell = (hours: string, minutes: string, rowIndex: number, dayName: string): JSX.Element => {
+    // Определяем, была ли эта строка изменена
+    const rowId = timeTableData[rowIndex]?.id;
+    const isChanged = rowId ? changedRows.has(rowId) : false;
+    
+    // Определяем стили для ячейки в зависимости от того, была ли она изменена
+    const cellClassName = isChanged ? `${styles.timeCell} ${styles.changedCell}` : styles.timeCell;
+    
     return (
-      <div className={styles.timeCell}>
+      <div className={cellClassName}>
         <Dropdown
           options={getHoursOptions()}
           selectedKey={hours}
@@ -283,42 +477,117 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
 
   // Функция для отображения строки с временем обеда
   const renderLunchCell = (lunch: string, rowIndex: number): JSX.Element => {
+    // Определяем, была ли эта строка изменена
+    const rowId = timeTableData[rowIndex]?.id;
+    const isChanged = rowId ? changedRows.has(rowId) : false;
+    
+    // Определяем стили для ячейки в зависимости от того, была ли она изменена
+    const dropdownStyles = isChanged ? {
+      dropdown: { 
+        width: 50,
+        fontSize: '12px',
+        backgroundColor: 'rgba(255, 255, 0, 0.1)',
+        border: '1px solid #ffcc00'
+      },
+      title: {
+        fontSize: '12px',
+        padding: '0 8px'
+      },
+      dropdownItemHeader: {
+        fontSize: '12px'
+      },
+      dropdownItem: {
+        fontSize: '12px',
+        minHeight: '24px'
+      },
+      dropdownItemSelected: {
+        fontSize: '12px',
+        minHeight: '24px'
+      }
+    } : {
+      dropdown: { 
+        width: 50,
+        fontSize: '12px'
+      },
+      title: {
+        fontSize: '12px',
+        padding: '0 8px'
+      },
+      dropdownItemHeader: {
+        fontSize: '12px'
+      },
+      dropdownItem: {
+        fontSize: '12px',
+        minHeight: '24px'
+      },
+      dropdownItemSelected: {
+        fontSize: '12px',
+        minHeight: '24px'
+      }
+    };
+    
     return (
       <Dropdown
         options={getLunchOptions()}
         selectedKey={lunch}
         onChange={(e, option) => handleLunchChange(rowIndex, option?.key as string || '0')}
-        styles={{ 
-          dropdown: { 
-            width: 50,
-            fontSize: '12px'
-          },
-          title: {
-            fontSize: '12px',
-            padding: '0 8px'
-          },
-          dropdownItemHeader: {
-            fontSize: '12px'
-          },
-          dropdownItem: {
-            fontSize: '12px',
-            minHeight: '24px'
-          },
-          dropdownItemSelected: {
-            fontSize: '12px',
-            minHeight: '24px'
-          }
-        }}
+        styles={dropdownStyles}
+      />
+    );
+  };
+  
+  // Отображение поля контракта (с измененным цветом фона, если значение было изменено)
+  const renderContractCell = (contractNumber: string, rowIndex: number): JSX.Element => {
+    // Определяем, была ли эта строка изменена
+    const rowId = timeTableData[rowIndex]?.id;
+    const isChanged = rowId ? changedRows.has(rowId) : false;
+    
+    // Определяем стили для ячейки в зависимости от того, была ли она изменена
+    const dropdownStyles = isChanged ? {
+      dropdown: { 
+        width: 50,
+        fontSize: '12px',
+        backgroundColor: 'rgba(255, 255, 0, 0.1)',
+        border: '1px solid #ffcc00'
+      },
+      title: {
+        fontSize: '12px',
+        padding: '0 8px'
+      }
+    } : {
+      dropdown: { 
+        width: 50,
+        fontSize: '12px'
+      },
+      title: {
+        fontSize: '12px',
+        padding: '0 8px'
+      }
+    };
+    
+    return (
+      <Dropdown
+        options={[
+          { key: '1', text: '1' },
+          { key: '2', text: '2' },
+          { key: '3', text: '3' },
+        ]}
+        selectedKey={contractNumber}
+        onChange={(e, option) => handleContractChange(rowIndex, option?.key as string || '1')}
+        styles={dropdownStyles}
       />
     );
   };
 
   // Создаем новую смену (строку в таблице)
   const handleAddShift = (): void => {
-    const newId = (timeTableData.length + 1).toString();
+    const newId = `new_${Date.now()}`; // Временный ID для новой строки
+    const weekNumber = Math.ceil((timeTableData.length + 1) / 2);
+    const isSecondShift = timeTableData.length % 2 === 1;
+    
     const newRow: IFormattedWeeklyTimeRow = {
       id: newId,
-      name: `Week ${Math.ceil(timeTableData.length / 2) + 1}${timeTableData.length % 2 === 1 ? ' Shift 2' : ''}`,
+      name: `Week ${weekNumber}${isSecondShift ? ' Shift 2' : ''}`,
       lunch: '30',
       saturday: { hours: '00', minutes: '00' },
       sunday: { hours: '00', minutes: '00' },
@@ -331,13 +600,34 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     };
     
     setTimeTableData([...timeTableData, newRow]);
+    
+    // Отмечаем новую строку как измененную
+    const newChangedRows = new Set(changedRows);
+    newChangedRows.add(newId);
+    setChangedRows(newChangedRows);
+    
+    // Сбрасываем статусное сообщение при добавлении новой строки
+    setStatusMessage(null);
   };
 
   // Удаляем смену (строку в таблице)
   const handleDeleteShift = (rowIndex: number): void => {
     const newData = [...timeTableData];
+    const rowId = newData[rowIndex].id;
+    
+    // Удаляем строку из данных
     newData.splice(rowIndex, 1);
     setTimeTableData(newData);
+    
+    // Удаляем строку из списка измененных, если она была там
+    if (changedRows.has(rowId)) {
+      const newChangedRows = new Set(changedRows);
+      newChangedRows.delete(rowId);
+      setChangedRows(newChangedRows);
+    }
+    
+    // Сбрасываем статусное сообщение при удалении строки
+    setStatusMessage(null);
   };
 
   // Если загружаются данные, показываем спиннер
@@ -349,6 +639,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     );
   }
 
+  // Если нет данных, показываем кнопку для добавления новой смены
   // Если нет данных, показываем кнопку для добавления новой смены
   if (timeTableData.length === 0 && !isTableLoading) {
     return (
@@ -370,9 +661,23 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
               text="New Week"
               onClick={handleAddShift}
               styles={{ root: { marginRight: 8 } }}
+              disabled={isSaving}
             />
           </div>
         </div>
+        
+        {/* Отображение статусного сообщения, если оно есть */}
+        {statusMessage && (
+          <div className={styles.statusMessageContainer}>
+            <MessageBar
+              messageBarType={statusMessage.type}
+              isMultiline={false}
+              dismissButtonAriaLabel="Close"
+            >
+              {statusMessage.message}
+            </MessageBar>
+          </div>
+        )}
         
         <div style={{ padding: '20px', textAlign: 'center' }}>
           <p>No schedule data found for this contract. Click "New Week" to create a schedule.</p>
@@ -400,14 +705,45 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
             text="New Week"
             onClick={handleAddShift}
             styles={{ root: { marginRight: 8 } }}
+            disabled={isSaving}
           />
           <PrimaryButton
             text="Save"
             onClick={handleSave}
             iconProps={{ iconName: 'Save' }}
+            disabled={changedRows.size === 0 || isSaving}
           />
+          {/* Добавляем индикатор сохранения, если процесс сохранения активен */}
+          {isSaving && (
+            <Spinner
+              size={SpinnerSize.small}
+              styles={{ root: { marginLeft: 8, display: 'inline-block' } }}
+            />
+          )}
         </div>
       </div>
+      
+      {/* Отображение статусного сообщения, если оно есть */}
+      {statusMessage && (
+        <div className={styles.statusMessageContainer}>
+          <MessageBar
+            messageBarType={statusMessage.type}
+            isMultiline={false}
+            dismissButtonAriaLabel="Close"
+          >
+            {statusMessage.message}
+          </MessageBar>
+        </div>
+      )}
+      
+      {/* Отображение информации о количестве измененных строк */}
+      {changedRows.size > 0 && (
+        <div className={styles.changesInfoContainer}>
+          <span className={styles.changesInfoText}>
+            {`You have ${changedRows.size} unsaved ${changedRows.size === 1 ? 'change' : 'changes'}. Don't forget to click "Save" to apply them.`}
+          </span>
+        </div>
+      )}
 
       <div className={styles.tableContainer}>
         <table className={styles.timeTable}>
@@ -440,24 +776,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
                     </td>
                   ))}
                   <td className={styles.totalColumn}>
-                    <Dropdown
-                      options={[
-                        { key: '1', text: '1' },
-                        { key: '2', text: '2' },
-                        { key: '3', text: '3' },
-                      ]}
-                      selectedKey={row.total}
-                      styles={{ 
-                        dropdown: { 
-                          width: 50,
-                          fontSize: '12px'
-                        },
-                        title: {
-                          fontSize: '12px',
-                          padding: '0 8px'
-                        }
-                      }}
-                    />
+                    {renderContractCell(row.total, rowIndex)}
                   </td>
                   <td className={styles.actionsColumn}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -467,6 +786,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
                         ariaLabel="Delete"
                         onClick={() => handleDeleteShift(rowIndex)}
                         styles={{ root: { margin: 0, padding: 0 } }}
+                        disabled={isSaving}
                       />
                       <span style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>ID: {row.id}</span>
                     </div>
@@ -486,3 +806,5 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     </div>
   );
 };
+
+export default WeeklyTimeTable;
