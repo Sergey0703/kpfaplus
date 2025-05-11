@@ -19,6 +19,7 @@ export interface IWeeklyTimeTableProps {
   contractName?: string;
   weeklyTimeData?: any[]; // Данные из списка WeeklyTimeTables
   isLoading?: boolean;
+  dayOfStartWeek?: number; // Добавляем поле dayOfStartWeek
 }
 
 export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
@@ -26,7 +27,8 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     contractId,
     contractName,
     weeklyTimeData,
-    isLoading: propsIsLoading
+    isLoading: propsIsLoading,
+    dayOfStartWeek = 7 // По умолчанию начало недели - суббота (7)
   } = props;
 
   // Состояние для отображения удаленных записей
@@ -137,7 +139,46 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     return options;
   };
 
-  // Функция для отображения ячейки с часами и минутами
+  // Функция для получения упорядоченных дней недели в зависимости от dayOfStartWeek
+  const getOrderedWeekDays = (): { name: string; key: string; }[] => {
+    // Определяем все дни недели
+    const allDays = [
+      { name: 'Saturday', key: 'saturday' },
+      { name: 'Sunday', key: 'sunday' },
+      { name: 'Monday', key: 'monday' },
+      { name: 'Tuesday', key: 'tuesday' },
+      { name: 'Wednesday', key: 'wednesday' },
+      { name: 'Thursday', key: 'thursday' },
+      { name: 'Friday', key: 'friday' }
+    ];
+    
+    // Определяем индекс дня, с которого начинается неделя
+    let startIndex = 0; // По умолчанию - суббота (индекс 0)
+    
+    // Если dayOfStartWeek = 7, начало - суббота (индекс 0)
+    // Если dayOfStartWeek = 2, начало - понедельник (индекс 2)
+    switch (dayOfStartWeek) {
+      case 7: startIndex = 0; break; // Суббота (Saturday)
+      case 1: startIndex = 1; break; // Воскресенье (Sunday)
+      case 2: startIndex = 2; break; // Понедельник (Monday)
+      case 3: startIndex = 3; break; // Вторник (Tuesday)
+      case 4: startIndex = 4; break; // Среда (Wednesday)
+      case 5: startIndex = 5; break; // Четверг (Thursday)
+      case 6: startIndex = 6; break; // Пятница (Friday)
+      default: startIndex = 0; break; // По умолчанию - суббота
+    }
+    
+    // Переупорядочиваем дни, начиная с указанного индекса
+    const result = [
+      ...allDays.slice(startIndex),
+      ...allDays.slice(0, startIndex)
+    ];
+    
+    return result;
+  };
+  
+  // Получаем упорядоченные дни недели на основе dayOfStartWeek
+  const orderedWeekDays = getOrderedWeekDays();
   const renderTimeCell = (hours: string, minutes: string, rowIndex: number, dayName: string): JSX.Element => {
     return (
       <div className={styles.timeCell}>
@@ -331,13 +372,9 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
           <thead>
             <tr>
               <th className={styles.nameColumn}>Name / Lunch</th>
-              <th>Saturday</th>
-              <th>Sunday</th>
-              <th>Monday</th>
-              <th>Tuesday</th>
-              <th>Wednesday</th>
-              <th>Thursday</th>
-              <th>Friday</th>
+              {orderedWeekDays.map(day => (
+                <th key={day.key}>{day.name}</th>
+              ))}
               <th className={styles.totalColumn}>Contract</th>
               <th className={styles.actionsColumn}></th>
             </tr>
@@ -350,13 +387,16 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
                     <div className={styles.rowName}>{row.name}</div>
                     <div className={styles.lunchLabel}>Lunch:</div>
                   </td>
-                  <td>{renderTimeCell(row.saturday.hours, row.saturday.minutes, rowIndex, 'saturday')}</td>
-                  <td>{renderTimeCell(row.sunday.hours, row.sunday.minutes, rowIndex, 'sunday')}</td>
-                  <td>{renderTimeCell(row.monday.hours, row.monday.minutes, rowIndex, 'monday')}</td>
-                  <td>{renderTimeCell(row.tuesday.hours, row.tuesday.minutes, rowIndex, 'tuesday')}</td>
-                  <td>{renderTimeCell(row.wednesday.hours, row.wednesday.minutes, rowIndex, 'wednesday')}</td>
-                  <td>{renderTimeCell(row.thursday.hours, row.thursday.minutes, rowIndex, 'thursday')}</td>
-                  <td>{renderTimeCell(row.friday.hours, row.friday.minutes, rowIndex, 'friday')}</td>
+                  {orderedWeekDays.map(day => (
+                    <td key={day.key}>
+                      {renderTimeCell(
+                        row[day.key]?.hours || '00', 
+                        row[day.key]?.minutes || '00', 
+                        rowIndex, 
+                        day.key
+                      )}
+                    </td>
+                  ))}
                   <td className={styles.totalColumn}>
                     <Dropdown
                       options={[

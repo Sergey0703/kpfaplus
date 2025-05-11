@@ -36,7 +36,8 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
   const [isContractPanelOpen, setIsContractPanelOpen] = useState<boolean>(false);
   const [currentContract, setCurrentContract] = useState<IContractFormData | null>(null);
   
-  // Состояние для выбранного контракта (для отображения недельного расписания)
+  // Добавляем состояние для хранения DayOfStartWeek из выбранного департамента
+  const [dayOfStartWeek, setDayOfStartWeek] = useState<number>(7); // По умолчанию - суббота (7)
   const [selectedContract, setSelectedContract] = useState<IContract | null>(null);
 
   // Состояние для данных недельного расписания
@@ -256,7 +257,14 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
     }
   }, [context]);
   
-  // При изменении выбранного сотрудника сбрасываем выбранный контракт и данные расписания
+  // При изменении выбранного департамента, обновляем DayOfStartWeek
+  useEffect(() => {
+    // Получаем dayOfStartWeek из пропсов, если доступно
+    if (props.managingGroupId && props.dayOfStartWeek !== undefined) {
+      setDayOfStartWeek(props.dayOfStartWeek);
+      console.log(`Department changed, DayOfStartWeek set to: ${props.dayOfStartWeek}`);
+    }
+  }, [props.managingGroupId, props.dayOfStartWeek]);
   useEffect(() => {
     // Сбрасываем выбранный контракт и данные расписания при смене сотрудника
     setSelectedContract(null);
@@ -567,6 +575,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
           contractName={selectedContract.template}
           weeklyTimeData={weeklyTimeData}
           isLoading={isLoadingWeeklyTime}
+          dayOfStartWeek={dayOfStartWeek}
         />
       )}
     </div>

@@ -73,6 +73,8 @@ export interface ITabProps {
   onSrsFilePathChange?: (newValue: string) => void;
   generalNote?: string;
   onGeneralNoteChange?: (newValue: string) => void;
+  // Новое поле для DayOfStartWeek
+  dayOfStartWeek?: number;
   // Существующие свойства
   isEditMode?: boolean;
   onSave?: () => Promise<void>;
