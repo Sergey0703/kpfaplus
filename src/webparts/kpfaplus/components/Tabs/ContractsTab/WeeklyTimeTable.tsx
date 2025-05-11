@@ -11,142 +11,57 @@ import {
   SpinnerSize
 } from '@fluentui/react';
 import styles from './WeeklyTimeTable.module.scss';
-
-// Интерфейс для записи времени в одной ячейке
-interface ITimeCell {
-  hours: string;
-  minutes: string;
-}
-
-// Интерфейс для одной строки недельного расписания
-interface IWeeklyTimeRow {
-  id: string;
-  name: string; // Week 1, Week 1 Shift 2, Week 2, и т.д.
-  lunch: string; // Lunch время
-  saturday: ITimeCell;
-  sunday: ITimeCell;
-  monday: ITimeCell;
-  tuesday: ITimeCell;
-  wednesday: ITimeCell;
-  thursday: ITimeCell;
-  friday: ITimeCell;
-  total: string; // Общее количество часов
-}
+import { IFormattedWeeklyTimeRow, WeeklyTimeTableUtils } from '../../../models/IWeeklyTimeTable';
 
 // Интерфейс пропсов для компонента WeeklyTimeTable
 export interface IWeeklyTimeTableProps {
   contractId?: string;
   contractName?: string;
+  weeklyTimeData?: any[]; // Данные из списка WeeklyTimeTables
+  isLoading?: boolean;
 }
 
 export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   const {
     contractId,
-    contractName
+    contractName,
+    weeklyTimeData,
+    isLoading: propsIsLoading
   } = props;
 
   // Состояние для отображения удаленных записей
   const [showDeleted, setShowDeleted] = useState<boolean>(false);
   
   // Состояние для данных таблицы
-  const [timeTableData, setTimeTableData] = useState<IWeeklyTimeRow[]>([]);
+  const [timeTableData, setTimeTableData] = useState<IFormattedWeeklyTimeRow[]>([]);
   
   // Состояние для загрузки
   const [isTableLoading, setIsTableLoading] = useState<boolean>(false);
 
-  // При монтировании компонента загружаем данные
+  // При монтировании компонента или изменении данных загружаем/обрабатываем данные
   useEffect(() => {
-    if (contractId) {
-      fetchTimeTableData();
+    // Если есть данные из props, используем их
+    if (weeklyTimeData && weeklyTimeData.length > 0) {
+      console.log(`Processing ${weeklyTimeData.length} weekly time table entries from props`);
+      // Преобразуем данные из списка в формат для отображения
+      const formattedData = WeeklyTimeTableUtils.formatWeeklyTimeTableData(weeklyTimeData);
+      setTimeTableData(formattedData);
+    } else if (contractId) {
+      console.log(`No weekly time data provided for contract ${contractId}`);
+      // Устанавливаем пустой массив, если нет данных
+      setTimeTableData([]);
     } else {
-      // Если нет выбранного контракта, показываем пустую таблицу с примером данных
-      setTimeTableData(getMockTimeTableData());
+      console.log("No contract ID or data, showing empty table");
+      setTimeTableData([]);
     }
-  }, [contractId]);
-
-  // Функция для загрузки данных расписания
-  const fetchTimeTableData = async (): Promise<void> => {
-    // В реальном приложении здесь будет запрос к SharePoint
-    // Пока используем моковые данные
-    setIsTableLoading(true);
-    
-    // Имитация задержки загрузки данных
-    setTimeout(() => {
-      setTimeTableData(getMockTimeTableData());
-      setIsTableLoading(false);
-    }, 500);
-  };
-
-  // Генерация моковых данных для таблицы
-  const getMockTimeTableData = (): IWeeklyTimeRow[] => {
-    return [
-      {
-        id: '1',
-        name: 'Week 1',
-        lunch: '30',
-        saturday: { hours: '07', minutes: '00' },
-        sunday: { hours: '08', minutes: '00' },
-        monday: { hours: '05', minutes: '30' },
-        tuesday: { hours: '09', minutes: '00' },
-        wednesday: { hours: '09', minutes: '00' },
-        thursday: { hours: '09', minutes: '00' },
-        friday: { hours: '09', minutes: '00' },
-        total: '1'
-      },
-      {
-        id: '2',
-        name: 'Week 1 Shift 2',
-        lunch: '0',
-        saturday: { hours: '08', minutes: '30' },
-        sunday: { hours: '00', minutes: '00' },
-        monday: { hours: '08', minutes: '00' },
-        tuesday: { hours: '09', minutes: '30' },
-        wednesday: { hours: '00', minutes: '00' },
-        thursday: { hours: '00', minutes: '00' },
-        friday: { hours: '00', minutes: '00' },
-        total: '1'
-      },
-      {
-        id: '3',
-        name: 'Week 2',
-        lunch: '00',
-        saturday: { hours: '00', minutes: '00' },
-        sunday: { hours: '00', minutes: '00' },
-        monday: { hours: '00', minutes: '00' },
-        tuesday: { hours: '00', minutes: '00' },
-        wednesday: { hours: '00', minutes: '00' },
-        thursday: { hours: '00', minutes: '00' },
-        friday: { hours: '00', minutes: '00' },
-        total: '1'
-      },
-      {
-        id: '4',
-        name: 'Week 3',
-        lunch: '00',
-        saturday: { hours: '00', minutes: '00' },
-        sunday: { hours: '00', minutes: '00' },
-        monday: { hours: '00', minutes: '00' },
-        tuesday: { hours: '00', minutes: '00' },
-        wednesday: { hours: '00', minutes: '00' },
-        thursday: { hours: '00', minutes: '00' },
-        friday: { hours: '00', minutes: '00' },
-        total: '1'
-      },
-      {
-        id: '5',
-        name: 'Week 3 Shift 2',
-        lunch: '00',
-        saturday: { hours: '00', minutes: '00' },
-        sunday: { hours: '00', minutes: '00' },
-        monday: { hours: '00', minutes: '00' },
-        tuesday: { hours: '00', minutes: '00' },
-        wednesday: { hours: '00', minutes: '00' },
-        thursday: { hours: '00', minutes: '00' },
-        friday: { hours: '00', minutes: '00' },
-        total: '1'
-      }
-    ];
-  };
+  }, [contractId, weeklyTimeData]);
+  
+  // Обновляем состояние загрузки, если оно изменилось в пропсах
+  useEffect(() => {
+    if (propsIsLoading !== undefined) {
+      setIsTableLoading(propsIsLoading);
+    }
+  }, [propsIsLoading]);
 
   // Обработчик изменения переключателя "Show Deleted"
   const handleShowDeletedChange = (ev: React.MouseEvent<HTMLElement>, checked?: boolean): void => {
@@ -161,38 +76,26 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     // Здесь в будущем будет логика сохранения данных в SharePoint
   };
 
-  // Функция для отображения ячейки с часами и минутами
-  const renderTimeCell = (hours: string, minutes: string, rowIndex: number, dayName: string): JSX.Element => {
-    return (
-      <div className={styles.timeCell}>
-        <Dropdown
-          options={getHoursOptions()}
-          selectedKey={hours}
-          onChange={(e, option) => handleTimeChange(rowIndex, dayName, 'hours', option?.key as string || '00')}
-          styles={{ dropdown: { width: 60 } }}
-        />
-        <span className={styles.timeSeparator}>:</span>
-        <Dropdown
-          options={getMinutesOptions()}
-          selectedKey={minutes}
-          onChange={(e, option) => handleTimeChange(rowIndex, dayName, 'minutes', option?.key as string || '00')}
-          styles={{ dropdown: { width: 60 } }}
-        />
-      </div>
-    );
-  };
-
   // Обработчик изменения времени
   const handleTimeChange = (rowIndex: number, dayName: string, field: 'hours' | 'minutes', value: string): void => {
     const newData = [...timeTableData];
-    const rowDay = dayName.toLowerCase() as keyof IWeeklyTimeRow;
+    const rowDay = dayName.toLowerCase() as keyof IFormattedWeeklyTimeRow;
     
     // Проверяем, что rowDay - это день недели (не id, name, lunch или total)
     if (rowDay === 'saturday' || rowDay === 'sunday' || rowDay === 'monday' || 
         rowDay === 'tuesday' || rowDay === 'wednesday' || rowDay === 'thursday' || rowDay === 'friday') {
       // Обновляем нужное поле в объекте ITimeCell
-      const timeCell = newData[rowIndex][rowDay] as ITimeCell;
-      timeCell[field] = value;
+      const dayData = newData[rowIndex][rowDay];
+      if (dayData) {
+        // Безопасно обновляем поле в объекте
+        newData[rowIndex] = {
+          ...newData[rowIndex],
+          [rowDay]: {
+            ...dayData,
+            [field]: value
+          }
+        };
+      }
     }
     
     setTimeTableData(newData);
@@ -236,6 +139,27 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     ];
   };
 
+  // Функция для отображения ячейки с часами и минутами
+  const renderTimeCell = (hours: string, minutes: string, rowIndex: number, dayName: string): JSX.Element => {
+    return (
+      <div className={styles.timeCell}>
+        <Dropdown
+          options={getHoursOptions()}
+          selectedKey={hours}
+          onChange={(e, option) => handleTimeChange(rowIndex, dayName, 'hours', option?.key as string || '00')}
+          styles={{ dropdown: { width: 60 } }}
+        />
+        <span className={styles.timeSeparator}>:</span>
+        <Dropdown
+          options={getMinutesOptions()}
+          selectedKey={minutes}
+          onChange={(e, option) => handleTimeChange(rowIndex, dayName, 'minutes', option?.key as string || '00')}
+          styles={{ dropdown: { width: 60 } }}
+        />
+      </div>
+    );
+  };
+
   // Функция для отображения строки с временем обеда
   const renderLunchCell = (lunch: string, rowIndex: number): JSX.Element => {
     return (
@@ -251,9 +175,9 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   // Создаем новую смену (строку в таблице)
   const handleAddShift = (): void => {
     const newId = (timeTableData.length + 1).toString();
-    const newRow: IWeeklyTimeRow = {
+    const newRow: IFormattedWeeklyTimeRow = {
       id: newId,
-      name: `New Shift ${newId}`,
+      name: `Week ${Math.ceil(timeTableData.length / 2) + 1}${timeTableData.length % 2 === 1 ? ' Shift 2' : ''}`,
       lunch: '30',
       saturday: { hours: '00', minutes: '00' },
       sunday: { hours: '00', minutes: '00' },
@@ -262,7 +186,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
       wednesday: { hours: '00', minutes: '00' },
       thursday: { hours: '00', minutes: '00' },
       friday: { hours: '00', minutes: '00' },
-      total: '0'
+      total: '1'
     };
     
     setTimeTableData([...timeTableData, newRow]);
@@ -284,11 +208,43 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     );
   }
 
+  // Если нет данных, показываем кнопку для добавления новой смены
+  if (timeTableData.length === 0 && !isTableLoading) {
+    return (
+      <div className={styles.weeklyTimeTable}>
+        <div className={styles.tableHeader}>
+          <div className={styles.tableTitle}>
+            <h3>{contractName || 'Weekly Schedule'}</h3>
+            <div className={styles.toggleContainer}>
+              <Toggle
+                label="Show Deleted"
+                checked={showDeleted}
+                onChange={handleShowDeletedChange}
+                styles={{ root: { marginBottom: 0 } }}
+              />
+            </div>
+          </div>
+          <div className={styles.actionButtons}>
+            <PrimaryButton
+              text="New Week"
+              onClick={handleAddShift}
+              styles={{ root: { marginRight: 8 } }}
+            />
+          </div>
+        </div>
+        
+        <div style={{ padding: '20px', textAlign: 'center' }}>
+          <p>No schedule data found for this contract. Click "New Week" to create a schedule.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.weeklyTimeTable}>
       <div className={styles.tableHeader}>
         <div className={styles.tableTitle}>
-          <h3>{contractName || '30 hours fin4'}</h3>
+          <h3>{contractName || 'Weekly Schedule'}</h3>
           <div className={styles.toggleContainer}>
             <Toggle
               label="Show Deleted"

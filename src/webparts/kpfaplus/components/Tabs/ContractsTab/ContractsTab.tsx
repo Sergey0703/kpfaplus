@@ -39,6 +39,10 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
   // Состояние для выбранного контракта (для отображения недельного расписания)
   const [selectedContract, setSelectedContract] = useState<IContract | null>(null);
 
+  // Состояние для данных недельного расписания
+  const [weeklyTimeData, setWeeklyTimeData] = useState<any[]>([]);
+  const [isLoadingWeeklyTime, setIsLoadingWeeklyTime] = useState<boolean>(false);
+  
   // Состояние для типов работников
   const [workerTypeOptions, setWorkerTypeOptions] = useState<IComboBoxOption[]>([]);
   const [isLoadingWorkerTypes, setIsLoadingWorkerTypes] = useState<boolean>(false);
@@ -402,20 +406,46 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
       
       console.log(`Showing template for contract ${contractId}`);
       
-      // В будущем здесь может быть реализация для получения и отображения шаблона
-      // с использованием RemoteSiteService
-      
-      // Например:
-      // const templates = await remoteSiteService.getListItems(
-      //   "Templates",
-      //   true,
-      //   `fields/ContractId eq '${contractId}'`,
-      //   { field: "Title", ascending: true }
-      // );
-      // 
-      // console.log(`Retrieved ${templates.length} templates for contract ${contractId}`);
+      // Устанавливаем контракт для отображения его расписания
+      const contract = contracts.find(c => c.id === contractId);
+      if (contract) {
+        setSelectedContract(contract);
+        
+        // Установим анимацию загрузки
+        setIsLoadingWeeklyTime(true);
+        
+        try {
+          // Получаем данные из списка WeeklyTimeTables с фильтрацией по Creator и IdOfTemplate
+          const filter = `fields/CreatorLookupId eq ${props.currentUserId} and fields/IdOfTemplateLookupId eq ${contractId}`;
+          
+          console.log(`Fetching WeeklyTimeTables with filter: ${filter}`);
+          
+          const weeklyTimeTables = await remoteSiteService.getListItems(
+            "WeeklyTimeTables",
+            true,
+            filter,
+            { field: "Title", ascending: true }
+          );
+          
+          console.log(`Retrieved ${weeklyTimeTables.length} weekly time tables for contract ${contractId}`);
+          
+          // Обновляем состояние с данными для таблицы недельного расписания
+          setWeeklyTimeData(weeklyTimeTables);
+          
+          // Пример логирования структуры данных
+          if (weeklyTimeTables.length > 0) {
+            console.log("Weekly time table structure:", JSON.stringify(weeklyTimeTables[0], null, 2));
+          }
+        } catch (fetchError) {
+          console.error(`Error fetching weekly time tables: ${fetchError}`);
+          setError(`Failed to load weekly time table data: ${fetchError.message || 'Unknown error'}`);
+        } finally {
+          setIsLoadingWeeklyTime(false);
+        }
+      }
     } catch (error) {
       console.error(`Error showing template for contract ${contractId}:`, error);
+      setError(`Error showing template: ${error.message || 'Unknown error'}`);
       throw error;
     }
   };
@@ -528,6 +558,8 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
         <WeeklyTimeTable
           contractId={selectedContract.id}
           contractName={selectedContract.template}
+          weeklyTimeData={weeklyTimeData}
+          isLoading={isLoadingWeeklyTime}
         />
       )}
     </div>
