@@ -14,6 +14,7 @@ import styles from './ContractsTab.module.scss';
 import { RemoteSiteService } from '../../../services/RemoteSiteService';
 import { IComboBoxOption } from '@fluentui/react';
 import { ContractsTable } from './ContractsTable';
+import { WeeklyTimeTable } from './WeeklyTimeTable';
 
 export const ContractsTab: React.FC<ITabProps> = (props) => {
   const { selectedStaff, context } = props;
@@ -35,6 +36,9 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
   const [isContractPanelOpen, setIsContractPanelOpen] = useState<boolean>(false);
   const [currentContract, setCurrentContract] = useState<IContractFormData | null>(null);
   
+  // Состояние для выбранного контракта (для отображения недельного расписания)
+  const [selectedContract, setSelectedContract] = useState<IContract | null>(null);
+
   // Состояние для типов работников
   const [workerTypeOptions, setWorkerTypeOptions] = useState<IComboBoxOption[]>([]);
   const [isLoadingWorkerTypes, setIsLoadingWorkerTypes] = useState<boolean>(false);
@@ -300,6 +304,9 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
   const handleEditContract = (contract: IContract): void => {
     if (!selectedStaff?.id) return;
     
+    // Устанавливаем выбранный контракт для недельного расписания
+    setSelectedContract(contract);
+    
     setCurrentContract({
       id: contract.id,
       template: contract.template,
@@ -515,6 +522,14 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
         onCancelButtonClick={handleCancelButtonClick}
         onContractFormChange={handleContractFormChange}
       />
+
+      {/* Таблица недельного расписания - добавляем ниже таблицы контрактов */}
+      {selectedContract && (
+        <WeeklyTimeTable
+          contractId={selectedContract.id}
+          contractName={selectedContract.template}
+        />
+      )}
     </div>
   );
 };

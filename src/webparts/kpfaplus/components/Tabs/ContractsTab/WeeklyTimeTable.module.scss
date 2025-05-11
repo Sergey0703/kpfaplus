@@ -1,0 +1,119 @@
+@import '~@fluentui/react/dist/sass/References.scss';
+
+.weeklyTimeTable {
+  margin-top: 20px;
+  border-top: 1px solid #e0e0e0;
+  padding-top: 20px;
+}
+
+.tableHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.tableTitle {
+  display: flex;
+  align-items: center;
+  
+  h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    margin-right: 20px;
+  }
+}
+
+.toggleContainer {
+  margin-left: 10px;
+}
+
+.actionButtons {
+  display: flex;
+  gap: 8px;
+}
+
+.tableContainer {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.timeTable {
+  width: 100%;
+  border-collapse: collapse;
+  
+  th {
+    background-color: #f3f2f1;
+    font-weight: 600;
+    text-align: center;
+    padding: 8px;
+    border: 1px solid #e0e0e0;
+  }
+  
+  td {
+    padding: 8px;
+    border: 1px solid #e0e0e0;
+    text-align: center;
+  }
+}
+
+.nameColumn {
+  width: 150px;
+  text-align: left !important;
+}
+
+.totalColumn {
+  width: 80px;
+}
+
+.actionsColumn {
+  width: 40px;
+}
+
+.timeCell {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.timeSeparator {
+  margin: 0 4px;
+  font-weight: bold;
+}
+
+.weekRow {
+  background-color: #f9f9f9;
+}
+
+.lunchRow {
+  border-bottom: 2px solid #d0d0d0;
+}
+
+.nameCell {
+  display: flex;
+  flex-direction: column;
+  text-align: left !important;
+}
+
+.rowName {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.lunchLabel {
+  font-size: 14px;
+  color: #666;
+}
+
+.lunchCell {
+  text-align: left !important;
+  padding-left: 60px !important;
+}
+
+.spinnerContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 0;
+}
