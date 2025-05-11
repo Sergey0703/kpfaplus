@@ -19,15 +19,12 @@ import {
  MessageBar,
  MessageBarType
 } from '@fluentui/react';
-import { spfi, SPFx } from "@pnp/sp";
-import "@pnp/sp/webs";
-import "@pnp/sp/lists";
-import "@pnp/sp/items";
 import { ITabProps } from '../../../models/types';
 import { IContract, IContractFormData } from '../../../models/IContract';
 import { ContractsService } from '../../../services/ContractsService';
 import styles from './ContractsTab.module.scss';
 import { ConfirmDialog } from '../../ConfirmDialog/ConfirmDialog';
+import { RemoteSiteService } from '../../../services/RemoteSiteService';
 
 export const ContractsTab: React.FC<ITabProps> = (props) => {
  const { selectedStaff, context } = props;
@@ -35,6 +32,9 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
  // Логирование для отладки
  console.log("[ContractsTab] Props:", props);
  console.log("[ContractsTab] Context available:", !!context);
+ 
+ // Инициализация RemoteSiteService
+ const remoteSiteService = context ? RemoteSiteService.getInstance(context) : null;
  
  // Состояние для контрактов и состояния загрузки
  const [contracts, setContracts] = useState<IContract[]>([]);
@@ -69,27 +69,38 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
    ? ContractsService.getInstance(context) 
    : null;
 
- // Функция загрузки типов работников из списка TypeOfWorkers
+ // Функция загрузки типов работников из списка TypeOfWorkers с использованием RemoteSiteService
  const fetchWorkerTypes = async (): Promise<void> => {
-   if (!context) {
+   if (!context || !remoteSiteService) {
+     console.error("[ContractsTab] Context or RemoteSiteService not available");
      return;
    }
    
    setIsLoadingWorkerTypes(true);
    
    try {
-     // Используем PnP JS для получения данных из списка
-     const sp = spfi().using(SPFx(context));
+     console.log("[ContractsTab] Fetching worker types using RemoteSiteService");
      
-     const items = await sp.web.lists.getByTitle("TypeOfWorkers").items
-       .select("ID,Title")
-       .orderBy("Title", true)();
+     // Используем RemoteSiteService вместо прямых вызовов PnP JS
+     const items = await remoteSiteService.getListItems(
+       "TypeOfWorkers",
+       true, // expandFields
+       undefined, // без фильтра
+       { field: "Title", ascending: true } // сортировка
+     );
+     
+     console.log(`[ContractsTab] Received ${items.length} worker types from RemoteSiteService`);
      
      // Преобразуем данные в формат IComboBoxOption
-     const options: IComboBoxOption[] = items.map((item) => ({
-       key: item.ID.toString(),
-       text: item.Title
-     }));
+     // Обратите внимание на изменение в доступе к полям - теперь они в item.fields
+     const options: IComboBoxOption[] = items.map((item) => {
+       const fields = item.fields || {};
+       
+       return {
+         key: item.id.toString(),
+         text: fields.Title?.toString() || 'Unknown'
+       };
+     });
      
      setWorkerTypeOptions(options);
      console.log("[ContractsTab] Loaded worker types:", options);
@@ -116,6 +127,9 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
       const staffGroupId: string | undefined = props.managingGroupId;
       const managerId = props.currentUserId || undefined;
       
+      console.log("[ContractsTab] Fetching contracts for employee ID:", selectedStaff.employeeId, 
+                 "manager ID:", managerId, "staff group ID:", staffGroupId);
+      
       // Вызываем метод с тремя параметрами
       const contractsData = await contractsService.getContractsForStaffMember(
         selectedStaff.employeeId,
@@ -123,6 +137,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
         staffGroupId
       );
       
+      console.log(`[ContractsTab] Retrieved ${contractsData.length} contracts`);
       setContracts(contractsData);
     } else {
       console.log("Employee ID is missing, cannot fetch contracts");
@@ -154,17 +169,21 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
    setError(null);
    
    try {
-     await contractsService.markContractAsDeleted(contractId);
-     console.log(`Successfully marked contract ${contractId} as deleted`);
+     const success = await contractsService.markContractAsDeleted(contractId);
+     console.log(`Result of marking contract ${contractId} as deleted: ${success}`);
      
-     // Обновляем локальное состояние без запроса к серверу
-     setContracts(prevContracts => 
-       prevContracts.map(c => 
-         c.id === contractId 
-           ? {...c, isDeleted: true} 
-           : c
-       )
-     );
+     if (success) {
+       // Обновляем локальное состояние без запроса к серверу
+       setContracts(prevContracts => 
+         prevContracts.map(c => 
+           c.id === contractId 
+             ? {...c, isDeleted: true} 
+             : c
+         )
+       );
+     } else {
+       throw new Error("Failed to delete contract");
+     }
    } catch (err) {
      console.error('Error deleting contract:', err);
      setError(`Failed to delete the contract. ${err.message || ''}`);
@@ -195,17 +214,21 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
    setError(null);
    
    try {
-     await contractsService.markContractAsNotDeleted(contractId);
-     console.log(`Successfully restored contract ${contractId}`);
+     const success = await contractsService.markContractAsNotDeleted(contractId);
+     console.log(`Result of marking contract ${contractId} as not deleted: ${success}`);
      
-     // Обновляем локальное состояние без запроса к серверу
-     setContracts(prevContracts => 
-       prevContracts.map(c => 
-         c.id === contractId 
-           ? {...c, isDeleted: false} 
-           : c
-       )
-     );
+     if (success) {
+       // Обновляем локальное состояние без запроса к серверу
+       setContracts(prevContracts => 
+         prevContracts.map(c => 
+           c.id === contractId 
+             ? {...c, isDeleted: false} 
+             : c
+         )
+       );
+     } else {
+       throw new Error("Failed to restore contract");
+     }
    } catch (err) {
      console.error('Error restoring contract:', err);
      setError(`Failed to restore the contract. ${err.message || ''}`);
@@ -343,7 +366,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
      isDeleted: contract.isDeleted,
      staffMemberId: selectedStaff.employeeId,
      managerId: props.currentUserId?.toString(), // ID менеджера
-     staffGroupId: props.managingGroupId?.toString() // ID группы // Используем employeeId, не id
+     staffGroupId: props.managingGroupId?.toString() // ID группы
    });
    
    // Открываем панель
@@ -390,8 +413,8 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
      console.log("Selected staff member:", selectedStaff);
      
      // Вызываем метод сохранения
-     await contractsService.saveContract(contractToSave);
-     console.log("Contract saved successfully");
+     const contractId = await contractsService.saveContract(contractToSave);
+     console.log("Contract saved successfully with ID:", contractId);
      
      // Обновляем список контрактов
      await fetchContracts();
@@ -407,9 +430,31 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
    }
  };
  
- const handleShowTemplate = (contractId: string): void => {
-   // Логика для отображения шаблона
-   console.log(`Showing template for contract ${contractId}`);
+ // Метод для показа шаблона, адаптированный для RemoteSiteService
+ const handleShowTemplate = async (contractId: string): Promise<void> => {
+   try {
+     if (!context || !remoteSiteService) {
+       console.error("Context or RemoteSiteService is not available");
+       return;
+     }
+     
+     console.log(`Showing template for contract ${contractId}`);
+     
+     // В будущем здесь может быть реализация для получения и отображения шаблона
+     // с использованием RemoteSiteService
+     
+     // Например:
+     // const templates = await remoteSiteService.getListItems(
+     //   "Templates",
+     //   true,
+     //   `fields/ContractId eq '${contractId}'`,
+     //   { field: "Title", ascending: true }
+     // );
+     // 
+     // console.log(`Retrieved ${templates.length} templates for contract ${contractId}`);
+   } catch (error) {
+     console.error(`Error showing template for contract ${contractId}:`, error);
+   }
  };
  
  // Можно удалить неиспользуемый стиль для save button
@@ -742,19 +787,19 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
            {/* Содержимое формы */}
            <div className={styles.formContainer}>
            <TextField 
-  label="Template Name" 
-  value={currentContract.template || ''}
-  onChange={(_, newValue) => setCurrentContract({
-    ...currentContract,
-    template: newValue || ''
-  })}
-  required
-  styles={{
-    fieldGroup: {
-      borderColor: (!currentContract.template || currentContract.template.trim() === '') ? '#a4262c' : undefined,
-    }
-  }}
-/>
+              label="Template Name" 
+              value={currentContract.template || ''}
+              onChange={(_, newValue) => setCurrentContract({
+                ...currentContract,
+                template: newValue || ''
+              })}
+              required
+              styles={{
+                fieldGroup: {
+                  borderColor: (!currentContract.template || currentContract.template.trim() === '') ? '#a4262c' : undefined,
+                }
+              }}
+            />
              
              <ComboBox
                label="Type of Worker"
@@ -799,16 +844,16 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
              
              <div className={styles.formButtons}>
              <PrimaryButton
-  text="Save"
-  onClick={() => {
-    // Используем .then().catch() для обработки Promise
-    handleSaveContract()
-      .then(() => console.log("Contract saved successfully"))
-      .catch(err => console.error("Error saving contract:", err));
-  }}
-  styles={{ root: { backgroundColor: '#0078d4' } }}
-  disabled={isLoading || !currentContract.template || currentContract.template.trim() === ''}
-/>
+              text="Save"
+              onClick={() => {
+                // Используем .then().catch() для обработки Promise
+                handleSaveContract()
+                  .then(() => console.log("Contract saved successfully"))
+                  .catch(err => console.error("Error saving contract:", err));
+              }}
+              styles={{ root: { backgroundColor: '#0078d4' } }}
+              disabled={isLoading || !currentContract.template || currentContract.template.trim() === ''}
+            />
                <DefaultButton
                  text="Cancel"
                  onClick={handleCancelButtonClick}
