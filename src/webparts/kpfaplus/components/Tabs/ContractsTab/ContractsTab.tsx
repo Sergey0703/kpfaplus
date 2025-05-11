@@ -256,6 +256,13 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
     }
   }, [context]);
   
+  // При изменении выбранного сотрудника сбрасываем выбранный контракт и данные расписания
+  useEffect(() => {
+    // Сбрасываем выбранный контракт и данные расписания при смене сотрудника
+    setSelectedContract(null);
+    setWeeklyTimeData([]);
+  }, [selectedStaff?.id]);
+  
   // Загружаем контракты при изменении selectedStaff, контекста или после загрузки типов работников
   useEffect(() => {
     if (selectedStaff?.id && contractsService) {
