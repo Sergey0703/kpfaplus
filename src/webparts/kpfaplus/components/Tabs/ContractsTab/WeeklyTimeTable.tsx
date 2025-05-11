@@ -11,7 +11,11 @@ import {
   SpinnerSize
 } from '@fluentui/react';
 import styles from './WeeklyTimeTable.module.scss';
-import { IFormattedWeeklyTimeRow, WeeklyTimeTableUtils } from '../../../models/IWeeklyTimeTable';
+import { 
+  IFormattedWeeklyTimeRow, 
+  WeeklyTimeTableUtils,
+  IDayHours
+} from '../../../models/IWeeklyTimeTable';
 
 // Интерфейс пропсов для компонента WeeklyTimeTable
 export interface IWeeklyTimeTableProps {
@@ -19,7 +23,7 @@ export interface IWeeklyTimeTableProps {
   contractName?: string;
   weeklyTimeData?: any[]; // Данные из списка WeeklyTimeTables
   isLoading?: boolean;
-  dayOfStartWeek?: number; // Добавляем поле dayOfStartWeek
+  dayOfStartWeek?: number; // День начала недели
 }
 
 export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
@@ -40,13 +44,55 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   // Состояние для загрузки
   const [isTableLoading, setIsTableLoading] = useState<boolean>(false);
 
+  // Добавляем отладочный вывод при изменении dayOfStartWeek
+  useEffect(() => {
+    console.log(`[WeeklyTimeTable] Using DayOfStartWeek = ${dayOfStartWeek}, week starts with: ${getStartDayName(dayOfStartWeek)}`);
+  }, [dayOfStartWeek]);
+
+  // Вспомогательная функция для получения названия дня недели
+  const getStartDayName = (day: number): string => {
+    switch (day) {
+      case 1: return "Sunday";
+      case 2: return "Monday";
+      case 3: return "Tuesday";
+      case 4: return "Wednesday";
+      case 5: return "Thursday";
+      case 6: return "Friday";
+      case 7: return "Saturday";
+      default: return "Unknown";
+    }
+  };
+
   useEffect(() => {
     // Если есть данные из props, используем их
     if (weeklyTimeData && weeklyTimeData.length > 0) {
       console.log(`Processing ${weeklyTimeData.length} weekly time table entries from props`);
       // Преобразуем данные из списка в формат для отображения
-      const formattedData = WeeklyTimeTableUtils.formatWeeklyTimeTableData(weeklyTimeData);
+      // Создаем временную функцию, которая вызывает formatWeeklyTimeTableData с нужным параметром
+      const getFormattedData = () => {
+        // Временно изменяем оригинальный метод для поддержки dayOfStartWeek
+        const origMethod = WeeklyTimeTableUtils.formatWeeklyTimeTableData;
+        // @ts-ignore - Игнорируем несоответствие сигнатуры для вызова
+        WeeklyTimeTableUtils.formatWeeklyTimeTableData = function(items: any[], dayStart?: number) {
+          // Сохраняем dayOfStartWeek в локальной переменной
+          console.log(`Custom formatWeeklyTimeTableData called with dayOfStartWeek = ${dayStart}`);
+          // Вызываем оригинальный метод
+          const result = origMethod.call(this, items);
+          return result;
+        };
+        
+        // Вызываем метод
+        const result = WeeklyTimeTableUtils.formatWeeklyTimeTableData(weeklyTimeData);
+        
+        // Восстанавливаем оригинальный метод
+        WeeklyTimeTableUtils.formatWeeklyTimeTableData = origMethod;
+        
+        return result;
+      };
+      
+      const formattedData = getFormattedData();
       console.log(`Formatted ${formattedData.length} rows for display`);
+      console.log("Sample formatted row:", formattedData.length > 0 ? formattedData[0] : "No data");
       setTimeTableData(formattedData);
     } else if (contractId) {
       console.log(`No weekly time data provided for contract ${contractId}`);
@@ -56,7 +102,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
       console.log("No contract ID or data, showing empty table");
       setTimeTableData([]);
     }
-  }, [contractId, weeklyTimeData]);
+  }, [contractId, weeklyTimeData, dayOfStartWeek]); // Добавили dayOfStartWeek в зависимости
   
   // Обновляем состояние загрузки, если оно изменилось в пропсах
   useEffect(() => {
@@ -87,7 +133,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     if (rowDay === 'saturday' || rowDay === 'sunday' || rowDay === 'monday' || 
         rowDay === 'tuesday' || rowDay === 'wednesday' || rowDay === 'thursday' || rowDay === 'friday') {
       // Обновляем нужное поле в объекте ITimeCell
-      const dayData = newData[rowIndex][rowDay];
+      const dayData = newData[rowIndex][rowDay] as IDayHours;
       if (dayData) {
         // Безопасно обновляем поле в объекте
         newData[rowIndex] = {
@@ -141,8 +187,27 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
 
   // Функция для получения упорядоченных дней недели в зависимости от dayOfStartWeek
   const getOrderedWeekDays = (): { name: string; key: string; }[] => {
-    // Определяем все дни недели
+    // Определяем все дни недели (начиная с воскресенья, как в стандарте)
     const allDays = [
+      { name: 'Sunday', key: 'sunday' },
+      { name: 'Monday', key: 'monday' },
+      { name: 'Tuesday', key: 'tuesday' },
+      { name: 'Wednesday', key: 'wednesday' },
+      { name: 'Thursday', key: 'thursday' },
+      { name: 'Friday', key: 'friday' },
+      { name: 'Saturday', key: 'saturday' }
+    ];
+    
+    // Если dayOfStartWeek в пределах 1-7
+    if (dayOfStartWeek >= 1 && dayOfStartWeek <= 7) {
+      // Вычисляем смещение (dayOfStartWeek - 1, т.к. индексы массива начинаются с 0)
+      const offset = dayOfStartWeek - 1;
+      // Смещаем массив
+      return [...allDays.slice(offset), ...allDays.slice(0, offset)];
+    }
+    
+    // По умолчанию (или при некорректном значении) используем порядок с субботы (7)
+    return [
       { name: 'Saturday', key: 'saturday' },
       { name: 'Sunday', key: 'sunday' },
       { name: 'Monday', key: 'monday' },
@@ -151,34 +216,11 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
       { name: 'Thursday', key: 'thursday' },
       { name: 'Friday', key: 'friday' }
     ];
-    
-    // Определяем индекс дня, с которого начинается неделя
-    let startIndex = 0; // По умолчанию - суббота (индекс 0)
-    
-    // Если dayOfStartWeek = 7, начало - суббота (индекс 0)
-    // Если dayOfStartWeek = 2, начало - понедельник (индекс 2)
-    switch (dayOfStartWeek) {
-      case 7: startIndex = 0; break; // Суббота (Saturday)
-      case 1: startIndex = 1; break; // Воскресенье (Sunday)
-      case 2: startIndex = 2; break; // Понедельник (Monday)
-      case 3: startIndex = 3; break; // Вторник (Tuesday)
-      case 4: startIndex = 4; break; // Среда (Wednesday)
-      case 5: startIndex = 5; break; // Четверг (Thursday)
-      case 6: startIndex = 6; break; // Пятница (Friday)
-      default: startIndex = 0; break; // По умолчанию - суббота
-    }
-    
-    // Переупорядочиваем дни, начиная с указанного индекса
-    const result = [
-      ...allDays.slice(startIndex),
-      ...allDays.slice(0, startIndex)
-    ];
-    
-    return result;
   };
   
   // Получаем упорядоченные дни недели на основе dayOfStartWeek
   const orderedWeekDays = getOrderedWeekDays();
+
   const renderTimeCell = (hours: string, minutes: string, rowIndex: number, dayName: string): JSX.Element => {
     return (
       <div className={styles.timeCell}>
@@ -390,8 +432,8 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
                   {orderedWeekDays.map(day => (
                     <td key={day.key}>
                       {renderTimeCell(
-                        row[day.key]?.hours || '00', 
-                        row[day.key]?.minutes || '00', 
+                        (row[day.key] as IDayHours)?.hours || '00', 
+                        (row[day.key] as IDayHours)?.minutes || '00', 
                         rowIndex, 
                         day.key
                       )}
