@@ -38,13 +38,13 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   // Состояние для загрузки
   const [isTableLoading, setIsTableLoading] = useState<boolean>(false);
 
-  // При монтировании компонента или изменении данных загружаем/обрабатываем данные
   useEffect(() => {
     // Если есть данные из props, используем их
     if (weeklyTimeData && weeklyTimeData.length > 0) {
       console.log(`Processing ${weeklyTimeData.length} weekly time table entries from props`);
       // Преобразуем данные из списка в формат для отображения
       const formattedData = WeeklyTimeTableUtils.formatWeeklyTimeTableData(weeklyTimeData);
+      console.log(`Formatted ${formattedData.length} rows for display`);
       setTimeTableData(formattedData);
     } else if (contractId) {
       console.log(`No weekly time data provided for contract ${contractId}`);
