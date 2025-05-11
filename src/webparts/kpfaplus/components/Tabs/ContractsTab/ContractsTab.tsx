@@ -599,57 +599,62 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
          );
      }
    },
-   
-   {
-     key: 'actions',
-     name: '',
-     minWidth: 120,
-     onRender: (item: IContract) => {
-       return (
-         <div className={styles.actionButtons}>
-           <span>{item.id}</span>
-           {item.isDeleted ? (
-             // Для удаленных контрактов показываем иконку восстановления
-             <IconButton 
-               iconProps={{ iconName: 'Refresh' }} 
-               title="Restore" 
-               onClick={(e) => {
-                 // Останавливаем распространение события, чтобы не открывать форму редактирования
-                 e.stopPropagation();
-                 showRestoreConfirmDialog(item.id);
-               }}
-               styles={{
-                 root: {
-                   color: '#107c10' // зеленый цвет для восстановления
-                 }
-               }}
-             />
-           ) : (
-             // Для активных контрактов показываем иконку удаления
-             <IconButton 
-               iconProps={{ iconName: 'Delete' }} 
-               title="Delete" 
-               onClick={(e) => {
-                 // Останавливаем распространение события, чтобы не открывать форму редактирования
-                 e.stopPropagation();
-                 showDeleteConfirmDialog(item.id);
-               }}
-               styles={deleteIconButtonStyles}
-             />
-           )}
-           <PrimaryButton 
-             text="Show Template" 
-             onClick={(e) => {
-               // Останавливаем распространение события, чтобы не открывать форму редактирования
-               e.stopPropagation();
-               handleShowTemplate(item.id);
-             }}
-             styles={showTemplateButtonStyles}
-           />
-         </div>
-       );
-     }
-   }
+   // Исправленный фрагмент кода с колонкой actions
+{
+  key: 'actions',
+  name: '',
+  minWidth: 120,
+  onRender: (item: IContract) => {
+    return (
+      <div className={styles.actionButtons}>
+        <span>{item.id}</span>
+        {item.isDeleted ? (
+          // Для удаленных контрактов показываем иконку восстановления
+          <IconButton 
+            iconProps={{ iconName: 'Refresh' }} 
+            title="Restore" 
+            onClick={(e) => {
+              // Останавливаем распространение события, чтобы не открывать форму редактирования
+              e.stopPropagation();
+              showRestoreConfirmDialog(item.id);
+            }}
+            styles={{
+              root: {
+                color: '#107c10' // зеленый цвет для восстановления
+              }
+            }}
+          />
+        ) : (
+          // Для активных контрактов показываем иконку удаления
+          <IconButton 
+            iconProps={{ iconName: 'Delete' }} 
+            title="Delete" 
+            onClick={(e) => {
+              // Останавливаем распространение события, чтобы не открывать форму редактирования
+              e.stopPropagation();
+              showDeleteConfirmDialog(item.id);
+            }}
+            styles={deleteIconButtonStyles}
+          />
+        )}
+        <PrimaryButton 
+  text="Show Template" 
+  onClick={(e) => {
+    e.stopPropagation();
+    handleShowTemplate(item.id)
+      .then(() => {
+        console.log(`Template for contract ${item.id} shown successfully`);
+      })
+      .catch(err => {
+        console.error(`Error showing template for contract ${item.id}:`, err);
+      });
+  }}
+  styles={showTemplateButtonStyles}
+/>
+      </div>
+    );
+  }
+}
  ];
  
  // Фильтруем контракты по статусу удаления
