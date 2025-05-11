@@ -118,25 +118,23 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     return options;
   };
 
-  // Получение опций для выпадающего списка минут
+  // Получение опций для выпадающего списка минут (с шагом 5)
   const getMinutesOptions = (): IDropdownOption[] => {
     const options: IDropdownOption[] = [];
-    for (let i = 0; i <= 59; i++) {
+    for (let i = 0; i <= 55; i += 5) {
       const value = i.toString().padStart(2, '0');
       options.push({ key: value, text: value });
     }
     return options;
   };
 
-  // Получение опций для выпадающего списка времени обеда
+  // Получение опций для выпадающего списка времени обеда (с шагом 5)
   const getLunchOptions = (): IDropdownOption[] => {
-    return [
-      { key: '0', text: '0' },
-      { key: '15', text: '15' },
-      { key: '30', text: '30' },
-      { key: '45', text: '45' },
-      { key: '60', text: '60' },
-    ];
+    const options: IDropdownOption[] = [];
+    for (let i = 0; i <= 60; i += 5) {
+      options.push({ key: i.toString(), text: i.toString() });
+    }
+    return options;
   };
 
   // Функция для отображения ячейки с часами и минутами
@@ -147,14 +145,54 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
           options={getHoursOptions()}
           selectedKey={hours}
           onChange={(e, option) => handleTimeChange(rowIndex, dayName, 'hours', option?.key as string || '00')}
-          styles={{ dropdown: { width: 60 } }}
+          styles={{ 
+            dropdown: { 
+              width: 50,
+              fontSize: '12px'
+            },
+            title: {
+              fontSize: '12px',
+              padding: '0 8px'
+            },
+            dropdownItemHeader: {
+              fontSize: '12px'
+            },
+            dropdownItem: {
+              fontSize: '12px',
+              minHeight: '24px'
+            },
+            dropdownItemSelected: {
+              fontSize: '12px',
+              minHeight: '24px'
+            }
+          }}
         />
         <span className={styles.timeSeparator}>:</span>
         <Dropdown
           options={getMinutesOptions()}
           selectedKey={minutes}
           onChange={(e, option) => handleTimeChange(rowIndex, dayName, 'minutes', option?.key as string || '00')}
-          styles={{ dropdown: { width: 60 } }}
+          styles={{ 
+            dropdown: { 
+              width: 50,
+              fontSize: '12px'
+            },
+            title: {
+              fontSize: '12px',
+              padding: '0 8px'
+            },
+            dropdownItemHeader: {
+              fontSize: '12px'
+            },
+            dropdownItem: {
+              fontSize: '12px',
+              minHeight: '24px'
+            },
+            dropdownItemSelected: {
+              fontSize: '12px',
+              minHeight: '24px'
+            }
+          }}
         />
       </div>
     );
@@ -167,7 +205,27 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
         options={getLunchOptions()}
         selectedKey={lunch}
         onChange={(e, option) => handleLunchChange(rowIndex, option?.key as string || '0')}
-        styles={{ dropdown: { width: 60 } }}
+        styles={{ 
+          dropdown: { 
+            width: 50,
+            fontSize: '12px'
+          },
+          title: {
+            fontSize: '12px',
+            padding: '0 8px'
+          },
+          dropdownItemHeader: {
+            fontSize: '12px'
+          },
+          dropdownItem: {
+            fontSize: '12px',
+            minHeight: '24px'
+          },
+          dropdownItemSelected: {
+            fontSize: '12px',
+            minHeight: '24px'
+          }
+        }}
       />
     );
   };
@@ -307,16 +365,29 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
                         { key: '3', text: '3' },
                       ]}
                       selectedKey={row.total}
-                      styles={{ dropdown: { width: 60 } }}
+                      styles={{ 
+                        dropdown: { 
+                          width: 50,
+                          fontSize: '12px'
+                        },
+                        title: {
+                          fontSize: '12px',
+                          padding: '0 8px'
+                        }
+                      }}
                     />
                   </td>
                   <td className={styles.actionsColumn}>
-                    <IconButton
-                      iconProps={{ iconName: 'Delete' }}
-                      title="Delete"
-                      ariaLabel="Delete"
-                      onClick={() => handleDeleteShift(rowIndex)}
-                    />
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <IconButton
+                        iconProps={{ iconName: 'Delete' }}
+                        title="Delete"
+                        ariaLabel="Delete"
+                        onClick={() => handleDeleteShift(rowIndex)}
+                        styles={{ root: { margin: 0, padding: 0 } }}
+                      />
+                      <span style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>ID: {row.id}</span>
+                    </div>
                   </td>
                 </tr>
                 <tr className={styles.lunchRow}>
