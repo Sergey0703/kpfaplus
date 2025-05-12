@@ -67,55 +67,46 @@ export class WeeklyTimeTableService {
    */
   public async updateWeeklyTimeTableItem(item: IWeeklyTimeTableUpdateItem): Promise<any> {
     try {
-      // Формируем объект с полями для обновления
-      const updateData: any = {
-        fields: {}
-      };
+      // Формируем объект с полями для обновления - напрямую, без вложенного объекта fields
+      const updateData: Record<string, unknown> = {};
       
       // Обновляем поля времени начала работы для каждого дня
       if (item.mondayStart) {
-        const time = this.formatTimeForSharePoint(item.mondayStart);
-        updateData.fields.MondeyStartWork = time; // Обратите внимание на опечатку в поле
+        updateData.MondeyStartWork = this.formatTimeForSharePoint(item.mondayStart);
       }
       
       if (item.tuesdayStart) {
-        const time = this.formatTimeForSharePoint(item.tuesdayStart);
-        updateData.fields.TuesdayStartWork = time;
+        updateData.TuesdayStartWork = this.formatTimeForSharePoint(item.tuesdayStart);
       }
       
       if (item.wednesdayStart) {
-        const time = this.formatTimeForSharePoint(item.wednesdayStart);
-        updateData.fields.WednesdayStartWork = time;
+        updateData.WednesdayStartWork = this.formatTimeForSharePoint(item.wednesdayStart);
       }
       
       if (item.thursdayStart) {
-        const time = this.formatTimeForSharePoint(item.thursdayStart);
-        updateData.fields.ThursdayStartWork = time;
+        updateData.ThursdayStartWork = this.formatTimeForSharePoint(item.thursdayStart);
       }
       
       if (item.fridayStart) {
-        const time = this.formatTimeForSharePoint(item.fridayStart);
-        updateData.fields.FridayStartWork = time;
+        updateData.FridayStartWork = this.formatTimeForSharePoint(item.fridayStart);
       }
       
       if (item.saturdayStart) {
-        const time = this.formatTimeForSharePoint(item.saturdayStart);
-        updateData.fields.SaturdayStartWork = time;
+        updateData.SaturdayStartWork = this.formatTimeForSharePoint(item.saturdayStart);
       }
       
       if (item.sundayStart) {
-        const time = this.formatTimeForSharePoint(item.sundayStart);
-        updateData.fields.SundayStartWork = time;
+        updateData.SundayStartWork = this.formatTimeForSharePoint(item.sundayStart);
       }
       
       // Обновляем время обеда
       if (item.lunchMinutes) {
-        updateData.fields.TimeForLunch = parseInt(item.lunchMinutes);
+        updateData.TimeForLunch = parseInt(item.lunchMinutes);
       }
       
       // Обновляем номер контракта
       if (item.contractNumber) {
-        updateData.fields.Contract = parseInt(item.contractNumber);
+        updateData.Contract = parseInt(item.contractNumber);
       }
       
       // Используем updateListItem из RemoteSiteService
