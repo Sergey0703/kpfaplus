@@ -21,6 +21,13 @@ import {
 } from '../../../models/IWeeklyTimeTable';
 import { WebPartContext } from '@microsoft/sp-webpart-base';
 import { WeeklyTimeTableService, IWeeklyTimeTableUpdateItem } from '../../../services/WeeklyTimeTableService';
+import {
+  IExtendedWeeklyTimeRow,
+  getStartDayName,
+  getOrderedWeekDays,
+  updateDisplayedTotalHours,
+  isFirstRowInTemplate
+} from './WeeklyTimeTableLogic';
 
 // Интерфейс пропсов для компонента WeeklyTimeTable
 export interface IWeeklyTimeTableProps {
@@ -48,7 +55,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   const [showDeleted, setShowDeleted] = useState<boolean>(false);
   
   // Состояние для данных таблицы
-  const [timeTableData, setTimeTableData] = useState<IFormattedWeeklyTimeRow[]>([]);
+  const [timeTableData, setTimeTableData] = useState<IExtendedWeeklyTimeRow[]>([]);
   
   // Состояние для загрузки
   const [isTableLoading, setIsTableLoading] = useState<boolean>(false);
@@ -70,144 +77,11 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     console.log(`[WeeklyTimeTable] Using DayOfStartWeek = ${dayOfStartWeek}, week starts with: ${getStartDayName(dayOfStartWeek)}`);
   }, [dayOfStartWeek]);
 
-  // Функция для получения множества уникальных шаблонов в данных
-  const getUniqueTemplates = (data: IFormattedWeeklyTimeRow[]): { templateId: string, rows: IFormattedWeeklyTimeRow[] }[] => {
-    if (!data || data.length === 0) {
-      return [];
-    }
-
-    // Группируем строки по шаблону (используем часть имени до "Week")
-    const templateMap = new Map<string, IFormattedWeeklyTimeRow[]>();
-    
-    data.forEach(row => {
-      // Предполагаем, что формат имени включает номер недели (например, "Week 1", "Week 1 Shift 2")
-      const match = row.name.match(/Week\s+(\d+)/i);
-      if (match) {
-        const weekNumber = match[1];
-        // Используем комбинацию числа недели и общего количества недель в шаблоне как ключ
-        const templateKey = `template_${weekNumber}`;
-        
-        if (!templateMap.has(templateKey)) {
-          templateMap.set(templateKey, []);
-        }
-        templateMap.get(templateKey)?.push(row);
-      } else {
-        // Если формат имени не соответствует ожидаемому, используем ID как ключ
-        const templateKey = `template_${row.id}`;
-        templateMap.set(templateKey, [row]);
-      }
-    });
-    
-    // Преобразуем Map в массив объектов для удобства использования
-    const templates: { templateId: string, rows: IFormattedWeeklyTimeRow[] }[] = [];
-    templateMap.forEach((rows, templateId) => {
-      // Сортируем строки в каждом шаблоне по номеру недели и смены
-      rows.sort((a, b) => {
-        // Извлекаем номер недели
-        const weekA = parseInt(a.name.split('Week ')[1]?.split(' ')[0] || '0', 10);
-        const weekB = parseInt(b.name.split('Week ')[1]?.split(' ')[0] || '0', 10);
-        
-        if (weekA !== weekB) {
-          return weekA - weekB;
-        }
-        
-        // Если неделя одинаковая, сортируем по наличию "Shift" и номеру смены
-        const shiftAMatch = a.name.match(/Shift\s+(\d+)/i);
-        const shiftBMatch = b.name.match(/Shift\s+(\d+)/i);
-        
-        const shiftA = shiftAMatch ? parseInt(shiftAMatch[1], 10) : 0;
-        const shiftB = shiftBMatch ? parseInt(shiftBMatch[1], 10) : 0;
-        
-        return shiftA - shiftB;
-      });
-      
-      templates.push({ templateId, rows });
-    });
-    
-    return templates;
-  };
-
-  // Функция для расчета общего количества часов для шаблона
-  const calculateTotalHoursForTemplate = (rows: IFormattedWeeklyTimeRow[]): string => {
-    if (!rows || rows.length === 0) {
-      return '0ч:00м';
-    }
-    
-    // Конвертируем строки времени в минуты для суммирования
-    let totalMinutes = 0;
-    
-    rows.forEach(row => {
-      // Извлекаем часы и минуты из строки формата "XXч:YYм"
-      const hoursMatch = row.totalHours.match(/(\d+)ч/);
-      const minutesMatch = row.totalHours.match(/:(\d+)м/);
-      
-      const hours = hoursMatch ? parseInt(hoursMatch[1], 10) : 0;
-      const minutes = minutesMatch ? parseInt(minutesMatch[1], 10) : 0;
-      
-      // Суммируем в минутах
-      totalMinutes += (hours * 60) + minutes;
-    });
-    
-    // Конвертируем обратно в формат "XXч:YYм"
-    const totalHours = Math.floor(totalMinutes / 60);
-    const remainingMinutes = totalMinutes % 60;
-    
-    return `${totalHours}ч:${remainingMinutes.toString().padStart(2, '0')}м`;
-  };
-
-  // Обновляем отображение общего времени в первой строке каждого шаблона
-  const updateDisplayedTotalHours = (data: IFormattedWeeklyTimeRow[]): IFormattedWeeklyTimeRow[] => {
-    if (!data || data.length === 0) {
-      return data;
-    }
-    
-    // Получаем шаблоны
-    const templates = getUniqueTemplates(data);
-    
-    // Создаем новый массив с обновленными данными
-    const updatedData = [...data];
-    
-    // Для каждого шаблона обновляем первую строку
-    templates.forEach(template => {
-      if (template.rows.length > 0) {
-        // Вычисляем общее время для этого шаблона
-        const totalHoursForTemplate = calculateTotalHoursForTemplate(template.rows);
-        
-        // Находим индекс первой строки этого шаблона в общем массиве
-        const firstRowIndex = updatedData.findIndex(row => row.id === template.rows[0].id);
-        
-        if (firstRowIndex !== -1) {
-          // Обновляем отображаемое время в первой строке шаблона
-          updatedData[firstRowIndex] = {
-            ...updatedData[firstRowIndex],
-            displayedTotalHours: totalHoursForTemplate
-          };
-        }
-      }
-    });
-    
-    return updatedData;
-  };
-
   // Обновляем общее время для всех шаблонов
   const updateTotalHoursForAllTemplates = (): void => {
     const updatedData = updateDisplayedTotalHours(timeTableData);
     setTimeTableData(updatedData);
     console.log('Updated displayed total hours for all templates');
-  };
-
-  // Вспомогательная функция для получения названия дня недели
-  const getStartDayName = (day: number): string => {
-    switch (day) {
-      case 1: return "Sunday";
-      case 2: return "Monday";
-      case 3: return "Tuesday";
-      case 4: return "Wednesday";
-      case 5: return "Thursday";
-      case 6: return "Friday";
-      case 7: return "Saturday";
-      default: return "Unknown";
-    }
   };
 
   // Эффект для загрузки данных при изменении входных параметров
@@ -243,7 +117,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
       console.log("Sample formatted row:", formattedData.length > 0 ? formattedData[0] : "No data");
       
       // Обновляем отображаемое общее время в первой строке каждого шаблона
-      const dataWithTotalHours = updateDisplayedTotalHours(formattedData);
+      const dataWithTotalHours = updateDisplayedTotalHours(formattedData as IExtendedWeeklyTimeRow[]);
       setTimeTableData(dataWithTotalHours);
       
       // Сбрасываем список измененных строк при получении новых данных
@@ -386,7 +260,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     // Обновляем отображаемое общее время в первой строке каждого шаблона
     updateTotalHoursForAllTemplates();
   };
-  
+
   // Обработчик изменения контракта
   const handleContractChange = (rowIndex: number, value: string): void => {
     const newData = [...timeTableData];
@@ -404,37 +278,91 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     setStatusMessage(null);
   };
 
-
-// Обработчик сохранения данных
-const handleSave = async (): Promise<void> => {
-  // Если нет измененных строк, ничего не делаем
-  if (changedRows.size === 0) {
-    console.log('No changes to save');
-    return;
-  }
-  
-  // Обновляем состояние для индикации процесса сохранения
-  setIsSaving(true);
-  setStatusMessage(null);
-  
-  try {
-    // Создаем сервис для работы с данными
-    const service = new WeeklyTimeTableService(context);
+  // Обработчик сохранения данных
+  const handleSave = async (): Promise<void> => {
+    // Если нет измененных строк, ничего не делаем
+    if (changedRows.size === 0) {
+      console.log('No changes to save');
+      return;
+    }
     
-    // Формируем массив данных для обновления
-    const itemsToUpdate: IWeeklyTimeTableUpdateItem[] = [];
+    // Обновляем состояние для индикации процесса сохранения
+    setIsSaving(true);
+    setStatusMessage(null);
     
-    // Обрабатываем каждую измененную строку
-    for (const row of timeTableData.filter(row => changedRows.has(row.id))) {
-      // Проверяем, является ли ID временным (новая строка)
-      const isNewRow = row.id.startsWith('new_');
+    try {
+      // Создаем сервис для работы с данными
+      const service = new WeeklyTimeTableService(context);
       
-      if (isNewRow) {
-        // Если новая строка, сначала создаем ее
-        try {
-          // Создаем объект для нового элемента
-          const newItem: IWeeklyTimeTableUpdateItem = {
-            id: row.id, // Временный ID
+      // Формируем массив данных для обновления
+      const itemsToUpdate: IWeeklyTimeTableUpdateItem[] = [];
+      
+      // Обрабатываем каждую измененную строку
+      for (const row of timeTableData.filter(row => changedRows.has(row.id))) {
+        // Проверяем, является ли ID временным (новая строка)
+        const isNewRow = row.id.startsWith('new_');
+        
+        if (isNewRow) {
+          // Если новая строка, сначала создаем ее
+          try {
+            // Создаем объект для нового элемента
+            const newItem: IWeeklyTimeTableUpdateItem = {
+              id: row.id, // Временный ID
+              
+              // Время начала
+              mondayStart: row.monday?.start,
+              tuesdayStart: row.tuesday?.start,
+              wednesdayStart: row.wednesday?.start,
+              thursdayStart: row.thursday?.start,
+              fridayStart: row.friday?.start,
+              saturdayStart: row.saturday?.start,
+              sundayStart: row.sunday?.start,
+              
+              // Время окончания
+              mondayEnd: row.monday?.end,
+              tuesdayEnd: row.tuesday?.end,
+              wednesdayEnd: row.wednesday?.end,
+              thursdayEnd: row.thursday?.end,
+              fridayEnd: row.friday?.end,
+              saturdayEnd: row.saturday?.end,
+              sundayEnd: row.sunday?.end,
+              
+              lunchMinutes: row.lunch,
+              contractNumber: row.total
+            };
+            
+            // Вызываем метод создания и получаем реальный ID
+            const realId = await service.createWeeklyTimeTableItem(
+              newItem, 
+              contractId || '', 
+              context.pageContext.user.loginName
+            );
+            
+            // Обновляем ID в локальных данных
+            const rowIndex = timeTableData.findIndex(r => r.id === row.id);
+            if (rowIndex >= 0) {
+              const updatedRow = {...timeTableData[rowIndex], id: realId};
+              const newData = [...timeTableData];
+              newData[rowIndex] = updatedRow;
+              setTimeTableData(newData);
+            }
+            
+            // Удаляем этот элемент из списка измененных строк
+            const newChangedRows = new Set(changedRows);
+            newChangedRows.delete(row.id);
+            // Добавляем новый ID в список измененных строк
+            newChangedRows.add(realId);
+            setChangedRows(newChangedRows);
+            
+            console.log(`Created new time table row with ID: ${realId}`);
+          } catch (createError) {
+            console.error('Error creating new time table row:', createError);
+            throw new Error(`Failed to create new row: ${createError instanceof Error ? createError.message : 'Unknown error'}`);
+          }
+        } else {
+          // Если существующая строка, добавляем в список для обновления
+          itemsToUpdate.push({
+            id: row.id,
             
             // Время начала
             mondayStart: row.monday?.start,
@@ -456,107 +384,52 @@ const handleSave = async (): Promise<void> => {
             
             lunchMinutes: row.lunch,
             contractNumber: row.total
-          };
-          
-          // Вызываем метод создания и получаем реальный ID
-          const realId = await service.createWeeklyTimeTableItem(
-            newItem, 
-            contractId || '', 
-            context.pageContext.user.loginName
-          );
-          
-          // Обновляем ID в локальных данных
-          const rowIndex = timeTableData.findIndex(r => r.id === row.id);
-          if (rowIndex >= 0) {
-            const updatedRow = {...timeTableData[rowIndex], id: realId};
-            const newData = [...timeTableData];
-            newData[rowIndex] = updatedRow;
-            setTimeTableData(newData);
-          }
-          
-          // Удаляем этот элемент из списка измененных строк
-          const newChangedRows = new Set(changedRows);
-          newChangedRows.delete(row.id);
-          // Добавляем новый ID в список измененных строк
-          newChangedRows.add(realId);
-          setChangedRows(newChangedRows);
-          
-          console.log(`Created new time table row with ID: ${realId}`);
-        } catch (createError) {
-          console.error('Error creating new time table row:', createError);
-          throw new Error(`Failed to create new row: ${createError instanceof Error ? createError.message : 'Unknown error'}`);
+          });
         }
-      } else {
-        // Если существующая строка, добавляем в список для обновления
-        itemsToUpdate.push({
-          id: row.id,
-          
-          // Время начала
-          mondayStart: row.monday?.start,
-          tuesdayStart: row.tuesday?.start,
-          wednesdayStart: row.wednesday?.start,
-          thursdayStart: row.thursday?.start,
-          fridayStart: row.friday?.start,
-          saturdayStart: row.saturday?.start,
-          sundayStart: row.sunday?.start,
-          
-          // Время окончания
-          mondayEnd: row.monday?.end,
-          tuesdayEnd: row.tuesday?.end,
-          wednesdayEnd: row.wednesday?.end,
-          thursdayEnd: row.thursday?.end,
-          fridayEnd: row.friday?.end,
-          saturdayEnd: row.saturday?.end,
-          sundayEnd: row.sunday?.end,
-          
-          lunchMinutes: row.lunch,
-          contractNumber: row.total
-        });
       }
-    }
-    
-    if (itemsToUpdate.length > 0) {
-      console.log('Saving changes for items:', itemsToUpdate);
       
-      // Выполняем обновление данных
-      const results = await service.batchUpdateWeeklyTimeTable(itemsToUpdate);
+      if (itemsToUpdate.length > 0) {
+        console.log('Saving changes for items:', itemsToUpdate);
+        
+        // Выполняем обновление данных
+        const results = await service.batchUpdateWeeklyTimeTable(itemsToUpdate);
+        
+        console.log('Save results:', results);
+      } else {
+        console.log('No existing items to update after handling new rows');
+      }
       
-      console.log('Save results:', results);
-    } else {
-      console.log('No existing items to update after handling new rows');
+      // Очищаем список измененных строк
+      setChangedRows(new Set());
+      
+      // Устанавливаем сообщение об успешном сохранении
+      setStatusMessage({
+        type: MessageBarType.success,
+        message: `Successfully saved changes.`
+      });
+      
+      // Вызываем коллбэк завершения сохранения, если он задан
+      if (onSaveComplete) {
+        onSaveComplete(true);
+      }
+    } catch (error) {
+      console.error('Error saving weekly time table data:', error);
+      
+      // Устанавливаем сообщение об ошибке
+      setStatusMessage({
+        type: MessageBarType.error,
+        message: `Failed to save changes: ${error instanceof Error ? error.message : 'Unknown error'}`
+      });
+      
+      // Вызываем коллбэк завершения сохранения с ошибкой, если он задан
+      if (onSaveComplete) {
+        onSaveComplete(false);
+      }
+    } finally {
+      // В любом случае снимаем индикацию процесса сохранения
+      setIsSaving(false);
     }
-    
-    // Очищаем список измененных строк
-    setChangedRows(new Set());
-    
-    // Устанавливаем сообщение об успешном сохранении
-    setStatusMessage({
-      type: MessageBarType.success,
-      message: `Successfully saved changes.`
-    });
-    
-    // Вызываем коллбэк завершения сохранения, если он задан
-    if (onSaveComplete) {
-      onSaveComplete(true);
-    }
-  } catch (error) {
-    console.error('Error saving weekly time table data:', error);
-    
-    // Устанавливаем сообщение об ошибке
-    setStatusMessage({
-      type: MessageBarType.error,
-      message: `Failed to save changes: ${error instanceof Error ? error.message : 'Unknown error'}`
-    });
-    
-    // Вызываем коллбэк завершения сохранения с ошибкой, если он задан
-    if (onSaveComplete) {
-      onSaveComplete(false);
-    }
-  } finally {
-    // В любом случае снимаем индикацию процесса сохранения
-    setIsSaving(false);
-  }
-};
+  };
 
   // Получение опций для выпадающего списка часов
   const getHoursOptions = (): IDropdownOption[] => {
@@ -586,42 +459,9 @@ const handleSave = async (): Promise<void> => {
     }
     return options;
   };
-
-  // Функция для получения упорядоченных дней недели в зависимости от dayOfStartWeek
-  const getOrderedWeekDays = (): { name: string; key: string; }[] => {
-    // Определяем все дни недели (начиная с воскресенья, как в стандарте)
-    const allDays = [
-      { name: 'Sunday', key: 'sunday' },
-      { name: 'Monday', key: 'monday' },
-      { name: 'Tuesday', key: 'tuesday' },
-      { name: 'Wednesday', key: 'wednesday' },
-      { name: 'Thursday', key: 'thursday' },
-      { name: 'Friday', key: 'friday' },
-      { name: 'Saturday', key: 'saturday' }
-    ];
-    
-    // Если dayOfStartWeek в пределах 1-7
-    if (dayOfStartWeek >= 1 && dayOfStartWeek <= 7) {
-      // Вычисляем смещение (dayOfStartWeek - 1, т.к. индексы массива начинаются с 0)
-      const offset = dayOfStartWeek - 1;
-      // Смещаем массив
-      return [...allDays.slice(offset), ...allDays.slice(0, offset)];
-    }
-    
-    // По умолчанию (или при некорректном значении) используем порядок с субботы (7)
-    return [
-      { name: 'Saturday', key: 'saturday' },
-      { name: 'Sunday', key: 'sunday' },
-      { name: 'Monday', key: 'monday' },
-      { name: 'Tuesday', key: 'tuesday' },
-      { name: 'Wednesday', key: 'wednesday' },
-      { name: 'Thursday', key: 'thursday' },
-      { name: 'Friday', key: 'friday' }
-    ];
-  };
   
   // Получаем упорядоченные дни недели на основе dayOfStartWeek
-  const orderedWeekDays = getOrderedWeekDays();
+  const orderedWeekDays = getOrderedWeekDays(dayOfStartWeek);
 
   const renderTimeCell = (hours: string, minutes: string, rowIndex: number, dayKey: string): JSX.Element => {
     // Определяем, была ли эта строка изменена
@@ -802,7 +642,7 @@ const handleSave = async (): Promise<void> => {
     // Создаем объекты для пустого времени начала и окончания
     const emptyTime: IDayHours = { hours: '00', minutes: '00' };
     
-    const newRow: IFormattedWeeklyTimeRow = {
+    const newRow: IExtendedWeeklyTimeRow = {
       id: newId,
       name: `Week ${weekNumber}${isSecondShift ? ' Shift 2' : ''}`,
       lunch: '30',
@@ -861,34 +701,6 @@ const handleSave = async (): Promise<void> => {
     setTimeout(() => {
       updateTotalHoursForAllTemplates();
     }, 0);
-  };
-
-  // Определяет, является ли строка первой в своем шаблоне
-  const isFirstRowInTemplate = (rowIndex: number): boolean => {
-    if (!timeTableData || rowIndex < 0 || rowIndex >= timeTableData.length) {
-      return false;
-    }
-    
-    const currentRow = timeTableData[rowIndex];
-    
-    // Извлекаем номер недели из имени текущей строки
-    const weekMatch = currentRow.name.match(/Week\s+(\d+)/i);
-    if (!weekMatch) {
-      return true; // Если формат имени не соответствует, предполагаем что это первая строка шаблона
-    }
-    
-    const weekNumber = weekMatch[1];
-    
-    // Проверяем, есть ли строки с таким же номером недели до текущей строки
-    for (let i = 0; i < rowIndex; i++) {
-      const prevRow = timeTableData[i];
-      const prevWeekMatch = prevRow.name.match(/Week\s+(\d+)/i);
-      if (prevWeekMatch && prevWeekMatch[1] === weekNumber) {
-        return false; // Нашли строку с таким же номером недели выше, значит текущая строка не первая в шаблоне
-      }
-    }
-    
-    return true; // Не найдена строка с таким же номером недели выше, значит это первая строка в шаблоне
   };
 
   // Если загружаются данные, показываем спиннер
@@ -1029,7 +841,7 @@ const handleSave = async (): Promise<void> => {
           <tr className={styles.weekRow}>
             {/* Ячейка для рабочих часов - отображаем общее время для первой строки шаблона */}
             <td className={styles.hoursCell} rowSpan={2}>
-              {isFirstRowInTemplate(rowIndex) && row.displayedTotalHours ? 
+              {isFirstRowInTemplate(timeTableData, rowIndex) && row.displayedTotalHours ? 
                 row.displayedTotalHours : 
                 row.totalHours || '0ч:00м'}
             </td>
