@@ -202,3 +202,33 @@ import {
       { name: 'Friday', key: 'friday' }
     ];
   };
+
+  // Добавьте в WeeklyTimeTableLogic.ts
+// Определяет, является ли строка последней в своем шаблоне
+export const isLastRowInTemplate = (data: IExtendedWeeklyTimeRow[], rowIndex: number): boolean => {
+    if (!data || rowIndex < 0 || rowIndex >= data.length) {
+      return false;
+    }
+    
+    const currentRow = data[rowIndex];
+    
+    // Извлекаем номер недели из имени текущей строки
+    const weekMatch = currentRow.name.match(/Week\s+(\d+)/i);
+    if (!weekMatch) {
+      return true; // Если формат имени не соответствует, предполагаем, что это единственная строка шаблона
+    }
+    
+    const weekNumber = weekMatch[1];
+    
+    // Если это последняя строка в массиве или следующая строка имеет другой номер недели
+    if (rowIndex === data.length - 1) {
+      return true;
+    }
+    
+    // Проверяем следующую строку
+    const nextRow = data[rowIndex + 1];
+    const nextWeekMatch = nextRow.name.match(/Week\s+(\d+)/i);
+    
+    // Если у следующей строки другой номер недели или нет совпадения, значит текущая строка последняя
+    return !nextWeekMatch || nextWeekMatch[1] !== weekNumber;
+  };

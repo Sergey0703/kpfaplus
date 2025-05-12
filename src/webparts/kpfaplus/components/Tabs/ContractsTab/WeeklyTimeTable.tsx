@@ -26,7 +26,8 @@ import {
   getStartDayName,
   getOrderedWeekDays,
   updateDisplayedTotalHours,
-  isFirstRowInTemplate
+  isFirstRowInTemplate,
+  isLastRowInTemplate
 } from './WeeklyTimeTableLogic';
 
 // Интерфейс пропсов для компонента WeeklyTimeTable
@@ -634,6 +635,25 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     );
   };
 
+  // Функция для отображения кнопки "+ Shift"
+  const renderAddShiftButton = (): JSX.Element => {
+    return (
+      <PrimaryButton
+        text="+ Shift"
+        onClick={handleAddShift}
+        styles={{ 
+          root: { 
+            minWidth: '60px', 
+            height: '24px', 
+            fontSize: '12px',
+            padding: '0 8px'
+          }
+        }}
+        disabled={isSaving}
+      />
+    );
+  };
+
   const handleAddShift = (): void => {
     const newId = `new_${Date.now()}`; // Временный ID для новой строки
     const weekNumber = Math.ceil((timeTableData.length + 1) / 2);
@@ -808,7 +828,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
         </div>
       )}
       
-      {/* Отображение информации о количестве измененных строк - изменённая часть */}
+      {/* Отображение информации о количестве измененных строк */}
       {changedRows.size > 0 && (
         <MessageBar
           messageBarType={MessageBarType.warning}
@@ -819,105 +839,116 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
         </MessageBar>
       )}
 
-
-<div className={styles.tableContainer}>
-  <table className={styles.timeTable}>
-    <thead>
-      <tr>
-        {/* Столбец для рабочих часов */}
-        <th className={styles.hoursColumn}>Hours</th>
-        <th className={styles.nameColumn}>Name / Lunch</th>
-        {orderedWeekDays.map(day => (
-          <th key={day.key}>{day.name}</th>
-        ))}
-        <th className={styles.totalColumn}>Contract</th>
-        <th className={styles.actionsColumn}></th>
-      </tr>
-    </thead>
-    <tbody>
-      {timeTableData.map((row, rowIndex) => (
-        <React.Fragment key={row.id}>
-          {/* Первая строка - начало рабочего дня */}
-          <tr className={styles.weekRow}>
-            {/* Ячейка для рабочих часов - отображаем общее время для первой строки шаблона */}
-            <td className={styles.hoursCell} rowSpan={2}>
-              {isFirstRowInTemplate(timeTableData, rowIndex) && row.displayedTotalHours ? 
-                row.displayedTotalHours : 
-                row.totalHours || '0ч:00м'}
-            </td>
-            <td className={styles.nameCell} rowSpan={2}>
-              <div className={styles.rowName}>{row.name}</div>
-              <div className={styles.lunchLabel}>Lunch:</div>
-            </td>
-            {/* Ячейки для начала рабочего дня для каждого дня недели */}
-            {orderedWeekDays.map(day => {
-              const dayData = row[day.key] as IDayHoursComplete;
-              return (
-                <td key={`${day.key}-start`}>
-                  {renderTimeCell(
-                    dayData?.start?.hours || '00', 
-                    dayData?.start?.minutes || '00', 
-                    rowIndex, 
-                    `${day.key}-start`
-                  )}
-                </td>
-              );
-            })}
-            <td className={styles.totalColumn} rowSpan={2}>
-              {renderContractCell(row.total, rowIndex)}
-              <div className={styles.contractInfo}>
-                {row.totalHours || '0ч:00м'}
-              </div>
-            </td>
-            <td className={styles.actionsColumn} rowSpan={2}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <IconButton
-                  iconProps={{ iconName: 'Delete' }}
-                  title="Delete"
-                  ariaLabel="Delete"
-                  onClick={() => handleDeleteShift(rowIndex)}
-                  styles={{ root: { margin: 0, padding: 0 } }}
-                  disabled={isSaving}
-                />
-                <span style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>ID: {row.id}</span>
-              </div>
-            </td>
-          </tr>
-          
-          {/* Вторая строка - конец рабочего дня */}
-          <tr className={styles.weekEndRow}>
-            {/* Ячейки для окончания рабочего дня для каждого дня недели */}
-            {orderedWeekDays.map(day => {
-              const dayData = row[day.key] as IDayHoursComplete;
-              return (
-                <td key={`${day.key}-end`}>
-                  {renderTimeCell(
-                    dayData?.end?.hours || '00', 
-                    dayData?.end?.minutes || '00', 
-                    rowIndex, 
-                    `${day.key}-end`
-                  )}
-                </td>
-              );
-            })}
-          </tr>
-          
-          {/* Строка для обеда */}
-          <tr className={styles.lunchRow}>
-            <td colSpan={2} className={styles.lunchCell}>
-              {renderLunchCell(row.lunch, rowIndex)}
-            </td>
-            <td colSpan={9}></td>
-          </tr>
-        </React.Fragment>
-      ))}
-    </tbody>
-  </table>
-</div>
-
-
-   </div>
- );
+      <div className={styles.tableContainer}>
+        <table className={styles.timeTable}>
+          <thead>
+            <tr>
+              {/* Столбец для рабочих часов */}
+              <th className={styles.hoursColumn}>Hours</th>
+              <th className={styles.nameColumn}>Name / Lunch</th>
+              {orderedWeekDays.map(day => (
+                <th key={day.key}>{day.name}</th>
+              ))}
+              <th className={styles.totalColumn}>Contract</th>
+              <th className={styles.actionsColumn}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {timeTableData.map((row, rowIndex) => (
+              <React.Fragment key={row.id}>
+                {/* Первая строка - начало рабочего дня */}
+                <tr className={styles.weekRow}>
+                  {/* Ячейка для рабочих часов - отображаем общее время для первой строки шаблона */}
+                  <td className={styles.hoursCell} rowSpan={2}>
+                    {isFirstRowInTemplate(timeTableData, rowIndex) && (
+                      <div className={styles.totalHoursContainer}>
+                        <div className={styles.totalHoursValue}>
+                          {row.displayedTotalHours || row.totalHours || '0ч:00м'}
+                        </div>
+                        {isLastRowInTemplate(timeTableData, rowIndex) && (
+                          <div className={styles.addShiftButtonWrapper}>
+                            {renderAddShiftButton()}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {!isFirstRowInTemplate(timeTableData, rowIndex) && isLastRowInTemplate(timeTableData, rowIndex) && (
+                      <div className={styles.addShiftButtonContainer}>
+                        {renderAddShiftButton()}
+                      </div>
+                    )}
+                  </td>
+                  <td className={styles.nameCell} rowSpan={2}>
+                    <div className={styles.rowName}>{row.name}</div>
+                    <div className={styles.lunchLabel}>Lunch:</div>
+                  </td>
+                  {/* Ячейки для начала рабочего дня для каждого дня недели */}
+                  {orderedWeekDays.map(day => {
+                    const dayData = row[day.key] as IDayHoursComplete;
+                    return (
+                      <td key={`${day.key}-start`}>
+                        {renderTimeCell(
+                          dayData?.start?.hours || '00', 
+                          dayData?.start?.minutes || '00', 
+                          rowIndex, 
+                          `${day.key}-start`
+                        )}
+                      </td>
+                    );
+                  })}
+                  <td className={styles.totalColumn} rowSpan={2}>
+                    {renderContractCell(row.total, rowIndex)}
+                    <div className={styles.contractInfo}>
+                      {row.totalHours || '0ч:00м'}
+                    </div>
+                  </td>
+                  <td className={styles.actionsColumn} rowSpan={2}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <IconButton
+                        iconProps={{ iconName: 'Delete' }}
+                        title="Delete"
+                        ariaLabel="Delete"
+                        onClick={() => handleDeleteShift(rowIndex)}
+                        styles={{ root: { margin: 0, padding: 0 } }}
+                        disabled={isSaving}
+                      />
+                      <span style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>ID: {row.id}</span>
+                    </div>
+                  </td>
+                </tr>
+                
+                {/* Вторая строка - конец рабочего дня */}
+                <tr className={styles.weekEndRow}>
+                  {/* Ячейки для окончания рабочего дня для каждого дня недели */}
+                  {orderedWeekDays.map(day => {
+                    const dayData = row[day.key] as IDayHoursComplete;
+                    return (
+                      <td key={`${day.key}-end`}>
+                        {renderTimeCell(
+                          dayData?.end?.hours || '00', 
+                          dayData?.end?.minutes || '00', 
+                          rowIndex, 
+                          `${day.key}-end`
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+                
+                {/* Строка для обеда */}
+                <tr className={styles.lunchRow}>
+                  <td colSpan={2} className={styles.lunchCell}>
+                    {renderLunchCell(row.lunch, rowIndex)}
+                  </td>
+                  <td colSpan={9}></td>
+                </tr>
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 };
 
 export default WeeklyTimeTable;
