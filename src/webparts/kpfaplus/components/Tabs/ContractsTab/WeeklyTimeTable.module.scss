@@ -144,3 +144,31 @@
     background-color: rgba(255, 255, 0, 0.1);
     border: 1px solid #ffcc00;
   }
+
+  .hoursColumn {
+    width: 80px;
+    background-color: #f3f2f1;
+    font-weight: 600;
+    text-align: center;
+    padding: 6px;
+    border: 1px solid #e0e0e0;
+    font-size: 13px;
+  }
+  
+  .hoursCell {
+    padding: 4px;
+    border: 1px solid #e0e0e0;
+    text-align: center;
+    font-size: 12px;
+    background-color: #f9f9f9;
+  }
+  
+  .contractInfo {
+    font-size: 10px;
+    text-align: right;
+    color: #666;
+    margin-top: 2px;
+  }
+  .weekEndRow {
+    background-color: #f3f2f1;
+  }
