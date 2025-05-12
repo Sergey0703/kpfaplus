@@ -736,75 +736,77 @@ const handleSave = async (): Promise<void> => {
         </div>
       )}
       
-      {/* Отображение информации о количестве измененных строк */}
+      {/* Отображение информации о количестве измененных строк - изменённая часть */}
       {changedRows.size > 0 && (
-        <div className={styles.changesInfoContainer}>
-          <span className={styles.changesInfoText}>
-            {`You have ${changedRows.size} unsaved ${changedRows.size === 1 ? 'change' : 'changes'}. Don't forget to click "Save" to apply them.`}
-          </span>
-        </div>
+        <MessageBar
+          messageBarType={MessageBarType.warning}
+          isMultiline={false}
+          styles={{ root: { marginTop: 10, marginBottom: 10 } }}
+        >
+          {`You have ${changedRows.size} unsaved ${changedRows.size === 1 ? 'change' : 'changes'}. Don't forget to click "Save" to apply them.`}
+        </MessageBar>
       )}
 
-      <div className={styles.tableContainer}>
-        <table className={styles.timeTable}>
-          <thead>
-            <tr>
-              <th className={styles.nameColumn}>Name / Lunch</th>
-              {orderedWeekDays.map(day => (
-                <th key={day.key}>{day.name}</th>
-              ))}
-              <th className={styles.totalColumn}>Contract</th>
-              <th className={styles.actionsColumn}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {timeTableData.map((row, rowIndex) => (
-              <React.Fragment key={row.id}>
-                <tr className={styles.weekRow}>
-                  <td className={styles.nameCell}>
-                    <div className={styles.rowName}>{row.name}</div>
-                    <div className={styles.lunchLabel}>Lunch:</div>
-                  </td>
-                  {orderedWeekDays.map(day => (
-                    <td key={day.key}>
-                      {renderTimeCell(
-                        (row[day.key] as IDayHours)?.hours || '00', 
-                        (row[day.key] as IDayHours)?.minutes || '00', 
-                        rowIndex, 
-                        day.key
-                      )}
-                    </td>
-                  ))}
-                  <td className={styles.totalColumn}>
-                    {renderContractCell(row.total, rowIndex)}
-                  </td>
-                  <td className={styles.actionsColumn}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                      <IconButton
-                        iconProps={{ iconName: 'Delete' }}
-                        title="Delete"
-                        ariaLabel="Delete"
-                        onClick={() => handleDeleteShift(rowIndex)}
-                        styles={{ root: { margin: 0, padding: 0 } }}
-                        disabled={isSaving}
-                      />
-                      <span style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>ID: {row.id}</span>
-                    </div>
-                  </td>
-                </tr>
-                <tr className={styles.lunchRow}>
-                  <td className={styles.lunchCell}>
-                    {renderLunchCell(row.lunch, rowIndex)}
-                  </td>
-                  <td colSpan={9}></td>
-                </tr>
-              </React.Fragment>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+<div className={styles.tableContainer}>
+       <table className={styles.timeTable}>
+         <thead>
+           <tr>
+             <th className={styles.nameColumn}>Name / Lunch</th>
+             {orderedWeekDays.map(day => (
+               <th key={day.key}>{day.name}</th>
+             ))}
+             <th className={styles.totalColumn}>Contract</th>
+             <th className={styles.actionsColumn}></th>
+           </tr>
+         </thead>
+         <tbody>
+           {timeTableData.map((row, rowIndex) => (
+             <React.Fragment key={row.id}>
+               <tr className={styles.weekRow}>
+                 <td className={styles.nameCell}>
+                   <div className={styles.rowName}>{row.name}</div>
+                   <div className={styles.lunchLabel}>Lunch:</div>
+                 </td>
+                 {orderedWeekDays.map(day => (
+                   <td key={day.key}>
+                     {renderTimeCell(
+                       (row[day.key] as IDayHours)?.hours || '00', 
+                       (row[day.key] as IDayHours)?.minutes || '00', 
+                       rowIndex, 
+                       day.key
+                     )}
+                   </td>
+                 ))}
+                 <td className={styles.totalColumn}>
+                   {renderContractCell(row.total, rowIndex)}
+                 </td>
+                 <td className={styles.actionsColumn}>
+                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                     <IconButton
+                       iconProps={{ iconName: 'Delete' }}
+                       title="Delete"
+                       ariaLabel="Delete"
+                       onClick={() => handleDeleteShift(rowIndex)}
+                       styles={{ root: { margin: 0, padding: 0 } }}
+                       disabled={isSaving}
+                     />
+                     <span style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>ID: {row.id}</span>
+                   </div>
+                 </td>
+               </tr>
+               <tr className={styles.lunchRow}>
+                 <td className={styles.lunchCell}>
+                   {renderLunchCell(row.lunch, rowIndex)}
+                 </td>
+                 <td colSpan={9}></td>
+               </tr>
+             </React.Fragment>
+           ))}
+         </tbody>
+       </table>
+     </div>
+   </div>
+ );
 };
 
 export default WeeklyTimeTable;
