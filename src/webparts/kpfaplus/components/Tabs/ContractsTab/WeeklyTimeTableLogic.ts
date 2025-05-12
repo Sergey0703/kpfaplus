@@ -203,7 +203,6 @@ import {
     ];
   };
 
-  // Добавьте в WeeklyTimeTableLogic.ts
 // Определяет, является ли строка последней в своем шаблоне
 export const isLastRowInTemplate = (data: IExtendedWeeklyTimeRow[], rowIndex: number): boolean => {
     if (!data || rowIndex < 0 || rowIndex >= data.length) {
@@ -231,4 +230,39 @@ export const isLastRowInTemplate = (data: IExtendedWeeklyTimeRow[], rowIndex: nu
     
     // Если у следующей строки другой номер недели или нет совпадения, значит текущая строка последняя
     return !nextWeekMatch || nextWeekMatch[1] !== weekNumber;
-  };
+};
+
+// Функция для определения, можно ли удалить строку
+export const canDeleteRow = (data: IExtendedWeeklyTimeRow[], rowIndex: number): boolean => {
+  if (!data || rowIndex < 0 || rowIndex >= data.length) {
+    return false;
+  }
+  
+  const currentRow = data[rowIndex];
+  
+  // Получаем номер недели текущей строки
+  const currentWeekMatch = currentRow.name.match(/Week\s+(\d+)/i);
+  if (!currentWeekMatch) {
+    return false;
+  }
+  
+  const currentWeekNumber = parseInt(currentWeekMatch[1], 10);
+  
+  // Проверяем, есть ли строки с большим номером недели
+  const hasNextWeek = data.some(row => {
+    const weekMatch = row.name.match(/Week\s+(\d+)/i);
+    if (weekMatch) {
+      const weekNumber = parseInt(weekMatch[1], 10);
+      return weekNumber > currentWeekNumber;
+    }
+    return false;
+  });
+  
+  // Если есть следующие недели, то удалять нельзя
+  if (hasNextWeek) {
+    return false;
+  }
+  
+  // Проверяем, является ли строка последней в своей неделе
+  return isLastRowInTemplate(data, rowIndex);
+};

@@ -27,7 +27,8 @@ import {
   getOrderedWeekDays,
   updateDisplayedTotalHours,
   isFirstRowInTemplate,
-  isLastRowInTemplate
+  isLastRowInTemplate,
+  canDeleteRow // Добавить этот импорт
 } from './WeeklyTimeTableLogic';
 
 // Интерфейс пропсов для компонента WeeklyTimeTable
@@ -933,13 +934,13 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
                     </div>
                   </td>
                   <td className={styles.actionsColumn} rowSpan={2}>
-                    {isLastRowInTemplate(timeTableData, rowIndex) && (
-                      <div className={styles.actionsContainer}>
-                        {renderDeleteButton(rowIndex)}
-                        <span style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>ID: {row.id}</span>
-                      </div>
-                    )}
-                  </td>
+  {canDeleteRow(timeTableData, rowIndex) && (
+    <div className={styles.actionsContainer}>
+      {renderDeleteButton(rowIndex)}
+      <span style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>ID: {row.id}</span>
+    </div>
+  )}
+</td>
                 </tr>
                 
                 {/* Вторая строка - конец рабочего дня */}
