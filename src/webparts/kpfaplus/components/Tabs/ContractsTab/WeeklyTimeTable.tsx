@@ -65,13 +65,67 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     message: string;
   } | null>(null);
 
-  // Состояние для общего количества часов по шаблону
-  const [totalTemplateHours, setTotalTemplateHours] = useState<string>('0ч:00м');
-
   // Добавляем отладочный вывод при изменении dayOfStartWeek
   useEffect(() => {
     console.log(`[WeeklyTimeTable] Using DayOfStartWeek = ${dayOfStartWeek}, week starts with: ${getStartDayName(dayOfStartWeek)}`);
   }, [dayOfStartWeek]);
+
+  // Функция для получения множества уникальных шаблонов в данных
+  const getUniqueTemplates = (data: IFormattedWeeklyTimeRow[]): { templateId: string, rows: IFormattedWeeklyTimeRow[] }[] => {
+    if (!data || data.length === 0) {
+      return [];
+    }
+
+    // Группируем строки по шаблону (используем часть имени до "Week")
+    const templateMap = new Map<string, IFormattedWeeklyTimeRow[]>();
+    
+    data.forEach(row => {
+      // Предполагаем, что формат имени включает номер недели (например, "Week 1", "Week 1 Shift 2")
+      const match = row.name.match(/Week\s+(\d+)/i);
+      if (match) {
+        const weekNumber = match[1];
+        // Используем комбинацию числа недели и общего количества недель в шаблоне как ключ
+        const templateKey = `template_${weekNumber}`;
+        
+        if (!templateMap.has(templateKey)) {
+          templateMap.set(templateKey, []);
+        }
+        templateMap.get(templateKey)?.push(row);
+      } else {
+        // Если формат имени не соответствует ожидаемому, используем ID как ключ
+        const templateKey = `template_${row.id}`;
+        templateMap.set(templateKey, [row]);
+      }
+    });
+    
+    // Преобразуем Map в массив объектов для удобства использования
+    const templates: { templateId: string, rows: IFormattedWeeklyTimeRow[] }[] = [];
+    templateMap.forEach((rows, templateId) => {
+      // Сортируем строки в каждом шаблоне по номеру недели и смены
+      rows.sort((a, b) => {
+        // Извлекаем номер недели
+        const weekA = parseInt(a.name.split('Week ')[1]?.split(' ')[0] || '0', 10);
+        const weekB = parseInt(b.name.split('Week ')[1]?.split(' ')[0] || '0', 10);
+        
+        if (weekA !== weekB) {
+          return weekA - weekB;
+        }
+        
+        // Если неделя одинаковая, сортируем по наличию "Shift" и номеру смены
+        const shiftAMatch = a.name.match(/Shift\s+(\d+)/i);
+        const shiftBMatch = b.name.match(/Shift\s+(\d+)/i);
+        
+        const shiftA = shiftAMatch ? parseInt(shiftAMatch[1], 10) : 0;
+        const shiftB = shiftBMatch ? parseInt(shiftBMatch[1], 10) : 0;
+        
+        return shiftA - shiftB;
+      });
+      
+      templates.push({ templateId, rows });
+    });
+    
+    return templates;
+  };
 
   // Функция для расчета общего количества часов для шаблона
   const calculateTotalHoursForTemplate = (rows: IFormattedWeeklyTimeRow[]): string => {
@@ -101,17 +155,45 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     return `${totalHours}ч:${remainingMinutes.toString().padStart(2, '0')}м`;
   };
 
-  // Обновляем общее время для всего шаблона
-  const updateTotalHoursForAll = (): void => {
-    const currentData = [...timeTableData];
-    if (currentData.length === 0) {
-      setTotalTemplateHours('0ч:00м');
-      return;
+  // Обновляем отображение общего времени в первой строке каждого шаблона
+  const updateDisplayedTotalHours = (data: IFormattedWeeklyTimeRow[]): IFormattedWeeklyTimeRow[] => {
+    if (!data || data.length === 0) {
+      return data;
     }
     
-    const totalHours = calculateTotalHoursForTemplate(currentData);
-    setTotalTemplateHours(totalHours);
-    console.log(`Updated total hours for template: ${totalHours}`);
+    // Получаем шаблоны
+    const templates = getUniqueTemplates(data);
+    
+    // Создаем новый массив с обновленными данными
+    const updatedData = [...data];
+    
+    // Для каждого шаблона обновляем первую строку
+    templates.forEach(template => {
+      if (template.rows.length > 0) {
+        // Вычисляем общее время для этого шаблона
+        const totalHoursForTemplate = calculateTotalHoursForTemplate(template.rows);
+        
+        // Находим индекс первой строки этого шаблона в общем массиве
+        const firstRowIndex = updatedData.findIndex(row => row.id === template.rows[0].id);
+        
+        if (firstRowIndex !== -1) {
+          // Обновляем отображаемое время в первой строке шаблона
+          updatedData[firstRowIndex] = {
+            ...updatedData[firstRowIndex],
+            displayedTotalHours: totalHoursForTemplate
+          };
+        }
+      }
+    });
+    
+    return updatedData;
+  };
+
+  // Обновляем общее время для всех шаблонов
+  const updateTotalHoursForAllTemplates = (): void => {
+    const updatedData = updateDisplayedTotalHours(timeTableData);
+    setTimeTableData(updatedData);
+    console.log('Updated displayed total hours for all templates');
   };
 
   // Вспомогательная функция для получения названия дня недели
@@ -159,11 +241,10 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
       const formattedData = getFormattedData();
       console.log(`Formatted ${formattedData.length} rows for display`);
       console.log("Sample formatted row:", formattedData.length > 0 ? formattedData[0] : "No data");
-      setTimeTableData(formattedData);
       
-      // Рассчитываем общее количество часов для шаблона
-      const totalHours = calculateTotalHoursForTemplate(formattedData);
-      setTotalTemplateHours(totalHours);
+      // Обновляем отображаемое общее время в первой строке каждого шаблона
+      const dataWithTotalHours = updateDisplayedTotalHours(formattedData);
+      setTimeTableData(dataWithTotalHours);
       
       // Сбрасываем список измененных строк при получении новых данных
       setChangedRows(new Set());
@@ -171,11 +252,9 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
       console.log(`No weekly time data provided for contract ${contractId}`);
       // Устанавливаем пустой массив, если нет данных
       setTimeTableData([]);
-      setTotalTemplateHours('0ч:00м');
     } else {
       console.log("No contract ID or data, showing empty table");
       setTimeTableData([]);
-      setTotalTemplateHours('0ч:00м');
     }
     
     // Сбрасываем статусное сообщение при изменении данных
@@ -261,8 +340,8 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     
     setTimeTableData(newData);
     
-    // Пересчитываем общее время для шаблона после изменения
-    updateTotalHoursForAll();
+    // Обновляем отображаемое общее время в первой строке каждого шаблона
+    updateTotalHoursForAllTemplates();
   };
 
   // Обработчик изменения времени обеда
@@ -304,8 +383,8 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     // Сбрасываем статусное сообщение при внесении изменений
     setStatusMessage(null);
     
-    // Пересчитываем общее время для шаблона после изменения
-    updateTotalHoursForAll();
+    // Обновляем отображаемое общее время в первой строке каждого шаблона
+    updateTotalHoursForAllTemplates();
   };
   
   // Обработчик изменения контракта
@@ -750,6 +829,12 @@ const handleSave = async (): Promise<void> => {
     
     // Сбрасываем статусное сообщение при добавлении новой строки
     setStatusMessage(null);
+    
+    // Обновляем отображаемое общее время в первой строке каждого шаблона
+    // Запускаем обновление с небольшой задержкой, чтобы дать время на обновление состояния
+    setTimeout(() => {
+      updateTotalHoursForAllTemplates();
+    }, 0);
   };
 
   // Удаляем смену (строку в таблице)
@@ -771,8 +856,39 @@ const handleSave = async (): Promise<void> => {
     // Сбрасываем статусное сообщение при удалении строки
     setStatusMessage(null);
     
-    // Пересчитываем общее время для шаблона после удаления
-    updateTotalHoursForAll();
+    // Обновляем отображаемое общее время в первой строке каждого шаблона
+    // Запускаем обновление с небольшой задержкой, чтобы дать время на обновление состояния
+    setTimeout(() => {
+      updateTotalHoursForAllTemplates();
+    }, 0);
+  };
+
+  // Определяет, является ли строка первой в своем шаблоне
+  const isFirstRowInTemplate = (rowIndex: number): boolean => {
+    if (!timeTableData || rowIndex < 0 || rowIndex >= timeTableData.length) {
+      return false;
+    }
+    
+    const currentRow = timeTableData[rowIndex];
+    
+    // Извлекаем номер недели из имени текущей строки
+    const weekMatch = currentRow.name.match(/Week\s+(\d+)/i);
+    if (!weekMatch) {
+      return true; // Если формат имени не соответствует, предполагаем что это первая строка шаблона
+    }
+    
+    const weekNumber = weekMatch[1];
+    
+    // Проверяем, есть ли строки с таким же номером недели до текущей строки
+    for (let i = 0; i < rowIndex; i++) {
+      const prevRow = timeTableData[i];
+      const prevWeekMatch = prevRow.name.match(/Week\s+(\d+)/i);
+      if (prevWeekMatch && prevWeekMatch[1] === weekNumber) {
+        return false; // Нашли строку с таким же номером недели выше, значит текущая строка не первая в шаблоне
+      }
+    }
+    
+    return true; // Не найдена строка с таким же номером недели выше, значит это первая строка в шаблоне
   };
 
   // Если загружаются данные, показываем спиннер
@@ -896,10 +1012,8 @@ const handleSave = async (): Promise<void> => {
   <table className={styles.timeTable}>
     <thead>
       <tr>
-        {/* Столбец для рабочих часов - обновленный с общим количеством часов */}
-        <th className={styles.hoursColumn}>
-          Total Hours: {totalTemplateHours}
-        </th>
+        {/* Столбец для рабочих часов */}
+        <th className={styles.hoursColumn}>Hours</th>
         <th className={styles.nameColumn}>Name / Lunch</th>
         {orderedWeekDays.map(day => (
           <th key={day.key}>{day.name}</th>
@@ -913,9 +1027,11 @@ const handleSave = async (): Promise<void> => {
         <React.Fragment key={row.id}>
           {/* Первая строка - начало рабочего дня */}
           <tr className={styles.weekRow}>
-            {/* Ячейка для рабочих часов */}
+            {/* Ячейка для рабочих часов - отображаем общее время для первой строки шаблона */}
             <td className={styles.hoursCell} rowSpan={2}>
-              {row.totalHours || '0ч:00м'}
+              {isFirstRowInTemplate(rowIndex) && row.displayedTotalHours ? 
+                row.displayedTotalHours : 
+                row.totalHours || '0ч:00м'}
             </td>
             <td className={styles.nameCell} rowSpan={2}>
               <div className={styles.rowName}>{row.name}</div>
