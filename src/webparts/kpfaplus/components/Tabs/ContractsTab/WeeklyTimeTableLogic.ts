@@ -233,36 +233,56 @@ export const isLastRowInTemplate = (data: IExtendedWeeklyTimeRow[], rowIndex: nu
 };
 
 // Функция для определения, можно ли удалить строку
+/**
+ * Определяет, можно ли удалить строку таблицы недельного расписания
+ * @param data Массив данных недельного расписания
+ * @param rowIndex Индекс проверяемой строки
+ * @returns true, если строку можно удалить, иначе false
+ */
 export const canDeleteRow = (data: IExtendedWeeklyTimeRow[], rowIndex: number): boolean => {
-  if (!data || rowIndex < 0 || rowIndex >= data.length) {
-    return false;
-  }
-  
-  const currentRow = data[rowIndex];
-  
-  // Получаем номер недели текущей строки
-  const currentWeekMatch = currentRow.name.match(/Week\s+(\d+)/i);
-  if (!currentWeekMatch) {
-    return false;
-  }
-  
-  const currentWeekNumber = parseInt(currentWeekMatch[1], 10);
-  
-  // Проверяем, есть ли строки с большим номером недели
-  const hasNextWeek = data.some(row => {
-    const weekMatch = row.name.match(/Week\s+(\d+)/i);
-    if (weekMatch) {
-      const weekNumber = parseInt(weekMatch[1], 10);
-      return weekNumber > currentWeekNumber;
+    if (!data || rowIndex < 0 || rowIndex >= data.length) {
+      return false;
     }
-    return false;
-  });
-  
-  // Если есть следующие недели, то удалять нельзя
-  if (hasNextWeek) {
-    return false;
-  }
-  
-  // Проверяем, является ли строка последней в своей неделе
-  return isLastRowInTemplate(data, rowIndex);
-};
+    
+    const currentRow = data[rowIndex];
+    
+    // Получаем номер недели текущей строки
+    const currentWeekMatch = currentRow.name.match(/Week\s+(\d+)/i);
+    if (!currentWeekMatch) {
+      return false;
+    }
+    
+    const currentWeekNumber = parseInt(currentWeekMatch[1], 10);
+    
+    // Проверяем, есть ли строки с большим номером недели
+    const hasNextWeek = data.some(row => {
+      const weekMatch = row.name.match(/Week\s+(\d+)/i);
+      if (weekMatch) {
+        const weekNumber = parseInt(weekMatch[1], 10);
+        return weekNumber > currentWeekNumber;
+      }
+      return false;
+    });
+    
+    // Проверяем, является ли строка последней в своей неделе
+    const isLastInWeek = isLastRowInTemplate(data, rowIndex);
+    
+    // Если строка не последняя в своей неделе, удалять нельзя
+    if (!isLastInWeek) {
+      return false;
+    }
+    
+    // Если это последняя неделя, то всегда можно удалить последнюю строку недели
+    if (!hasNextWeek) {
+      return true;
+    }
+    
+    // Для не последних недель считаем количество смен в текущей неделе
+    const shiftsInWeek = data.filter(row => {
+      const weekMatch = row.name.match(/Week\s+(\d+)/i);
+      return weekMatch && parseInt(weekMatch[1], 10) === currentWeekNumber;
+    }).length;
+    
+    // Если в неделе больше одной смены, можно удалить последнюю смену
+    return shiftsInWeek > 1;
+  };
