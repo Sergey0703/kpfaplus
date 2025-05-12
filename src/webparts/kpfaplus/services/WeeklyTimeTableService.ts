@@ -47,22 +47,56 @@ export class WeeklyTimeTableService {
     }
   }
 
-  /**
-   * Получение данных недельного расписания для контракта
-   * @param contractId ID контракта
-   * @returns Массив данных недельного расписания
-   */
-  public async getWeeklyTimeTableByContractId(contractId: string): Promise<any[]> {
+ /**
+ * Получение данных недельного расписания для контракта
+ * @param contractId ID контракта
+ * @returns Массив данных недельного расписания
+ */
+public async getWeeklyTimeTableByContractId(contractId: string): Promise<any[]> {
     try {
       // Используем RemoteSiteService вместо прямого вызова PnP JS
       const filter = `fields/IdOfTemplateLookupId eq ${contractId} and fields/Deleted eq 0`;
+      
+      // Поскольку метод поддерживает только одно поле сортировки,
+      // используем NumberOfWeek как основное поле сортировки
+      const orderBy = { field: "fields/NumberOfWeek", ascending: true };
+      
+      console.log(`Getting weekly time table for contract ID: ${contractId} with ordering by ${orderBy.field}`);
       
       const items = await this.remoteSiteService.getListItems(
         this.listName,
         true, // expandFields
         filter,
-        { field: "Title", ascending: true } // сортировка
+        orderBy // одно поле сортировки
       );
+      
+      console.log(`Retrieved ${items.length} weekly time table items`);
+      
+      // Поскольку на сервере мы можем отсортировать только по одному полю,
+      // дополнительную сортировку делаем на клиенте
+      items.sort((a, b) => {
+        // Сначала по IdOfTemplateLookupId
+        const templateA = Number(a.fields?.IdOfTemplateLookupId || 0);
+        const templateB = Number(b.fields?.IdOfTemplateLookupId || 0);
+        
+        if (templateA !== templateB) {
+          return templateA - templateB;
+        }
+        
+        // Затем по NumberOfWeek
+        const weekA = Number(a.fields?.NumberOfWeek || 0);
+        const weekB = Number(b.fields?.NumberOfWeek || 0);
+        
+        if (weekA !== weekB) {
+          return weekA - weekB;
+        }
+        
+        // И наконец по NumberOfShift
+        const shiftA = Number(a.fields?.NumberOfShift || 0);
+        const shiftB = Number(b.fields?.NumberOfShift || 0);
+        
+        return shiftA - shiftB;
+      });
       
       return items;
     } catch (err) {
@@ -71,11 +105,6 @@ export class WeeklyTimeTableService {
     }
   }
 
-  /**
-   * Обновление элемента недельного расписания
-   * @param item Данные для обновления
-   * @returns Результат операции обновления
-   */
   public async updateWeeklyTimeTableItem(item: IWeeklyTimeTableUpdateItem): Promise<any> {
     try {
       // Формируем объект с полями для обновления - напрямую, без вложенного объекта fields
@@ -129,7 +158,8 @@ export class WeeklyTimeTableService {
       }
       
       // Обновляем время обеда
-      if (item.lunchMinutes) {
+      if (item.lunchMinutes !== undefined && item.lunchMinutes !== null) {
+        // Убедимся, что значение всегда передается как число
         updateData.TimeForLunch = parseInt(item.lunchMinutes);
       }
       

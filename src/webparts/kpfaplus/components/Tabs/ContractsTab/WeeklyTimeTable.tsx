@@ -218,7 +218,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     const rowId = newData[rowIndex].id;
     
     newData[rowIndex].lunch = value;
-    
+    console.log(`Changing lunch time for row ${rowIndex} to ${value}`);
     // Пересчитываем общее время работы после изменения времени обеда
     const row = newData[rowIndex];
     const totalHours = WeeklyTimeTableUtils.calculateTotalWorkHours(

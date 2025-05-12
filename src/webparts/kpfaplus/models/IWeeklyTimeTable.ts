@@ -115,12 +115,7 @@ export class WeeklyTimeTableUtils {
     return ['saturday', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
   }
   
-  /**
-   * Преобразует данные из списка WeeklyTimeTables в формат для отображения в таблице
-   * @param items Данные из списка WeeklyTimeTables
-   * @param dayOfStartWeek День начала недели (1 = Воскресенье, 2 = Понедельник, ..., 7 = Суббота)
-   * @returns Форматированные данные для таблицы
-   */
+  
   public static formatWeeklyTimeTableData(
     items: any[],
     dayOfStartWeek: number = 7
@@ -129,10 +124,10 @@ export class WeeklyTimeTableUtils {
     if (!items || items.length === 0) {
       return [];
     }
-
+  
     console.log("Sample WeeklyTimeTable item structure:", JSON.stringify(items[0] || {}, null, 2));
     console.log(`Using DayOfStartWeek = ${dayOfStartWeek}, week starts with: ${this.getDayOrder(dayOfStartWeek)[0]}`);
-
+  
     // Создаем массив для результатов
     const formattedRows: IFormattedWeeklyTimeRow[] = [];
     
@@ -144,7 +139,9 @@ export class WeeklyTimeTableUtils {
       const weekNumber = fields.NumberOfWeek || 1;
       const shiftNumber = fields.NumberOfShift || 1;
       const contract = fields.Contract || 1;
-      const timeForLunch = fields.TimeForLunch || 30;
+      
+      // Получаем время обеда из поля TimeForLunch, используем фактическое значение вместо значения по умолчанию
+      const timeForLunch = fields.TimeForLunch !== undefined ? fields.TimeForLunch : 30;
       
       // Формируем имя строки
       let rowName = fields.Title || `Week ${weekNumber}`;
@@ -174,7 +171,7 @@ export class WeeklyTimeTableUtils {
       const row: IFormattedWeeklyTimeRow = {
         id: item.id,
         name: rowName,
-        lunch: timeForLunch.toString(),
+        lunch: timeForLunch.toString(), // Используем точное значение из поля TimeForLunch
         totalHours: '', // Временно устанавливаем пустую строку, заполним после создания всей структуры
         
         // Структура с временем начала и окончания для каждого дня
@@ -209,6 +206,9 @@ export class WeeklyTimeTableUtils {
         
         total: contract.toString()
       };
+      
+      // Выводим для отладки значение timeForLunch
+      console.log(`Row ${item.id} - TimeForLunch from server: ${fields.TimeForLunch}, using value: ${timeForLunch}`);
       
       // Рассчитываем общее время работы
       row.totalHours = this.calculateTotalWorkHours(
@@ -254,8 +254,16 @@ export class WeeklyTimeTableUtils {
       return shiftA - shiftB;
     });
     
+    // Добавим дополнительные логи для проверки преобразованных данных
+    if (formattedRows.length > 0) {
+      console.log(`Example of first formatted row (id=${formattedRows[0].id}):`);
+      console.log(`- lunch: ${formattedRows[0].lunch}`);
+      console.log(`- totalHours: ${formattedRows[0].totalHours}`);
+    }
+    
     return formattedRows;
   }
+
 
   /**
    * Вычисляет общее время работы для данных
