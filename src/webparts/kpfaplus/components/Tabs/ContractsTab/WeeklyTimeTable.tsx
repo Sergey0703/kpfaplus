@@ -178,6 +178,27 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
           }
         };
         
+        // Пересчитываем общее время работы после изменения
+        const row = newData[rowIndex];
+        const totalHours = WeeklyTimeTableUtils.calculateTotalWorkHours(
+          {
+            monday: row.monday as IDayHoursComplete,
+            tuesday: row.tuesday as IDayHoursComplete,
+            wednesday: row.wednesday as IDayHoursComplete,
+            thursday: row.thursday as IDayHoursComplete,
+            friday: row.friday as IDayHoursComplete,
+            saturday: row.saturday as IDayHoursComplete,
+            sunday: row.sunday as IDayHoursComplete
+          },
+          row.lunch
+        );
+        
+        // Обновляем общее время работы в строке
+        newData[rowIndex] = {
+          ...newData[rowIndex],
+          totalHours
+        };
+        
         // Отмечаем строку как измененную
         const newChangedRows = new Set(changedRows);
         newChangedRows.add(rowId);
@@ -197,6 +218,29 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     const rowId = newData[rowIndex].id;
     
     newData[rowIndex].lunch = value;
+    
+    // Пересчитываем общее время работы после изменения времени обеда
+    const row = newData[rowIndex];
+    const totalHours = WeeklyTimeTableUtils.calculateTotalWorkHours(
+      {
+        monday: row.monday as IDayHoursComplete,
+        tuesday: row.tuesday as IDayHoursComplete,
+        wednesday: row.wednesday as IDayHoursComplete,
+        thursday: row.thursday as IDayHoursComplete,
+        friday: row.friday as IDayHoursComplete,
+        saturday: row.saturday as IDayHoursComplete,
+        sunday: row.sunday as IDayHoursComplete
+      },
+      value
+    );
+    
+    // Обновляем общее время работы в строке
+    newData[rowIndex] = {
+      ...newData[rowIndex],
+      totalHours,
+      lunch: value
+    };
+    
     setTimeTableData(newData);
     
     // Отмечаем строку как измененную
@@ -276,8 +320,7 @@ const handleSave = async (): Promise<void> => {
             sundayEnd: row.sunday?.end,
             
             lunchMinutes: row.lunch,
-            contractNumber: row.total,
-          //  totalHours: row.totalHours
+            contractNumber: row.total
           };
           
           // Вызываем метод создания и получаем реальный ID
@@ -332,8 +375,7 @@ const handleSave = async (): Promise<void> => {
           sundayEnd: row.sunday?.end,
           
           lunchMinutes: row.lunch,
-          contractNumber: row.total,
-         // totalHours: row.totalHours
+          contractNumber: row.total
         });
       }
     }
@@ -629,7 +671,7 @@ const handleSave = async (): Promise<void> => {
       id: newId,
       name: `Week ${weekNumber}${isSecondShift ? ' Shift 2' : ''}`,
       lunch: '30',
-      totalHours: '00h:00m',
+      totalHours: '0ч:00м', // Изначально 0 часов 0 минут
       
       // Обновляем структуру с учетом нового формата
       saturday: { start: emptyTime, end: emptyTime },
@@ -683,7 +725,6 @@ const handleSave = async (): Promise<void> => {
     );
   }
 
-  // Если нет данных, показываем кнопку для добавления новой смены
   // Если нет данных, показываем кнопку для добавления новой смены
   if (timeTableData.length === 0 && !isTableLoading) {
     return (
@@ -813,7 +854,7 @@ const handleSave = async (): Promise<void> => {
           <tr className={styles.weekRow}>
             {/* Ячейка для рабочих часов */}
             <td className={styles.hoursCell} rowSpan={2}>
-              {row.totalHours || '00h:00m'}
+              {row.totalHours || '0ч:00м'}
             </td>
             <td className={styles.nameCell} rowSpan={2}>
               <div className={styles.rowName}>{row.name}</div>
@@ -836,7 +877,7 @@ const handleSave = async (): Promise<void> => {
             <td className={styles.totalColumn} rowSpan={2}>
               {renderContractCell(row.total, rowIndex)}
               <div className={styles.contractInfo}>
-                {row.totalHours || '00h:00m'}
+                {row.totalHours || '0ч:00м'}
               </div>
             </td>
             <td className={styles.actionsColumn} rowSpan={2}>

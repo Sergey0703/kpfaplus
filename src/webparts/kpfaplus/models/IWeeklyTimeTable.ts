@@ -55,7 +55,7 @@ export interface IFormattedWeeklyTimeRow {
   id: string;
   name: string; // "Week 1", "Week 1 Shift 2", и т.д.
   lunch: string;
-  //totalHours: string; // Общее время работы в формате "00h:00m"
+  totalHours: string; // Общее время работы в формате "XXч:XXм"
   
   // Обновленные поля для дней недели с полным временем (начало и конец)
   saturday: IDayHoursComplete;
@@ -130,7 +130,7 @@ export class WeeklyTimeTableUtils {
       return [];
     }
 
-    console.log("Sample WeeklyTimeTable item structure:", JSON.stringify(items[0].fields || {}, null, 2));
+    console.log("Sample WeeklyTimeTable item structure:", JSON.stringify(items[0] || {}, null, 2));
     console.log(`Using DayOfStartWeek = ${dayOfStartWeek}, week starts with: ${this.getDayOrder(dayOfStartWeek)[0]}`);
 
     // Создаем массив для результатов
@@ -138,7 +138,7 @@ export class WeeklyTimeTableUtils {
     
     // Обрабатываем каждый элемент из списка WeeklyTimeTables
     items.forEach(item => {
-      const fields = item.fields || {};
+      const fields = item.fields || item; // Поддержка как старого формата с fields, так и нового прямого формата
       
       // Получаем номер недели и смены
       const weekNumber = fields.NumberOfWeek || 1;
@@ -162,7 +162,7 @@ export class WeeklyTimeTableUtils {
       const sundayStart = this.extractTimeFromDate(fields.SundayStartWork);
       
       // Извлекаем часы и минуты для окончания работы каждого дня
-      const mondayEnd = this.extractTimeFromDate(fields.MondeyEndWork);
+      const mondayEnd = this.extractTimeFromDate(fields.MondayEndWork);
       const tuesdayEnd = this.extractTimeFromDate(fields.TuesdayEndWork);
       const wednesdayEnd = this.extractTimeFromDate(fields.WednesdayEndWork);
       const thursdayEnd = this.extractTimeFromDate(fields.ThursdayEndWork);
@@ -170,15 +170,12 @@ export class WeeklyTimeTableUtils {
       const saturdayEnd = this.extractTimeFromDate(fields.SaturdayEndWork);
       const sundayEnd = this.extractTimeFromDate(fields.SundayEndWork);
       
-      // Получаем общее время работы из полей или используем заглушку
-      //const totalWorkHours = fields.TotalWorkHours || (rowName.includes('Shift') ? '00h:00m' : '86h:10m');
-      
       // Создаем объект строки с извлеченными значениями для всех дней
       const row: IFormattedWeeklyTimeRow = {
         id: item.id,
         name: rowName,
         lunch: timeForLunch.toString(),
-        //totalHours: totalWorkHours,
+        totalHours: '', // Временно устанавливаем пустую строку, заполним после создания всей структуры
         
         // Структура с временем начала и окончания для каждого дня
         saturday: { 
@@ -212,6 +209,20 @@ export class WeeklyTimeTableUtils {
         
         total: contract.toString()
       };
+      
+      // Рассчитываем общее время работы
+      row.totalHours = this.calculateTotalWorkHours(
+        {
+          monday: row.monday as IDayHoursComplete,
+          tuesday: row.tuesday as IDayHoursComplete,
+          wednesday: row.wednesday as IDayHoursComplete,
+          thursday: row.thursday as IDayHoursComplete,
+          friday: row.friday as IDayHoursComplete,
+          saturday: row.saturday as IDayHoursComplete,
+          sunday: row.sunday as IDayHoursComplete
+        },
+        row.lunch
+      );
       
       // Добавляем строку в результаты
       formattedRows.push(row);
@@ -249,20 +260,24 @@ export class WeeklyTimeTableUtils {
   /**
    * Вычисляет общее время работы для данных
    * @param dayData Объект с данными времени начала и окончания для всех дней
-   * @returns Строка в формате "XXh:XXm" с общим временем работы
+   * @param lunchMinutes Время обеда в минутах
+   * @returns Строка в формате "XXч:XXм" с общим временем работы
    */
-  public static calculateTotalWorkHours(dayData: {
-    monday: IDayHoursComplete;
-    tuesday: IDayHoursComplete;
-    wednesday: IDayHoursComplete;
-    thursday: IDayHoursComplete;
-    friday: IDayHoursComplete;
-    saturday: IDayHoursComplete;
-    sunday: IDayHoursComplete;
-  }, lunchMinutes: string): string {
+  public static calculateTotalWorkHours(
+    dayData: {
+      monday: IDayHoursComplete;
+      tuesday: IDayHoursComplete;
+      wednesday: IDayHoursComplete;
+      thursday: IDayHoursComplete;
+      friday: IDayHoursComplete;
+      saturday: IDayHoursComplete;
+      sunday: IDayHoursComplete;
+    }, 
+    lunchMinutes: string
+  ): string {
     // Функция для расчета минут между началом и концом дня
     const calculateDayMinutes = (day: IDayHoursComplete): number => {
-      // Если время не задано, считаем что работы не было
+      // Если время не задано или равны друг другу, считаем что работы не было
       if (!day.start.hours || !day.end.hours) return 0;
       
       const startHours = parseInt(day.start.hours);
@@ -270,40 +285,59 @@ export class WeeklyTimeTableUtils {
       const endHours = parseInt(day.end.hours);
       const endMinutes = parseInt(day.end.minutes);
       
+      // Если начало и конец одинаковые, считаем что работы не было
+      if (startHours === endHours && startMinutes === endMinutes) return 0;
+      
       // Общее время в минутах
       let totalMinutes = (endHours * 60 + endMinutes) - (startHours * 60 + startMinutes);
       
-      // Если конец меньше начала, считаем что смена перешла на следующий день
-      if (totalMinutes < 0) {
-        totalMinutes += 24 * 60;
+      // Если конец меньше или равен началу, считаем что смена перешла на следующий день
+      if (totalMinutes <= 0) {
+        // Особый случай для 00:00 - считаем как конец текущего дня, а не начало следующего
+        if (endHours === 0 && endMinutes === 0) {
+          totalMinutes = (24 * 60) - (startHours * 60 + startMinutes);
+        } else {
+          totalMinutes += 24 * 60;
+        }
       }
       
       return totalMinutes;
     };
     
-    // Считаем общее время по всем дням
-    const days = [
-      dayData.monday,
-      dayData.tuesday,
-      dayData.wednesday,
-      dayData.thursday,
-      dayData.friday,
-      dayData.saturday,
-      dayData.sunday
-    ];
+    // Считаем общее время по всем дням в объекте
+    const days = {
+      monday: dayData.monday,
+      tuesday: dayData.tuesday,
+      wednesday: dayData.wednesday,
+      thursday: dayData.thursday,
+      friday: dayData.friday,
+      saturday: dayData.saturday,
+      sunday: dayData.sunday
+    };
     
-    // Считаем сумму минут за все дни
-    let totalMinutes = days.reduce((sum, day) => sum + calculateDayMinutes(day), 0);
+    // Считаем минуты за каждый день и общую сумму
+    let totalMinutes = 0;
+    let workingDaysCount = 0;
     
-    // Вычитаем время обеда (лучше умножить на количество дней, когда была работа)
-    const workingDays = days.filter(day => calculateDayMinutes(day) > 0).length;
-    const lunchMinutesTotal = parseInt(lunchMinutes) * workingDays;
-    totalMinutes -= lunchMinutesTotal;
+    Object.entries(days).forEach(([_, day]) => {
+      const dayMinutes = calculateDayMinutes(day);
+      if (dayMinutes > 0) {
+        totalMinutes += dayMinutes;
+        workingDaysCount++;
+      }
+    });
     
-    // Преобразуем в формат "XXh:XXm"
+    // Вычитаем время обеда для каждого рабочего дня
+    const lunchMinutesPerDay = parseInt(lunchMinutes) || 0;
+    totalMinutes -= lunchMinutesPerDay * workingDaysCount;
+    
+    // Убедимся, что общее время не отрицательное
+    totalMinutes = Math.max(0, totalMinutes);
+    
+    // Преобразуем в формат "XXч:XXм"
     const hours = Math.floor(totalMinutes / 60);
     const minutes = totalMinutes % 60;
     
-    return `${hours}h:${minutes}m`;
+    return `${hours}ч:${minutes.toString().padStart(2, '0')}м`;
   }
 }

@@ -25,7 +25,6 @@ export interface IWeeklyTimeTableUpdateItem {
   
   lunchMinutes?: string;
   contractNumber?: string;
-  //totalHours?: string;
 }
 
 /**
@@ -72,6 +71,11 @@ export class WeeklyTimeTableService {
     }
   }
 
+  /**
+   * Обновление элемента недельного расписания
+   * @param item Данные для обновления
+   * @returns Результат операции обновления
+   */
   public async updateWeeklyTimeTableItem(item: IWeeklyTimeTableUpdateItem): Promise<any> {
     try {
       // Формируем объект с полями для обновления - напрямую, без вложенного объекта fields
@@ -134,11 +138,6 @@ export class WeeklyTimeTableService {
         updateData.Contract = parseInt(item.contractNumber);
       }
       
-      // Обновляем общее время работы
-     // if (item.totalHours) {
-     //   updateData.TotalWorkHours = item.totalHours;
-     // }
-      
       console.log('Updating item with data:', updateData);
       
       // Используем updateListItem из RemoteSiteService
@@ -186,7 +185,7 @@ export class WeeklyTimeTableService {
             success: true,
             result
           });
-        } catch (itemErr) {
+        } catch (itemErr: any) {
           console.error(`Error updating item ${item.id}:`, itemErr);
           results.push({
             id: item.id,
@@ -206,14 +205,22 @@ export class WeeklyTimeTableService {
   /**
    * Создание нового элемента недельного расписания
    * @param item Данные для создания
+   * @param contractId ID контракта
+   * @param creatorId ID создателя
    * @returns ID созданного элемента
    */
   public async createWeeklyTimeTableItem(item: IWeeklyTimeTableUpdateItem, contractId: string, creatorId: string): Promise<string> {
     try {
+      // Определяем номер недели на основе текущей даты
+      const currentDate = new Date();
+      const weekNumber = Math.floor(currentDate.getDate() / 7) + 1;
+      
       // Формируем объект с полями для создания
       const createData: any = {
         fields: {
-          Title: `Week ${new Date().toISOString()}`,
+          Title: `Week ${weekNumber}`,
+          NumberOfWeek: weekNumber,
+          NumberOfShift: 1
         }
       };
       
@@ -263,6 +270,35 @@ export class WeeklyTimeTableService {
       
       if (item.sundayStart) {
         createData.fields.SundayStartWork = this.formatTimeForSharePoint(item.sundayStart);
+      }
+      
+      // Добавляем поля времени окончания работы для каждого дня
+      if (item.mondayEnd) {
+        createData.fields.MondayEndWork = this.formatTimeForSharePoint(item.mondayEnd);
+      }
+      
+      if (item.tuesdayEnd) {
+        createData.fields.TuesdayEndWork = this.formatTimeForSharePoint(item.tuesdayEnd);
+      }
+      
+      if (item.wednesdayEnd) {
+        createData.fields.WednesdayEndWork = this.formatTimeForSharePoint(item.wednesdayEnd);
+      }
+      
+      if (item.thursdayEnd) {
+        createData.fields.ThursdayEndWork = this.formatTimeForSharePoint(item.thursdayEnd);
+      }
+      
+      if (item.fridayEnd) {
+        createData.fields.FridayEndWork = this.formatTimeForSharePoint(item.fridayEnd);
+      }
+      
+      if (item.saturdayEnd) {
+        createData.fields.SaturdayEndWork = this.formatTimeForSharePoint(item.saturdayEnd);
+      }
+      
+      if (item.sundayEnd) {
+        createData.fields.SundayEndWork = this.formatTimeForSharePoint(item.sundayEnd);
       }
       
       // Добавляем время обеда
