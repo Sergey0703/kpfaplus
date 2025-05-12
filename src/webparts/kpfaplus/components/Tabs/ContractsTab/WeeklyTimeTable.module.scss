@@ -202,3 +202,12 @@
     height: 100%;
     padding-bottom: 5px;
   }
+
+  .actionsContainer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end; /* Выравниваем по нижнему краю как и кнопку + Shift */
+    height: 100%;
+    padding-bottom: 5px;
+  }

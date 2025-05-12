@@ -654,6 +654,35 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     );
   };
 
+  // Функция для отображения кнопки удаления
+  const renderDeleteButton = (rowIndex: number): JSX.Element => {
+    return (
+      <IconButton
+        iconProps={{ iconName: 'Delete' }}
+        title="Delete"
+        ariaLabel="Delete"
+        onClick={() => handleDeleteShift(rowIndex)}
+        styles={{ 
+          root: { 
+            margin: 0, 
+            padding: 0,
+            color: '#e81123', // Красный цвет для иконки
+            selectors: {
+              '&:hover': {
+                color: '#f1707b' // Светло-красный при наведении
+              }
+            }
+          },
+          icon: {
+            fontSize: '16px', // Размер иконки
+            fontWeight: 600 // Делаем иконку немного жирнее для лучшей видимости
+          }
+        }}
+        disabled={isSaving}
+      />
+    );
+  };
+
   const handleAddShift = (): void => {
     const newId = `new_${Date.now()}`; // Временный ID для новой строки
     const weekNumber = Math.ceil((timeTableData.length + 1) / 2);
@@ -732,6 +761,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     );
   }
 
+  // Если нет данных, показываем кнопку для добавления новой смены
   // Если нет данных, показываем кнопку для добавления новой смены
   if (timeTableData.length === 0 && !isTableLoading) {
     return (
@@ -903,17 +933,12 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
                     </div>
                   </td>
                   <td className={styles.actionsColumn} rowSpan={2}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                      <IconButton
-                        iconProps={{ iconName: 'Delete' }}
-                        title="Delete"
-                        ariaLabel="Delete"
-                        onClick={() => handleDeleteShift(rowIndex)}
-                        styles={{ root: { margin: 0, padding: 0 } }}
-                        disabled={isSaving}
-                      />
-                      <span style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>ID: {row.id}</span>
-                    </div>
+                    {isLastRowInTemplate(timeTableData, rowIndex) && (
+                      <div className={styles.actionsContainer}>
+                        {renderDeleteButton(rowIndex)}
+                        <span style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>ID: {row.id}</span>
+                      </div>
+                    )}
                   </td>
                 </tr>
                 
