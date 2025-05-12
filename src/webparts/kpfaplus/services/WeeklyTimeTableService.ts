@@ -356,4 +356,35 @@ public async getWeeklyTimeTableByContractId(contractId: string): Promise<any[]> 
       throw err;
     }
   }
+
+  /**
+   * Удаляет элемент недельного расписания
+   * @param itemId ID элемента для удаления
+   * @returns Promise с результатом операции
+   */
+  public async deleteWeeklyTimeTableItem(itemId: string): Promise<boolean> {
+    try {
+      console.log(`Deleting weekly time table item ID: ${itemId}`);
+      
+      // Преобразуем строковый ID в число
+      const itemIdNum = parseInt(itemId, 10);
+      if (isNaN(itemIdNum)) {
+        throw new Error(`Invalid item ID: ${itemId}`);
+      }
+      
+      // Используем метод из RemoteSiteService для обновления элемента с установкой Deleted=1
+      const success = await this.remoteSiteService.updateListItem(
+        this.listName,
+        itemIdNum,
+        {
+          Deleted: 1 // Устанавливаем флаг Deleted в 1 (мягкое удаление)
+        }
+      );
+      
+      return success;
+    } catch (err) {
+      console.error('Error deleting weekly time table item:', err);
+      throw err;
+    }
+  }
 }

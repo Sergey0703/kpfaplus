@@ -791,11 +791,35 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     }, 0);
   };
 
-  // Удаляем смену (строку в таблице)
+  // Удаляем смену (строку в таблице) с серверной синхронизацией
   const handleDeleteShift = async (rowIndex: number): Promise<void> => {
     try {
+      // Получаем ID строки для удаления
+      const rowId = timeTableData[rowIndex].id;
+      
+      // Показываем индикатор загрузки
+      setIsSaving(true);
+      
+      // Проверяем, является ли это новая строка (которая еще не была сохранена на сервере)
+      const isNewRow = rowId.startsWith('new_');
+      
+      // Если это не новая строка, нужно удалить ее на сервере
+      if (!isNewRow) {
+        // Создаем сервис для работы с данными
+        const service = new WeeklyTimeTableService(context);
+        
+        try {
+          // Вызываем метод удаления
+          await service.deleteWeeklyTimeTableItem(rowId);
+          console.log(`Successfully deleted item on server, ID: ${rowId}`);
+        } catch (serverError) {
+          console.error(`Error deleting item on server: ${serverError}`);
+          throw new Error(`Failed to delete item on server: ${serverError instanceof Error ? serverError.message : 'Unknown error'}`);
+        }
+      }
+      
+      // После успешного удаления на сервере обновляем локальное состояние
       const newData = [...timeTableData];
-      const rowId = newData[rowIndex].id;
       
       // Удаляем строку из данных
       newData.splice(rowIndex, 1);
@@ -808,16 +832,12 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
         setChangedRows(newChangedRows);
       }
       
-      // Сбрасываем статусное сообщение при удалении строки
-      setStatusMessage(null);
-      
       // Обновляем отображаемое общее время в первой строке каждого шаблона
-      // Запускаем обновление с небольшой задержкой, чтобы дать время на обновление состояния
       setTimeout(() => {
         updateTotalHoursForAllTemplates();
       }, 0);
       
-      // Сообщаем об успешном удалении
+      // Показываем сообщение об успешном удалении
       setStatusMessage({
         type: MessageBarType.success,
         message: `Смена успешно удалена`
@@ -837,6 +857,9 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
       });
       
       throw error;
+    } finally {
+      // В любом случае снимаем индикатор загрузки
+      setIsSaving(false);
     }
   };
 
