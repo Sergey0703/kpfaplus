@@ -1,6 +1,6 @@
 // src/webparts/kpfaplus/components/Tabs/ContractsTab/WeeklyTimeTable.tsx
 import * as React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Toggle,
   PrimaryButton,
@@ -28,8 +28,9 @@ import {
   updateDisplayedTotalHours,
   isFirstRowInTemplate,
   isLastRowInTemplate,
-  canDeleteRow // Добавить этот импорт
+  canDeleteRow
 } from './WeeklyTimeTableLogic';
+import { ConfirmDialog } from '../../ConfirmDialog/ConfirmDialog';
 
 // Интерфейс пропсов для компонента WeeklyTimeTable
 export interface IWeeklyTimeTableProps {
@@ -73,6 +74,20 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     type: MessageBarType;
     message: string;
   } | null>(null);
+
+  // Состояние для диалога подтверждения
+  const [confirmDialogProps, setConfirmDialogProps] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmButtonText: '',
+    cancelButtonText: 'Отмена',
+    onConfirm: () => {},
+    confirmButtonColor: ''
+  });
+
+  // Используем useRef для хранения ID строки, которую нужно удалить
+  const pendingActionRowIdRef = useRef<string | null>(null);
 
   // Добавляем отладочный вывод при изменении dayOfStartWeek
   useEffect(() => {
@@ -465,6 +480,52 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   // Получаем упорядоченные дни недели на основе dayOfStartWeek
   const orderedWeekDays = getOrderedWeekDays(dayOfStartWeek);
 
+  // Обработчик для показа диалога подтверждения удаления
+  const showDeleteConfirmDialog = (rowId: string): void => {
+    console.log(`Setting up delete for row ID: ${rowId}`);
+    
+    // Сохраняем ID строки в ref
+    pendingActionRowIdRef.current = rowId;
+    
+    // Настраиваем и отображаем диалог подтверждения
+    setConfirmDialogProps({
+      isOpen: true,
+      title: 'Подтвердите удаление',
+      message: 'Вы уверены, что хотите удалить эту смену?',
+      confirmButtonText: 'Удалить',
+      cancelButtonText: 'Отмена',
+      onConfirm: () => {
+        // Получаем ID строки из ref
+        const rowId = pendingActionRowIdRef.current;
+        if (rowId) {
+          // Находим индекс строки по ID
+          const rowIndex = timeTableData.findIndex(row => row.id === rowId);
+          if (rowIndex !== -1) {
+            // Вызываем существующий обработчик удаления
+            handleDeleteShift(rowIndex)
+              .then(() => {
+                console.log(`Row ${rowId} deleted successfully`);
+                setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
+                pendingActionRowIdRef.current = null;
+              })
+              .catch(err => {
+                console.error(`Error deleting row ${rowId}:`, err);
+                setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
+                pendingActionRowIdRef.current = null;
+              });
+          }
+        }
+      },
+      confirmButtonColor: '#d83b01' // красный цвет для удаления
+    });
+  };
+
+  // Обработчик для закрытия диалога
+  const handleDismissConfirmDialog = (): void => {
+    setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
+    pendingActionRowIdRef.current = null;
+  };
+
   const renderTimeCell = (hours: string, minutes: string, rowIndex: number, dayKey: string): JSX.Element => {
     // Определяем, была ли эта строка изменена
     const rowId = timeTableData[rowIndex]?.id;
@@ -660,9 +721,12 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     return (
       <IconButton
         iconProps={{ iconName: 'Delete' }}
-        title="Delete"
-        ariaLabel="Delete"
-        onClick={() => handleDeleteShift(rowIndex)}
+        title="Удалить"
+        ariaLabel="Удалить"
+        onClick={() => {
+          const rowId = timeTableData[rowIndex].id;
+          showDeleteConfirmDialog(rowId);
+        }}
         styles={{ 
           root: { 
             margin: 0, 
@@ -728,29 +792,52 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   };
 
   // Удаляем смену (строку в таблице)
-  const handleDeleteShift = (rowIndex: number): void => {
-    const newData = [...timeTableData];
-    const rowId = newData[rowIndex].id;
-    
-    // Удаляем строку из данных
-    newData.splice(rowIndex, 1);
-    setTimeTableData(newData);
-    
-    // Удаляем строку из списка измененных, если она была там
-    if (changedRows.has(rowId)) {
-      const newChangedRows = new Set(changedRows);
-      newChangedRows.delete(rowId);
-      setChangedRows(newChangedRows);
+  const handleDeleteShift = async (rowIndex: number): Promise<void> => {
+    try {
+      const newData = [...timeTableData];
+      const rowId = newData[rowIndex].id;
+      
+      // Удаляем строку из данных
+      newData.splice(rowIndex, 1);
+      setTimeTableData(newData);
+      
+      // Удаляем строку из списка измененных, если она была там
+      if (changedRows.has(rowId)) {
+        const newChangedRows = new Set(changedRows);
+        newChangedRows.delete(rowId);
+        setChangedRows(newChangedRows);
+      }
+      
+      // Сбрасываем статусное сообщение при удалении строки
+      setStatusMessage(null);
+      
+      // Обновляем отображаемое общее время в первой строке каждого шаблона
+      // Запускаем обновление с небольшой задержкой, чтобы дать время на обновление состояния
+      setTimeout(() => {
+        updateTotalHoursForAllTemplates();
+      }, 0);
+      
+      // Сообщаем об успешном удалении
+      setStatusMessage({
+        type: MessageBarType.success,
+        message: `Смена успешно удалена`
+      });
+      
+      // Скрываем сообщение через 3 секунды
+      setTimeout(() => {
+        setStatusMessage(null);
+      }, 3000);
+    } catch (error) {
+      console.error(`Error deleting shift at row ${rowIndex}:`, error);
+      
+      // Показываем сообщение об ошибке
+      setStatusMessage({
+        type: MessageBarType.error,
+        message: `Ошибка удаления смены: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`
+      });
+      
+      throw error;
     }
-    
-    // Сбрасываем статусное сообщение при удалении строки
-    setStatusMessage(null);
-    
-    // Обновляем отображаемое общее время в первой строке каждого шаблона
-    // Запускаем обновление с небольшой задержкой, чтобы дать время на обновление состояния
-    setTimeout(() => {
-      updateTotalHoursForAllTemplates();
-    }, 0);
   };
 
   // Если загружаются данные, показываем спиннер
@@ -762,7 +849,6 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     );
   }
 
-  // Если нет данных, показываем кнопку для добавления новой смены
   // Если нет данных, показываем кнопку для добавления новой смены
   if (timeTableData.length === 0 && !isTableLoading) {
     return (
@@ -934,13 +1020,13 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
                     </div>
                   </td>
                   <td className={styles.actionsColumn} rowSpan={2}>
-  {canDeleteRow(timeTableData, rowIndex) && (
-    <div className={styles.actionsContainer}>
-      {renderDeleteButton(rowIndex)}
-      <span style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>ID: {row.id}</span>
-    </div>
-  )}
-</td>
+                    {canDeleteRow(timeTableData, rowIndex) && (
+                      <div className={styles.actionsContainer}>
+                        {renderDeleteButton(rowIndex)}
+                        <span style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>ID: {row.id}</span>
+                      </div>
+                    )}
+                  </td>
                 </tr>
                 
                 {/* Вторая строка - конец рабочего дня */}
@@ -973,6 +1059,18 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
           </tbody>
         </table>
       </div>
+
+      {/* Диалог подтверждения */}
+      <ConfirmDialog
+        isOpen={confirmDialogProps.isOpen}
+        title={confirmDialogProps.title}
+        message={confirmDialogProps.message}
+        confirmButtonText={confirmDialogProps.confirmButtonText}
+        cancelButtonText={confirmDialogProps.cancelButtonText}
+        onDismiss={handleDismissConfirmDialog}
+        onConfirm={confirmDialogProps.onConfirm}
+        confirmButtonColor={confirmDialogProps.confirmButtonColor}
+      />
     </div>
   );
 };
