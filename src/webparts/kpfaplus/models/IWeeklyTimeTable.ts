@@ -55,7 +55,7 @@ export interface IFormattedWeeklyTimeRow {
   id: string;
   name: string; // "Week 1", "Week 1 Shift 2", и т.д.
   lunch: string;
-  totalHours: string; // Общее время работы в формате "00h:00m"
+  //totalHours: string; // Общее время работы в формате "00h:00m"
   
   // Обновленные поля для дней недели с полным временем (начало и конец)
   saturday: IDayHoursComplete;
@@ -171,14 +171,14 @@ export class WeeklyTimeTableUtils {
       const sundayEnd = this.extractTimeFromDate(fields.SundayEndWork);
       
       // Получаем общее время работы из полей или используем заглушку
-      const totalWorkHours = fields.TotalWorkHours || (rowName.includes('Shift') ? '00h:00m' : '86h:10m');
+      //const totalWorkHours = fields.TotalWorkHours || (rowName.includes('Shift') ? '00h:00m' : '86h:10m');
       
       // Создаем объект строки с извлеченными значениями для всех дней
       const row: IFormattedWeeklyTimeRow = {
         id: item.id,
         name: rowName,
         lunch: timeForLunch.toString(),
-        totalHours: totalWorkHours,
+        //totalHours: totalWorkHours,
         
         // Структура с временем начала и окончания для каждого дня
         saturday: { 

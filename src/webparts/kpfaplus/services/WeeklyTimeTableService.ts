@@ -25,7 +25,7 @@ export interface IWeeklyTimeTableUpdateItem {
   
   lunchMinutes?: string;
   contractNumber?: string;
-  totalHours?: string;
+  //totalHours?: string;
 }
 
 /**
@@ -77,22 +77,52 @@ export class WeeklyTimeTableService {
       // Формируем объект с полями для обновления - напрямую, без вложенного объекта fields
       const updateData: Record<string, unknown> = {};
       
-      // Обновляем поля времени начала работы для каждого дня
+      // Обратите внимание, что в SharePoint для понедельника есть опечатка: MondeyStartWork
       if (item.mondayStart) {
         updateData.MondeyStartWork = this.formatTimeForSharePoint(item.mondayStart);
       }
-      if (item.mondayEnd) {
-        updateData.MondeyEndWork = this.formatTimeForSharePoint(item.mondayEnd);
-      }
-      
       if (item.tuesdayStart) {
         updateData.TuesdayStartWork = this.formatTimeForSharePoint(item.tuesdayStart);
+      }
+      if (item.wednesdayStart) {
+        updateData.WednesdayStartWork = this.formatTimeForSharePoint(item.wednesdayStart);
+      }
+      if (item.thursdayStart) {
+        updateData.ThursdayStartWork = this.formatTimeForSharePoint(item.thursdayStart);
+      }
+      if (item.fridayStart) {
+        updateData.FridayStartWork = this.formatTimeForSharePoint(item.fridayStart);
+      }
+      if (item.saturdayStart) {
+        updateData.SaturdayStartWork = this.formatTimeForSharePoint(item.saturdayStart);
+      }
+      if (item.sundayStart) {
+        updateData.SundayStartWork = this.formatTimeForSharePoint(item.sundayStart);
+      }
+      
+      // Обновляем поля времени окончания работы для каждого дня
+      // Обратите внимание на MondayEndWork (без опечатки)
+      if (item.mondayEnd) {
+        updateData.MondayEndWork = this.formatTimeForSharePoint(item.mondayEnd);
       }
       if (item.tuesdayEnd) {
         updateData.TuesdayEndWork = this.formatTimeForSharePoint(item.tuesdayEnd);
       }
-      
-      // И так далее для остальных дней...
+      if (item.wednesdayEnd) {
+        updateData.WednesdayEndWork = this.formatTimeForSharePoint(item.wednesdayEnd);
+      }
+      if (item.thursdayEnd) {
+        updateData.ThursdayEndWork = this.formatTimeForSharePoint(item.thursdayEnd);
+      }
+      if (item.fridayEnd) {
+        updateData.FridayEndWork = this.formatTimeForSharePoint(item.fridayEnd);
+      }
+      if (item.saturdayEnd) {
+        updateData.SaturdayEndWork = this.formatTimeForSharePoint(item.saturdayEnd);
+      }
+      if (item.sundayEnd) {
+        updateData.SundayEndWork = this.formatTimeForSharePoint(item.sundayEnd);
+      }
       
       // Обновляем время обеда
       if (item.lunchMinutes) {
@@ -105,9 +135,11 @@ export class WeeklyTimeTableService {
       }
       
       // Обновляем общее время работы
-      if (item.totalHours) {
-        updateData.TotalWorkHours = item.totalHours;
-      }
+     // if (item.totalHours) {
+     //   updateData.TotalWorkHours = item.totalHours;
+     // }
+      
+      console.log('Updating item with data:', updateData);
       
       // Используем updateListItem из RemoteSiteService
       // Преобразуем строковый ID в число перед передачей

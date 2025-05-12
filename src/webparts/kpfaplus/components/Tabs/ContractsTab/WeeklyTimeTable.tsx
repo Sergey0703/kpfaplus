@@ -277,7 +277,7 @@ const handleSave = async (): Promise<void> => {
             
             lunchMinutes: row.lunch,
             contractNumber: row.total,
-            totalHours: row.totalHours
+          //  totalHours: row.totalHours
           };
           
           // Вызываем метод создания и получаем реальный ID
@@ -333,7 +333,7 @@ const handleSave = async (): Promise<void> => {
           
           lunchMinutes: row.lunch,
           contractNumber: row.total,
-          totalHours: row.totalHours
+         // totalHours: row.totalHours
         });
       }
     }
