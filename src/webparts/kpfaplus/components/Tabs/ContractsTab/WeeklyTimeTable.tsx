@@ -65,10 +65,54 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     message: string;
   } | null>(null);
 
+  // Состояние для общего количества часов по шаблону
+  const [totalTemplateHours, setTotalTemplateHours] = useState<string>('0ч:00м');
+
   // Добавляем отладочный вывод при изменении dayOfStartWeek
   useEffect(() => {
     console.log(`[WeeklyTimeTable] Using DayOfStartWeek = ${dayOfStartWeek}, week starts with: ${getStartDayName(dayOfStartWeek)}`);
   }, [dayOfStartWeek]);
+
+  // Функция для расчета общего количества часов для шаблона
+  const calculateTotalHoursForTemplate = (rows: IFormattedWeeklyTimeRow[]): string => {
+    if (!rows || rows.length === 0) {
+      return '0ч:00м';
+    }
+    
+    // Конвертируем строки времени в минуты для суммирования
+    let totalMinutes = 0;
+    
+    rows.forEach(row => {
+      // Извлекаем часы и минуты из строки формата "XXч:YYм"
+      const hoursMatch = row.totalHours.match(/(\d+)ч/);
+      const minutesMatch = row.totalHours.match(/:(\d+)м/);
+      
+      const hours = hoursMatch ? parseInt(hoursMatch[1], 10) : 0;
+      const minutes = minutesMatch ? parseInt(minutesMatch[1], 10) : 0;
+      
+      // Суммируем в минутах
+      totalMinutes += (hours * 60) + minutes;
+    });
+    
+    // Конвертируем обратно в формат "XXч:YYм"
+    const totalHours = Math.floor(totalMinutes / 60);
+    const remainingMinutes = totalMinutes % 60;
+    
+    return `${totalHours}ч:${remainingMinutes.toString().padStart(2, '0')}м`;
+  };
+
+  // Обновляем общее время для всего шаблона
+  const updateTotalHoursForAll = (): void => {
+    const currentData = [...timeTableData];
+    if (currentData.length === 0) {
+      setTotalTemplateHours('0ч:00м');
+      return;
+    }
+    
+    const totalHours = calculateTotalHoursForTemplate(currentData);
+    setTotalTemplateHours(totalHours);
+    console.log(`Updated total hours for template: ${totalHours}`);
+  };
 
   // Вспомогательная функция для получения названия дня недели
   const getStartDayName = (day: number): string => {
@@ -117,15 +161,21 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
       console.log("Sample formatted row:", formattedData.length > 0 ? formattedData[0] : "No data");
       setTimeTableData(formattedData);
       
+      // Рассчитываем общее количество часов для шаблона
+      const totalHours = calculateTotalHoursForTemplate(formattedData);
+      setTotalTemplateHours(totalHours);
+      
       // Сбрасываем список измененных строк при получении новых данных
       setChangedRows(new Set());
     } else if (contractId) {
       console.log(`No weekly time data provided for contract ${contractId}`);
       // Устанавливаем пустой массив, если нет данных
       setTimeTableData([]);
+      setTotalTemplateHours('0ч:00м');
     } else {
       console.log("No contract ID or data, showing empty table");
       setTimeTableData([]);
+      setTotalTemplateHours('0ч:00м');
     }
     
     // Сбрасываем статусное сообщение при изменении данных
@@ -210,6 +260,9 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     }
     
     setTimeTableData(newData);
+    
+    // Пересчитываем общее время для шаблона после изменения
+    updateTotalHoursForAll();
   };
 
   // Обработчик изменения времени обеда
@@ -250,6 +303,9 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     
     // Сбрасываем статусное сообщение при внесении изменений
     setStatusMessage(null);
+    
+    // Пересчитываем общее время для шаблона после изменения
+    updateTotalHoursForAll();
   };
   
   // Обработчик изменения контракта
@@ -714,6 +770,9 @@ const handleSave = async (): Promise<void> => {
     
     // Сбрасываем статусное сообщение при удалении строки
     setStatusMessage(null);
+    
+    // Пересчитываем общее время для шаблона после удаления
+    updateTotalHoursForAll();
   };
 
   // Если загружаются данные, показываем спиннер
@@ -837,8 +896,10 @@ const handleSave = async (): Promise<void> => {
   <table className={styles.timeTable}>
     <thead>
       <tr>
-        {/* Столбец для рабочих часов */}
-        <th className={styles.hoursColumn}>Hours</th>
+        {/* Столбец для рабочих часов - обновленный с общим количеством часов */}
+        <th className={styles.hoursColumn}>
+          Total Hours: {totalTemplateHours}
+        </th>
         <th className={styles.nameColumn}>Name / Lunch</th>
         {orderedWeekDays.map(day => (
           <th key={day.key}>{day.name}</th>
