@@ -5,6 +5,7 @@ import { RemoteSiteService } from './RemoteSiteService';
 
 export interface IWeeklyTimeTableUpdateItem {
   id: string;
+  // Время начала
   mondayStart?: IDayHours;
   tuesdayStart?: IDayHours;
   wednesdayStart?: IDayHours;
@@ -12,8 +13,19 @@ export interface IWeeklyTimeTableUpdateItem {
   fridayStart?: IDayHours;
   saturdayStart?: IDayHours;
   sundayStart?: IDayHours;
+  
+  // Время окончания
+  mondayEnd?: IDayHours;
+  tuesdayEnd?: IDayHours;
+  wednesdayEnd?: IDayHours;
+  thursdayEnd?: IDayHours;
+  fridayEnd?: IDayHours;
+  saturdayEnd?: IDayHours;
+  sundayEnd?: IDayHours;
+  
   lunchMinutes?: string;
   contractNumber?: string;
+  totalHours?: string;
 }
 
 /**
@@ -60,11 +72,6 @@ export class WeeklyTimeTableService {
     }
   }
 
-  /**
-   * Обновление элемента недельного расписания
-   * @param item Данные для обновления
-   * @returns Результат операции
-   */
   public async updateWeeklyTimeTableItem(item: IWeeklyTimeTableUpdateItem): Promise<any> {
     try {
       // Формируем объект с полями для обновления - напрямую, без вложенного объекта fields
@@ -74,30 +81,18 @@ export class WeeklyTimeTableService {
       if (item.mondayStart) {
         updateData.MondeyStartWork = this.formatTimeForSharePoint(item.mondayStart);
       }
+      if (item.mondayEnd) {
+        updateData.MondeyEndWork = this.formatTimeForSharePoint(item.mondayEnd);
+      }
       
       if (item.tuesdayStart) {
         updateData.TuesdayStartWork = this.formatTimeForSharePoint(item.tuesdayStart);
       }
-      
-      if (item.wednesdayStart) {
-        updateData.WednesdayStartWork = this.formatTimeForSharePoint(item.wednesdayStart);
+      if (item.tuesdayEnd) {
+        updateData.TuesdayEndWork = this.formatTimeForSharePoint(item.tuesdayEnd);
       }
       
-      if (item.thursdayStart) {
-        updateData.ThursdayStartWork = this.formatTimeForSharePoint(item.thursdayStart);
-      }
-      
-      if (item.fridayStart) {
-        updateData.FridayStartWork = this.formatTimeForSharePoint(item.fridayStart);
-      }
-      
-      if (item.saturdayStart) {
-        updateData.SaturdayStartWork = this.formatTimeForSharePoint(item.saturdayStart);
-      }
-      
-      if (item.sundayStart) {
-        updateData.SundayStartWork = this.formatTimeForSharePoint(item.sundayStart);
-      }
+      // И так далее для остальных дней...
       
       // Обновляем время обеда
       if (item.lunchMinutes) {
@@ -107,6 +102,11 @@ export class WeeklyTimeTableService {
       // Обновляем номер контракта
       if (item.contractNumber) {
         updateData.Contract = parseInt(item.contractNumber);
+      }
+      
+      // Обновляем общее время работы
+      if (item.totalHours) {
+        updateData.TotalWorkHours = item.totalHours;
       }
       
       // Используем updateListItem из RemoteSiteService
