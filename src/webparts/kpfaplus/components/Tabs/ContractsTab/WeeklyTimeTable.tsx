@@ -379,13 +379,17 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   console.log("Data initialized:", dataInitializedRef.current);
 
   // Фильтруем строки в зависимости от флага showDeleted
-  const filteredTimeTableData = timeTableData.filter(row => {
-    // Проверяем, удалена ли строка
-    const isDeleted = row.deleted === 1 || row.Deleted === 1;
-    
-    // Показываем строку, если она не удалена ИЛИ если включен показ удаленных
-    return !isDeleted || showDeleted;
-  });
+  // Фильтруем строки в зависимости от флага showDeleted
+const filteredTimeTableData = timeTableData.filter(row => {
+  // Проверяем, удалена ли строка - смотрим оба поля для надежности
+  const isDeleted = (row.deleted === 1 || row.Deleted === 1);
+  
+  // Для отладки
+  console.log(`Filtering row ID ${row.id}: deleted=${row.deleted}, Deleted=${row.Deleted}, isDeleted=${isDeleted}, showing=${!isDeleted || showDeleted}`);
+  
+  // Показываем строку, если она не удалена ИЛИ если включен показ удаленных
+  return !isDeleted || showDeleted;
+});
 
   // Логируем результаты фильтрации
   console.log(`Filtered timeTableData: ${filteredTimeTableData.length} of ${timeTableData.length} rows`);

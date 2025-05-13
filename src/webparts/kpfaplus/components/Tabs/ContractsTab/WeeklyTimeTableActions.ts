@@ -250,17 +250,6 @@ export const createAddShiftHandler = (
   };
 };
 
-/**
- * Функция для удаления смены
- * @param context Контекст веб-части
- * @param timeTableData Данные таблицы
- * @param setTimeTableData Функция для обновления данных таблицы
- * @param changedRows Множество измененных строк
- * @param setChangedRows Функция для обновления множества измененных строк
- * @param setIsSaving Функция для обновления статуса сохранения
- * @param setStatusMessage Функция для обновления статусного сообщения
- * @returns Функция для удаления смены
- */
 export const createDeleteShiftHandler = (
   context: WebPartContext,
   timeTableData: IExtendedWeeklyTimeRow[],
@@ -275,8 +264,13 @@ export const createDeleteShiftHandler = (
 ) => {
   return async (rowIndex: number): Promise<void> => {
     try {
-      // Получаем ID строки для удаления
+      // Получаем ID строки для операции
       const rowId = timeTableData[rowIndex].id;
+      const row = timeTableData[rowIndex];
+      
+      // Проверяем, удалена ли строка (для определения операции - удаление или восстановление)
+      const isDeleted = row.deleted === 1 || row.Deleted === 1;
+      const operationType = isDeleted ? 'restore' : 'delete';
       
       // Показываем индикатор загрузки
       setIsSaving(true);
@@ -284,26 +278,46 @@ export const createDeleteShiftHandler = (
       // Проверяем, является ли это новая строка (которая еще не была сохранена на сервере)
       const isNewRow = rowId.startsWith('new_');
       
-      // Если это не новая строка, нужно удалить ее на сервере
+      // Если это не новая строка, нужно обновить её статус на сервере
       if (!isNewRow) {
         // Создаем сервис для работы с данными
         const service = new WeeklyTimeTableService(context);
         
         try {
-          // Вызываем метод удаления
-          await service.deleteWeeklyTimeTableItem(rowId);
-          console.log(`Successfully deleted item on server, ID: ${rowId}`);
+          let success = false;
+          
+          if (isDeleted) {
+            // Восстановление записи (изменение Deleted с 1 на 0)
+            success = await service.restoreWeeklyTimeTableItem(rowId);
+            console.log(`Successfully restored item on server, ID: ${rowId}, result: ${success}`);
+          } else {
+            // Удаление записи (изменение Deleted с 0 на 1)
+            success = await service.deleteWeeklyTimeTableItem(rowId);
+            console.log(`Successfully deleted item on server, ID: ${rowId}, result: ${success}`);
+          }
+          
+          if (!success) {
+            throw new Error(`Server operation failed`);
+          }
         } catch (serverError) {
-          console.error(`Error deleting item on server: ${serverError}`);
-          throw new Error(`Failed to delete item on server: ${serverError instanceof Error ? serverError.message : 'Unknown error'}`);
+          console.error(`Error ${operationType} item on server: ${serverError}`);
+          throw new Error(`Failed to ${operationType} item on server: ${serverError instanceof Error ? serverError.message : 'Unknown error'}`);
         }
       }
       
-      // После успешного удаления на сервере обновляем локальное состояние
-      const newData = [...timeTableData];
+      // После успешного обновления на сервере обновляем локальное состояние
+      // Для удаления: установить deleted=1, для восстановления: установить deleted=0
+      const newData = timeTableData.map((item, idx) => {
+        if (idx === rowIndex) {
+          return {
+            ...item,
+            deleted: isDeleted ? 0 : 1,  // Меняем статус на противоположный
+            Deleted: isDeleted ? 0 : 1   // Обновляем оба поля для совместимости
+          };
+        }
+        return item;
+      });
       
-      // Удаляем строку из данных
-      newData.splice(rowIndex, 1);
       setTimeTableData(newData);
       
       // Удаляем строку из списка измененных, если она была там
@@ -319,10 +333,12 @@ export const createDeleteShiftHandler = (
         setTimeTableData(updatedData);
       }, 0);
       
-      // Показываем сообщение об успешном удалении
+      // Показываем сообщение об успешном выполнении операции
       setStatusMessage({
         type: MessageBarType.success,
-        message: `Смена успешно удалена`
+        message: isDeleted ? 
+          `Shift successfully restored` : 
+          `Shift successfully deleted`
       });
       
       // Скрываем сообщение через 3 секунды
@@ -330,12 +346,12 @@ export const createDeleteShiftHandler = (
         setStatusMessage(null);
       }, 3000);
     } catch (error) {
-      console.error(`Error deleting shift at row ${rowIndex}:`, error);
+      console.error(`Error processing shift at row ${rowIndex}:`, error);
       
       // Показываем сообщение об ошибке
       setStatusMessage({
         type: MessageBarType.error,
-        message: `Ошибка удаления смены: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`
+        message: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
       });
       
       throw error;
@@ -345,14 +361,8 @@ export const createDeleteShiftHandler = (
     }
   };
 };
-
 /**
- * Функция для настройки диалога подтверждения удаления
- * @param pendingActionRowIdRef Ссылка для хранения ID строки в ожидании действия
- * @param setConfirmDialogProps Функция для обновления свойств диалога подтверждения
- * @param deleteHandler Функция для удаления смены
- * @param timeTableData Данные таблицы
- * @returns Функция для настройки диалога подтверждения удаления
+ * Функция для настройки диалога подтверждения удаления или восстановления
  */
 export const createShowDeleteConfirmDialog = (
   pendingActionRowIdRef: React.MutableRefObject<string | null>,
@@ -369,41 +379,81 @@ export const createShowDeleteConfirmDialog = (
   timeTableData: IExtendedWeeklyTimeRow[]
 ) => {
   return (rowId: string): void => {
-    console.log(`Setting up delete for row ID: ${rowId}`);
+    console.log(`Setting up delete/restore for row ID: ${rowId}`);
     
     // Сохраняем ID строки в ref
     pendingActionRowIdRef.current = rowId;
     
-    // Настраиваем и отображаем диалог подтверждения
-    setConfirmDialogProps({
-      isOpen: true,
-      title: 'Confirm Deletion',
-      message: 'Are you sure you want to delete this shift?',
-      confirmButtonText: 'Delete',
-      cancelButtonText: 'Cancel',
-      onConfirm: () => {
-        // Получаем ID строки из ref
-        const rowId = pendingActionRowIdRef.current;
-        if (rowId) {
-          // Находим индекс строки по ID
-          const rowIndex = timeTableData.findIndex(row => row.id === rowId);
-          if (rowIndex !== -1) {
-            // Вызываем существующий обработчик удаления
-            deleteHandler(rowIndex)
-              .then(() => {
-                console.log(`Row ${rowId} deleted successfully`);
-                setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-                pendingActionRowIdRef.current = null;
-              })
-              .catch(err => {
-                console.error(`Error deleting row ${rowId}:`, err);
-                setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-                pendingActionRowIdRef.current = null;
-              });
+    // Находим строку по ID
+    const rowIndex = timeTableData.findIndex(row => row.id === rowId);
+    if (rowIndex === -1) {
+      console.error(`Row with ID ${rowId} not found`);
+      return;
+    }
+    
+    const row = timeTableData[rowIndex];
+    // Проверяем, удалена ли строка
+    const isDeleted = row.deleted === 1 || row.Deleted === 1;
+    
+    // В зависимости от статуса удаления, показываем разный диалог
+    if (isDeleted) {
+      // Диалог восстановления
+      setConfirmDialogProps({
+        isOpen: true,
+        title: 'Confirm Restoration',
+        message: 'Are you sure you want to restore this shift?',
+        confirmButtonText: 'Restore',
+        cancelButtonText: 'Cancel',
+        onConfirm: () => {
+          const rowId = pendingActionRowIdRef.current;
+          if (rowId) {
+            const rowIndex = timeTableData.findIndex(row => row.id === rowId);
+            if (rowIndex !== -1) {
+              deleteHandler(rowIndex)
+                .then(() => {
+                  console.log(`Row ${rowId} restored successfully`);
+                  setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
+                  pendingActionRowIdRef.current = null;
+                })
+                .catch(err => {
+                  console.error(`Error restoring row ${rowId}:`, err);
+                  setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
+                  pendingActionRowIdRef.current = null;
+                });
+            }
           }
-        }
-      },
-      confirmButtonColor: '#d83b01' // красный цвет для удаления
-    });
+        },
+        confirmButtonColor: '#107c10' // зеленый цвет для восстановления
+      });
+    } else {
+      // Диалог удаления
+      setConfirmDialogProps({
+        isOpen: true,
+        title: 'Confirm Deletion',
+        message: 'Are you sure you want to delete this shift?',
+        confirmButtonText: 'Delete',
+        cancelButtonText: 'Cancel',
+        onConfirm: () => {
+          const rowId = pendingActionRowIdRef.current;
+          if (rowId) {
+            const rowIndex = timeTableData.findIndex(row => row.id === rowId);
+            if (rowIndex !== -1) {
+              deleteHandler(rowIndex)
+                .then(() => {
+                  console.log(`Row ${rowId} deleted successfully`);
+                  setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
+                  pendingActionRowIdRef.current = null;
+                })
+                .catch(err => {
+                  console.error(`Error deleting row ${rowId}:`, err);
+                  setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
+                  pendingActionRowIdRef.current = null;
+                });
+            }
+          }
+        },
+        confirmButtonColor: '#d83b01' // красный цвет для удаления
+      });
+    }
   };
 };
