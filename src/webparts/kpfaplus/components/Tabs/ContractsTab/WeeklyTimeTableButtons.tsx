@@ -40,43 +40,45 @@ interface IDeleteButtonProps {
   rowId: string;
   onClick: (rowId: string) => void;
   isSaving: boolean;
+  isDeleted?: boolean; // Добавляем свойство isDeleted
 }
 
 /**
- * Компонент кнопки удаления
+ * Компонент кнопки удаления или восстановления (в зависимости от статуса удаления)
  */
 export const DeleteButton: React.FC<IDeleteButtonProps> = ({
-  rowIndex,
-  rowId,
-  onClick,
-  isSaving
-}) => {
-  return (
-    <IconButton
-      iconProps={{ iconName: 'Delete' }}
-      title="Удалить"
-      ariaLabel="Удалить"
-      onClick={() => onClick(rowId)}
-      styles={{ 
-        root: { 
-          margin: 0, 
-          padding: 0,
-          color: '#e81123', // Красный цвет для иконки
-          selectors: {
-            '&:hover': {
-              color: '#f1707b' // Светло-красный при наведении
+    rowIndex,
+    rowId,
+    onClick,
+    isSaving,
+    isDeleted = false // По умолчанию элемент не удален
+  }) => {
+    return (
+      <IconButton
+        iconProps={{ iconName: isDeleted ? 'Refresh' : 'Delete' }}
+        title={isDeleted ? "Восстановить" : "Удалить"}
+        ariaLabel={isDeleted ? "Восстановить" : "Удалить"}
+        onClick={() => onClick(rowId)}
+        styles={{ 
+          root: { 
+            margin: 0, 
+            padding: 0,
+            color: isDeleted ? '#107c10' : '#e81123', // Зеленый для восстановления, красный для удаления
+            selectors: {
+              '&:hover': {
+                color: isDeleted ? '#85d185' : '#f1707b' // Светло-зеленый или светло-красный при наведении
+              }
             }
+          },
+          icon: {
+            fontSize: '16px', // Размер иконки
+            fontWeight: 600 // Делаем иконку немного жирнее для лучшей видимости
           }
-        },
-        icon: {
-          fontSize: '16px', // Размер иконки
-          fontWeight: 600 // Делаем иконку немного жирнее для лучшей видимости
-        }
-      }}
-      disabled={isSaving}
-    />
-  );
-};
+        }}
+        disabled={isSaving}
+      />
+    );
+  };
 
 interface ISaveButtonProps {
   onClick: () => Promise<void>;

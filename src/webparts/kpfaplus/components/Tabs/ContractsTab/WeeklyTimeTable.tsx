@@ -183,67 +183,124 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   );
 
   // Использование useLayoutEffect вместо useEffect для синхронного обновления состояния перед рендерингом
-  useLayoutEffect(() => {
-    // Если есть данные из props, используем их
-    if (weeklyTimeData && weeklyTimeData.length > 0) {
-      console.log(`Processing ${weeklyTimeData.length} weekly time table entries from props`);
-      
-      // Преобразуем данные из списка в формат для отображения
-      // Создаем временную функцию, которая вызывает formatWeeklyTimeTableData
-      const getFormattedData = () => {
-        // Временно изменяем оригинальный метод для поддержки dayOfStartWeek
-        const origMethod = WeeklyTimeTableUtils.formatWeeklyTimeTableData;
-        // @ts-ignore - Игнорируем несоответствие сигнатуры для вызова
-        WeeklyTimeTableUtils.formatWeeklyTimeTableData = function(items: any[], dayStart?: number) {
-          // Сохраняем dayOfStartWeek в локальной переменной
-          console.log(`Custom formatWeeklyTimeTableData called with dayOfStartWeek = ${dayStart}`);
-          // Вызываем оригинальный метод
-          const result = origMethod.call(this, items);
-          return result;
-        };
+useLayoutEffect(() => {
+  // Если есть данные из props, используем их
+  if (weeklyTimeData && weeklyTimeData.length > 0) {
+    console.log(`Processing ${weeklyTimeData.length} weekly time table entries from props`);
+    
+    // Логирование исходных данных
+    console.log("Original weeklyTimeData sample:", weeklyTimeData.slice(0, 1));
+    console.log("Looking for row with ID 350 in original data...");
+    const row350 = weeklyTimeData.find(item => 
+      item.id === 350 || item.ID === 350 || item.id === "350" || item.ID === "350" ||
+      (item.fields && (item.fields.id === 350 || item.fields.ID === 350 || item.fields.id === "350" || item.fields.ID === "350"))
+    );
+    if (row350) {
+      console.log("Found row 350 in original data:", row350);
+      console.log("Deleted property:", row350.Deleted || row350.deleted || row350.isDeleted || 
+        (row350.fields && (row350.fields.Deleted || row350.fields.deleted || row350.fields.isDeleted)));
+    }
+    
+    // Преобразуем данные из списка в формат для отображения
+    // Создаем временную функцию, которая вызывает formatWeeklyTimeTableData
+    const getFormattedData = () => {
+      // Временно изменяем оригинальный метод для поддержки dayOfStartWeek и сохранения поля deleted
+      const origMethod = WeeklyTimeTableUtils.formatWeeklyTimeTableData;
+      // @ts-ignore - Игнорируем несоответствие сигнатуры для вызова
+      WeeklyTimeTableUtils.formatWeeklyTimeTableData = function(items: any[], dayStart?: number) {
+        // Сохраняем dayOfStartWeek в локальной переменной
+        console.log(`Custom formatWeeklyTimeTableData called with dayOfStartWeek = ${dayStart}`);
+        // Вызываем оригинальный метод
+        const result = origMethod.call(this, items);
         
-        // Вызываем метод
-        const result = WeeklyTimeTableUtils.formatWeeklyTimeTableData(weeklyTimeData);
-        
-        // Восстанавливаем оригинальный метод
-        WeeklyTimeTableUtils.formatWeeklyTimeTableData = origMethod;
+        // После получения результата, добавляем поле deleted из исходных данных
+        for (let i = 0; i < result.length; i++) {
+          const formattedRow = result[i];
+          const originalRow = items.find(item => {
+            // Проверяем ID в различных форматах
+            const itemId = 
+              item.id !== undefined ? item.id.toString() :
+              item.ID !== undefined ? item.ID.toString() :
+              item.fields && item.fields.id !== undefined ? item.fields.id.toString() :
+              item.fields && item.fields.ID !== undefined ? item.fields.ID.toString() :
+              null;
+            
+            return itemId === formattedRow.id;
+          });
+          
+          if (originalRow) {
+            // Ищем поле deleted в разных форматах
+            const deletedValue = 
+              originalRow.Deleted !== undefined ? originalRow.Deleted :
+              originalRow.deleted !== undefined ? originalRow.deleted :
+              originalRow.isDeleted !== undefined ? originalRow.isDeleted :
+              originalRow.fields && originalRow.fields.Deleted !== undefined ? originalRow.fields.Deleted :
+              originalRow.fields && originalRow.fields.deleted !== undefined ? originalRow.fields.deleted :
+              originalRow.fields && originalRow.fields.isDeleted !== undefined ? originalRow.fields.isDeleted :
+              undefined;
+            
+            if (deletedValue !== undefined) {
+              console.log(`Found deleted status for row ID ${formattedRow.id}: ${deletedValue}`);
+              formattedRow.deleted = deletedValue;
+            } else {
+              console.log(`No deleted status found for row ID ${formattedRow.id}`);
+            }
+          } else {
+            console.log(`No original row found for formatted row ID ${formattedRow.id}`);
+          }
+        }
         
         return result;
       };
       
-      const formattedData = getFormattedData();
-      console.log(`Formatted ${formattedData.length} rows for display`);
-      console.log("Sample formatted row:", formattedData.length > 0 ? formattedData[0] : "No data");
+      // Вызываем метод
+      const result = WeeklyTimeTableUtils.formatWeeklyTimeTableData(weeklyTimeData);
       
-      // Обновляем отображаемое общее время в первой строке каждого шаблона
-      const dataWithTotalHours = updateDisplayedTotalHours(formattedData as IExtendedWeeklyTimeRow[]);
-      console.log("dataWithTotalHours length:", dataWithTotalHours.length);
+      // Восстанавливаем оригинальный метод
+      WeeklyTimeTableUtils.formatWeeklyTimeTableData = origMethod;
       
-      // Устанавливаем данные
-      setTimeTableData(dataWithTotalHours);
-      console.log("After setTimeTableData, state should update soon");
-      
-      // Помечаем, что данные были инициализированы
-      dataInitializedRef.current = true;
-      
-      // Сбрасываем список измененных строк при получении новых данных
-      setChangedRows(new Set());
-    } else if (contractId) {
-      console.log(`No weekly time data provided for contract ${contractId}`);
-      // Устанавливаем пустой массив, если нет данных
-      setTimeTableData([]);
-      // Сбрасываем флаг инициализации данных
-      dataInitializedRef.current = false;
-    } else {
-      console.log("No contract ID or data, showing empty table");
-      setTimeTableData([]);
-      // Сбрасываем флаг инициализации данных
-      dataInitializedRef.current = false;
-    }
+      return result;
+    };
     
-    // Сбрасываем статусное сообщение при изменении данных
-    setStatusMessage(null);
-  }, [contractId, weeklyTimeData, dayOfStartWeek]);
+    const formattedData = getFormattedData();
+    console.log(`Formatted ${formattedData.length} rows for display`);
+    
+    // Проверяем наличие поля deleted в отформатированных данных
+    formattedData.forEach((row, index) => {
+      console.log(`Row ${index} (ID: ${row.id}): deleted status = ${row.deleted}, type: ${typeof row.deleted}`);
+    });
+    
+    console.log("Sample formatted row:", formattedData.length > 0 ? formattedData[0] : "No data");
+    
+    // Обновляем отображаемое общее время в первой строке каждого шаблона
+    const dataWithTotalHours = updateDisplayedTotalHours(formattedData as IExtendedWeeklyTimeRow[]);
+    console.log("dataWithTotalHours length:", dataWithTotalHours.length);
+    
+    // Устанавливаем данные
+    setTimeTableData(dataWithTotalHours);
+    console.log("After setTimeTableData, state should update soon");
+    
+    // Помечаем, что данные были инициализированы
+    dataInitializedRef.current = true;
+    
+    // Сбрасываем список измененных строк при получении новых данных
+    setChangedRows(new Set());
+  } else if (contractId) {
+    console.log(`No weekly time data provided for contract ${contractId}`);
+    // Устанавливаем пустой массив, если нет данных
+    setTimeTableData([]);
+    // Сбрасываем флаг инициализации данных
+    dataInitializedRef.current = false;
+  } else {
+    console.log("No contract ID or data, showing empty table");
+    setTimeTableData([]);
+    // Сбрасываем флаг инициализации данных
+    dataInitializedRef.current = false;
+  }
+  
+  // Сбрасываем статусное сообщение при изменении данных
+  setStatusMessage(null);
+}, [contractId, weeklyTimeData, dayOfStartWeek]);
   
   // Обновляем состояние загрузки, если оно изменилось в пропсах
   useEffect(() => {
@@ -273,15 +330,25 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     return <AddShiftButton onClick={handleAddShift} isSaving={isSaving} />;
   };
 
-  // Функция для рендеринга кнопки удаления
   const renderDeleteButton = (rowIndex: number): JSX.Element => {
-    const rowId = timeTableData[rowIndex].id;
+    const row = timeTableData[rowIndex];
+    const rowId = row.id;
+    
+    // Логирование для диагностики
+    console.log(`Row ${rowIndex} (ID: ${rowId}): deleted status = ${row.deleted}, type: ${typeof row.deleted}`);
+    console.log(`Full row data for debugging:`, JSON.stringify(row, null, 2));
+    
+    // Проверяем, удалена ли строка
+    const isDeleted = row.deleted === 1;
+    console.log(`Row ${rowIndex} isDeleted: ${isDeleted}`);
+    
     return (
       <DeleteButton
         rowIndex={rowIndex}
         rowId={rowId}
         onClick={showDeleteConfirmDialog}
         isSaving={isSaving}
+        isDeleted={isDeleted}
       />
     );
   };
