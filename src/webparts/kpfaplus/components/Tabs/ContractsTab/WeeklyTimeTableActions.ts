@@ -377,10 +377,10 @@ export const createShowDeleteConfirmDialog = (
     // Настраиваем и отображаем диалог подтверждения
     setConfirmDialogProps({
       isOpen: true,
-      title: 'Подтвердите удаление',
-      message: 'Вы уверены, что хотите удалить эту смену?',
-      confirmButtonText: 'Удалить',
-      cancelButtonText: 'Отмена',
+      title: 'Confirm Deletion',
+      message: 'Are you sure you want to delete this shift?',
+      confirmButtonText: 'Delete',
+      cancelButtonText: 'Cancel',
       onConfirm: () => {
         // Получаем ID строки из ref
         const rowId = pendingActionRowIdRef.current;

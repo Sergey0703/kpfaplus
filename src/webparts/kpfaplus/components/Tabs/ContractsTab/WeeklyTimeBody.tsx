@@ -131,13 +131,19 @@ export const WeeklyTimeBody: React.FC<IWeeklyTimeBodyProps> = (props) => {
                     </div>
                   </td>
                   <td className={styles.actionsColumn} rowSpan={2}>
-                    {canDeleteRow(filteredTimeTableData, rowIndex) && (
-                      <ActionsCell
-                        rowId={row.id}
-                        renderDeleteButton={() => renderDeleteButton(rowIndex)}
-                      />
-                    )}
-                  </td>
+  {/* Отображаем кнопки действий, если строку можно удалить */}
+  {canDeleteRow(filteredTimeTableData, rowIndex) ? (
+    <ActionsCell
+      rowId={row.id}
+      renderDeleteButton={() => renderDeleteButton(rowIndex)}
+    />
+  ) : (
+    /* Если строку нельзя удалить, все равно показываем ID */
+    <div className={styles.actionsContainer}>
+      <span style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>ID: {row.id}</span>
+    </div>
+  )}
+</td>
                 </tr>
                 
                 {/* Вторая строка - конец рабочего дня */}

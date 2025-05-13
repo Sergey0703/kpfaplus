@@ -95,10 +95,10 @@ export const ContractsTable: React.FC<IContractsTableProps> = (props) => {
     
     setConfirmDialogProps({
       isOpen: true,
-      title: 'Подтвердите удаление',
-      message: 'Вы уверены, что хотите удалить этот контракт? Он будет помечен как удаленный, но может быть восстановлен позже.',
-      confirmButtonText: 'Удалить',
-      cancelButtonText: 'Отмена',
+      title: 'Confirm Deletion',
+      message: 'Are you sure you want to delete this contract? It will be marked as deleted but can be restored later.',
+      confirmButtonText: 'Delete',
+      cancelButtonText: 'Cancel',
       onConfirm: () => {
         // Получаем текущее значение contractId из ref
         const contractId = pendingActionContractIdRef.current;
@@ -129,10 +129,10 @@ export const ContractsTable: React.FC<IContractsTableProps> = (props) => {
     
     setConfirmDialogProps({
       isOpen: true,
-      title: 'Подтвердите восстановление',
-      message: 'Вы уверены, что хотите восстановить этот удаленный контракт?',
-      confirmButtonText: 'Восстановить',
-      cancelButtonText: 'Отмена',
+      title: 'Confirm Restore',
+      message: 'Are you sure you want to restore this deleted contract?',
+      confirmButtonText: 'Restore',
+      cancelButtonText: 'Cancel',
       onConfirm: () => {
         // Получаем текущее значение contractId из ref
         const contractId = pendingActionContractIdRef.current;
