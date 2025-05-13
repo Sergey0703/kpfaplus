@@ -267,6 +267,21 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
               } else {
                 console.log(`No NumberOfShift found for row ID ${formattedRow.id}`);
               }
+              // Добавляем NumberOfWeek из originalRow
+const NumberOfWeekValue = 
+originalRow.NumberOfWeek !== undefined ? originalRow.NumberOfWeek :
+originalRow.numberOfWeek !== undefined ? originalRow.numberOfWeek :
+originalRow.fields && originalRow.fields.NumberOfWeek !== undefined ? originalRow.fields.NumberOfWeek :
+originalRow.fields && originalRow.fields.numberOfWeek !== undefined ? originalRow.fields.numberOfWeek :
+undefined;
+
+if (NumberOfWeekValue !== undefined) {
+console.log(`Found NumberOfWeek for row ID ${formattedRow.id}: ${NumberOfWeekValue}`);
+formattedRow.NumberOfWeek = NumberOfWeekValue;
+} else {
+console.log(`No NumberOfWeek found for row ID ${formattedRow.id}`);
+}
+
             } else {
               console.log(`No original row found for formatted row ID ${formattedRow.id}`);
             }
