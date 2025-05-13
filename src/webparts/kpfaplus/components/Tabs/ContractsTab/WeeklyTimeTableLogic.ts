@@ -287,3 +287,172 @@ export const canDeleteRow = (data: IExtendedWeeklyTimeRow[], rowIndex: number): 
     // Если в неделе больше одной смены, можно удалить последнюю смену
     return shiftsInWeek > 1;
   };
+
+  /**
+ * Результат анализа недель в таблице
+ */
+export interface IWeekAnalysisResult {
+  /** Все найденные номера недель */
+  weekNumbers: number[];
+  /** Максимальный номер недели */
+  maxWeekNumber: number;
+  /** Номера полностью удаленных недель */
+  fullyDeletedWeeks: number[];
+  /** Флаг наличия полностью удаленных недель */
+  hasFullyDeletedWeeks: boolean;
+}
+
+/**
+ * Анализирует данные таблицы для определения состояния недель
+ * @param data Данные таблицы недельного расписания
+ * @returns Результат анализа недель
+ */
+export const analyzeWeeklyTableData = (data: IExtendedWeeklyTimeRow[]): IWeekAnalysisResult => {
+  // Если нет данных, возвращаем пустой результат
+  if (!data || data.length === 0) {
+    return {
+      weekNumbers: [],
+      maxWeekNumber: 0,
+      fullyDeletedWeeks: [],
+      hasFullyDeletedWeeks: false
+    };
+  }
+
+  // Собираем все номера недель
+  const weekNumbers: number[] = [];
+  
+  // Объект для группировки смен по неделям
+  const weekShifts: Record<number, { total: number, deleted: number }> = {};
+  
+  // Анализируем данные
+  for (const row of data) {
+    // Получаем номер недели
+    let weekNumber = row.NumberOfWeek;
+    
+    // Если номер недели не определен, пытаемся извлечь из имени
+    if (weekNumber === undefined) {
+      const match = row.name.match(/Week\s+(\d+)/i);
+      weekNumber = match ? parseInt(match[1], 10) : 0;
+    }
+    
+    // Если номер недели определен и больше 0
+    if (weekNumber && weekNumber > 0) {
+      // Добавляем в список номеров недель, если его там еще нет
+      if (!weekNumbers.includes(weekNumber)) {
+        weekNumbers.push(weekNumber);
+      }
+      
+      // Инициализируем счетчики для недели, если они еще не созданы
+      if (!weekShifts[weekNumber]) {
+        weekShifts[weekNumber] = { total: 0, deleted: 0 };
+      }
+      
+      // Увеличиваем общее количество смен для этой недели
+      weekShifts[weekNumber].total++;
+      
+      // Если смена удалена, увеличиваем счетчик удаленных смен
+      const isDeleted = row.deleted === 1 || row.Deleted === 1;
+      if (isDeleted) {
+        weekShifts[weekNumber].deleted++;
+      }
+    }
+  }
+  
+  // Сортируем номера недель
+  weekNumbers.sort((a, b) => a - b);
+  
+  // Находим максимальный номер недели
+  const maxWeekNumber = weekNumbers.length > 0 ? Math.max(...weekNumbers) : 0;
+  
+  // Определяем полностью удаленные недели
+  const fullyDeletedWeeks: number[] = [];
+  
+  for (const weekNumber in weekShifts) {
+    const stats = weekShifts[weekNumber];
+    
+    // Если все смены недели удалены, добавляем неделю в список полностью удаленных
+    if (stats.total > 0 && stats.total === stats.deleted) {
+      fullyDeletedWeeks.push(parseInt(weekNumber, 10));
+    }
+  }
+  
+  // Возвращаем результат анализа
+  return {
+    weekNumbers,
+    maxWeekNumber,
+    fullyDeletedWeeks,
+    hasFullyDeletedWeeks: fullyDeletedWeeks.length > 0
+  };
+};
+
+/**
+ * Результат проверки возможности добавления новой недели
+ */
+export interface IAddWeekCheckResult {
+  /** Возможно ли добавление новой недели */
+  canAdd: boolean;
+  /** Номер недели для добавления (если canAdd = true) */
+  weekNumberToAdd: number;
+  /** Сообщение для пользователя */
+  message: string;
+  /** Номера полностью удаленных недель */
+  fullyDeletedWeeks: number[];
+}
+
+/**
+ * Проверяет возможность добавления новой недели на основе результатов анализа
+ * @param analysisResult Результат анализа недель в таблице
+ * @returns Результат проверки возможности добавления
+ */
+export const checkCanAddNewWeek = (analysisResult: IWeekAnalysisResult): IAddWeekCheckResult => {
+  // Если нет данных о неделях, значит можно добавить первую неделю
+  if (analysisResult.weekNumbers.length === 0) {
+    return {
+      canAdd: true,
+      weekNumberToAdd: 1,
+      message: "The first week (1 week) will be added.",
+      fullyDeletedWeeks: []
+    };
+  }
+  
+  // Проверяем наличие полностью удаленных недель
+  if (analysisResult.hasFullyDeletedWeeks) {
+    // Сортируем удаленные недели для удобства
+    const sortedDeletedWeeks = [...analysisResult.fullyDeletedWeeks].sort((a, b) => a - b);
+    
+    // Формируем сообщение для пользователя
+    let message = `Fully deleted weeks detected: ${sortedDeletedWeeks.join(', ')}. `;
+message += `Before adding a new week, you need to restore the deleted weeks.`;
+    
+    return {
+      canAdd: false,
+      weekNumberToAdd: 0,
+      message,
+      fullyDeletedWeeks: sortedDeletedWeeks
+    };
+  }
+  
+  // Если все существующие недели активны (или частично активны),
+  // можно добавить следующую неделю
+  const nextWeekNumber = analysisResult.maxWeekNumber + 1;
+  
+  return {
+    canAdd: true,
+    weekNumberToAdd: nextWeekNumber,
+    message: `New week ${nextWeekNumber} has been added.`,//message: `Будет добавлена новая неделя (Week ${nextWeekNumber}).`,
+    fullyDeletedWeeks: []
+  };
+};
+
+/**
+ * Комплексная проверка возможности добавления новой недели
+ * @param data Данные таблицы недельного расписания
+ * @returns Результат проверки возможности добавления
+ */
+export const checkCanAddNewWeekFromData = (data: IExtendedWeeklyTimeRow[]): IAddWeekCheckResult => {
+  // Анализируем данные
+  const analysisResult = analyzeWeeklyTableData(data);
+  
+  // Проверяем возможность добавления
+  return checkCanAddNewWeek(analysisResult);
+};

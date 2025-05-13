@@ -1,9 +1,26 @@
 // src/webparts/kpfaplus/components/Tabs/ContractsTab/WeeklyTimeTableActions.ts
 import { MessageBarType } from '@fluentui/react';
 import { WebPartContext } from '@microsoft/sp-webpart-base';
-import { IExtendedWeeklyTimeRow, updateDisplayedTotalHours } from './WeeklyTimeTableLogic';
+import { 
+  IExtendedWeeklyTimeRow, 
+  updateDisplayedTotalHours,
+  analyzeWeeklyTableData,
+  //checkCanAddNewWeek,
+  checkCanAddNewWeekFromData,
+  IAddWeekCheckResult
+} from './WeeklyTimeTableLogic';
 import { IWeeklyTimeTableUpdateItem, WeeklyTimeTableService } from '../../../services/WeeklyTimeTableService';
-import { IDayHours } from '../../../models/IWeeklyTimeTable';
+import { IDayHours, WeeklyTimeTableUtils } from '../../../models/IWeeklyTimeTable';
+
+/**
+ * Типы диалогов
+ */
+export enum DialogType {
+  DELETE = 'delete',        // Диалог удаления смены
+  RESTORE = 'restore',      // Диалог восстановления смены
+  ADD_WEEK = 'addWeek',     // Диалог добавления новой недели
+  INFO = 'info'             // Информационный диалог
+}
 
 /**
  * Функция для сохранения изменений в недельном расписании
@@ -192,6 +209,7 @@ export const createSaveHandler = (
  * @param changedRows Множество измененных строк
  * @param setChangedRows Функция для обновления множества измененных строк
  * @param setStatusMessage Функция для обновления статусного сообщения
+ * @param showDialog Функция для отображения диалогов
  * @returns Функция для добавления новой смены
  */
 export const createAddShiftHandler = (
@@ -202,51 +220,325 @@ export const createAddShiftHandler = (
   setStatusMessage: React.Dispatch<React.SetStateAction<{
     type: MessageBarType;
     message: string;
-  } | null>>
+  } | null>>,
+  showDialog: (rowId: string, dialogType: DialogType, additionalData?: any) => void
 ) => {
   return (): void => {
-    const newId = `new_${Date.now()}`; // Временный ID для новой строки
-    const weekNumber = Math.ceil((timeTableData.length + 1) / 2);
-    const isSecondShift = timeTableData.length % 2 === 1;
+    // Проверяем возможность добавления новой недели
+    const checkResult = checkCanAddNewWeekFromData(timeTableData);
+    console.log('Check Add Week Result:', checkResult);
     
+    // Если нельзя добавить новую неделю (есть полностью удаленные недели)
+    if (!checkResult.canAdd) {
+      // Показываем информационное сообщение
+      showDialog('info', DialogType.INFO, { message: checkResult.message });
+      return;
+    }
+    
+    // Если можно добавить новую неделю, показываем диалог подтверждения
+    showDialog('add_week', DialogType.ADD_WEEK, checkResult);
+  };
+};
+
+/**
+ * Функция для выполнения добавления новой недели после подтверждения
+ * @param context Контекст веб-части
+ * @param timeTableData Данные таблицы
+ * @param setTimeTableData Функция для обновления данных таблицы
+ * @param contractId ID контракта
+ * @param changedRows Множество измененных строк
+ * @param setChangedRows Функция для обновления множества измененных строк
+ * @param setIsSaving Функция для обновления статуса сохранения
+ * @param setStatusMessage Функция для обновления статусного сообщения
+ * @param weekNumberToAdd Номер недели для добавления
+ * @param onSaveComplete Функция обратного вызова после сохранения
+ * @returns void
+ */
+export const executeAddNewWeek = (
+  context: WebPartContext,
+  timeTableData: IExtendedWeeklyTimeRow[],
+  setTimeTableData: React.Dispatch<React.SetStateAction<IExtendedWeeklyTimeRow[]>>,
+  contractId: string | undefined,
+  changedRows: Set<string>,
+  setChangedRows: React.Dispatch<React.SetStateAction<Set<string>>>,
+  setIsSaving: React.Dispatch<React.SetStateAction<boolean>>,
+  setStatusMessage: React.Dispatch<React.SetStateAction<{
+    type: MessageBarType;
+    message: string;
+  } | null>>,
+  weekNumberToAdd: number,
+  onSaveComplete?: (success: boolean) => void
+): void => {
+  // Обновляем индикатор сохранения
+  setIsSaving(true);
+  setStatusMessage({
+    type: MessageBarType.info,
+    message: `Creating new week ${weekNumberToAdd}...`
+  });
+  
+  try {
     // Создаем объекты для пустого времени начала и окончания
     const emptyTime: IDayHours = { hours: '00', minutes: '00' };
     
-    const newRow: IExtendedWeeklyTimeRow = {
-      id: newId,
-      name: `Week ${weekNumber}${isSecondShift ? ' Shift 2' : ''}`,
-      lunch: '30',
-      totalHours: '0ч:00м', // Изначально 0 часов 0 минут
-      NumberOfWeek: weekNumber,
-      NumberOfShift: isSecondShift ? 2 : 1,
-      // Обновляем структуру с учетом нового формата
-      saturday: { start: emptyTime, end: emptyTime },
-      sunday: { start: emptyTime, end: emptyTime },
-      monday: { start: emptyTime, end: emptyTime },
-      tuesday: { start: emptyTime, end: emptyTime },
-      wednesday: { start: emptyTime, end: emptyTime },
-      thursday: { start: emptyTime, end: emptyTime },
-      friday: { start: emptyTime, end: emptyTime },
+    // Создаем объект нового элемента для отправки на сервер
+    const newItemData: IWeeklyTimeTableUpdateItem = {
+      id: 'new', // Временный ID, будет заменен сервером
       
-      total: '1'
+      // Время начала для каждого дня
+      mondayStart: emptyTime,
+      tuesdayStart: emptyTime,
+      wednesdayStart: emptyTime,
+      thursdayStart: emptyTime,
+      fridayStart: emptyTime,
+      saturdayStart: emptyTime,
+      sundayStart: emptyTime,
+      
+      // Время окончания для каждого дня
+      mondayEnd: emptyTime,
+      tuesdayEnd: emptyTime,
+      wednesdayEnd: emptyTime,
+      thursdayEnd: emptyTime,
+      fridayEnd: emptyTime,
+      saturdayEnd: emptyTime,
+      sundayEnd: emptyTime,
+      
+      // Дополнительные данные
+      lunchMinutes: '30',
+      contractNumber: '1'
     };
     
-    setTimeTableData([...timeTableData, newRow]);
+    // Создаем сервис для работы с данными
+    const service = new WeeklyTimeTableService(context);
     
-    // Отмечаем новую строку как измененную
-    const newChangedRows = new Set(changedRows);
-    newChangedRows.add(newId);
-    setChangedRows(newChangedRows);
+    // Асинхронная функция для сохранения
+    const saveNewWeek = async () => {
+      try {
+        // Вызываем метод создания и получаем реальный ID
+        const realId = await service.createWeeklyTimeTableItem(
+          newItemData, 
+          contractId || '', 
+          context.pageContext.user.loginName, 
+          weekNumberToAdd, // Передаем номер недели
+          1 // NumberOfShift = 1 для новой недели
+        );
+        
+        console.log(`Created new week ${weekNumberToAdd} with ID: ${realId}`);
+        
+        // Обновляем список элементов - получаем свежие данные с сервера
+        const updatedItems = await service.getWeeklyTimeTableByContractId(contractId || '');
+        
+        // Преобразуем данные в нужный формат и обновляем состояние
+        const formattedData = WeeklyTimeTableUtils.formatWeeklyTimeTableData(updatedItems);
+        const dataWithTotalHours = updateDisplayedTotalHours(formattedData as IExtendedWeeklyTimeRow[]);
+        setTimeTableData(dataWithTotalHours);
+        
+        // Очищаем список измененных строк, так как мы обновили все данные с сервера
+        setChangedRows(new Set());
+        
+        // Показываем сообщение об успешном создании
+        setStatusMessage({
+          type: MessageBarType.success,
+          message: `New week ${weekNumberToAdd} has been successfully created.`
+        });
+        
+        // Вызываем коллбэк завершения сохранения, если он задан
+        if (onSaveComplete) {
+          onSaveComplete(true);
+        }
+      } catch (error) {
+        console.error('Error creating new week:', error);
+        
+        // Показываем сообщение об ошибке
+        setStatusMessage({
+          type: MessageBarType.error,
+          message: `Failed to create new week: ${error instanceof Error ? error.message : 'Unknown error'}`
+        });
+        
+        // Вызываем коллбэк завершения сохранения с ошибкой, если он задан
+        if (onSaveComplete) {
+          onSaveComplete(false);
+        }
+      } finally {
+        // В любом случае снимаем индикацию процесса сохранения
+        setIsSaving(false);
+      }
+    };
     
-    // Сбрасываем статусное сообщение при добавлении новой строки
-    setStatusMessage(null);
+    // Запускаем процесс сохранения
+    saveNewWeek();
     
-    // Обновляем отображаемое общее время в первой строке каждого шаблона
-    // Запускаем обновление с небольшой задержкой, чтобы дать время на обновление состояния
-    setTimeout(() => {
-      const updatedData = updateDisplayedTotalHours([...timeTableData, newRow]);
-      setTimeTableData(updatedData);
-    }, 0);
+  } catch (error) {
+    // Обрабатываем любые синхронные ошибки
+    console.error('Error in executeAddNewWeek:', error);
+    setStatusMessage({
+      type: MessageBarType.error,
+      message: `An error occurred: ${error instanceof Error ? error.message : 'Unknown error'}`
+    });
+    setIsSaving(false);
+  }
+};
+
+/**
+ * Функция для настройки диалога подтверждения для различных действий
+ */
+export const createShowConfirmDialog = (
+  pendingActionRowIdRef: React.MutableRefObject<string | null>,
+  setConfirmDialogProps: React.Dispatch<React.SetStateAction<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmButtonText: string;
+    cancelButtonText: string;
+    onConfirm: () => void;
+    confirmButtonColor: string;
+  }>>,
+  deleteHandler: (rowIndex: number) => Promise<void>,
+  timeTableData: IExtendedWeeklyTimeRow[],
+  context: WebPartContext,  // Добавляем необходимые параметры
+  contractId: string | undefined,
+  setTimeTableData: React.Dispatch<React.SetStateAction<IExtendedWeeklyTimeRow[]>>,
+  changedRows: Set<string>,
+  setChangedRows: React.Dispatch<React.SetStateAction<Set<string>>>,
+  setIsSaving: React.Dispatch<React.SetStateAction<boolean>>,
+  setStatusMessage: React.Dispatch<React.SetStateAction<{
+    type: MessageBarType;
+    message: string;
+  } | null>>,
+  onSaveComplete?: (success: boolean) => void
+) => {
+  return (rowId: string, dialogType: DialogType = DialogType.DELETE, additionalData?: any): void => {
+    console.log(`Setting up dialog: type=${dialogType}, rowId=${rowId}`);
+    
+    // Сохраняем ID строки в ref
+    pendingActionRowIdRef.current = rowId;
+    
+    // Настраиваем диалог в зависимости от типа
+    switch (dialogType) {
+      case DialogType.DELETE:
+        // Диалог удаления - найдем строку по ID
+        const rowIndex = timeTableData.findIndex(row => row.id === rowId);
+        if (rowIndex === -1) {
+          console.error(`Row with ID ${rowId} not found`);
+          return;
+        }
+        
+        setConfirmDialogProps({
+          isOpen: true,
+          title: 'Confirm Deletion',
+          message: 'Are you sure you want to delete this shift?',
+          confirmButtonText: 'Delete',
+          cancelButtonText: 'Cancel',
+          onConfirm: () => {
+            const rowId = pendingActionRowIdRef.current;
+            if (rowId) {
+              const rowIndex = timeTableData.findIndex(row => row.id === rowId);
+              if (rowIndex !== -1) {
+                deleteHandler(rowIndex)
+                  .then(() => {
+                    console.log(`Row ${rowId} deleted successfully`);
+                    setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
+                    pendingActionRowIdRef.current = null;
+                  })
+                  .catch(err => {
+                    console.error(`Error deleting row ${rowId}:`, err);
+                    setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
+                    pendingActionRowIdRef.current = null;
+                  });
+              }
+            }
+          },
+          confirmButtonColor: '#d83b01' // красный цвет для удаления
+        });
+        break;
+      
+      case DialogType.RESTORE:
+        // Диалог восстановления
+        setConfirmDialogProps({
+          isOpen: true,
+          title: 'Confirm Restoration',
+          message: 'Are you sure you want to restore this shift?',
+          confirmButtonText: 'Restore',
+          cancelButtonText: 'Cancel',
+          onConfirm: () => {
+            const rowId = pendingActionRowIdRef.current;
+            if (rowId) {
+              const rowIndex = timeTableData.findIndex(row => row.id === rowId);
+              if (rowIndex !== -1) {
+                deleteHandler(rowIndex)
+                  .then(() => {
+                    console.log(`Row ${rowId} restored successfully`);
+                    setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
+                    pendingActionRowIdRef.current = null;
+                  })
+                  .catch(err => {
+                    console.error(`Error restoring row ${rowId}:`, err);
+                    setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
+                    pendingActionRowIdRef.current = null;
+                  });
+              }
+            }
+          },
+          confirmButtonColor: '#107c10' // зеленый цвет для восстановления
+        });
+        break;
+      
+      case DialogType.ADD_WEEK:
+        // Диалог добавления новой недели
+        const addWeekCheck = additionalData as IAddWeekCheckResult;
+        if (!addWeekCheck || !addWeekCheck.canAdd) {
+          console.error('Invalid add week check result');
+          return;
+        }
+        
+        setConfirmDialogProps({
+          isOpen: true,
+          title: 'Add New Week',
+          message: `${addWeekCheck.message} Are you sure you want to add a new week?`,
+          confirmButtonText: 'Add',
+          cancelButtonText: 'Cancel',
+          onConfirm: () => {
+            // Вызываем функцию добавления с правильными параметрами
+            executeAddNewWeek(
+              context,
+              timeTableData,
+              setTimeTableData,
+              contractId,
+              changedRows,
+              setChangedRows,
+              setIsSaving,
+              setStatusMessage,
+              addWeekCheck.weekNumberToAdd,
+              onSaveComplete
+            );
+            
+            setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
+            pendingActionRowIdRef.current = null;
+          },
+          confirmButtonColor: '#0078d4' // синий цвет для добавления
+        });
+        break;
+      
+      case DialogType.INFO:
+        // Информационный диалог
+        const infoMessage = additionalData?.message || 'Information';
+        
+        setConfirmDialogProps({
+          isOpen: true,
+          title: 'Information',
+          message: infoMessage,
+          confirmButtonText: 'OK',
+          cancelButtonText: 'Cancel', // Добавляем текст для кнопки отмены
+          onConfirm: () => {
+            setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
+            pendingActionRowIdRef.current = null;
+          },
+          confirmButtonColor: '#0078d4' // синий цвет для информации
+        });
+        break;
+      
+      default:
+        console.error(`Unknown dialog type: ${dialogType}`);
+    }
   };
 };
 
@@ -307,153 +599,73 @@ export const createDeleteShiftHandler = (
       
       // После успешного обновления на сервере обновляем локальное состояние
       // Для удаления: установить deleted=1, для восстановления: установить deleted=0
-      const newData = timeTableData.map((item, idx) => {
-        if (idx === rowIndex) {
-          return {
-            ...item,
-            deleted: isDeleted ? 0 : 1,  // Меняем статус на противоположный
-            Deleted: isDeleted ? 0 : 1   // Обновляем оба поля для совместимости
-          };
-        }
-        return item;
-      });
-      
-      setTimeTableData(newData);
-      
-      // Удаляем строку из списка измененных, если она была там
-      if (changedRows.has(rowId)) {
-        const newChangedRows = new Set(changedRows);
-        newChangedRows.delete(rowId);
-        setChangedRows(newChangedRows);
+      // После успешного обновления на сервере обновляем локальное состояние
+     // Для удаления: установить deleted=1, для восстановления: установить deleted=0
+     const newData = timeTableData.map((item, idx) => {
+      if (idx === rowIndex) {
+        return {
+          ...item,
+          deleted: isDeleted ? 0 : 1,  // Меняем статус на противоположный
+          Deleted: isDeleted ? 0 : 1   // Обновляем оба поля для совместимости
+        };
       }
-      
-      // Обновляем отображаемое общее время в первой строке каждого шаблона
-      setTimeout(() => {
-        const updatedData = updateDisplayedTotalHours(newData);
-        setTimeTableData(updatedData);
-      }, 0);
-      
-      // Показываем сообщение об успешном выполнении операции
-      setStatusMessage({
-        type: MessageBarType.success,
-        message: isDeleted ? 
-          `Shift successfully restored` : 
-          `Shift successfully deleted`
-      });
-      
-      // Скрываем сообщение через 3 секунды
-      setTimeout(() => {
-        setStatusMessage(null);
-      }, 3000);
-    } catch (error) {
-      console.error(`Error processing shift at row ${rowIndex}:`, error);
-      
-      // Показываем сообщение об ошибке
-      setStatusMessage({
-        type: MessageBarType.error,
-        message: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
-      });
-      
-      throw error;
-    } finally {
-      // В любом случае снимаем индикатор загрузки
-      setIsSaving(false);
+      return item;
+    });
+    
+    setTimeTableData(newData);
+    
+    // Удаляем строку из списка измененных, если она была там
+    if (changedRows.has(rowId)) {
+      const newChangedRows = new Set(changedRows);
+      newChangedRows.delete(rowId);
+      setChangedRows(newChangedRows);
     }
-  };
+    
+    // Обновляем отображаемое общее время в первой строке каждого шаблона
+    setTimeout(() => {
+      const updatedData = updateDisplayedTotalHours(newData);
+      setTimeTableData(updatedData);
+    }, 0);
+    
+    // Показываем сообщение об успешном выполнении операции
+    setStatusMessage({
+      type: MessageBarType.success,
+      message: isDeleted ? 
+        `Shift successfully restored` : 
+        `Shift successfully deleted`
+    });
+    
+    // Скрываем сообщение через 3 секунды
+    setTimeout(() => {
+      setStatusMessage(null);
+    }, 3000);
+  } catch (error) {
+    console.error(`Error processing shift at row ${rowIndex}:`, error);
+    
+    // Показываем сообщение об ошибке
+    setStatusMessage({
+      type: MessageBarType.error,
+      message: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+    });
+    
+    throw error;
+  } finally {
+    // В любом случае снимаем индикатор загрузки
+    setIsSaving(false);
+  }
 };
+};
+
 /**
- * Функция для настройки диалога подтверждения удаления или восстановления
- */
-export const createShowDeleteConfirmDialog = (
-  pendingActionRowIdRef: React.MutableRefObject<string | null>,
-  setConfirmDialogProps: React.Dispatch<React.SetStateAction<{
-    isOpen: boolean;
-    title: string;
-    message: string;
-    confirmButtonText: string;
-    cancelButtonText: string;
-    onConfirm: () => void;
-    confirmButtonColor: string;
-  }>>,
-  deleteHandler: (rowIndex: number) => Promise<void>,
-  timeTableData: IExtendedWeeklyTimeRow[]
-) => {
-  return (rowId: string): void => {
-    console.log(`Setting up delete/restore for row ID: ${rowId}`);
-    
-    // Сохраняем ID строки в ref
-    pendingActionRowIdRef.current = rowId;
-    
-    // Находим строку по ID
-    const rowIndex = timeTableData.findIndex(row => row.id === rowId);
-    if (rowIndex === -1) {
-      console.error(`Row with ID ${rowId} not found`);
-      return;
-    }
-    
-    const row = timeTableData[rowIndex];
-    // Проверяем, удалена ли строка
-    const isDeleted = row.deleted === 1 || row.Deleted === 1;
-    
-    // В зависимости от статуса удаления, показываем разный диалог
-    if (isDeleted) {
-      // Диалог восстановления
-      setConfirmDialogProps({
-        isOpen: true,
-        title: 'Confirm Restoration',
-        message: 'Are you sure you want to restore this shift?',
-        confirmButtonText: 'Restore',
-        cancelButtonText: 'Cancel',
-        onConfirm: () => {
-          const rowId = pendingActionRowIdRef.current;
-          if (rowId) {
-            const rowIndex = timeTableData.findIndex(row => row.id === rowId);
-            if (rowIndex !== -1) {
-              deleteHandler(rowIndex)
-                .then(() => {
-                  console.log(`Row ${rowId} restored successfully`);
-                  setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-                  pendingActionRowIdRef.current = null;
-                })
-                .catch(err => {
-                  console.error(`Error restoring row ${rowId}:`, err);
-                  setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-                  pendingActionRowIdRef.current = null;
-                });
-            }
-          }
-        },
-        confirmButtonColor: '#107c10' // зеленый цвет для восстановления
-      });
-    } else {
-      // Диалог удаления
-      setConfirmDialogProps({
-        isOpen: true,
-        title: 'Confirm Deletion',
-        message: 'Are you sure you want to delete this shift?',
-        confirmButtonText: 'Delete',
-        cancelButtonText: 'Cancel',
-        onConfirm: () => {
-          const rowId = pendingActionRowIdRef.current;
-          if (rowId) {
-            const rowIndex = timeTableData.findIndex(row => row.id === rowId);
-            if (rowIndex !== -1) {
-              deleteHandler(rowIndex)
-                .then(() => {
-                  console.log(`Row ${rowId} deleted successfully`);
-                  setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-                  pendingActionRowIdRef.current = null;
-                })
-                .catch(err => {
-                  console.error(`Error deleting row ${rowId}:`, err);
-                  setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-                  pendingActionRowIdRef.current = null;
-                });
-            }
-          }
-        },
-        confirmButtonColor: '#d83b01' // красный цвет для удаления
-      });
-    }
-  };
+* Вспомогательная функция для логирования анализа таблицы недельного расписания
+*/
+export const logWeeklyTableAnalysis = (timeTableData: IExtendedWeeklyTimeRow[]): void => {
+const analysisResult = analyzeWeeklyTableData(timeTableData);
+console.log('Week Analysis Result:', analysisResult);
 };
+
+/**
+* Функция для настройки диалога подтверждения удаления или восстановления
+* (для обратной совместимости с существующим кодом)
+*/
+export const createShowDeleteConfirmDialog = createShowConfirmDialog;

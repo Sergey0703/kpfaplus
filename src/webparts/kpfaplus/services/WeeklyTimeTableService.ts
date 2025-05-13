@@ -233,130 +233,136 @@ public async getWeeklyTimeTableByContractId(contractId: string): Promise<any[]> 
     }
   }
 
-  /**
-   * Создание нового элемента недельного расписания
-   * @param item Данные для создания
-   * @param contractId ID контракта
-   * @param creatorId ID создателя
-   * @returns ID созданного элемента
-   */
-  public async createWeeklyTimeTableItem(item: IWeeklyTimeTableUpdateItem, contractId: string, creatorId: string): Promise<string> {
-    try {
-      // Определяем номер недели на основе текущей даты
-      const currentDate = new Date();
-      const weekNumber = Math.floor(currentDate.getDate() / 7) + 1;
-      
-      // Формируем объект с полями для создания
-      const createData: any = {
-        fields: {
-          Title: `Week ${weekNumber}`,
-          NumberOfWeek: weekNumber,
-          NumberOfShift: 1
-        }
-      };
-      
-      // Проверяем и преобразуем contractId в число для поля IdOfTemplateLookupId
-      if (contractId) {
-        createData.fields.IdOfTemplateLookupId = parseInt(contractId);
-      }
-      
-      // Проверяем и преобразуем creatorId в число для поля CreatorLookupId
-      if (creatorId) {
-        // Здесь мы должны извлечь числовой ID из creatorId
-        // Если creatorId уже является числом или строковым представлением числа, используем его
-        // В противном случае нужно получить ID пользователя по имени пользователя
-        const userIdMatch = creatorId.match(/\d+/); // Извлекаем числа из строки
-        if (userIdMatch) {
-          createData.fields.CreatorLookupId = parseInt(userIdMatch[0]);
-        } else {
-          // Если не удалось извлечь числовой ID, логируем ошибку, но продолжаем
-          console.warn(`Could not extract numeric ID from creatorId: ${creatorId}`);
-        }
-      }
-      
-      // Добавляем поля времени начала работы для каждого дня
-      if (item.mondayStart) {
-        createData.fields.MondeyStartWork = this.formatTimeForSharePoint(item.mondayStart);
-      }
-      
-      if (item.tuesdayStart) {
-        createData.fields.TuesdayStartWork = this.formatTimeForSharePoint(item.tuesdayStart);
-      }
-      
-      if (item.wednesdayStart) {
-        createData.fields.WednesdayStartWork = this.formatTimeForSharePoint(item.wednesdayStart);
-      }
-      
-      if (item.thursdayStart) {
-        createData.fields.ThursdayStartWork = this.formatTimeForSharePoint(item.thursdayStart);
-      }
-      
-      if (item.fridayStart) {
-        createData.fields.FridayStartWork = this.formatTimeForSharePoint(item.fridayStart);
-      }
-      
-      if (item.saturdayStart) {
-        createData.fields.SaturdayStartWork = this.formatTimeForSharePoint(item.saturdayStart);
-      }
-      
-      if (item.sundayStart) {
-        createData.fields.SundayStartWork = this.formatTimeForSharePoint(item.sundayStart);
-      }
-      
-      // Добавляем поля времени окончания работы для каждого дня
-      if (item.mondayEnd) {
-        createData.fields.MondayEndWork = this.formatTimeForSharePoint(item.mondayEnd);
-      }
-      
-      if (item.tuesdayEnd) {
-        createData.fields.TuesdayEndWork = this.formatTimeForSharePoint(item.tuesdayEnd);
-      }
-      
-      if (item.wednesdayEnd) {
-        createData.fields.WednesdayEndWork = this.formatTimeForSharePoint(item.wednesdayEnd);
-      }
-      
-      if (item.thursdayEnd) {
-        createData.fields.ThursdayEndWork = this.formatTimeForSharePoint(item.thursdayEnd);
-      }
-      
-      if (item.fridayEnd) {
-        createData.fields.FridayEndWork = this.formatTimeForSharePoint(item.fridayEnd);
-      }
-      
-      if (item.saturdayEnd) {
-        createData.fields.SaturdayEndWork = this.formatTimeForSharePoint(item.saturdayEnd);
-      }
-      
-      if (item.sundayEnd) {
-        createData.fields.SundayEndWork = this.formatTimeForSharePoint(item.sundayEnd);
-      }
-      
-      // Добавляем время обеда
-      if (item.lunchMinutes) {
-        createData.fields.TimeForLunch = parseInt(item.lunchMinutes);
-      }
-      
-      // Добавляем номер контракта
-      if (item.contractNumber) {
-        createData.fields.Contract = parseInt(item.contractNumber);
-      }
-      
-      // Устанавливаем поле Deleted в 0
-      createData.fields.Deleted = 0;
-      
-      // Используем createListItem из RemoteSiteService
-      const result = await this.remoteSiteService.createListItem(
-        this.listName,
-        createData
-      );
-      
-      return result.id.toString();
-    } catch (err) {
-      console.error('Error creating weekly time table item:', err);
-      throw err;
+/**
+ * Создание нового элемента недельного расписания
+ * @param item Данные для создания
+ * @param contractId ID контракта
+ * @param creatorId ID создателя
+ * @param numberOfWeek Номер недели (опционально)
+ * @param numberOfShift Номер смены (опционально)
+ * @returns ID созданного элемента
+ */
+public async createWeeklyTimeTableItem(
+  item: IWeeklyTimeTableUpdateItem, 
+  contractId: string, 
+  creatorId: string,
+  numberOfWeek?: number,
+  numberOfShift?: number
+): Promise<string> {
+  try {
+    // Определяем номер недели
+    const weekNumber = numberOfWeek !== undefined ? 
+      numberOfWeek : 
+      Math.floor(new Date().getDate() / 7) + 1;
+    
+    // Определяем номер смены
+    const shiftNumber = numberOfShift !== undefined ? numberOfShift : 1;
+    
+    // Формируем объект с полями для создания
+    const createData: any = {
+      Title: `Week ${weekNumber}`,
+      NumberOfWeek: weekNumber,
+      NumberOfShift: shiftNumber
+    };
+    
+    // Проверяем и преобразуем contractId в число для поля IdOfTemplateLookupId
+    if (contractId) {
+      createData.IdOfTemplateLookupId = parseInt(contractId);
     }
+    
+    // Проверяем и преобразуем creatorId
+    if (creatorId) {
+      // Извлекаем числовой ID из creatorId
+      const userIdMatch = creatorId.match(/\d+/);
+      if (userIdMatch) {
+        createData.CreatorLookupId = parseInt(userIdMatch[0]);
+      } else {
+        // Если не удалось извлечь числовой ID, логируем ошибку, но продолжаем
+        console.warn(`Could not extract numeric ID from creatorId: ${creatorId}`);
+      }
+    }
+    
+    // Добавляем поля времени начала работы для каждого дня
+    if (item.mondayStart) {
+      createData.MondeyStartWork = this.formatTimeForSharePoint(item.mondayStart);
+    }
+    
+    if (item.tuesdayStart) {
+      createData.TuesdayStartWork = this.formatTimeForSharePoint(item.tuesdayStart);
+    }
+    
+    if (item.wednesdayStart) {
+      createData.WednesdayStartWork = this.formatTimeForSharePoint(item.wednesdayStart);
+    }
+    
+    if (item.thursdayStart) {
+      createData.ThursdayStartWork = this.formatTimeForSharePoint(item.thursdayStart);
+    }
+    
+    if (item.fridayStart) {
+      createData.FridayStartWork = this.formatTimeForSharePoint(item.fridayStart);
+    }
+    
+    if (item.saturdayStart) {
+      createData.SaturdayStartWork = this.formatTimeForSharePoint(item.saturdayStart);
+    }
+    
+    if (item.sundayStart) {
+      createData.SundayStartWork = this.formatTimeForSharePoint(item.sundayStart);
+    }
+    
+    // Добавляем поля времени окончания работы для каждого дня
+    if (item.mondayEnd) {
+      createData.MondayEndWork = this.formatTimeForSharePoint(item.mondayEnd);
+    }
+    
+    if (item.tuesdayEnd) {
+      createData.TuesdayEndWork = this.formatTimeForSharePoint(item.tuesdayEnd);
+    }
+    
+    if (item.wednesdayEnd) {
+      createData.WednesdayEndWork = this.formatTimeForSharePoint(item.wednesdayEnd);
+    }
+    
+    if (item.thursdayEnd) {
+      createData.ThursdayEndWork = this.formatTimeForSharePoint(item.thursdayEnd);
+    }
+    
+    if (item.fridayEnd) {
+      createData.FridayEndWork = this.formatTimeForSharePoint(item.fridayEnd);
+    }
+    
+    if (item.saturdayEnd) {
+      createData.SaturdayEndWork = this.formatTimeForSharePoint(item.saturdayEnd);
+    }
+    
+    if (item.sundayEnd) {
+      createData.SundayEndWork = this.formatTimeForSharePoint(item.sundayEnd);
+    }
+    
+    // Добавляем время обеда
+    if (item.lunchMinutes) {
+      createData.TimeForLunch = parseInt(item.lunchMinutes);
+    }
+    
+    // Добавляем номер контракта
+    if (item.contractNumber) {
+      createData.Contract = parseInt(item.contractNumber);
+    }
+    
+    // Устанавливаем поле Deleted в 0
+    createData.Deleted = 0;
+    
+    // Используем метод из RemoteSiteService для создания элемента
+    const listId = await this.remoteSiteService.getListId(this.listName);
+    const result = await this.remoteSiteService.addListItem(listId, createData);
+    
+    return result.id.toString();
+  } catch (err) {
+    console.error('Error creating weekly time table item:', err);
+    throw err;
   }
+}
 
   /**
  * Удаляет элемент недельного расписания (устанавливает Deleted=1)

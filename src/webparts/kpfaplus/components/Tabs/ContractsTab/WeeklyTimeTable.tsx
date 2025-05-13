@@ -17,6 +17,7 @@ import {
   canDeleteRow,
   getStartDayName,
   updateDisplayedTotalHours
+  //checkCanAddNewWeekFromData
 } from './WeeklyTimeTableLogic';
 import { WebPartContext } from '@microsoft/sp-webpart-base';
 import { WeeklyTimeTableUtils } from '../../../models/IWeeklyTimeTable';
@@ -33,7 +34,9 @@ import {
   createSaveHandler,
   createAddShiftHandler,
   createDeleteShiftHandler,
-  createShowDeleteConfirmDialog
+  createShowConfirmDialog,
+  DialogType
+ // executeAddNewWeek
 } from './WeeklyTimeTableActions';
 import {
   AddShiftButton,
@@ -113,6 +116,33 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   const minutesOptions = useMinutesOptions();
   const lunchOptions = useLunchOptions();
 
+  // 1. Сначала создаем handleDeleteShift, так как он используется в showDialog
+  const handleDeleteShift = createDeleteShiftHandler(
+    context,
+    timeTableData,
+    setTimeTableData,
+    changedRows,
+    setChangedRows,
+    setIsSaving,
+    setStatusMessage
+  );
+
+  // 2. Затем создаем функцию для отображения диалогов
+  // 2. Затем создаем функцию для отображения диалогов
+const showDialog = createShowConfirmDialog(
+  pendingActionRowIdRef,
+  setConfirmDialogProps,
+  handleDeleteShift,
+  timeTableData,
+  context,                 // Добавляем контекст
+  contractId,              // Добавляем ID контракта
+  setTimeTableData,        // Добавляем функцию обновления данных
+  changedRows,             // Добавляем множество измененных строк
+  setChangedRows,          // Добавляем функцию обновления множества
+  setIsSaving,             // Добавляем функцию обновления статуса сохранения
+  setStatusMessage,        // Добавляем функцию обновления сообщений
+  onSaveComplete           // Добавляем коллбэк завершения (опционально)
+);
   // Создаем обработчики для изменения данных
   const handleTimeChange = useTimeChangeHandler(
     timeTableData,
@@ -138,7 +168,17 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     setStatusMessage
   );
 
-  // Создаем обработчики для действий
+  // 3. Создаем обработчик для добавления смены с использованием диалогов
+  const handleAddShift = createAddShiftHandler(
+    timeTableData,
+    setTimeTableData,
+    changedRows,
+    setChangedRows,
+    setStatusMessage,
+    showDialog
+  );
+
+  // 4. Создаем обработчик для сохранения
   const handleSave = createSaveHandler(
     context,
     timeTableData,
@@ -151,30 +191,22 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     onSaveComplete
   );
 
-  const handleAddShift = createAddShiftHandler(
-    timeTableData,
-    setTimeTableData,
-    changedRows,
-    setChangedRows,
-    setStatusMessage
-  );
-
-  const handleDeleteShift = createDeleteShiftHandler(
-    context,
-    timeTableData,
-    setTimeTableData,
-    changedRows,
-    setChangedRows,
-    setIsSaving,
-    setStatusMessage
-  );
-
-  const showDeleteConfirmDialog = createShowDeleteConfirmDialog(
-    pendingActionRowIdRef,
-    setConfirmDialogProps,
-    handleDeleteShift,
-    timeTableData
-  );
+  // 5. Обновленная функция для вызова диалога удаления/восстановления
+  const showDeleteConfirmDialog = (rowId: string): void => {
+    // Находим строку по ID
+    const row = timeTableData.find(r => r.id === rowId);
+    if (!row) {
+      console.error(`Row with ID ${rowId} not found`);
+      return;
+    }
+    
+    // Определяем тип диалога в зависимости от статуса удаления
+    const isDeleted = row.deleted === 1 || row.Deleted === 1;
+    const dialogType = isDeleted ? DialogType.RESTORE : DialogType.DELETE;
+    
+    // Показываем диалог
+    showDialog(rowId, dialogType);
+  };
 
   // Использование useLayoutEffect вместо useEffect для синхронного обновления состояния перед рендерингом
   useLayoutEffect(() => {
@@ -268,20 +300,19 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
                 console.log(`No NumberOfShift found for row ID ${formattedRow.id}`);
               }
               // Добавляем NumberOfWeek из originalRow
-const NumberOfWeekValue = 
-originalRow.NumberOfWeek !== undefined ? originalRow.NumberOfWeek :
-originalRow.numberOfWeek !== undefined ? originalRow.numberOfWeek :
-originalRow.fields && originalRow.fields.NumberOfWeek !== undefined ? originalRow.fields.NumberOfWeek :
-originalRow.fields && originalRow.fields.numberOfWeek !== undefined ? originalRow.fields.numberOfWeek :
-undefined;
+              const NumberOfWeekValue = 
+                originalRow.NumberOfWeek !== undefined ? originalRow.NumberOfWeek :
+                originalRow.numberOfWeek !== undefined ? originalRow.numberOfWeek :
+                originalRow.fields && originalRow.fields.NumberOfWeek !== undefined ? originalRow.fields.NumberOfWeek :
+                originalRow.fields && originalRow.fields.numberOfWeek !== undefined ? originalRow.fields.numberOfWeek :
+                undefined;
 
-if (NumberOfWeekValue !== undefined) {
-console.log(`Found NumberOfWeek for row ID ${formattedRow.id}: ${NumberOfWeekValue}`);
-formattedRow.NumberOfWeek = NumberOfWeekValue;
-} else {
-console.log(`No NumberOfWeek found for row ID ${formattedRow.id}`);
-}
-
+              if (NumberOfWeekValue !== undefined) {
+                console.log(`Found NumberOfWeek for row ID ${formattedRow.id}: ${NumberOfWeekValue}`);
+                formattedRow.NumberOfWeek = NumberOfWeekValue;
+              } else {
+                console.log(`No NumberOfWeek found for row ID ${formattedRow.id}`);
+              }
             } else {
               console.log(`No original row found for formatted row ID ${formattedRow.id}`);
             }
@@ -394,17 +425,16 @@ console.log(`No NumberOfWeek found for row ID ${formattedRow.id}`);
   console.log("Data initialized:", dataInitializedRef.current);
 
   // Фильтруем строки в зависимости от флага showDeleted
-  // Фильтруем строки в зависимости от флага showDeleted
-const filteredTimeTableData = timeTableData.filter(row => {
-  // Проверяем, удалена ли строка - смотрим оба поля для надежности
-  const isDeleted = (row.deleted === 1 || row.Deleted === 1);
-  
-  // Для отладки
-  console.log(`Filtering row ID ${row.id}: deleted=${row.deleted}, Deleted=${row.Deleted}, isDeleted=${isDeleted}, showing=${!isDeleted || showDeleted}`);
-  
-  // Показываем строку, если она не удалена ИЛИ если включен показ удаленных
-  return !isDeleted || showDeleted;
-});
+  const filteredTimeTableData = timeTableData.filter(row => {
+    // Проверяем, удалена ли строка - смотрим оба поля для надежности
+    const isDeleted = (row.deleted === 1 || row.Deleted === 1);
+    
+    // Для отладки
+    console.log(`Filtering row ID ${row.id}: deleted=${row.deleted}, Deleted=${row.Deleted}, isDeleted=${isDeleted}, showing=${!isDeleted || showDeleted}`);
+    
+    // Показываем строку, если она не удалена ИЛИ если включен показ удаленных
+    return !isDeleted || showDeleted;
+  });
 
   // Логируем результаты фильтрации
   console.log(`Filtered timeTableData: ${filteredTimeTableData.length} of ${timeTableData.length} rows`);
