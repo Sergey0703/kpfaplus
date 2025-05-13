@@ -408,6 +408,20 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     );
   };
 
+  // Определяет, является ли строка первой с новым idOfTemplate
+const isFirstRowWithNewTemplate = (data: IExtendedWeeklyTimeRow[], rowIndex: number): boolean => {
+  if (rowIndex === 0) {
+    // Первая строка всегда считается первой в новой группе
+    return true;
+  }
+  
+  const currentRow = data[rowIndex];
+  const prevRow = data[rowIndex - 1];
+  
+  // Если у текущей строки другой idOfTemplate, чем у предыдущей,
+  // значит это первая строка новой группы
+  return currentRow.idOfTemplate !== prevRow.idOfTemplate;
+};
   // Если загружаются данные, показываем спиннер
   if (isTableLoading) {
     return (
@@ -416,7 +430,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
       </div>
     );
   }
-
+  
   // Если нет данных, показываем кнопку для добавления новой смены
   // Добавлена проверка dataInitializedRef.current, чтобы избежать отображения пустого шаблона при первом рендеринге
   if ((filteredTimeTableData.length === 0 && !isTableLoading) || (!dataInitializedRef.current && filteredTimeTableData.length === 0)) {
@@ -531,7 +545,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
           <tbody>
             {filteredTimeTableData.map((row, rowIndex) => {
               // Проверяем, является ли строка последней в группе (по неделе или idOfTemplate)
-              const isLastInGroup = 
+         //     const isLastInGroup = 
                 // Предпочитаем использовать idOfTemplate, если оно доступно
                 row.idOfTemplate !== undefined ? 
                   // Если это последняя строка или следующая строка имеет другой idOfTemplate
@@ -542,14 +556,23 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
                   isLastRowInWeekGroup(filteredTimeTableData, rowIndex);
               
               // Определяем класс для строки обеда с разделителем, если это последняя строка в группе
-              const lunchRowClassName = isLastInGroup ? 
-                `${styles.lunchRow} ${styles.templateSeparator}` : 
-                styles.lunchRow;
+              const lunchRowClassName = styles.lunchRow;
               
               return (
                 <React.Fragment key={row.id}>
                   {/* Первая строка - начало рабочего дня */}
-                  <tr className={styles.weekRow}>
+                  {isFirstRowWithNewTemplate(filteredTimeTableData, rowIndex) && (
+      <tr style={{ height: '3px', padding: 0 }}>
+        <td colSpan={orderedWeekDays.length + 3} style={{ 
+          backgroundColor: '#0078d4', 
+          height: '3px',
+          padding: 0,
+          border: 'none'
+        }}></td>
+      </tr>
+    )}
+    <tr className={styles.weekRow}>
+
                     {/* Ячейка для рабочих часов - отображаем общее время для первой строки шаблона */}
                     <td className={styles.hoursCell} rowSpan={2}>
                       <TotalHoursCell
