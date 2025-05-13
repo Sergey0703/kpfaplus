@@ -282,9 +282,24 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
                 console.log(`Found idOfTemplate for row ID ${formattedRow.id}: ${idOfTemplateValue}`);
                 formattedRow.idOfTemplate = idOfTemplateValue;
               }
-            } else {
-              console.log(`No original row found for formatted row ID ${formattedRow.id}`);
-            }
+
+              const NumberOfShiftValue = 
+      originalRow.NumberOfShift !== undefined ? originalRow.NumberOfShift :
+      originalRow.numberOfShift !== undefined ? originalRow.numberOfShift :
+      originalRow.fields && originalRow.fields.NumberOfShift !== undefined ? originalRow.fields.NumberOfShift :
+      originalRow.fields && originalRow.fields.numberOfShift !== undefined ? originalRow.fields.numberOfShift :
+      undefined;
+    
+    if (NumberOfShiftValue !== undefined) {
+      console.log(`Found NumberOfShift for row ID ${formattedRow.id}: ${NumberOfShiftValue}`);
+      formattedRow.NumberOfShift = NumberOfShiftValue;
+    } else {
+      console.log(`No NumberOfShift found for row ID ${formattedRow.id}`);
+    }
+  } else {
+    console.log(`No original row found for formatted row ID ${formattedRow.id}`);
+  }
+         
           }
           
           return result;
@@ -304,7 +319,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
       
       // Проверяем наличие поля deleted в отформатированных данных
       formattedData.forEach((row, index) => {
-        console.log(`Row ${index} (ID: ${row.id}): deleted status = ${row.deleted}, type: ${typeof row.deleted}, idOfTemplate = ${row.idOfTemplate}`);
+        console.log(`Row ${index} (ID: ${row.id}): deleted status = ${row.deleted}, type: ${typeof row.deleted}, NumberOfShift = ${row.NumberOfShift}`);
       });
       
       console.log("Sample formatted row:", formattedData.length > 0 ? formattedData[0] : "No data");
@@ -312,7 +327,11 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
       // Обновляем отображаемое общее время в первой строке каждого шаблона
       const dataWithTotalHours = updateDisplayedTotalHours(formattedData as IExtendedWeeklyTimeRow[]);
       console.log("dataWithTotalHours length:", dataWithTotalHours.length);
-      
+      if (dataWithTotalHours.length > 0) {
+        console.log("AFTER TOTAL HOURS - First row sample:", JSON.stringify(dataWithTotalHours[0], null, 2));
+        console.log(`AFTER TOTAL HOURS - NumberOfShift present: ${dataWithTotalHours[0].NumberOfShift !== undefined}`);
+        console.log(`AFTER TOTAL HOURS - NumberOfShift value: ${dataWithTotalHours[0].NumberOfShift}`);
+      }
       // Устанавливаем данные
       setTimeTableData(dataWithTotalHours);
       console.log("After setTimeTableData, state should update soon");
@@ -378,6 +397,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     
     // Показываем строку, если она не удалена ИЛИ если включен показ удаленных
     return !isDeleted || showDeleted;
+
   });
 
   // Логируем результаты фильтрации
@@ -408,20 +428,24 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     );
   };
 
-  // Определяет, является ли строка первой с новым idOfTemplate
-const isFirstRowWithNewTemplate = (data: IExtendedWeeklyTimeRow[], rowIndex: number): boolean => {
-  if (rowIndex === 0) {
-    // Первая строка всегда считается первой в новой группе
-    return true;
-  }
+  // Определяет, является ли строка первой с новым 
+  const isFirstRowWithNewTemplate = (data: IExtendedWeeklyTimeRow[], rowIndex: number): boolean => {
+    const currentRow = data[rowIndex];
+    
+    // Проверяем поле NumberOfShift напрямую в строке
+    if (currentRow.NumberOfShift !== undefined) {
+      // Логируем для отладки
+      console.log(`Row ${rowIndex} - ID: ${currentRow.id}, NumberOfShift: ${currentRow.NumberOfShift}`);
+      
+      // Возвращаем true, если NumberOfShift равен 1
+      return currentRow.NumberOfShift === 1;
+    }
+    
+    // Если поля NumberOfShift нет, возвращаем false
+    console.log(`Row ${rowIndex} - ID: ${currentRow.id}, NumberOfShift not found`);
+    return false;
+  };
   
-  const currentRow = data[rowIndex];
-  const prevRow = data[rowIndex - 1];
-  
-  // Если у текущей строки другой idOfTemplate, чем у предыдущей,
-  // значит это первая строка новой группы
-  return currentRow.idOfTemplate !== prevRow.idOfTemplate;
-};
   // Если загружаются данные, показываем спиннер
   if (isTableLoading) {
     return (
@@ -557,7 +581,8 @@ const isFirstRowWithNewTemplate = (data: IExtendedWeeklyTimeRow[], rowIndex: num
               
               // Определяем класс для строки обеда с разделителем, если это последняя строка в группе
               const lunchRowClassName = styles.lunchRow;
-              
+              console.log(`Row ${rowIndex} - ID: ${row.id}, NumberOfShift: ${row.NumberOfShift}, isFirst: ${isFirstRowWithNewTemplate(filteredTimeTableData, rowIndex)}`);
+  
               return (
                 <React.Fragment key={row.id}>
                   {/* Первая строка - начало рабочего дня */}

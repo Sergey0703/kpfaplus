@@ -217,7 +217,8 @@ export const createAddShiftHandler = (
       name: `Week ${weekNumber}${isSecondShift ? ' Shift 2' : ''}`,
       lunch: '30',
       totalHours: '0ч:00м', // Изначально 0 часов 0 минут
-      
+      NumberOfWeek: weekNumber,
+      NumberOfShift: isSecondShift ? 2 : 1,
       // Обновляем структуру с учетом нового формата
       saturday: { start: emptyTime, end: emptyTime },
       sunday: { start: emptyTime, end: emptyTime },

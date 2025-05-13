@@ -57,6 +57,10 @@ export interface IFormattedWeeklyTimeRow {
   lunch: string;
   totalHours: string; // Общее время работы в формате "XXч:XXм"
   
+  // Добавляем поля NumberOfWeek и NumberOfShift
+  NumberOfWeek?: number; // Делаем опциональными, чтобы избежать ошибок при преобразовании типов
+  NumberOfShift?: number;
+  
   // Обновленные поля для дней недели с полным временем (начало и конец)
   saturday: IDayHoursComplete;
   sunday: IDayHoursComplete;
@@ -68,8 +72,8 @@ export interface IFormattedWeeklyTimeRow {
   
   total: string; // Номер контракта
   
-  // Добавляем индексную сигнатуру для доступа по строковому ключу
-  [key: string]: string | IDayHoursComplete;
+  // Изменяем индексную сигнатуру, чтобы она поддерживала числовые значения
+  [key: string]: string | IDayHoursComplete | number | undefined;
 }
 
 // Утилиты для работы с недельным расписанием
@@ -173,6 +177,9 @@ export class WeeklyTimeTableUtils {
         name: rowName,
         lunch: timeForLunch.toString(), // Используем точное значение из поля TimeForLunch
         totalHours: '', // Временно устанавливаем пустую строку, заполним после создания всей структуры
+
+        NumberOfWeek: weekNumber,
+        NumberOfShift: shiftNumber,
         
         // Структура с временем начала и окончания для каждого дня
         saturday: { 
@@ -209,7 +216,8 @@ export class WeeklyTimeTableUtils {
       
       // Выводим для отладки значение timeForLunch
       console.log(`Row ${item.id} - TimeForLunch from server: ${fields.TimeForLunch}, using value: ${timeForLunch}`);
-      
+      // После создания row
+      console.log(`Row ${item.id} - NumberOfShift from server: ${fields.NumberOfShift}, using value: ${shiftNumber}`);
       // Рассчитываем общее время работы
       row.totalHours = this.calculateTotalWorkHours(
         {

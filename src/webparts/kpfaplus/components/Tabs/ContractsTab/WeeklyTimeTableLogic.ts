@@ -6,6 +6,7 @@ import {
   // Интерфейс для расширенной строки с дополнительным полем displayedTotalHours
   export interface IExtendedWeeklyTimeRow extends IFormattedWeeklyTimeRow {
     displayedTotalHours?: string;
+    NumberOfShift?: number;
     [key: string]: any; // Это позволит иметь индексацию по строке
   }
   
