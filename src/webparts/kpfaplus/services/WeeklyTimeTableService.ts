@@ -237,7 +237,7 @@ public async getWeeklyTimeTableByContractId(contractId: string): Promise<any[]> 
  * Создание нового элемента недельного расписания
  * @param item Данные для создания
  * @param contractId ID контракта
- * @param creatorId ID создателя
+ * @param currentUserId ID текущего пользователя из списка Staff
  * @param numberOfWeek Номер недели (опционально)
  * @param numberOfShift Номер смены (опционально)
  * @returns ID созданного элемента
@@ -245,7 +245,7 @@ public async getWeeklyTimeTableByContractId(contractId: string): Promise<any[]> 
 public async createWeeklyTimeTableItem(
   item: IWeeklyTimeTableUpdateItem, 
   contractId: string, 
-  creatorId: string,
+  currentUserId: number | string,
   numberOfWeek?: number,
   numberOfShift?: number
 ): Promise<string> {
@@ -267,19 +267,50 @@ public async createWeeklyTimeTableItem(
     
     // Проверяем и преобразуем contractId в число для поля IdOfTemplateLookupId
     if (contractId) {
-      createData.IdOfTemplateLookupId = parseInt(contractId);
+      try {
+        const contractIdNum = parseInt(contractId);
+        if (!isNaN(contractIdNum)) {
+          createData.IdOfTemplateLookupId = contractIdNum;
+          console.log(`Setting IdOfTemplateLookupId to ${contractIdNum}`);
+        } else {
+          console.warn(`Invalid contract ID format: ${contractId}`);
+        }
+      } catch (parseError) {
+        console.warn(`Error parsing contract ID: ${parseError}`);
+      }
+    } else {
+      console.warn('No contract ID provided for weekly time table item');
     }
     
-    // Проверяем и преобразуем creatorId
-    if (creatorId) {
-      // Извлекаем числовой ID из creatorId
-      const userIdMatch = creatorId.match(/\d+/);
-      if (userIdMatch) {
-        createData.CreatorLookupId = parseInt(userIdMatch[0]);
+    // Добавляем Creator - ссылку на текущего пользователя
+    if (currentUserId) {
+      // Преобразуем currentUserId в число, если это строка
+      let creatorId: number;
+      
+      if (typeof currentUserId === 'string') {
+        try {
+          creatorId = parseInt(currentUserId);
+          if (isNaN(creatorId)) {
+            console.warn(`Cannot parse creator ID string: ${currentUserId}`);
+            creatorId = 0;
+          }
+        } catch (parseError) {
+          console.warn(`Error parsing creator ID: ${parseError}`);
+          creatorId = 0;
+        }
       } else {
-        // Если не удалось извлечь числовой ID, логируем ошибку, но продолжаем
-        console.warn(`Could not extract numeric ID from creatorId: ${creatorId}`);
+        creatorId = currentUserId;
       }
+      
+      if (creatorId > 0) {
+        // Добавляем ID создателя как LookupId
+        createData.CreatorLookupId = creatorId;
+        console.log(`Setting CreatorLookupId to ${creatorId}`);
+      } else {
+        console.warn(`Invalid creator ID value: ${currentUserId}`);
+      }
+    } else {
+      console.warn(`No creator ID provided for weekly time table item`);
     }
     
     // Добавляем поля времени начала работы для каждого дня
@@ -342,22 +373,59 @@ public async createWeeklyTimeTableItem(
     
     // Добавляем время обеда
     if (item.lunchMinutes) {
-      createData.TimeForLunch = parseInt(item.lunchMinutes);
+      try {
+        const lunchVal = parseInt(item.lunchMinutes);
+        if (!isNaN(lunchVal)) {
+          createData.TimeForLunch = lunchVal;
+        } else {
+          createData.TimeForLunch = 30; // Значение по умолчанию
+          console.warn(`Invalid lunch minutes format: ${item.lunchMinutes}, using default value 30`);
+        }
+      } catch (parseError) {
+        createData.TimeForLunch = 30; // Значение по умолчанию
+        console.warn(`Error parsing lunch minutes: ${parseError}, using default value 30`);
+      }
+    } else {
+      createData.TimeForLunch = 30; // Значение по умолчанию
     }
     
     // Добавляем номер контракта
     if (item.contractNumber) {
-      createData.Contract = parseInt(item.contractNumber);
+      try {
+        const contractNum = parseInt(item.contractNumber);
+        if (!isNaN(contractNum)) {
+          createData.Contract = contractNum;
+        } else {
+          createData.Contract = 1; // Значение по умолчанию
+          console.warn(`Invalid contract number format: ${item.contractNumber}, using default value 1`);
+        }
+      } catch (parseError) {
+        createData.Contract = 1; // Значение по умолчанию
+        console.warn(`Error parsing contract number: ${parseError}, using default value 1`);
+      }
+    } else {
+      createData.Contract = 1; // Значение по умолчанию
     }
     
     // Устанавливаем поле Deleted в 0
     createData.Deleted = 0;
     
-    // Используем метод из RemoteSiteService для создания элемента
-    const listId = await this.remoteSiteService.getListId(this.listName);
-    const result = await this.remoteSiteService.addListItem(listId, createData);
+    // Логируем данные для создания
+    console.log(`Creating weekly time table item with data:`, JSON.stringify(createData, null, 2));
     
-    return result.id.toString();
+    // Используем метод из RemoteSiteService для создания элемента
+    try {
+      const listId = await this.remoteSiteService.getListId(this.listName);
+      console.log(`Got list ID for ${this.listName}: ${listId}`);
+      
+      const result = await this.remoteSiteService.addListItem(listId, createData);
+      console.log(`Successfully created weekly time table item with ID: ${result.id}`);
+      
+      return result.id.toString();
+    } catch (serverError) {
+      console.error(`Error creating item on server: ${serverError}`);
+      throw new Error(`Server error creating weekly time table item: ${serverError instanceof Error ? serverError.message : String(serverError)}`);
+    }
   } catch (err) {
     console.error('Error creating weekly time table item:', err);
     throw err;

@@ -55,6 +55,7 @@ export interface IWeeklyTimeTableProps {
   dayOfStartWeek?: number; // День начала недели
   context: WebPartContext; // Контекст веб-части для доступа к API
   onSaveComplete?: (success: boolean) => void; // Функция обратного вызова после сохранения
+  currentUserId?: number; // Добавляем свойство для ID текущего пользователя
 }
 
 export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
@@ -127,7 +128,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     setStatusMessage
   );
 
-  // 2. Затем создаем функцию для отображения диалогов
+  const currentUserId = props.currentUserId || 0;
   // 2. Затем создаем функцию для отображения диалогов
 const showDialog = createShowConfirmDialog(
   pendingActionRowIdRef,
@@ -141,6 +142,7 @@ const showDialog = createShowConfirmDialog(
   setChangedRows,          // Добавляем функцию обновления множества
   setIsSaving,             // Добавляем функцию обновления статуса сохранения
   setStatusMessage,        // Добавляем функцию обновления сообщений
+  currentUserId, // Передаем ID текущего пользователя
   onSaveComplete           // Добавляем коллбэк завершения (опционально)
 );
   // Создаем обработчики для изменения данных

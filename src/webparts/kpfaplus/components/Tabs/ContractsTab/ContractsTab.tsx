@@ -582,16 +582,17 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
 
       {/* Таблица недельного расписания - добавляем ниже таблицы контрактов */}
       {selectedContract && (
-        <WeeklyTimeTable
-          contractId={selectedContract.id}
-          contractName={selectedContract.template}
-          weeklyTimeData={weeklyTimeData}
-          isLoading={isLoadingWeeklyTime}
-          dayOfStartWeek={dayOfStartWeek}
-          context={context}
-          onSaveComplete={handleSaveComplete}
-        />
-      )}
+  <WeeklyTimeTable
+    contractId={selectedContract.id}
+    contractName={selectedContract.template}
+    weeklyTimeData={weeklyTimeData}
+    isLoading={isLoadingWeeklyTime}
+    dayOfStartWeek={dayOfStartWeek}
+    context={context}
+    currentUserId={props.currentUserId ? parseInt(props.currentUserId) : undefined}// Убедитесь, что этот пропс определен в ITabProps
+    onSaveComplete={handleSaveComplete}
+  />
+)}
     </div>
   );
 };

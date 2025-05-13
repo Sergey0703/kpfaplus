@@ -267,6 +267,7 @@ export const executeAddNewWeek = (
     message: string;
   } | null>>,
   weekNumberToAdd: number,
+  currentUserId: number, 
   onSaveComplete?: (success: boolean) => void
 ): void => {
   // Обновляем индикатор сохранения
@@ -317,7 +318,7 @@ export const executeAddNewWeek = (
         const realId = await service.createWeeklyTimeTableItem(
           newItemData, 
           contractId || '', 
-          context.pageContext.user.loginName, 
+          currentUserId, 
           weekNumberToAdd, // Передаем номер недели
           1 // NumberOfShift = 1 для новой недели
         );
@@ -404,6 +405,7 @@ export const createShowConfirmDialog = (
     type: MessageBarType;
     message: string;
   } | null>>,
+  currentUserId: number,
   onSaveComplete?: (success: boolean) => void
 ) => {
   return (rowId: string, dialogType: DialogType = DialogType.DELETE, additionalData?: any): void => {
@@ -508,6 +510,7 @@ export const createShowConfirmDialog = (
               setIsSaving,
               setStatusMessage,
               addWeekCheck.weekNumberToAdd,
+              currentUserId, // Используем переданный ID пользователя
               onSaveComplete
             );
             
