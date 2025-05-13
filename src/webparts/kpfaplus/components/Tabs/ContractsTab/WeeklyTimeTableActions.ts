@@ -5,7 +5,6 @@ import {
   IExtendedWeeklyTimeRow, 
   updateDisplayedTotalHours,
   analyzeWeeklyTableData,
-  //checkCanAddNewWeek,
   checkCanAddNewWeekFromData,
   IAddWeekCheckResult
 } from './WeeklyTimeTableLogic';
@@ -251,7 +250,9 @@ export const createAddShiftHandler = (
  * @param setIsSaving Функция для обновления статуса сохранения
  * @param setStatusMessage Функция для обновления статусного сообщения
  * @param weekNumberToAdd Номер недели для добавления
+ * @param currentUserId ID текущего пользователя
  * @param onSaveComplete Функция обратного вызова после сохранения
+ * @param onRefresh Функция для триггера перезагрузки данных
  * @returns void
  */
 export const executeAddNewWeek = (
@@ -268,7 +269,8 @@ export const executeAddNewWeek = (
   } | null>>,
   weekNumberToAdd: number,
   currentUserId: number, 
-  onSaveComplete?: (success: boolean) => void
+  onSaveComplete?: (success: boolean) => void,
+  onRefresh?: () => void
 ): void => {
   // Обновляем индикатор сохранения
   setIsSaving(true);
@@ -325,16 +327,25 @@ export const executeAddNewWeek = (
         
         console.log(`Created new week ${weekNumberToAdd} with ID: ${realId}`);
         
-        // Обновляем список элементов - получаем свежие данные с сервера
-        const updatedItems = await service.getWeeklyTimeTableByContractId(contractId || '');
-        
-        // Преобразуем данные в нужный формат и обновляем состояние
-        const formattedData = WeeklyTimeTableUtils.formatWeeklyTimeTableData(updatedItems);
-        const dataWithTotalHours = updateDisplayedTotalHours(formattedData as IExtendedWeeklyTimeRow[]);
-        setTimeTableData(dataWithTotalHours);
-        
-        // Очищаем список измененных строк, так как мы обновили все данные с сервера
-        setChangedRows(new Set());
+        // Вызываем функцию для триггера перезагрузки данных, если она передана
+        if (onRefresh) {
+          console.log("Triggering refresh after adding new week");
+          onRefresh();
+        } else {
+          // Если нет функции перезагрузки, обновляем данные вручную
+          console.log("No refresh function provided, updating items manually");
+          
+          // Обновляем список элементов - получаем свежие данные с сервера
+          const updatedItems = await service.getWeeklyTimeTableByContractId(contractId || '');
+          
+          // Преобразуем данные в нужный формат и обновляем состояние
+          const formattedData = WeeklyTimeTableUtils.formatWeeklyTimeTableData(updatedItems);
+          const dataWithTotalHours = updateDisplayedTotalHours(formattedData as IExtendedWeeklyTimeRow[]);
+          setTimeTableData(dataWithTotalHours);
+          
+          // Очищаем список измененных строк, так как мы обновили все данные с сервера
+          setChangedRows(new Set());
+        }
         
         // Показываем сообщение об успешном создании
         setStatusMessage({
@@ -406,7 +417,8 @@ export const createShowConfirmDialog = (
     message: string;
   } | null>>,
   currentUserId: number,
-  onSaveComplete?: (success: boolean) => void
+  onSaveComplete?: (success: boolean) => void,
+  onRefresh?: () => void // Добавляем функцию для триггера перезагрузки
 ) => {
   return (rowId: string, dialogType: DialogType = DialogType.DELETE, additionalData?: any): void => {
     console.log(`Setting up dialog: type=${dialogType}, rowId=${rowId}`);
@@ -510,8 +522,9 @@ export const createShowConfirmDialog = (
               setIsSaving,
               setStatusMessage,
               addWeekCheck.weekNumberToAdd,
-              currentUserId, // Используем переданный ID пользователя
-              onSaveComplete
+              currentUserId, 
+              onSaveComplete,
+              onRefresh // Передаем функцию перезагрузки данных
             );
             
             setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
@@ -602,73 +615,71 @@ export const createDeleteShiftHandler = (
       
       // После успешного обновления на сервере обновляем локальное состояние
       // Для удаления: установить deleted=1, для восстановления: установить deleted=0
-      // После успешного обновления на сервере обновляем локальное состояние
-     // Для удаления: установить deleted=1, для восстановления: установить deleted=0
-     const newData = timeTableData.map((item, idx) => {
-      if (idx === rowIndex) {
-        return {
-          ...item,
-          deleted: isDeleted ? 0 : 1,  // Меняем статус на противоположный
-          Deleted: isDeleted ? 0 : 1   // Обновляем оба поля для совместимости
-        };
+      const newData = timeTableData.map((item, idx) => {
+        if (idx === rowIndex) {
+          return {
+            ...item,
+            deleted: isDeleted ? 0 : 1,  // Меняем статус на противоположный
+            Deleted: isDeleted ? 0 : 1   // Обновляем оба поля для совместимости
+          };
+        }
+        return item;
+      });
+      
+      setTimeTableData(newData);
+      
+      // Удаляем строку из списка измененных, если она была там
+      if (changedRows.has(rowId)) {
+        const newChangedRows = new Set(changedRows);
+        newChangedRows.delete(rowId);
+        setChangedRows(newChangedRows);
       }
-      return item;
-    });
-    
-    setTimeTableData(newData);
-    
-    // Удаляем строку из списка измененных, если она была там
-    if (changedRows.has(rowId)) {
-      const newChangedRows = new Set(changedRows);
-      newChangedRows.delete(rowId);
-      setChangedRows(newChangedRows);
+      
+      // Обновляем отображаемое общее время в первой строке каждого шаблона
+      setTimeout(() => {
+        const updatedData = updateDisplayedTotalHours(newData);
+        setTimeTableData(updatedData);
+      }, 0);
+      
+      // Показываем сообщение об успешном выполнении операции
+      setStatusMessage({
+        type: MessageBarType.success,
+        message: isDeleted ? 
+          `Shift successfully restored` : 
+          `Shift successfully deleted`
+      });
+      
+      // Скрываем сообщение через 3 секунды
+      setTimeout(() => {
+        setStatusMessage(null);
+      }, 3000);
+    } catch (error) {
+      console.error(`Error processing shift at row ${rowIndex}:`, error);
+      
+      // Показываем сообщение об ошибке
+      setStatusMessage({
+        type: MessageBarType.error,
+        message: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+      });
+      
+      throw error;
+    } finally {
+      // В любом случае снимаем индикатор загрузки
+      setIsSaving(false);
     }
-    
-    // Обновляем отображаемое общее время в первой строке каждого шаблона
-    setTimeout(() => {
-      const updatedData = updateDisplayedTotalHours(newData);
-      setTimeTableData(updatedData);
-    }, 0);
-    
-    // Показываем сообщение об успешном выполнении операции
-    setStatusMessage({
-      type: MessageBarType.success,
-      message: isDeleted ? 
-        `Shift successfully restored` : 
-        `Shift successfully deleted`
-    });
-    
-    // Скрываем сообщение через 3 секунды
-    setTimeout(() => {
-      setStatusMessage(null);
-    }, 3000);
-  } catch (error) {
-    console.error(`Error processing shift at row ${rowIndex}:`, error);
-    
-    // Показываем сообщение об ошибке
-    setStatusMessage({
-      type: MessageBarType.error,
-      message: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
-    });
-    
-    throw error;
-  } finally {
-    // В любом случае снимаем индикатор загрузки
-    setIsSaving(false);
-  }
-};
+  };
 };
 
 /**
-* Вспомогательная функция для логирования анализа таблицы недельного расписания
-*/
+ * Вспомогательная функция для логирования анализа таблицы недельного расписания
+ */
 export const logWeeklyTableAnalysis = (timeTableData: IExtendedWeeklyTimeRow[]): void => {
-const analysisResult = analyzeWeeklyTableData(timeTableData);
-console.log('Week Analysis Result:', analysisResult);
+  const analysisResult = analyzeWeeklyTableData(timeTableData);
+  console.log('Week Analysis Result:', analysisResult);
 };
 
 /**
-* Функция для настройки диалога подтверждения удаления или восстановления
-* (для обратной совместимости с существующим кодом)
-*/
+ * Функция для настройки диалога подтверждения удаления или восстановления
+ * (для обратной совместимости с существующим кодом)
+ */
 export const createShowDeleteConfirmDialog = createShowConfirmDialog;

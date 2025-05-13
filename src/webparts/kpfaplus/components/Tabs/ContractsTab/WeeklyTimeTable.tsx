@@ -17,7 +17,6 @@ import {
   canDeleteRow,
   getStartDayName,
   updateDisplayedTotalHours
-  //checkCanAddNewWeekFromData
 } from './WeeklyTimeTableLogic';
 import { WebPartContext } from '@microsoft/sp-webpart-base';
 import { WeeklyTimeTableUtils } from '../../../models/IWeeklyTimeTable';
@@ -36,7 +35,6 @@ import {
   createDeleteShiftHandler,
   createShowConfirmDialog,
   DialogType
- // executeAddNewWeek
 } from './WeeklyTimeTableActions';
 import {
   AddShiftButton,
@@ -45,6 +43,7 @@ import {
   DeleteButton
 } from './WeeklyTimeTableButtons';
 import { WeeklyTimeBody } from './WeeklyTimeBody';
+import { WeeklyTimeTableService } from '../../../services/WeeklyTimeTableService';
 
 // Интерфейс пропсов для компонента WeeklyTimeTable
 export interface IWeeklyTimeTableProps {
@@ -101,6 +100,9 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     confirmButtonColor: ''
   });
 
+  // Добавляем новое состояние для триггера перезагрузки
+  const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
+
   // Используем useRef для хранения ID строки, которую нужно удалить
   const pendingActionRowIdRef = useRef<string | null>(null);
   
@@ -117,6 +119,12 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   const minutesOptions = useMinutesOptions();
   const lunchOptions = useLunchOptions();
 
+  // Создаем функцию для триггера перезагрузки
+  const triggerRefresh = () => {
+    console.log('Triggering data refresh');
+    setRefreshTrigger(prev => prev + 1);
+  };
+
   // 1. Сначала создаем handleDeleteShift, так как он используется в showDialog
   const handleDeleteShift = createDeleteShiftHandler(
     context,
@@ -129,22 +137,25 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   );
 
   const currentUserId = props.currentUserId || 0;
+  
   // 2. Затем создаем функцию для отображения диалогов
-const showDialog = createShowConfirmDialog(
-  pendingActionRowIdRef,
-  setConfirmDialogProps,
-  handleDeleteShift,
-  timeTableData,
-  context,                 // Добавляем контекст
-  contractId,              // Добавляем ID контракта
-  setTimeTableData,        // Добавляем функцию обновления данных
-  changedRows,             // Добавляем множество измененных строк
-  setChangedRows,          // Добавляем функцию обновления множества
-  setIsSaving,             // Добавляем функцию обновления статуса сохранения
-  setStatusMessage,        // Добавляем функцию обновления сообщений
-  currentUserId, // Передаем ID текущего пользователя
-  onSaveComplete           // Добавляем коллбэк завершения (опционально)
-);
+  const showDialog = createShowConfirmDialog(
+    pendingActionRowIdRef,
+    setConfirmDialogProps,
+    handleDeleteShift,
+    timeTableData,
+    context,                 // Добавляем контекст
+    contractId,              // Добавляем ID контракта
+    setTimeTableData,        // Добавляем функцию обновления данных
+    changedRows,             // Добавляем множество измененных строк
+    setChangedRows,          // Добавляем функцию обновления множества
+    setIsSaving,             // Добавляем функцию обновления статуса сохранения
+    setStatusMessage,        // Добавляем функцию обновления сообщений
+    currentUserId,           // Передаем ID текущего пользователя
+    onSaveComplete,          // Добавляем коллбэк завершения (опционально)
+    triggerRefresh           // Передаем функцию для триггера перезагрузки
+  );
+
   // Создаем обработчики для изменения данных
   const handleTimeChange = useTimeChangeHandler(
     timeTableData,
@@ -209,6 +220,160 @@ const showDialog = createShowConfirmDialog(
     // Показываем диалог
     showDialog(rowId, dialogType);
   };
+
+  // Добавляем эффект, который будет реагировать на изменение refreshTrigger
+  useEffect(() => {
+    // Пропускаем первый рендеринг
+    if (refreshTrigger === 0) return;
+    
+    console.log(`Refresh triggered (${refreshTrigger}), reloading data...`);
+    
+    // Загружаем данные с сервера
+    const loadData = async () => {
+      if (!contractId) return;
+      
+      setIsTableLoading(true);
+      
+      try {
+        // Получаем свежие данные с сервера
+        const service = new WeeklyTimeTableService(context);
+        const updatedItems = await service.getWeeklyTimeTableByContractId(contractId);
+        
+        console.log(`Retrieved ${updatedItems.length} items from server after refresh trigger`);
+        
+        // Преобразуем полученные данные в формат для отображения
+        // Создаем временную функцию, которая вызывает formatWeeklyTimeTableData
+        const getFormattedData = () => {
+          // Временно изменяем оригинальный метод для поддержки dayOfStartWeek и сохранения поля deleted
+          const origMethod = WeeklyTimeTableUtils.formatWeeklyTimeTableData;
+          // @ts-ignore - Игнорируем несоответствие сигнатуры для вызова
+          WeeklyTimeTableUtils.formatWeeklyTimeTableData = function(items: any[], dayStart?: number) {
+            // Сохраняем dayOfStartWeek в локальной переменной
+            console.log(`Custom formatWeeklyTimeTableData called with dayOfStartWeek = ${dayStart}`);
+            // Вызываем оригинальный метод
+            const result = origMethod.call(this, items);
+            
+            // После получения результата, добавляем поле deleted и idOfTemplate из исходных данных
+            for (let i = 0; i < result.length; i++) {
+              const formattedRow = result[i];
+              const originalRow = items.find(item => {
+                // Проверяем ID в различных форматах
+                const itemId = 
+                  item.id !== undefined ? item.id.toString() :
+                  item.ID !== undefined ? item.ID.toString() :
+                  item.fields && item.fields.id !== undefined ? item.fields.id.toString() :
+                  item.fields && item.fields.ID !== undefined ? item.fields.ID.toString() :
+                  null;
+                
+                return itemId === formattedRow.id;
+              });
+              
+              if (originalRow) {
+                // Ищем поле deleted в разных форматах
+                const deletedValue = 
+                  originalRow.Deleted !== undefined ? originalRow.Deleted :
+                  originalRow.deleted !== undefined ? originalRow.deleted :
+                  originalRow.fields && originalRow.fields.Deleted !== undefined ? originalRow.fields.Deleted :
+                  originalRow.fields && originalRow.fields.deleted !== undefined ? originalRow.fields.deleted :
+                  undefined;
+                
+                if (deletedValue !== undefined) {
+                  console.log(`Found deleted status for row ID ${formattedRow.id}: ${deletedValue}`);
+                  formattedRow.deleted = deletedValue;
+                } else {
+                  console.log(`No deleted status found for row ID ${formattedRow.id}`);
+                }
+                
+                // Добавляем поле idOfTemplate из originalRow
+                const idOfTemplateValue = 
+                  originalRow.IdOfTemplate !== undefined ? originalRow.IdOfTemplate :
+                  originalRow.idOfTemplate !== undefined ? originalRow.idOfTemplate :
+                  originalRow.fields && originalRow.fields.IdOfTemplate !== undefined ? originalRow.fields.IdOfTemplate :
+                  originalRow.fields && originalRow.fields.idOfTemplate !== undefined ? originalRow.fields.idOfTemplate :
+                  originalRow.fields && originalRow.fields.IdOfTemplateLookupId !== undefined ? originalRow.fields.IdOfTemplateLookupId :
+                  originalRow.IdOfTemplateLookupId !== undefined ? originalRow.IdOfTemplateLookupId :
+                  undefined;
+                
+                if (idOfTemplateValue !== undefined) {
+                  console.log(`Found idOfTemplate for row ID ${formattedRow.id}: ${idOfTemplateValue}`);
+                  formattedRow.idOfTemplate = idOfTemplateValue;
+                }
+
+                // Добавляем NumberOfShift из originalRow
+                const NumberOfShiftValue = 
+                  originalRow.NumberOfShift !== undefined ? originalRow.NumberOfShift :
+                  originalRow.numberOfShift !== undefined ? originalRow.numberOfShift :
+                  originalRow.fields && originalRow.fields.NumberOfShift !== undefined ? originalRow.fields.NumberOfShift :
+                  originalRow.fields && originalRow.fields.numberOfShift !== undefined ? originalRow.fields.numberOfShift :
+                  undefined;
+                
+                if (NumberOfShiftValue !== undefined) {
+                  console.log(`Found NumberOfShift for row ID ${formattedRow.id}: ${NumberOfShiftValue}`);
+                  formattedRow.NumberOfShift = NumberOfShiftValue;
+                } else {
+                  console.log(`No NumberOfShift found for row ID ${formattedRow.id}`);
+                }
+                
+                // Добавляем NumberOfWeek из originalRow
+                const NumberOfWeekValue = 
+                  originalRow.NumberOfWeek !== undefined ? originalRow.NumberOfWeek :
+                  originalRow.numberOfWeek !== undefined ? originalRow.numberOfWeek :
+                  originalRow.fields && originalRow.fields.NumberOfWeek !== undefined ? originalRow.fields.NumberOfWeek :
+                  originalRow.fields && originalRow.fields.numberOfWeek !== undefined ? originalRow.fields.numberOfWeek :
+                  undefined;
+
+                if (NumberOfWeekValue !== undefined) {
+                  console.log(`Found NumberOfWeek for row ID ${formattedRow.id}: ${NumberOfWeekValue}`);
+                  formattedRow.NumberOfWeek = NumberOfWeekValue;
+                } else {
+                  console.log(`No NumberOfWeek found for row ID ${formattedRow.id}`);
+                }
+              } else {
+                console.log(`No original row found for formatted row ID ${formattedRow.id}`);
+              }
+            }
+            
+            return result;
+          };
+          
+          // Вызываем метод
+          const result = WeeklyTimeTableUtils.formatWeeklyTimeTableData(updatedItems);
+          
+          // Восстанавливаем оригинальный метод
+          WeeklyTimeTableUtils.formatWeeklyTimeTableData = origMethod;
+          
+          return result;
+        };
+        
+        const formattedData = getFormattedData();
+        console.log(`Formatted ${formattedData.length} rows for display after refresh`);
+        
+        // Обновляем отображаемое общее время в первой строке каждого шаблона
+        const dataWithTotalHours = updateDisplayedTotalHours(formattedData as IExtendedWeeklyTimeRow[]);
+        
+        // Устанавливаем обновленные данные
+        setTimeTableData(dataWithTotalHours);
+        
+        // Сбрасываем список измененных строк
+        setChangedRows(new Set());
+        
+        // Помечаем, что данные были инициализированы
+        dataInitializedRef.current = true;
+        
+      } catch (error) {
+        console.error('Error refreshing data:', error);
+        
+        setStatusMessage({
+          type: MessageBarType.error,
+          message: `Failed to refresh data: ${error instanceof Error ? error.message : 'Unknown error'}`
+        });
+      } finally {
+        setIsTableLoading(false);
+      }
+    };
+    
+    loadData();
+  }, [refreshTrigger, contractId, dayOfStartWeek, context]);
 
   // Использование useLayoutEffect вместо useEffect для синхронного обновления состояния перед рендерингом
   useLayoutEffect(() => {
