@@ -19,7 +19,7 @@ import {
   updateDisplayedTotalHours
 } from './WeeklyTimeTableLogic';
 import { WebPartContext } from '@microsoft/sp-webpart-base';
-import { WeeklyTimeTableUtils, IDayHoursComplete } from '../../../models/IWeeklyTimeTable';
+import { WeeklyTimeTableUtils } from '../../../models/IWeeklyTimeTable';
 import { ConfirmDialog } from '../../ConfirmDialog/ConfirmDialog';
 import {
   useHoursOptions,
@@ -36,18 +36,12 @@ import {
   createShowDeleteConfirmDialog
 } from './WeeklyTimeTableActions';
 import {
-  TimeCell,
-  LunchCell,
-  ContractCell,
-  TotalHoursCell
-} from './WeeklyTimeTableCells';
-import {
   AddShiftButton,
-  DeleteButton,
   SaveButton,
   NewWeekButton,
-  ActionsCell
+  DeleteButton
 } from './WeeklyTimeTableButtons';
+import { WeeklyTimeBody } from './WeeklyTimeBody';
 
 // Интерфейс пропсов для компонента WeeklyTimeTable
 export interface IWeeklyTimeTableProps {
@@ -182,30 +176,6 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     timeTableData
   );
 
-  // Функция для извлечения номера недели из имени строки
-  const extractWeekNumber = (name: string): number => {
-    const match = name.match(/Week\s+(\d+)/i);
-    return match ? parseInt(match[1]) : 0;
-  };
-
-  // Функция для определения, является ли строка последней для данной недели
-  const isLastRowInWeekGroup = (data: IExtendedWeeklyTimeRow[], index: number): boolean => {
-    if (index === data.length - 1) {
-      // Если это последняя строка в массиве, то она автоматически последняя в своей неделе
-      return true;
-    }
-    
-    const currentRow = data[index];
-    const nextRow = data[index + 1];
-    
-    // Извлекаем номер недели из имени
-    const currentWeek = extractWeekNumber(currentRow.name);
-    const nextWeek = extractWeekNumber(nextRow.name);
-    
-    // Если номера недель разные, значит текущая строка последняя в своей неделе
-    return currentWeek !== nextWeek;
-  };
-
   // Использование useLayoutEffect вместо useEffect для синхронного обновления состояния перед рендерингом
   useLayoutEffect(() => {
     // Если есть данные из props, используем их
@@ -283,23 +253,23 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
                 formattedRow.idOfTemplate = idOfTemplateValue;
               }
 
+              // Добавляем NumberOfShift из originalRow
               const NumberOfShiftValue = 
-      originalRow.NumberOfShift !== undefined ? originalRow.NumberOfShift :
-      originalRow.numberOfShift !== undefined ? originalRow.numberOfShift :
-      originalRow.fields && originalRow.fields.NumberOfShift !== undefined ? originalRow.fields.NumberOfShift :
-      originalRow.fields && originalRow.fields.numberOfShift !== undefined ? originalRow.fields.numberOfShift :
-      undefined;
-    
-    if (NumberOfShiftValue !== undefined) {
-      console.log(`Found NumberOfShift for row ID ${formattedRow.id}: ${NumberOfShiftValue}`);
-      formattedRow.NumberOfShift = NumberOfShiftValue;
-    } else {
-      console.log(`No NumberOfShift found for row ID ${formattedRow.id}`);
-    }
-  } else {
-    console.log(`No original row found for formatted row ID ${formattedRow.id}`);
-  }
-         
+                originalRow.NumberOfShift !== undefined ? originalRow.NumberOfShift :
+                originalRow.numberOfShift !== undefined ? originalRow.numberOfShift :
+                originalRow.fields && originalRow.fields.NumberOfShift !== undefined ? originalRow.fields.NumberOfShift :
+                originalRow.fields && originalRow.fields.numberOfShift !== undefined ? originalRow.fields.numberOfShift :
+                undefined;
+              
+              if (NumberOfShiftValue !== undefined) {
+                console.log(`Found NumberOfShift for row ID ${formattedRow.id}: ${NumberOfShiftValue}`);
+                formattedRow.NumberOfShift = NumberOfShiftValue;
+              } else {
+                console.log(`No NumberOfShift found for row ID ${formattedRow.id}`);
+              }
+            } else {
+              console.log(`No original row found for formatted row ID ${formattedRow.id}`);
+            }
           }
           
           return result;
@@ -386,6 +356,24 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     return <AddShiftButton onClick={handleAddShift} isSaving={isSaving} />;
   };
 
+  // Функция для определения, является ли строка первой с новым NumberOfShift
+  const isFirstRowWithNewTemplate = (data: IExtendedWeeklyTimeRow[], rowIndex: number): boolean => {
+    const currentRow = data[rowIndex];
+    
+    // Проверяем поле NumberOfShift напрямую в строке
+    if (currentRow.NumberOfShift !== undefined) {
+      // Логируем для отладки
+      console.log(`Row ${rowIndex} - ID: ${currentRow.id}, NumberOfShift: ${currentRow.NumberOfShift}`);
+      
+      // Возвращаем true, если NumberOfShift равен 1
+      return currentRow.NumberOfShift === 1;
+    }
+    
+    // Если поля NumberOfShift нет, возвращаем false
+    console.log(`Row ${rowIndex} - ID: ${currentRow.id}, NumberOfShift not found`);
+    return false;
+  };
+
   // Логируем текущее состояние timeTableData перед рендерингом
   console.log("Before rendering, timeTableData length:", timeTableData.length);
   console.log("Data initialized:", dataInitializedRef.current);
@@ -397,7 +385,6 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     
     // Показываем строку, если она не удалена ИЛИ если включен показ удаленных
     return !isDeleted || showDeleted;
-
   });
 
   // Логируем результаты фильтрации
@@ -426,24 +413,6 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
         isDeleted={isDeleted}
       />
     );
-  };
-
-  // Определяет, является ли строка первой с новым 
-  const isFirstRowWithNewTemplate = (data: IExtendedWeeklyTimeRow[], rowIndex: number): boolean => {
-    const currentRow = data[rowIndex];
-    
-    // Проверяем поле NumberOfShift напрямую в строке
-    if (currentRow.NumberOfShift !== undefined) {
-      // Логируем для отладки
-      console.log(`Row ${rowIndex} - ID: ${currentRow.id}, NumberOfShift: ${currentRow.NumberOfShift}`);
-      
-      // Возвращаем true, если NumberOfShift равен 1
-      return currentRow.NumberOfShift === 1;
-    }
-    
-    // Если поля NumberOfShift нет, возвращаем false
-    console.log(`Row ${rowIndex} - ID: ${currentRow.id}, NumberOfShift not found`);
-    return false;
   };
   
   // Если загружаются данные, показываем спиннер
@@ -552,146 +521,24 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
         </MessageBar>
       )}
 
-      <div className={styles.tableContainer}>
-        <table className={styles.timeTable}>
-          <thead>
-            <tr>
-              {/* Столбец для рабочих часов */}
-              <th className={styles.hoursColumn}>Hours</th>
-              <th className={styles.nameColumn}>Name / Lunch</th>
-              {orderedWeekDays.map(day => (
-                <th key={day.key}>{day.name}</th>
-              ))}
-              <th className={styles.totalColumn}>Contract</th>
-              <th className={styles.actionsColumn}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredTimeTableData.map((row, rowIndex) => {
-              // Проверяем, является ли строка последней в группе (по неделе или idOfTemplate)
-         //     const isLastInGroup = 
-                // Предпочитаем использовать idOfTemplate, если оно доступно
-                row.idOfTemplate !== undefined ? 
-                  // Если это последняя строка или следующая строка имеет другой idOfTemplate
-                  rowIndex === filteredTimeTableData.length - 1 || 
-                  row.idOfTemplate !== filteredTimeTableData[rowIndex + 1].idOfTemplate 
-                : 
-                  // Иначе используем номер недели из имени
-                  isLastRowInWeekGroup(filteredTimeTableData, rowIndex);
-              
-              // Определяем класс для строки обеда с разделителем, если это последняя строка в группе
-              const lunchRowClassName = styles.lunchRow;
-              console.log(`Row ${rowIndex} - ID: ${row.id}, NumberOfShift: ${row.NumberOfShift}, isFirst: ${isFirstRowWithNewTemplate(filteredTimeTableData, rowIndex)}`);
-  
-              return (
-                <React.Fragment key={row.id}>
-                  {/* Первая строка - начало рабочего дня */}
-                  {isFirstRowWithNewTemplate(filteredTimeTableData, rowIndex) && (
-      <tr style={{ height: '3px', padding: 0 }}>
-        <td colSpan={orderedWeekDays.length + 3} style={{ 
-          backgroundColor: '#0078d4', 
-          height: '3px',
-          padding: 0,
-          border: 'none'
-        }}></td>
-      </tr>
-    )}
-    <tr className={styles.weekRow}>
-
-                    {/* Ячейка для рабочих часов - отображаем общее время для первой строки шаблона */}
-                    <td className={styles.hoursCell} rowSpan={2}>
-                      <TotalHoursCell
-                        timeTableData={filteredTimeTableData}
-                        rowIndex={rowIndex}
-                        isFirstRowInTemplate={isFirstRowInTemplate(filteredTimeTableData, rowIndex)}
-                        isLastRowInTemplate={isLastRowInTemplate(filteredTimeTableData, rowIndex)}
-                        renderAddShiftButton={renderAddShiftButton}
-                      />
-                    </td>
-                    <td className={styles.nameCell} rowSpan={2}>
-                      <div className={styles.rowName}>{row.name}</div>
-                      <div className={styles.lunchLabel}>Lunch:</div>
-                    </td>
-                    {/* Ячейки для начала рабочего дня для каждого дня недели */}
-                    {orderedWeekDays.map(day => {
-                      const dayData = row[day.key] as IDayHoursComplete;
-                      return (
-                        <td key={`${day.key}-start`}>
-                          <TimeCell
-                            hours={dayData?.start?.hours || '00'}
-                            minutes={dayData?.start?.minutes || '00'}
-                            rowIndex={rowIndex}
-                            dayKey={`${day.key}-start`}
-                            isChanged={changedRows.has(row.id)}
-                            hoursOptions={hoursOptions}
-                            minutesOptions={minutesOptions}
-                            onTimeChange={handleTimeChange}
-                          />
-                        </td>
-                      );
-                    })}
-                    <td className={styles.totalColumn} rowSpan={2}>
-                      <ContractCell
-                        contractNumber={row.total}
-                        rowIndex={rowIndex}
-                        isChanged={changedRows.has(row.id)}
-                        onContractChange={handleContractChange}
-                      />
-                      <div className={styles.contractInfo}>
-                        {row.totalHours || '0ч:00м'}
-                      </div>
-                    </td>
-                    <td className={styles.actionsColumn} rowSpan={2}>
-                      {canDeleteRow(filteredTimeTableData, rowIndex) && (
-                        <ActionsCell
-                          rowId={row.id}
-                          renderDeleteButton={() => renderDeleteButton(rowIndex)}
-                        />
-                      )}
-                    </td>
-                  </tr>
-                  
-                  {/* Вторая строка - конец рабочего дня */}
-                  <tr className={styles.weekEndRow}>
-                    {/* Ячейки для окончания рабочего дня для каждого дня недели */}
-                    {orderedWeekDays.map(day => {
-                      const dayData = row[day.key] as IDayHoursComplete;
-                      return (
-                        <td key={`${day.key}-end`}>
-                          <TimeCell
-                            hours={dayData?.end?.hours || '00'}
-                            minutes={dayData?.end?.minutes || '00'}
-                            rowIndex={rowIndex}
-                            dayKey={`${day.key}-end`}
-                            isChanged={changedRows.has(row.id)}
-                            hoursOptions={hoursOptions}
-                            minutesOptions={minutesOptions}
-                            onTimeChange={handleTimeChange}
-                          />
-                        </td>
-                      );
-                    })}
-                  </tr>
-                  
-                  {/* Строка для обеда с возможным разделителем между группами */}
-                  <tr className={lunchRowClassName}>
-                    <td colSpan={2} className={styles.lunchCell}>
-                      <LunchCell
-                        lunch={row.lunch}
-                        rowIndex={rowIndex}
-                        isChanged={changedRows.has(row.id)}
-                        lunchOptions={lunchOptions}
-                        onLunchChange={handleLunchChange}
-                      />
-                    </td>
-                    <td colSpan={9}></td>
-                  </tr>
-                </React.Fragment>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      {/* Вынесли рендеринг тела таблицы в отдельный компонент */}
+      <WeeklyTimeBody 
+        filteredTimeTableData={filteredTimeTableData}
+        orderedWeekDays={orderedWeekDays}
+        isFirstRowWithNewTemplate={isFirstRowWithNewTemplate}
+        isFirstRowInTemplate={isFirstRowInTemplate}
+        isLastRowInTemplate={isLastRowInTemplate}
+        canDeleteRow={canDeleteRow}
+        renderAddShiftButton={renderAddShiftButton}
+        renderDeleteButton={renderDeleteButton}
+        changedRows={changedRows}
+        hoursOptions={hoursOptions}
+        minutesOptions={minutesOptions}
+        lunchOptions={lunchOptions}
+        handleTimeChange={handleTimeChange}
+        handleLunchChange={handleLunchChange}
+        handleContractChange={handleContractChange}
+      />
 
       {/* Диалог подтверждения */}
       <ConfirmDialog
