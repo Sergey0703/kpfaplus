@@ -1,6 +1,6 @@
 // src/webparts/kpfaplus/components/Tabs/ContractsTab/WeeklyTimeTableHooks.ts
 import { useState, useEffect } from 'react';
-import { IDropdownOption } from '@fluentui/react';
+import { IDropdownOption, MessageBarType } from '@fluentui/react';
 import { 
   IExtendedWeeklyTimeRow,
   updateDisplayedTotalHours
@@ -78,11 +78,37 @@ export const useTimeChangeHandler = (
   changedRows: Set<string>,
   setChangedRows: React.Dispatch<React.SetStateAction<Set<string>>>,
   setStatusMessage: React.Dispatch<React.SetStateAction<{
-    type: number;
+    type: MessageBarType;
     message: string;
   } | null>>
 ) => {
   return (rowIndex: number, dayKey: string, field: 'hours' | 'minutes', value: string): void => {
+    // Проверяем, существует ли строка с таким индексом
+    if (rowIndex < 0 || rowIndex >= timeTableData.length) {
+      console.error(`Invalid row index: ${rowIndex}`);
+      return;
+    }
+    
+    // Проверяем, удалена ли строка
+    const row = timeTableData[rowIndex];
+    const isDeleted = row.deleted === 1 || row.Deleted === 1;
+    
+    // Если строка удалена, не делаем никаких изменений
+    if (isDeleted) {
+      console.log(`Cannot change time for deleted row ID: ${row.id}`);
+      setStatusMessage({
+        type: MessageBarType.warning,
+        message: 'Cannot edit deleted items. Restore the item first.'
+      });
+      
+      // Скрываем сообщение через некоторое время
+      setTimeout(() => {
+        setStatusMessage(null);
+      }, 3000);
+      
+      return;
+    }
+    
     // Разбиваем ключ на имя дня и тип времени (start/end)
     const [dayName, timeType] = dayKey.split('-');
     
@@ -115,18 +141,18 @@ export const useTimeChangeHandler = (
         };
         
         // Пересчитываем общее время работы после изменения
-        const row = newData[rowIndex];
+        const updatedRow = newData[rowIndex];
         const totalHours = WeeklyTimeTableUtils.calculateTotalWorkHours(
           {
-            monday: row.monday as IDayHoursComplete,
-            tuesday: row.tuesday as IDayHoursComplete,
-            wednesday: row.wednesday as IDayHoursComplete,
-            thursday: row.thursday as IDayHoursComplete,
-            friday: row.friday as IDayHoursComplete,
-            saturday: row.saturday as IDayHoursComplete,
-            sunday: row.sunday as IDayHoursComplete
+            monday: updatedRow.monday as IDayHoursComplete,
+            tuesday: updatedRow.tuesday as IDayHoursComplete,
+            wednesday: updatedRow.wednesday as IDayHoursComplete,
+            thursday: updatedRow.thursday as IDayHoursComplete,
+            friday: updatedRow.friday as IDayHoursComplete,
+            saturday: updatedRow.saturday as IDayHoursComplete,
+            sunday: updatedRow.sunday as IDayHoursComplete
           },
-          row.lunch
+          updatedRow.lunch
         );
         
         // Обновляем общее время работы в строке
@@ -142,9 +168,18 @@ export const useTimeChangeHandler = (
         
         // Сбрасываем статусное сообщение при внесении изменений
         setStatusMessage(null);
+        
+        // Выводим информацию об изменении для отладки
+        console.log(`Updated ${dayName}.${timeType}.${field} to ${value} for row ${rowIndex} (ID: ${rowId})`);
+        console.log(`New total hours: ${totalHours}`);
+      } else {
+        console.error(`Day data not found for ${rowDay} in row ${rowIndex}`);
       }
+    } else {
+      console.error(`Invalid day key: ${dayKey}`);
     }
     
+    // Обновляем данные таблицы
     setTimeTableData(newData);
     
     // Обновляем отображаемое общее время в первой строке каждого шаблона
@@ -152,6 +187,7 @@ export const useTimeChangeHandler = (
     setTimeTableData(updatedData);
   };
 };
+
 
 /**
  * Функция для обработки изменения времени обеда
@@ -168,11 +204,37 @@ export const useLunchChangeHandler = (
   changedRows: Set<string>,
   setChangedRows: React.Dispatch<React.SetStateAction<Set<string>>>,
   setStatusMessage: React.Dispatch<React.SetStateAction<{
-    type: number;
+    type: MessageBarType;
     message: string;
   } | null>>
 ) => {
   return (rowIndex: number, value: string): void => {
+    // Проверяем, существует ли строка с таким индексом
+    if (rowIndex < 0 || rowIndex >= timeTableData.length) {
+      console.error(`Invalid row index: ${rowIndex}`);
+      return;
+    }
+    
+    // Проверяем, удалена ли строка
+    const row = timeTableData[rowIndex];
+    const isDeleted = row.deleted === 1 || row.Deleted === 1;
+    
+    // Если строка удалена, не делаем никаких изменений
+    if (isDeleted) {
+      console.log(`Cannot change lunch time for deleted row ID: ${row.id}`);
+      setStatusMessage({
+        type: MessageBarType.warning,
+        message: 'Cannot edit deleted items. Restore the item first.'
+      });
+      
+      // Скрываем сообщение через некоторое время
+      setTimeout(() => {
+        setStatusMessage(null);
+      }, 3000);
+      
+      return;
+    }
+    
     const newData = [...timeTableData];
     const rowId = newData[rowIndex].id;
     
@@ -180,16 +242,16 @@ export const useLunchChangeHandler = (
     console.log(`Changing lunch time for row ${rowIndex} to ${value}`);
     
     // Пересчитываем общее время работы после изменения времени обеда
-    const row = newData[rowIndex];
+    const updatedRow = newData[rowIndex];
     const totalHours = WeeklyTimeTableUtils.calculateTotalWorkHours(
       {
-        monday: row.monday as IDayHoursComplete,
-        tuesday: row.tuesday as IDayHoursComplete,
-        wednesday: row.wednesday as IDayHoursComplete,
-        thursday: row.thursday as IDayHoursComplete,
-        friday: row.friday as IDayHoursComplete,
-        saturday: row.saturday as IDayHoursComplete,
-        sunday: row.sunday as IDayHoursComplete
+        monday: updatedRow.monday as IDayHoursComplete,
+        tuesday: updatedRow.tuesday as IDayHoursComplete,
+        wednesday: updatedRow.wednesday as IDayHoursComplete,
+        thursday: updatedRow.thursday as IDayHoursComplete,
+        friday: updatedRow.friday as IDayHoursComplete,
+        saturday: updatedRow.saturday as IDayHoursComplete,
+        sunday: updatedRow.sunday as IDayHoursComplete
       },
       value
     );
@@ -232,15 +294,43 @@ export const useContractChangeHandler = (
   changedRows: Set<string>,
   setChangedRows: React.Dispatch<React.SetStateAction<Set<string>>>,
   setStatusMessage: React.Dispatch<React.SetStateAction<{
-    type: number;
+    type: MessageBarType;
     message: string;
   } | null>>
 ) => {
   return (rowIndex: number, value: string): void => {
+    // Проверяем, существует ли строка с таким индексом
+    if (rowIndex < 0 || rowIndex >= timeTableData.length) {
+      console.error(`Invalid row index: ${rowIndex}`);
+      return;
+    }
+    
+    // Проверяем, удалена ли строка
+    const row = timeTableData[rowIndex];
+    const isDeleted = row.deleted === 1 || row.Deleted === 1;
+    
+    // Если строка удалена, не делаем никаких изменений
+    if (isDeleted) {
+      console.log(`Cannot change contract for deleted row ID: ${row.id}`);
+      setStatusMessage({
+        type: MessageBarType.warning,
+        message: 'Cannot edit deleted items. Restore the item first.'
+      });
+      
+      // Скрываем сообщение через некоторое время
+      setTimeout(() => {
+        setStatusMessage(null);
+      }, 3000);
+      
+      return;
+    }
+    
     const newData = [...timeTableData];
     const rowId = newData[rowIndex].id;
     
     newData[rowIndex].total = value;
+    console.log(`Changing contract for row ${rowIndex} to ${value}`);
+    
     setTimeTableData(newData);
     
     // Отмечаем строку как измененную

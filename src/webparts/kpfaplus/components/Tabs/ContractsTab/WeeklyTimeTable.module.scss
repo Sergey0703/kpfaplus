@@ -222,3 +222,25 @@
     margin-top: 8px;
     padding-top: 8px;
   }
+
+  /* Стили для удаленных смен */
+
+/* Стиль для ячеек в удаленных строках */
+.deletedRow {
+  filter: grayscale(80%) opacity(0.7);
+  text-decoration: line-through;
+}
+/* Стиль для текста с зачеркиванием в удаленных строках */
+.deletedText {
+  text-decoration: line-through;
+  color: #888;
+}
+
+/* Стиль для полей ввода в удаленных строках */
+.deletedCell {
+  opacity: 0.6;
+  pointer-events: none; /* Блокирует взаимодействие с элементом */
+  background-color: #f5f5f5;
+  border: 1px solid #ddd !important;
+}
+

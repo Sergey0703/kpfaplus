@@ -129,6 +129,7 @@ export const NewWeekButton: React.FC<INewWeekButtonProps> = ({
 interface IActionsCellProps {
   rowId: string;
   renderDeleteButton: () => JSX.Element;
+  isDeleted?: boolean; // Добавляем флаг удаления
 }
 
 /**
@@ -136,12 +137,20 @@ interface IActionsCellProps {
  */
 export const ActionsCell: React.FC<IActionsCellProps> = ({
   rowId,
-  renderDeleteButton
+  renderDeleteButton,
+  isDeleted = false // Добавляем параметр с значением по умолчанию
 }) => {
   return (
     <div className={styles.actionsContainer}>
-      {renderDeleteButton()}
+      {/* Отображаем кнопку удаления только если строка не удалена */}
+      {!isDeleted && renderDeleteButton()}
       <span style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>ID: {rowId}</span>
+      {/* Опционально можно добавить индикатор для удаленных строк */}
+      {isDeleted && (
+        <span style={{ fontSize: '10px', color: '#d83b01', marginTop: '2px' }}>
+          (deleted)
+        </span>
+      )}
     </div>
   );
 };
