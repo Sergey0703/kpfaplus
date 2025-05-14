@@ -31,6 +31,16 @@ export interface IWeeklyTimeBodyProps {
   handleContractChange: (rowIndex: number, value: string) => void;
 }
 
+
+/**
+ * Обработчик нажатия на кнопку "+Shift"
+ * @param row Текущая строка данных, для которой нажата кнопка
+ */
+//const handleAddShiftClick = (row: IExtendedWeeklyTimeRow): void => {
+  // Вызываем обработчик добавления смены с указанием текущей строки//
+ // handleAddShift(row);
+//};
+
 export const WeeklyTimeBody: React.FC<IWeeklyTimeBodyProps> = (props) => {
   const {
     filteredTimeTableData,

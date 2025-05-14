@@ -189,11 +189,11 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     setChangedRows,
     setStatusMessage,
     showDialog,
-    context,                  // Добавляем контекст
-    contractId,               // Добавляем ID контракта
-    setIsSaving,              // Добавляем функцию обновления статуса сохранения
-    onSaveComplete            // Добавляем коллбэк завершения сохранения (опционально)
-  )
+    context,
+    contractId,
+    setIsSaving,
+    onSaveComplete
+  );
 
   // 4. Создаем обработчик для сохранения
   const handleSave = createSaveHandler(
@@ -568,11 +568,15 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   // Получаем упорядоченные дни недели на основе dayOfStartWeek
   const orderedWeekDays = getOrderedWeekDays(dayOfStartWeek);
 
-  // Функция для рендеринга кнопки "+ Shift"
+  // 3. Функция для отображения кнопки "+Shift" в строке
   const renderAddShiftButton = (): JSX.Element => {
-    return <AddShiftButton onClick={handleAddShift} isSaving={isSaving} />;
+    return (
+      <AddShiftButton 
+        onClick={handleAddShift} 
+        isSaving={isSaving} 
+      />
+    );
   };
-
   // Функция для определения, является ли строка первой с новым NumberOfShift
   const isFirstRowWithNewTemplate = (data: IExtendedWeeklyTimeRow[], rowIndex: number): boolean => {
     const currentRow = data[rowIndex];
