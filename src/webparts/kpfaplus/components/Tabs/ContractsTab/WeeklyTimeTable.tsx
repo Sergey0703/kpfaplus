@@ -188,8 +188,12 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     changedRows,
     setChangedRows,
     setStatusMessage,
-    showDialog
-  );
+    showDialog,
+    context,                  // Добавляем контекст
+    contractId,               // Добавляем ID контракта
+    setIsSaving,              // Добавляем функцию обновления статуса сохранения
+    onSaveComplete            // Добавляем коллбэк завершения сохранения (опционально)
+  )
 
   // 4. Создаем обработчик для сохранения
   const handleSave = createSaveHandler(

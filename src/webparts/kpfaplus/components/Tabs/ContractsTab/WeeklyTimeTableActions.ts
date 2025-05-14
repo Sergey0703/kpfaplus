@@ -202,13 +202,17 @@ export const createSaveHandler = (
 };
 
 /**
- * Функция для добавления новой смены
+ * Функция для добавления новой смены с автоматическим сохранением несохраненных изменений
  * @param timeTableData Данные таблицы
  * @param setTimeTableData Функция для обновления данных таблицы
  * @param changedRows Множество измененных строк
  * @param setChangedRows Функция для обновления множества измененных строк
  * @param setStatusMessage Функция для обновления статусного сообщения
  * @param showDialog Функция для отображения диалогов
+ * @param context Контекст веб-части
+ * @param contractId ID контракта
+ * @param setIsSaving Функция для обновления статуса сохранения
+ * @param onSaveComplete Функция обратного вызова после сохранения
  * @returns Функция для добавления новой смены
  */
 export const createAddShiftHandler = (
@@ -220,24 +224,164 @@ export const createAddShiftHandler = (
     type: MessageBarType;
     message: string;
   } | null>>,
-  showDialog: (rowId: string, dialogType: DialogType, additionalData?: any) => void
+  showDialog: (rowId: string, dialogType: DialogType, additionalData?: any) => void,
+  context: WebPartContext,
+  contractId: string | undefined,
+  setIsSaving: React.Dispatch<React.SetStateAction<boolean>>,
+  onSaveComplete?: (success: boolean) => void
 ) => {
-  return (): void => {
-    // Проверяем возможность добавления новой недели
-    const checkResult = checkCanAddNewWeekFromData(timeTableData);
-    console.log('Check Add Week Result:', checkResult);
-    
-    // Если нельзя добавить новую неделю (есть полностью удаленные недели)
-    if (!checkResult.canAdd) {
-      // Показываем информационное сообщение
-      showDialog('info', DialogType.INFO, { message: checkResult.message });
-      return;
+  return async (): Promise<void> => {
+    // Проверяем, есть ли несохраненные изменения
+    if (changedRows.size > 0) {
+      // Есть несохраненные изменения, автоматически сохраняем их
+      try {
+        setIsSaving(true);
+        setStatusMessage({
+          type: MessageBarType.info,
+          message: `Saving changes before adding a new week...`
+        });
+        
+        // Создаем сервис для работы с данными
+        const service = new WeeklyTimeTableService(context);
+        
+        // Формируем массив данных для обновления
+        const itemsToUpdate: IWeeklyTimeTableUpdateItem[] = [];
+        
+        // Обрабатываем каждую измененную строку
+        for (const row of timeTableData.filter(row => changedRows.has(row.id))) {
+          // Проверяем, является ли ID временным (новая строка)
+          const isNewRow = row.id.startsWith('new_');
+          
+          if (isNewRow) {
+            // Если новая строка, сначала создаем ее
+            try {
+              // Создаем объект для нового элемента
+              const newItem: IWeeklyTimeTableUpdateItem = {
+                id: row.id, // Временный ID
+                
+                // Время начала
+                mondayStart: row.monday?.start,
+                tuesdayStart: row.tuesday?.start,
+                wednesdayStart: row.wednesday?.start,
+                thursdayStart: row.thursday?.start,
+                fridayStart: row.friday?.start,
+                saturdayStart: row.saturday?.start,
+                sundayStart: row.sunday?.start,
+                
+                // Время окончания
+                mondayEnd: row.monday?.end,
+                tuesdayEnd: row.tuesday?.end,
+                wednesdayEnd: row.wednesday?.end,
+                thursdayEnd: row.thursday?.end,
+                fridayEnd: row.friday?.end,
+                saturdayEnd: row.saturday?.end,
+                sundayEnd: row.sunday?.end,
+                
+                lunchMinutes: row.lunch,
+                contractNumber: row.total
+              };
+              
+              // Вызываем метод создания и получаем реальный ID
+              await service.createWeeklyTimeTableItem(
+                newItem, 
+                contractId || '', 
+                context.pageContext.user.loginName
+              );
+            } catch (createError) {
+              console.error('Error creating new time table row:', createError);
+              throw new Error(`Failed to create new row: ${createError instanceof Error ? createError.message : 'Unknown error'}`);
+            }
+          } else {
+            // Если существующая строка, добавляем в список для обновления
+            itemsToUpdate.push({
+              id: row.id,
+              
+              // Время начала
+              mondayStart: row.monday?.start,
+              tuesdayStart: row.tuesday?.start,
+              wednesdayStart: row.wednesday?.start,
+              thursdayStart: row.thursday?.start,
+              fridayStart: row.friday?.start,
+              saturdayStart: row.saturday?.start,
+              sundayStart: row.sunday?.start,
+              
+              // Время окончания
+              mondayEnd: row.monday?.end,
+              tuesdayEnd: row.tuesday?.end,
+              wednesdayEnd: row.wednesday?.end,
+              thursdayEnd: row.thursday?.end,
+              fridayEnd: row.friday?.end,
+              saturdayEnd: row.saturday?.end,
+              sundayEnd: row.sunday?.end,
+              
+              lunchMinutes: row.lunch,
+              contractNumber: row.total
+            });
+          }
+        }
+        
+        if (itemsToUpdate.length > 0) {
+          console.log('Automatically saving changes for items before adding new week:', itemsToUpdate);
+          
+          // Выполняем обновление данных
+          await service.batchUpdateWeeklyTimeTable(itemsToUpdate);
+          
+          console.log('Changes saved successfully before adding new week');
+        }
+        
+        // Очищаем список измененных строк
+        setChangedRows(new Set());
+        
+        // Показываем сообщение об успешном сохранении
+        setStatusMessage({
+          type: MessageBarType.success,
+          message: `Changes saved successfully. Now adding new week...`
+        });
+        
+        // Вызываем коллбэк завершения сохранения, если он задан
+        if (onSaveComplete) {
+          onSaveComplete(true);
+        }
+      } catch (error) {
+        console.error('Error saving changes before adding new week:', error);
+        
+        // Показываем сообщение об ошибке
+        setStatusMessage({
+          type: MessageBarType.error,
+          message: `Failed to save changes: ${error instanceof Error ? error.message : 'Unknown error'}`
+        });
+        
+        // Прерываем процесс добавления новой недели
+        setIsSaving(false);
+        return;
+      } finally {
+        setIsSaving(false);
+      }
     }
     
-    // Если можно добавить новую неделю, показываем диалог подтверждения
-    showDialog('add_week', DialogType.ADD_WEEK, checkResult);
+    // После автоматического сохранения или если нет несохраненных изменений
+    // продолжаем процесс добавления новой недели
+    proceedWithAddingNewWeek();
+    
+    // Внутренняя функция для продолжения процесса добавления новой недели
+    function proceedWithAddingNewWeek() {
+      // Проверяем возможность добавления новой недели
+      const checkResult = checkCanAddNewWeekFromData(timeTableData);
+      console.log('Check Add Week Result:', checkResult);
+      
+      // Если нельзя добавить новую неделю (есть полностью удаленные недели)
+      if (!checkResult.canAdd) {
+        // Показываем информационное сообщение
+        showDialog('info', DialogType.INFO, { message: checkResult.message });
+        return;
+      }
+      
+      // Если можно добавить новую неделю, показываем диалог подтверждения
+      showDialog('add_week', DialogType.ADD_WEEK, checkResult);
+    }
   };
 };
+
 
 /**
  * Функция для выполнения добавления новой недели после подтверждения
