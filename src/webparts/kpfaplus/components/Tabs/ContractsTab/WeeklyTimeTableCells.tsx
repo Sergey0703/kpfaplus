@@ -277,11 +277,15 @@ interface ITotalHoursCellProps {
 /**
  * Компонент для отображения ячейки с общим временем и кнопкой добавления смены
  */
+/**
+ * Компонент для отображения ячейки с общим временем и кнопкой добавления смены
+ */
 export const TotalHoursCell: React.FC<ITotalHoursCellProps> = ({
   timeTableData,
   rowIndex,
   isFirstRowInTemplate,
   isLastRowInTemplate,
+  isDeleted = false,
   renderAddShiftButton
 }) => {
   const row = timeTableData[rowIndex];
@@ -289,15 +293,29 @@ export const TotalHoursCell: React.FC<ITotalHoursCellProps> = ({
   return (
     <div className={styles.totalHoursContainer}>
       {isFirstRowInTemplate && (
-        <div className={styles.totalHoursValue}>
+        <div className={`${styles.totalHoursValue} ${isDeleted ? styles.deletedText : ''}`}>
           {row.displayedTotalHours || row.totalHours || '0ч:00м'}
+          
+          {/* Для удаленных строк добавляем пояснение, что время не учитывается */}
+          {isDeleted && (
+            <div style={{ 
+              fontSize: '10px', 
+              color: '#d83b01', 
+              marginTop: '2px',
+              textDecoration: 'none' 
+            }}>
+              (not counted)
+            </div>
+          )}
         </div>
       )}
+      
       {(isFirstRowInTemplate && isLastRowInTemplate) || (!isFirstRowInTemplate && isLastRowInTemplate) ? (
-    <div className={isFirstRowInTemplate ? styles.addShiftButtonWrapper : styles.addShiftButtonContainer}>
-      {renderAddShiftButton(rowIndex)} {/* Передаем rowIndex при вызове */}
-    </div>
-  ) : null}
+        <div className={isFirstRowInTemplate ? styles.addShiftButtonWrapper : styles.addShiftButtonContainer}>
+          {/* Показываем кнопку добавления смены только для не удаленных строк */}
+          {!isDeleted && renderAddShiftButton(rowIndex)}
+        </div>
+      ) : null}
     </div>
   );
 };

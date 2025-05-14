@@ -1035,6 +1035,17 @@ export const createShowConfirmDialog = (
   };
 };
 
+/**
+ * Создает обработчик для удаления/восстановления смены
+ * @param context Контекст веб-части
+ * @param timeTableData Данные таблицы
+ * @param setTimeTableData Функция для обновления данных таблицы
+ * @param changedRows Множество измененных строк
+ * @param setChangedRows Функция для обновления множества измененных строк
+ * @param setIsSaving Функция для обновления статуса сохранения
+ * @param setStatusMessage Функция для обновления статусного сообщения
+ * @returns Функция для удаления/восстановления смены
+ */
 export const createDeleteShiftHandler = (
   context: WebPartContext,
   timeTableData: IExtendedWeeklyTimeRow[],
@@ -1103,6 +1114,7 @@ export const createDeleteShiftHandler = (
         return item;
       });
       
+      // Обновляем данные таблицы с измененным статусом удаления
       setTimeTableData(newData);
       
       // Удаляем строку из списка измененных, если она была там
@@ -1112,18 +1124,23 @@ export const createDeleteShiftHandler = (
         setChangedRows(newChangedRows);
       }
       
-      // Обновляем отображаемое общее время в первой строке каждого шаблона
+      // Важно: обновляем отображаемое общее время в первой строке каждого шаблона
+      // Это позволит учесть (или не учесть) время из удаленной/восстановленной строки
       setTimeout(() => {
+        // Используем setTimeout для обеспечения обновления состояния
         const updatedData = updateDisplayedTotalHours(newData);
         setTimeTableData(updatedData);
+        
+        // Добавляем отладочный вывод
+        console.log(`Updated total hours after ${operationType} operation for row ${rowIndex}`);
       }, 0);
       
       // Показываем сообщение об успешном выполнении операции
       setStatusMessage({
         type: MessageBarType.success,
         message: isDeleted ? 
-          `Shift successfully restored` : 
-          `Shift successfully deleted`
+          `Shift successfully restored. Total hours will be recalculated.` : 
+          `Shift successfully deleted. Its hours will be excluded from the total.`
       });
       
       // Скрываем сообщение через 3 секунды
