@@ -203,6 +203,7 @@ export const createSaveHandler = (
 
 /**
  * Функция для добавления новой смены с автоматическим сохранением несохраненных изменений
+ * и проверкой удаленных смен с большим номером в текущей неделе
  * @param timeTableData Данные таблицы
  * @param setTimeTableData Функция для обновления данных таблицы
  * @param changedRows Множество измененных строк
@@ -213,6 +214,7 @@ export const createSaveHandler = (
  * @param contractId ID контракта
  * @param setIsSaving Функция для обновления статуса сохранения
  * @param onSaveComplete Функция обратного вызова после сохранения
+ * @param currentRow Текущая строка, для которой нажата кнопка +Shift
  * @returns Функция для добавления новой смены
  */
 export const createAddShiftHandler = (
@@ -228,7 +230,8 @@ export const createAddShiftHandler = (
   context: WebPartContext,
   contractId: string | undefined,
   setIsSaving: React.Dispatch<React.SetStateAction<boolean>>,
-  onSaveComplete?: (success: boolean) => void
+  onSaveComplete?: (success: boolean) => void,
+  currentRow?: IExtendedWeeklyTimeRow // Добавлен новый параметр для текущей строки
 ) => {
   return async (): Promise<void> => {
     // Проверяем, есть ли несохраненные изменения
@@ -238,7 +241,7 @@ export const createAddShiftHandler = (
         setIsSaving(true);
         setStatusMessage({
           type: MessageBarType.info,
-          message: `Saving changes before adding a new week...`
+          message: `Saving changes before adding a new shift...`
         });
         
         // Создаем сервис для работы с данными
@@ -321,12 +324,12 @@ export const createAddShiftHandler = (
         }
         
         if (itemsToUpdate.length > 0) {
-          console.log('Automatically saving changes for items before adding new week:', itemsToUpdate);
+          console.log('Automatically saving changes for items before adding new shift:', itemsToUpdate);
           
           // Выполняем обновление данных
           await service.batchUpdateWeeklyTimeTable(itemsToUpdate);
           
-          console.log('Changes saved successfully before adding new week');
+          console.log('Changes saved successfully before adding new shift');
         }
         
         // Очищаем список измененных строк
@@ -335,7 +338,7 @@ export const createAddShiftHandler = (
         // Показываем сообщение об успешном сохранении
         setStatusMessage({
           type: MessageBarType.success,
-          message: `Changes saved successfully. Now adding new week...`
+          message: `Changes saved successfully. Now checking for deleted shifts...`
         });
         
         // Вызываем коллбэк завершения сохранения, если он задан
@@ -343,7 +346,7 @@ export const createAddShiftHandler = (
           onSaveComplete(true);
         }
       } catch (error) {
-        console.error('Error saving changes before adding new week:', error);
+        console.error('Error saving changes before adding new shift:', error);
         
         // Показываем сообщение об ошибке
         setStatusMessage({
@@ -351,7 +354,7 @@ export const createAddShiftHandler = (
           message: `Failed to save changes: ${error instanceof Error ? error.message : 'Unknown error'}`
         });
         
-        // Прерываем процесс добавления новой недели
+        // Прерываем процесс добавления новой смены
         setIsSaving(false);
         return;
       } finally {
@@ -360,29 +363,234 @@ export const createAddShiftHandler = (
     }
     
     // После автоматического сохранения или если нет несохраненных изменений
-    // продолжаем процесс добавления новой недели
-    proceedWithAddingNewWeek();
+    // проверяем наличие удаленных смен с большим номером в текущей неделе
+    checkDeletedShiftsInWeek();
     
-    // Внутренняя функция для продолжения процесса добавления новой недели
-    function proceedWithAddingNewWeek() {
-      // Проверяем возможность добавления новой недели
-      const checkResult = checkCanAddNewWeekFromData(timeTableData);
-      console.log('Check Add Week Result:', checkResult);
+    // Функция для проверки удаленных смен с большим номером в текущей неделе
+    function checkDeletedShiftsInWeek() {
+      // Если текущая строка не указана, используем первую строку данных
+      const row = currentRow || (timeTableData.length > 0 ? timeTableData[0] : null);
       
-      // Если нельзя добавить новую неделю (есть полностью удаленные недели)
-      if (!checkResult.canAdd) {
-        // Показываем информационное сообщение
-        showDialog('info', DialogType.INFO, { message: checkResult.message });
+      if (!row) {
+        console.error('No row data available for checking deleted shifts');
         return;
       }
       
-      // Если можно добавить новую неделю, показываем диалог подтверждения
-      showDialog('add_week', DialogType.ADD_WEEK, checkResult);
+      // Получаем номер недели текущей строки
+      const weekNumber = row.NumberOfWeek || extractWeekNumber(row.name);
+      
+      // Получаем номер смены текущей строки
+      const shiftNumber = row.NumberOfShift || 1;
+      
+      console.log(`Checking deleted shifts in week ${weekNumber} with NumberOfShift > ${shiftNumber}`);
+      
+      // Ищем удаленные смены с большим номером в текущей неделе
+      const deletedShiftsWithGreaterNumber = timeTableData.filter(item => {
+        // Проверяем, относится ли строка к той же неделе
+        const itemWeekNumber = item.NumberOfWeek || extractWeekNumber(item.name);
+        const itemShiftNumber = item.NumberOfShift || 1;
+        
+        // Строка должна быть из той же недели, иметь больший номер смены и быть удаленной
+        return itemWeekNumber === weekNumber && 
+               itemShiftNumber > shiftNumber && 
+               (item.deleted === 1 || item.Deleted === 1);
+      });
+      
+      // Выводим результаты проверки в консоль
+      console.log(`Found ${deletedShiftsWithGreaterNumber.length} deleted shifts with greater number in week ${weekNumber}`);
+      if (deletedShiftsWithGreaterNumber.length > 0) {
+        console.log('Deleted shifts:', deletedShiftsWithGreaterNumber);
+      }
+      
+      // Если найдены удаленные смены с большим номером
+      if (deletedShiftsWithGreaterNumber.length > 0) {
+        // Показываем информационное сообщение
+        showDialog('info', DialogType.INFO, { 
+          message: `Fully deleted shifts detected: ${deletedShiftsWithGreaterNumber.map(s => s.NumberOfShift).join(', ')}. Before adding a new shift, you need to restore the deleted shifts.`,
+          confirmButtonText: "OK"
+        });
+        return;
+      }
+      
+      // Если не найдены удаленные смены с большим номером, продолжаем с добавлением новой смены
+      proceedWithAddingNewShift();
+    }
+    
+    // Функция для извлечения номера недели из названия строки
+    function extractWeekNumber(name: string): number {
+      const match = name?.match(/Week\s+(\d+)/i);
+      return match ? parseInt(match[1], 10) : 1;
+    }
+    
+    // Функция для продолжения процесса добавления новой смены
+    function proceedWithAddingNewShift() {
+      console.log('Proceeding with adding new shift');
+      
+      // Здесь должна быть логика добавления новой смены
+      
+      // Пример вызова диалога для подтверждения добавления новой смены
+      const row = currentRow || (timeTableData.length > 0 ? timeTableData[0] : null);
+      
+      if (!row) {
+        console.error('No row data available for adding new shift');
+        return;
+      }
+      
+      const weekNumber = row.NumberOfWeek || extractWeekNumber(row.name);
+      const shiftNumber = row.NumberOfShift || 1;
+      
+      // Показываем диалог подтверждения
+      showDialog('add_shift', DialogType.ADD_SHIFT, { 
+        weekNumber, 
+        nextShiftNumber: shiftNumber + 1,
+        contractId,
+        currentRow: row
+      });
     }
   };
 };
 
 
+
+/**
+ * Функция для обработки добавления новой смены через диалоговое окно
+ * Вызывается после проверки возможности добавления новой смены
+ */
+export const executeAddNewShift = (
+  context: WebPartContext,
+  timeTableData: IExtendedWeeklyTimeRow[],
+  setTimeTableData: React.Dispatch<React.SetStateAction<IExtendedWeeklyTimeRow[]>>,
+  contractId: string | undefined,
+  changedRows: Set<string>,
+  setChangedRows: React.Dispatch<React.SetStateAction<Set<string>>>,
+  setIsSaving: React.Dispatch<React.SetStateAction<boolean>>,
+  setStatusMessage: React.Dispatch<React.SetStateAction<{
+    type: MessageBarType;
+    message: string;
+  } | null>>,
+  weekNumber: number,
+  shiftNumber: number,
+  currentUserId: number, 
+  onSaveComplete?: (success: boolean) => void,
+  onRefresh?: () => void
+): void => {
+  // Обновляем индикатор сохранения
+  setIsSaving(true);
+  setStatusMessage({
+    type: MessageBarType.info,
+    message: `Creating new shift ${shiftNumber} for week ${weekNumber}...`
+  });
+  
+  try {
+    // Создаем объекты для пустого времени начала и окончания
+    const emptyTime: IDayHours = { hours: '00', minutes: '00' };
+    
+    // Создаем объект нового элемента для отправки на сервер
+    const newItemData: IWeeklyTimeTableUpdateItem = {
+      id: 'new', // Временный ID, будет заменен сервером
+      
+      // Время начала для каждого дня
+      mondayStart: emptyTime,
+      tuesdayStart: emptyTime,
+      wednesdayStart: emptyTime,
+      thursdayStart: emptyTime,
+      fridayStart: emptyTime,
+      saturdayStart: emptyTime,
+      sundayStart: emptyTime,
+      
+      // Время окончания для каждого дня
+      mondayEnd: emptyTime,
+      tuesdayEnd: emptyTime,
+      wednesdayEnd: emptyTime,
+      thursdayEnd: emptyTime,
+      fridayEnd: emptyTime,
+      saturdayEnd: emptyTime,
+      sundayEnd: emptyTime,
+      
+      // Дополнительные данные
+      lunchMinutes: '30',
+      contractNumber: '1'
+    };
+    
+    // Создаем сервис для работы с данными
+    const service = new WeeklyTimeTableService(context);
+    
+    // Асинхронная функция для сохранения
+    const saveNewShift = async () => {
+      try {
+        // Вызываем метод создания и получаем реальный ID
+        const realId = await service.createWeeklyTimeTableItem(
+          newItemData, 
+          contractId || '', 
+          currentUserId, 
+          weekNumber,   // Номер недели для новой смены
+          shiftNumber   // Номер смены для новой смены
+        );
+        
+        console.log(`Created new shift ${shiftNumber} for week ${weekNumber} with ID: ${realId}`);
+        
+        // Вызываем функцию для триггера перезагрузки данных, если она передана
+        if (onRefresh) {
+          console.log("Triggering refresh after adding new shift");
+          onRefresh();
+        } else {
+          // Если нет функции перезагрузки, обновляем данные вручную
+          console.log("No refresh function provided, updating items manually");
+          
+          // Обновляем список элементов - получаем свежие данные с сервера
+          const updatedItems = await service.getWeeklyTimeTableByContractId(contractId || '');
+          
+          // Преобразуем данные в нужный формат и обновляем состояние
+          const formattedData = WeeklyTimeTableUtils.formatWeeklyTimeTableData(updatedItems);
+          const dataWithTotalHours = updateDisplayedTotalHours(formattedData as IExtendedWeeklyTimeRow[]);
+          setTimeTableData(dataWithTotalHours);
+          
+          // Очищаем список измененных строк, так как мы обновили все данные с сервера
+          setChangedRows(new Set());
+        }
+        
+        // Показываем сообщение об успешном создании
+        setStatusMessage({
+          type: MessageBarType.success,
+          message: `New shift ${shiftNumber} for week ${weekNumber} has been successfully created.`
+        });
+        
+        // Вызываем коллбэк завершения сохранения, если он задан
+        if (onSaveComplete) {
+          onSaveComplete(true);
+        }
+      } catch (error) {
+        console.error('Error creating new shift:', error);
+        
+        // Показываем сообщение об ошибке
+        setStatusMessage({
+          type: MessageBarType.error,
+          message: `Failed to create new shift: ${error instanceof Error ? error.message : 'Unknown error'}`
+        });
+        
+        // Вызываем коллбэк завершения сохранения с ошибкой, если он задан
+        if (onSaveComplete) {
+          onSaveComplete(false);
+        }
+      } finally {
+        // В любом случае снимаем индикацию процесса сохранения
+        setIsSaving(false);
+      }
+    };
+    
+    // Запускаем процесс сохранения
+    saveNewShift();
+    
+  } catch (error) {
+    // Обрабатываем любые синхронные ошибки
+    console.error('Error in executeAddNewShift:', error);
+    setStatusMessage({
+      type: MessageBarType.error,
+      message: `An error occurred: ${error instanceof Error ? error.message : 'Unknown error'}`
+    });
+    setIsSaving(false);
+  }
+};
 /**
  * Функция для выполнения добавления новой недели после подтверждения
  * @param context Контекст веб-части
@@ -678,19 +886,64 @@ export const createShowConfirmDialog = (
         });
         break;
       
+      case DialogType.ADD_SHIFT:
+        // Диалог добавления новой смены
+        const addShiftData = additionalData;
+        if (!addShiftData || !addShiftData.weekNumber || !addShiftData.nextShiftNumber) {
+          console.error('Invalid add shift data');
+          return;
+        }
+        
+        setConfirmDialogProps({
+          isOpen: true,
+          title: 'Add New Shift',
+          message: `Do you want to add a new shift ${addShiftData.nextShiftNumber} for week ${addShiftData.weekNumber}?`,
+          confirmButtonText: 'Add Shift',
+          cancelButtonText: 'Cancel',
+          onConfirm: () => {
+            // Вызываем функцию добавления с правильными параметрами
+            executeAddNewShift(
+              context,
+              timeTableData,
+              setTimeTableData,
+              contractId,
+              changedRows,
+              setChangedRows,
+              setIsSaving,
+              setStatusMessage,
+              addShiftData.weekNumber,
+              addShiftData.nextShiftNumber,
+              currentUserId, 
+              onSaveComplete,
+              onRefresh // Передаем функцию перезагрузки данных
+            );
+            
+            setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
+            pendingActionRowIdRef.current = null;
+          },
+          confirmButtonColor: '#0078d4' // синий цвет для добавления
+        });
+        break;
+      
       case DialogType.INFO:
         // Информационный диалог
         const infoMessage = additionalData?.message || 'Information';
+        const customAction = additionalData?.customAction;
         
         setConfirmDialogProps({
           isOpen: true,
           title: 'Information',
           message: infoMessage,
-          confirmButtonText: 'OK',
-          cancelButtonText: 'Cancel', // Добавляем текст для кнопки отмены
+          confirmButtonText: additionalData?.confirmButtonText || 'OK',
+          cancelButtonText: additionalData?.cancelButtonText || 'Cancel',
           onConfirm: () => {
             setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
             pendingActionRowIdRef.current = null;
+            
+            // Если есть кастомное действие при подтверждении
+            if (customAction && typeof customAction === 'function') {
+              customAction(true);
+            }
           },
           confirmButtonColor: '#0078d4' // синий цвет для информации
         });
