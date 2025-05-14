@@ -20,6 +20,8 @@ import {
   analyzeWeeklyTableData,
   checkCanAddNewWeek
 } from './WeeklyTimeTableLogic';
+// В начале файла WeeklyTimeTable.tsx добавьте импорт
+import { IWeeklyTimeTableUpdateItem} from '../../../services/WeeklyTimeTableService';
 import { WebPartContext } from '@microsoft/sp-webpart-base';
 import { WeeklyTimeTableUtils } from '../../../models/IWeeklyTimeTable';
 import { ConfirmDialog } from '../../ConfirmDialog/ConfirmDialog';
@@ -33,7 +35,7 @@ import {
 } from './WeeklyTimeTableHooks';
 import {
   createSaveHandler,
-  createAddShiftHandler,
+  //createAddShiftHandler,
   createDeleteShiftHandler,
   createShowConfirmDialog,
   DialogType
@@ -183,19 +185,343 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     setStatusMessage
   );
 
+
+  // Модифицируем функцию handleAddShift, чтобы она принимала выбранную строку как параметр
+/**
+ * Функция для обработки добавления новой смены с явным указанием строки
+ * @param selectedRow Выбранная строка таблицы или null
+ */
+const handleAddShiftWithRow = (selectedRow: IExtendedWeeklyTimeRow | null): void => {
+  console.log('handleAddShiftWithRow called with row:', selectedRow ? 
+    `ID=${selectedRow.id}, NumberOfWeek=${selectedRow.NumberOfWeek}` : 'null');
+  
+  // Создаем локальную функцию, которая будет замкнута на выбранную строку
+  const addShiftForSelectedRow = async (): Promise<void> => {
+    // Проверяем, есть ли несохраненные изменения
+    if (changedRows.size > 0) {
+      try {
+        setIsSaving(true);
+        setStatusMessage({
+          type: MessageBarType.info,
+          message: `Saving changes before adding a new shift...`
+        });
+        
+        // Создаем сервис для работы с данными
+        const service = new WeeklyTimeTableService(context);
+        
+        // Формируем массив данных для обновления
+        const itemsToUpdate: IWeeklyTimeTableUpdateItem[] = [];
+        
+        // Обрабатываем каждую измененную строку
+        for (const row of timeTableData.filter(row => changedRows.has(row.id))) {
+          // Проверяем, является ли ID временным (новая строка)
+          const isNewRow = row.id.startsWith('new_');
+          
+          if (isNewRow) {
+            // Если новая строка, сначала создаем ее
+            try {
+              // Создаем объект для нового элемента
+              const newItem: IWeeklyTimeTableUpdateItem = {
+                id: row.id, // Временный ID
+                
+                // Время начала
+                mondayStart: row.monday?.start,
+                tuesdayStart: row.tuesday?.start,
+                wednesdayStart: row.wednesday?.start,
+                thursdayStart: row.thursday?.start,
+                fridayStart: row.friday?.start,
+                saturdayStart: row.saturday?.start,
+                sundayStart: row.sunday?.start,
+                
+                // Время окончания
+                mondayEnd: row.monday?.end,
+                tuesdayEnd: row.tuesday?.end,
+                wednesdayEnd: row.wednesday?.end,
+                thursdayEnd: row.thursday?.end,
+                fridayEnd: row.friday?.end,
+                saturdayEnd: row.saturday?.end,
+                sundayEnd: row.sunday?.end,
+                
+                lunchMinutes: row.lunch,
+                contractNumber: row.total
+              };
+              
+              // Вызываем метод создания и получаем реальный ID
+              await service.createWeeklyTimeTableItem(
+                newItem, 
+                contractId || '', 
+                context.pageContext.user.loginName
+              );
+            } catch (createError) {
+              console.error('Error creating new time table row:', createError);
+              throw new Error(`Failed to create new row: ${createError instanceof Error ? createError.message : 'Unknown error'}`);
+            }
+          } else {
+            // Если существующая строка, добавляем в список для обновления
+            itemsToUpdate.push({
+              id: row.id,
+              
+              // Время начала
+              mondayStart: row.monday?.start,
+              tuesdayStart: row.tuesday?.start,
+              wednesdayStart: row.wednesday?.start,
+              thursdayStart: row.thursday?.start,
+              fridayStart: row.friday?.start,
+              saturdayStart: row.saturday?.start,
+              sundayStart: row.sunday?.start,
+              
+              // Время окончания
+              mondayEnd: row.monday?.end,
+              tuesdayEnd: row.tuesday?.end,
+              wednesdayEnd: row.wednesday?.end,
+              thursdayEnd: row.thursday?.end,
+              fridayEnd: row.friday?.end,
+              saturdayEnd: row.saturday?.end,
+              sundayEnd: row.sunday?.end,
+              
+              lunchMinutes: row.lunch,
+              contractNumber: row.total
+            });
+          }
+        }
+        
+        if (itemsToUpdate.length > 0) {
+          console.log('Automatically saving changes for items before adding new shift:', itemsToUpdate);
+          
+          // Выполняем обновление данных
+          await service.batchUpdateWeeklyTimeTable(itemsToUpdate);
+          
+          console.log('Changes saved successfully before adding new shift');
+        }
+        
+        // Очищаем список измененных строк
+        setChangedRows(new Set());
+        
+        // Показываем сообщение об успешном сохранении
+        setStatusMessage({
+          type: MessageBarType.success,
+          message: `Changes saved successfully. Now checking for deleted shifts...`
+        });
+        
+        // Вызываем коллбэк завершения сохранения, если он задан
+        if (onSaveComplete) {
+          onSaveComplete(true);
+        }
+      } catch (error) {
+        console.error('Error saving changes before adding new shift:', error);
+        
+        // Показываем сообщение об ошибке
+        setStatusMessage({
+          type: MessageBarType.error,
+          message: `Failed to save changes: ${error instanceof Error ? error.message : 'Unknown error'}`
+        });
+        
+        // Прерываем процесс добавления новой смены
+        setIsSaving(false);
+        return;
+      } finally {
+        setIsSaving(false);
+      }
+    }
+    
+    // После автоматического сохранения или если нет несохраненных изменений
+    // проверяем наличие удаленных смен с большим номером в текущей неделе
+    checkDeletedShiftsInWeek(selectedRow);
+  };
+  
+  // Функция для извлечения номера недели из названия строки
+  function extractWeekNumber(name: string): number {
+    const match = name?.match(/Week\s+(\d+)/i);
+    return match ? parseInt(match[1], 10) : 1;
+  }
+  
+  // Функция для проверки удаленных смен в текущей неделе
+  function checkDeletedShiftsInWeek(selectedRow: IExtendedWeeklyTimeRow | null) {
+    // Добавим подробное логирование для отладки
+    console.log('checkDeletedShiftsInWeek called with selectedRow:', selectedRow ? 
+      `ID=${selectedRow.id}, NumberOfWeek=${selectedRow.NumberOfWeek}` : 'null');
+    
+    if (selectedRow) {
+      console.log('Selected row details:', {
+        id: selectedRow.id,
+        name: selectedRow.name,
+        NumberOfWeek: selectedRow.NumberOfWeek,
+        NumberOfShift: selectedRow.NumberOfShift,
+        deleted: selectedRow.deleted,
+        Deleted: selectedRow.Deleted
+      });
+    }
+    
+    // Найдем строки, где NumberOfShift = 1, для определения структуры недель
+    // и получения всех номеров недель в таблице
+    const weekNumbersMap = new Map<number, IExtendedWeeklyTimeRow[]>();
+    
+    // Группируем все строки по номеру недели
+    timeTableData.forEach(row => {
+      const weekNumber = row.NumberOfWeek || extractWeekNumber(row.name);
+      if (!weekNumbersMap.has(weekNumber)) {
+        weekNumbersMap.set(weekNumber, []);
+      }
+      // Добавляем строку в соответствующую группу недели
+      weekNumbersMap.get(weekNumber)?.push(row);
+    });
+    
+    console.log(`Found ${weekNumbersMap.size} different weeks in the data`);
+    
+    // Вывод всех найденных недель для отладки
+    weekNumbersMap.forEach((rows, weekNum) => {
+      console.log(`Week ${weekNum}: ${rows.length} rows`);
+    });
+    
+    // Определяем номер текущей недели
+    // Если есть selectedRow, берем номер недели из неё
+    // В противном случае используем номер недели из первой строки (старое поведение)
+    let currentWeekNumber: number;
+    
+    if (selectedRow && selectedRow.NumberOfWeek !== undefined) {
+      currentWeekNumber = selectedRow.NumberOfWeek;
+      console.log(`Using NumberOfWeek=${currentWeekNumber} from selected row (ID=${selectedRow.id})`);
+    } else if (selectedRow && selectedRow.name) {
+      // Если нет NumberOfWeek, но есть имя - пробуем извлечь из имени
+      currentWeekNumber = extractWeekNumber(selectedRow.name);
+      console.log(`Using week number ${currentWeekNumber} extracted from selected row name: "${selectedRow.name}"`);
+    } else {
+      // Используем первую строку данных (старое поведение)
+      const firstRow = timeTableData.length > 0 ? timeTableData[0] : null;
+      if (!firstRow) {
+        console.error('No row data available for checking deleted shifts');
+        return;
+      }
+      currentWeekNumber = firstRow.NumberOfWeek || extractWeekNumber(firstRow.name);
+      console.log(`Using week number ${currentWeekNumber} from first row (fallback)`);
+    }
+    
+    console.log(`Current week number determined as: ${currentWeekNumber}`);
+    
+    // Получаем все строки только для текущей недели
+    const rowsInCurrentWeek = weekNumbersMap.get(currentWeekNumber) || [];
+    console.log(`Found ${rowsInCurrentWeek.length} rows in current week ${currentWeekNumber}`);
+    
+    // Логируем детали каждой строки в текущей неделе
+    rowsInCurrentWeek.forEach((row, index) => {
+      console.log(`Week ${currentWeekNumber}, Row ${index}: ID=${row.id}, NumberOfShift=${row.NumberOfShift}, deleted=${row.deleted}`);
+    });
+    
+    // Находим максимальный номер смены в текущей неделе
+    let maxShiftNumberInCurrentWeek = 0;
+    rowsInCurrentWeek.forEach(row => {
+      const shiftNumber = row.NumberOfShift || 1;
+      if (shiftNumber > maxShiftNumberInCurrentWeek) {
+        maxShiftNumberInCurrentWeek = shiftNumber;
+      }
+    });
+    
+    console.log(`Max shift number in current week ${currentWeekNumber}: ${maxShiftNumberInCurrentWeek}`);
+    
+    // Проверяем наличие удаленных смен только в текущей неделе
+    const deletedShiftsInCurrentWeek = rowsInCurrentWeek.filter(row => {
+      return (row.deleted === 1 || row.Deleted === 1);
+    });
+    
+    console.log(`Found ${deletedShiftsInCurrentWeek.length} deleted shifts in current week ${currentWeekNumber}`);
+    
+    // Проверяем, есть ли "дыры" в последовательности номеров смен
+    // Должны быть смены от 1 до maxShiftNumberInCurrentWeek без пропусков
+    const existingShiftNumbers = new Set<number>();
+    rowsInCurrentWeek.forEach(row => {
+      const shiftNumber = row.NumberOfShift || 1;
+      if (row.deleted !== 1 && row.Deleted !== 1) {
+        // Добавляем только не удаленные смены
+        existingShiftNumbers.add(shiftNumber);
+      }
+    });
+    
+    console.log(`Existing shift numbers in current week: ${Array.from(existingShiftNumbers).sort().join(', ')}`);
+    
+    // Проверяем, есть ли пропущенные номера смен (дыры)
+    const missingShiftNumbers: number[] = [];
+    for (let i = 1; i <= maxShiftNumberInCurrentWeek; i++) {
+      if (!existingShiftNumbers.has(i)) {
+        missingShiftNumbers.push(i);
+      }
+    }
+    
+    console.log(`Missing shift numbers in current week: ${missingShiftNumbers.join(', ')}`);
+    
+    // Если есть удаленные смены в текущей неделе, которые создают "дыры"
+    if (missingShiftNumbers.length > 0 && deletedShiftsInCurrentWeek.length > 0) {
+      // Проверяем, какие смены из пропущенных есть среди удаленных
+      const deletedMissingShifts = deletedShiftsInCurrentWeek.filter(row => {
+        const shiftNumber = row.NumberOfShift || 1;
+        return missingShiftNumbers.includes(shiftNumber);
+      });
+      
+      if (deletedMissingShifts.length > 0) {
+        // Есть удаленные смены, которые нужно восстановить перед добавлением новой
+        const deletedShiftNumbers = deletedMissingShifts.map(row => row.NumberOfShift || 1).sort();
+        console.log(`Deleted shifts that need to be restored: ${deletedShiftNumbers.join(', ')}`);
+        
+        // Показываем информационное сообщение
+        showDialog('info', DialogType.INFO, { 
+          message: `Fully deleted shifts detected: ${deletedShiftNumbers.join(', ')}. Before adding a new shift, you need to restore the deleted shifts.`,
+          confirmButtonText: "OK"
+        });
+        return;
+      }
+    }
+    
+    // Если нет удаленных смен, создающих "дыры", продолжаем с добавлением новой смены
+    proceedWithAddingNewShift(currentWeekNumber, maxShiftNumberInCurrentWeek);
+  }
+  
+  // Функция для продолжения процесса добавления новой смены
+  function proceedWithAddingNewShift(currentWeekNumber: number, maxShiftNumberInCurrentWeek: number) {
+    console.log(`Proceeding with adding new shift for week ${currentWeekNumber}`);
+    
+    // Следующий номер смены = максимальный + 1
+    const nextShiftNumber = maxShiftNumberInCurrentWeek + 1;
+    
+    console.log(`Next shift number will be: ${nextShiftNumber}`);
+    
+    // Показываем диалог подтверждения
+    showDialog('add_shift', DialogType.ADD_SHIFT, { 
+      weekNumber: currentWeekNumber, 
+      nextShiftNumber: nextShiftNumber,
+      contractId
+    });
+  }
+  
+  // Вызываем созданную функцию
+  addShiftForSelectedRow().catch(error => {
+    console.error("Error in handleAddShiftWithRow:", error);
+    setStatusMessage({
+      type: MessageBarType.error,
+      message: `Error adding shift: ${error instanceof Error ? error.message : 'Unknown error'}`
+    });
+  });
+};
+//////////////////////////
+// Обновляем handleAddShiftForRow для использования новой функции
+// Обновленная функция handleAddShiftForRow без неиспользуемого вызова setSelectedRowForShift
+const handleAddShiftForRow = (rowIndex: number): void => {
+  console.log(`Adding shift for row index: ${rowIndex}`);
+  
+  if (rowIndex >= 0 && rowIndex < filteredTimeTableData.length) {
+    const row = filteredTimeTableData[rowIndex];
+    console.log(`Selected row: ID=${row.id}, NumberOfWeek=${row.NumberOfWeek}, NumberOfShift=${row.NumberOfShift}, name="${row.name}"`);
+    
+    // Вызываем handleAddShiftWithRow с выбранной строкой напрямую
+    handleAddShiftWithRow(row);
+  } else {
+    console.error(`Row not found at index ${rowIndex}`);
+  }
+};
   // 3. Создаем обработчик для добавления смены с использованием диалогов
-  const handleAddShift = createAddShiftHandler(
-    timeTableData,
-    setTimeTableData,
-    changedRows,
-    setChangedRows,
-    setStatusMessage,
-    showDialog,
-    context,
-    contractId,
-    setIsSaving,
-    onSaveComplete
-  );
+  // Обновляем создание handleAddShift для использования выбранной строки
+  const handleAddShift = (): void => {
+    console.log('handleAddShift called (no row specified)');
+    handleAddShiftWithRow(null);
+  };
 
   // 4. Создаем обработчик для сохранения
   const handleSave = createSaveHandler(
@@ -590,15 +916,31 @@ const handleAddWeek = (): void => {
   // Получаем упорядоченные дни недели на основе dayOfStartWeek
   const orderedWeekDays = getOrderedWeekDays(dayOfStartWeek);
 
+ 
   // 3. Функция для отображения кнопки "+Shift" в строке
-  const renderAddShiftButton = (): JSX.Element => {
-    return (
-      <AddShiftButton 
-        onClick={handleAddShift} 
-        isSaving={isSaving} 
-      />
-    );
-  };
+ // Обновляем определение функции renderAddShiftButton
+const renderAddShiftButton = (rowIndex?: number): JSX.Element => {
+  return (
+    <AddShiftButton 
+      onClick={() => {
+        if (typeof rowIndex === 'number') {
+          handleAddShiftForRow(rowIndex);
+        } else {
+          // Если rowIndex не передан, используем обычный handleAddShift
+          handleAddShift();
+        }
+      }} 
+      isSaving={isSaving} 
+    />
+  );
+};
+  
+  // Добавляем новую функцию для обработки нажатия на кнопку "+Shift" в конкретной строке
+// Обновляем handleAddShiftForRow, чтобы сохранить выбранную строку для использования в handleAddShift
+
+
+// Добавляем состояние для хранения выбранной строки
+//const [selectedRowForShift, setSelectedRowForShift] = useState<IExtendedWeeklyTimeRow | null>(null);
   // Функция для определения, является ли строка первой с новым NumberOfShift
   const isFirstRowWithNewTemplate = (data: IExtendedWeeklyTimeRow[], rowIndex: number): boolean => {
     const currentRow = data[rowIndex];

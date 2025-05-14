@@ -224,7 +224,7 @@ interface ITotalHoursCellProps {
   rowIndex: number;
   isFirstRowInTemplate: boolean;
   isLastRowInTemplate: boolean;
-  renderAddShiftButton: () => JSX.Element;
+  renderAddShiftButton: (rowIndex?: number) => JSX.Element; // Изменяем сигнатуру функции
 }
 
 /**
@@ -247,10 +247,10 @@ export const TotalHoursCell: React.FC<ITotalHoursCellProps> = ({
         </div>
       )}
       {(isFirstRowInTemplate && isLastRowInTemplate) || (!isFirstRowInTemplate && isLastRowInTemplate) ? (
-        <div className={isFirstRowInTemplate ? styles.addShiftButtonWrapper : styles.addShiftButtonContainer}>
-          {renderAddShiftButton()}
-        </div>
-      ) : null}
+    <div className={isFirstRowInTemplate ? styles.addShiftButtonWrapper : styles.addShiftButtonContainer}>
+      {renderAddShiftButton(rowIndex)} {/* Передаем rowIndex при вызове */}
+    </div>
+  ) : null}
     </div>
   );
 };

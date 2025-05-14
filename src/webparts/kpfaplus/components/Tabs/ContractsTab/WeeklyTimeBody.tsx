@@ -20,7 +20,7 @@ export interface IWeeklyTimeBodyProps {
   isFirstRowInTemplate: (data: IExtendedWeeklyTimeRow[], rowIndex: number) => boolean;
   isLastRowInTemplate: (data: IExtendedWeeklyTimeRow[], rowIndex: number) => boolean;
   canDeleteRow: (data: IExtendedWeeklyTimeRow[], rowIndex: number) => boolean;
-  renderAddShiftButton: () => JSX.Element;
+  renderAddShiftButton: (rowIndex?: number) => JSX.Element;
   renderDeleteButton: (rowIndex: number) => JSX.Element;
   changedRows: Set<string>;
   hoursOptions: IDropdownOption[];
@@ -99,13 +99,13 @@ export const WeeklyTimeBody: React.FC<IWeeklyTimeBodyProps> = (props) => {
                 <tr className={styles.weekRow}>
                   {/* Ячейка для рабочих часов - отображаем общее время для первой строки шаблона */}
                   <td className={styles.hoursCell} rowSpan={2}>
-                    <TotalHoursCell
-                      timeTableData={filteredTimeTableData}
-                      rowIndex={rowIndex}
-                      isFirstRowInTemplate={isFirstRowInTemplate(filteredTimeTableData, rowIndex)}
-                      isLastRowInTemplate={isLastRowInTemplate(filteredTimeTableData, rowIndex)}
-                      renderAddShiftButton={renderAddShiftButton}
-                    />
+                  <TotalHoursCell
+  timeTableData={filteredTimeTableData}
+  rowIndex={rowIndex}
+  isFirstRowInTemplate={isFirstRowInTemplate(filteredTimeTableData, rowIndex)}
+  isLastRowInTemplate={isLastRowInTemplate(filteredTimeTableData, rowIndex)}
+  renderAddShiftButton={() => renderAddShiftButton(rowIndex)} // Передаем rowIndex в функцию
+/>
                     </td>
                   <td className={styles.nameCell} rowSpan={2}>
                     <div className={styles.rowName}>{row.name}</div>
