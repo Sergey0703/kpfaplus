@@ -876,43 +876,43 @@ export const createShowConfirmDialog = (
         });
         break;
       
-      case DialogType.ADD_WEEK:
-        // Диалог добавления новой недели
-        const addWeekCheck = additionalData as IAddWeekCheckResult;
-        if (!addWeekCheck || !addWeekCheck.canAdd) {
-          console.error('Invalid add week check result');
-          return;
-        }
-        
-        setConfirmDialogProps({
-          isOpen: true,
-          title: 'Add New Week',
-          message: `${addWeekCheck.message} Are you sure you want to add a new week?`,
-          confirmButtonText: 'Add',
-          cancelButtonText: 'Cancel',
-          onConfirm: () => {
-            // Вызываем функцию добавления с правильными параметрами
-            executeAddNewWeek(
-              context,
-              timeTableData,
-              setTimeTableData,
-              contractId,
-              changedRows,
-              setChangedRows,
-              setIsSaving,
-              setStatusMessage,
-              addWeekCheck.weekNumberToAdd,
-              currentUserId, 
-              onSaveComplete,
-              onRefresh // Передаем функцию перезагрузки данных
-            );
-            
-            setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-            pendingActionRowIdRef.current = null;
-          },
-          confirmButtonColor: '#0078d4' // синий цвет для добавления
-        });
-        break;
+        case DialogType.ADD_WEEK:
+          // Диалог добавления новой недели
+          const addWeekCheck = additionalData as IAddWeekCheckResult;
+          if (!addWeekCheck || !addWeekCheck.canAdd) {
+            console.error('Invalid add week check result');
+            return;
+          }
+          
+          setConfirmDialogProps({
+            isOpen: true,
+            title: 'Add New Week',
+            message: `${addWeekCheck.message} Are you sure you want to add a new week?`,
+            confirmButtonText: 'Add',
+            cancelButtonText: 'Cancel',
+            onConfirm: () => {
+              // Вызываем функцию добавления с правильными параметрами
+              executeAddNewWeek(
+                context,
+                timeTableData,
+                setTimeTableData,
+                contractId,
+                changedRows,
+                setChangedRows,
+                setIsSaving,
+                setStatusMessage,
+                addWeekCheck.weekNumberToAdd,
+                currentUserId, 
+                onSaveComplete,
+                onRefresh
+              );
+              
+              setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
+              pendingActionRowIdRef.current = null;
+            },
+            confirmButtonColor: '#0078d4' // синий цвет для добавления
+          });
+          break;
       
       case DialogType.ADD_SHIFT:
         // Диалог добавления новой смены

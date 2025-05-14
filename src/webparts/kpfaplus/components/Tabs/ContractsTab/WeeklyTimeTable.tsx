@@ -16,7 +16,9 @@ import {
   isLastRowInTemplate,
   canDeleteRow,
   getStartDayName,
-  updateDisplayedTotalHours
+  updateDisplayedTotalHours,
+  analyzeWeeklyTableData,
+  checkCanAddNewWeek
 } from './WeeklyTimeTableLogic';
 import { WebPartContext } from '@microsoft/sp-webpart-base';
 import { WeeklyTimeTableUtils } from '../../../models/IWeeklyTimeTable';
@@ -565,6 +567,26 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     pendingActionRowIdRef.current = null;
   };
 
+  // Создаем функцию для добавления новой недели
+const handleAddWeek = (): void => {
+  // Анализируем структуру данных для определения текущих недель
+  const analysisResult = analyzeWeeklyTableData(timeTableData);
+  
+  // Проверяем возможность добавления новой недели
+  const addWeekCheckResult = checkCanAddNewWeek(analysisResult);
+  
+  // Показываем диалог подтверждения с результатами проверки
+  if (addWeekCheckResult.canAdd) {
+    // Если можно добавить новую неделю, показываем диалог ADD_WEEK
+    showDialog('add_week', DialogType.ADD_WEEK, addWeekCheckResult);
+  } else {
+    // Если нельзя добавить новую неделю, показываем информационный диалог
+    showDialog('info', DialogType.INFO, { 
+      message: addWeekCheckResult.message,
+      confirmButtonText: "OK"
+    });
+  }
+};
   // Получаем упорядоченные дни недели на основе dayOfStartWeek
   const orderedWeekDays = getOrderedWeekDays(dayOfStartWeek);
 
@@ -666,7 +688,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
             </div>
           </div>
           <div className={styles.actionButtons}>
-            <NewWeekButton onClick={handleAddShift} isSaving={isSaving} />
+            <NewWeekButton onClick={handleAddWeek} isSaving={isSaving} />
           </div>
         </div>
         
@@ -705,7 +727,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
           </div>
         </div>
         <div className={styles.actionButtons}>
-          <NewWeekButton onClick={handleAddShift} isSaving={isSaving} />
+          <NewWeekButton onClick={handleAddWeek} isSaving={isSaving} />
           <SaveButton 
             onClick={handleSave} 
             disabled={changedRows.size === 0} 
