@@ -54,57 +54,60 @@ export class WeeklyTimeTableService {
  * @returns Массив данных недельного расписания
  */
 public async getWeeklyTimeTableByContractId(contractId: string): Promise<any[]> {
-    try {
-      // Используем RemoteSiteService вместо прямого вызова PnP JS
-      const filter = `fields/IdOfTemplateLookupId eq ${contractId} and fields/Deleted eq 0`;
+  try {
+    // Используем RemoteSiteService вместо прямого вызова PnP JS
+    // Изменяем фильтр, чтобы получать все записи, включая удаленные
+    const filter = `fields/IdOfTemplateLookupId eq ${contractId}`;
+    
+    console.log(`Getting weekly time table for contract ID: ${contractId} with filter: ${filter}`);
+    
+    // Поскольку метод поддерживает только одно поле сортировки,
+    // используем NumberOfWeek как основное поле сортировки
+    const orderBy = { field: "fields/NumberOfWeek", ascending: true };
+    
+    console.log(`Getting weekly time table for contract ID: ${contractId} with ordering by ${orderBy.field}`);
+    
+    const items = await this.remoteSiteService.getListItems(
+      this.listName,
+      true, // expandFields
+      filter,
+      orderBy // одно поле сортировки
+    );
+    
+    console.log(`Retrieved ${items.length} weekly time table items. Filter removed "Deleted eq 0" condition to get all items.`);
+    
+    // Поскольку на сервере мы можем отсортировать только по одному полю,
+    // дополнительную сортировку делаем на клиенте
+    items.sort((a, b) => {
+      // Сначала по IdOfTemplateLookupId
+      const templateA = Number(a.fields?.IdOfTemplateLookupId || 0);
+      const templateB = Number(b.fields?.IdOfTemplateLookupId || 0);
       
-      // Поскольку метод поддерживает только одно поле сортировки,
-      // используем NumberOfWeek как основное поле сортировки
-      const orderBy = { field: "fields/NumberOfWeek", ascending: true };
+      if (templateA !== templateB) {
+        return templateA - templateB;
+      }
       
-      console.log(`Getting weekly time table for contract ID: ${contractId} with ordering by ${orderBy.field}`);
+      // Затем по NumberOfWeek
+      const weekA = Number(a.fields?.NumberOfWeek || 0);
+      const weekB = Number(b.fields?.NumberOfWeek || 0);
       
-      const items = await this.remoteSiteService.getListItems(
-        this.listName,
-        true, // expandFields
-        filter,
-        orderBy // одно поле сортировки
-      );
+      if (weekA !== weekB) {
+        return weekA - weekB;
+      }
       
-      console.log(`Retrieved ${items.length} weekly time table items`);
+      // И наконец по NumberOfShift
+      const shiftA = Number(a.fields?.NumberOfShift || 0);
+      const shiftB = Number(b.fields?.NumberOfShift || 0);
       
-      // Поскольку на сервере мы можем отсортировать только по одному полю,
-      // дополнительную сортировку делаем на клиенте
-      items.sort((a, b) => {
-        // Сначала по IdOfTemplateLookupId
-        const templateA = Number(a.fields?.IdOfTemplateLookupId || 0);
-        const templateB = Number(b.fields?.IdOfTemplateLookupId || 0);
-        
-        if (templateA !== templateB) {
-          return templateA - templateB;
-        }
-        
-        // Затем по NumberOfWeek
-        const weekA = Number(a.fields?.NumberOfWeek || 0);
-        const weekB = Number(b.fields?.NumberOfWeek || 0);
-        
-        if (weekA !== weekB) {
-          return weekA - weekB;
-        }
-        
-        // И наконец по NumberOfShift
-        const shiftA = Number(a.fields?.NumberOfShift || 0);
-        const shiftB = Number(b.fields?.NumberOfShift || 0);
-        
-        return shiftA - shiftB;
-      });
-      
-      return items;
-    } catch (err) {
-      console.error('Error getting weekly time table by contract ID:', err);
-      throw err;
-    }
+      return shiftA - shiftB;
+    });
+    
+    return items;
+  } catch (err) {
+    console.error('Error getting weekly time table by contract ID:', err);
+    throw err;
   }
+}
 
   public async updateWeeklyTimeTableItem(item: IWeeklyTimeTableUpdateItem): Promise<any> {
     try {
