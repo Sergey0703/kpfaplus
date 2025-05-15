@@ -156,9 +156,7 @@ export interface IWeeklyTimeBodyProps {
                       </div>
                     </td>
   
-                    // В компоненте WeeklyTimeBody.tsx, заменим код для отображения кнопок действий:
-
-<td className={styles.actionsColumn} rowSpan={2}>
+                  <td className={styles.actionsColumn} rowSpan={2}>
   {(() => {
     const isRowDeleted = row.deleted === 1 || row.Deleted === 1;
     console.log(`Row ${rowIndex}, ID=${row.id}: isDeleted=${isRowDeleted}`);
