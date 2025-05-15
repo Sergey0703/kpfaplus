@@ -280,8 +280,8 @@
   border: 1px solid #ddd !important;
 }
 
-/* Дополнительные стили для выпадающих списков внутри nameCell */
-.nameCell .ms-Dropdown {
+/* Удаляем проблемный селектор ms-Dropdown и используем более общий подход */
+.nameCell :global(.ms-Dropdown) {
   width: 100%; /* Занимает всю ширину ячейки */
   max-width: 100%;
   margin-top: 4px;
