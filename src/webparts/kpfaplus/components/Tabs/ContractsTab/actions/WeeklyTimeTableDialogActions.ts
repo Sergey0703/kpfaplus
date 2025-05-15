@@ -36,8 +36,8 @@ export const createShowConfirmDialog = (
   // Добавляем параметры для функций из WeeklyTimeTableAddActions
   executeAddNewWeek?: ExecuteAddNewWeekFn,
   executeAddNewShift?: ExecuteAddNewShiftFn
-) => {
-  return (rowId: string, dialogType: DialogType = DialogType.DELETE, additionalData?: any): void => {
+): (rowId: string, dialogType: DialogType, additionalData?: unknown) => void => {
+  return (rowId: string, dialogType: DialogType = DialogType.DELETE, additionalData?: unknown): void => {
     console.log(`Setting up dialog: type=${dialogType}, rowId=${rowId}`);
     
     // Сохраняем ID строки в ref
@@ -45,7 +45,7 @@ export const createShowConfirmDialog = (
     
     // Настраиваем диалог в зависимости от типа
     switch (dialogType) {
-      case DialogType.DELETE:
+      case DialogType.DELETE: {
         // Диалог удаления - найдем строку по ID
         const rowIndex = timeTableData.findIndex(row => row.id === rowId);
         if (rowIndex === -1) {
@@ -64,7 +64,7 @@ export const createShowConfirmDialog = (
             if (rowId) {
               const rowIndex = timeTableData.findIndex(row => row.id === rowId);
               if (rowIndex !== -1) {
-                deleteHandler(rowIndex)
+                void deleteHandler(rowIndex)
                   .then(() => {
                     console.log(`Row ${rowId} deleted successfully`);
                     setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
@@ -81,8 +81,9 @@ export const createShowConfirmDialog = (
           confirmButtonColor: '#d83b01' // красный цвет для удаления
         });
         break;
+      }
       
-      case DialogType.RESTORE:
+      case DialogType.RESTORE: {
         // Диалог восстановления
         setConfirmDialogProps({
           isOpen: true,
@@ -95,7 +96,7 @@ export const createShowConfirmDialog = (
             if (rowId) {
               const rowIndex = timeTableData.findIndex(row => row.id === rowId);
               if (rowIndex !== -1) {
-                deleteHandler(rowIndex)
+                void deleteHandler(rowIndex)
                   .then(() => {
                     console.log(`Row ${rowId} restored successfully`);
                     setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
@@ -112,19 +113,37 @@ export const createShowConfirmDialog = (
           confirmButtonColor: '#107c10' // зеленый цвет для восстановления
         });
         break;
+      }
       
-      case DialogType.ADD_WEEK:
-        // Диалог добавления новой недели
-        const addWeekCheck = additionalData;
-        if (!addWeekCheck || !addWeekCheck.canAdd) {
+      case DialogType.ADD_WEEK: {
+        // Используем тип unknown вместо конкретного типа для совместимости
+        const addWeekCheck = additionalData as unknown;
+        // Проверяем свойства через безопасный доступ
+        const canAdd = typeof addWeekCheck === 'object' && 
+                      addWeekCheck !== null && 
+                      'canAdd' in addWeekCheck && 
+                      (addWeekCheck as {canAdd: boolean}).canAdd;
+        
+        if (!canAdd) {
           console.error('Invalid add week check result');
           return;
         }
         
+        // Получаем значения свойств через безопасные приведения типов
+        const weekNumberToAdd = typeof addWeekCheck === 'object' && 
+                               addWeekCheck !== null && 
+                               'weekNumberToAdd' in addWeekCheck ? 
+                               (addWeekCheck as {weekNumberToAdd: number}).weekNumberToAdd : 0;
+        
+        const message = typeof addWeekCheck === 'object' && 
+                       addWeekCheck !== null && 
+                       'message' in addWeekCheck ? 
+                       (addWeekCheck as {message: string}).message : '';
+        
         setConfirmDialogProps({
           isOpen: true,
           title: 'Add New Week',
-          message: `${addWeekCheck.message} Are you sure you want to add a new week?`,
+          message: `${message} Are you sure you want to add a new week?`,
           confirmButtonText: 'Add',
           cancelButtonText: 'Cancel',
           onConfirm: () => {
@@ -143,14 +162,15 @@ export const createShowConfirmDialog = (
                 setChangedRows,
                 setIsSaving,
                 setStatusMessage,
-                addWeekCheck.weekNumberToAdd,
+                weekNumberToAdd,
                 currentUserId, 
                 onSaveComplete,
                 onRefresh
               );
             } else {
               // Если параметр не передан, пробуем использовать динамический импорт
-              import('./WeeklyTimeTableAddActions').then(module => {
+              /* webpackChunkName: 'weeklyTimeTableAddActions' */
+              void import('./WeeklyTimeTableAddActions').then(module => {
                 module.executeAddNewWeek(
                   context,
                   timeTableData,
@@ -160,7 +180,7 @@ export const createShowConfirmDialog = (
                   setChangedRows,
                   setIsSaving,
                   setStatusMessage,
-                  addWeekCheck.weekNumberToAdd,
+                  weekNumberToAdd,
                   currentUserId, 
                   onSaveComplete,
                   onRefresh
@@ -177,19 +197,33 @@ export const createShowConfirmDialog = (
           confirmButtonColor: '#0078d4' // синий цвет для добавления
         });
         break;
+      }
       
-      case DialogType.ADD_SHIFT:
+      case DialogType.ADD_SHIFT: {
         // Диалог добавления новой смены
-        const addShiftData = additionalData;
-        if (!addShiftData || !addShiftData.weekNumber || !addShiftData.nextShiftNumber) {
+        const addShiftData = additionalData as unknown;
+        // Проверяем свойства через безопасный доступ
+        const hasRequiredProps = typeof addShiftData === 'object' && 
+                               addShiftData !== null && 
+                               'weekNumber' in addShiftData && 
+                               'nextShiftNumber' in addShiftData;
+        
+        if (!hasRequiredProps) {
           console.error('Invalid add shift data');
           return;
         }
         
+        // Получаем значения свойств через безопасные приведения типов
+        const weekNumber = (addShiftData as {weekNumber: number}).weekNumber;
+        const nextShiftNumber = (addShiftData as {nextShiftNumber: number}).nextShiftNumber;
+        const shiftContractId = 'contractId' in addShiftData ? 
+                               (addShiftData as {contractId?: string}).contractId : 
+                               undefined;
+        
         setConfirmDialogProps({
           isOpen: true,
           title: 'Add New Shift',
-          message: `Do you want to add a new shift ${addShiftData.nextShiftNumber} for week ${addShiftData.weekNumber}?`,
+          message: `Do you want to add a new shift ${nextShiftNumber} for week ${weekNumber}?`,
           confirmButtonText: 'Add Shift',
           cancelButtonText: 'Cancel',
           onConfirm: () => {
@@ -203,31 +237,32 @@ export const createShowConfirmDialog = (
                 context,
                 timeTableData,
                 setTimeTableData,
-                contractId,
+                contractId || shiftContractId,
                 changedRows,
                 setChangedRows,
                 setIsSaving,
                 setStatusMessage,
-                addShiftData.weekNumber,
-                addShiftData.nextShiftNumber,
+                weekNumber,
+                nextShiftNumber,
                 currentUserId, 
                 onSaveComplete,
                 onRefresh
               );
             } else {
               // Если параметр не передан, пробуем использовать динамический импорт
-              import('./WeeklyTimeTableAddActions').then(module => {
+              /* webpackChunkName: 'weeklyTimeTableAddActions' */
+              void import('./WeeklyTimeTableAddActions').then(module => {
                 module.executeAddNewShift(
                   context,
                   timeTableData,
                   setTimeTableData,
-                  contractId,
+                  contractId || shiftContractId,
                   changedRows,
                   setChangedRows,
                   setIsSaving,
                   setStatusMessage,
-                  addShiftData.weekNumber,
-                  addShiftData.nextShiftNumber,
+                  weekNumber,
+                  nextShiftNumber,
                   currentUserId, 
                   onSaveComplete,
                   onRefresh
@@ -244,18 +279,42 @@ export const createShowConfirmDialog = (
           confirmButtonColor: '#0078d4' // синий цвет для добавления
         });
         break;
+      }
       
-      case DialogType.INFO:
+      case DialogType.INFO: {
         // Информационный диалог
-        const infoMessage = additionalData?.message || 'Information';
-        const customAction = additionalData?.customAction;
+        // Получаем значения свойств через безопасные приведения типов
+        const infoMessage = typeof additionalData === 'object' && 
+                          additionalData !== null && 
+                          'message' in additionalData ? 
+                          String(additionalData.message) : 
+                          'Information';
+        
+        const customAction = typeof additionalData === 'object' && 
+                           additionalData !== null && 
+                           'customAction' in additionalData && 
+                           typeof additionalData.customAction === 'function' ? 
+                           additionalData.customAction : 
+                           undefined;
+        
+        const confirmButtonText = typeof additionalData === 'object' && 
+                                additionalData !== null && 
+                                'confirmButtonText' in additionalData ? 
+                                String(additionalData.confirmButtonText) : 
+                                'OK';
+        
+        const cancelButtonText = typeof additionalData === 'object' && 
+                               additionalData !== null && 
+                               'cancelButtonText' in additionalData ? 
+                               String(additionalData.cancelButtonText) : 
+                               'Cancel';
         
         setConfirmDialogProps({
           isOpen: true,
           title: 'Information',
           message: infoMessage,
-          confirmButtonText: additionalData?.confirmButtonText || 'OK',
-          cancelButtonText: additionalData?.cancelButtonText || 'Cancel',
+          confirmButtonText,
+          cancelButtonText,
           onConfirm: () => {
             setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
             pendingActionRowIdRef.current = null;
@@ -268,6 +327,7 @@ export const createShowConfirmDialog = (
           confirmButtonColor: '#0078d4' // синий цвет для информации
         });
         break;
+      }
       
       default:
         console.error(`Unknown dialog type: ${dialogType}`);
