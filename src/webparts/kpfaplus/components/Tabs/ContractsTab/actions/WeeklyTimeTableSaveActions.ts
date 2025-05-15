@@ -28,9 +28,9 @@ export const createSaveHandler = (
   setStatusMessage: React.Dispatch<React.SetStateAction<{
     type: MessageBarType;
     message: string;
-  } | null>>,
+  } | undefined>>, // Заменяем null на undefined
   onSaveComplete?: (success: boolean) => void
-) => {
+): () => Promise<void> => { // Добавляем явный тип возвращаемого значения
   return async (): Promise<void> => {
     // Если нет измененных строк, ничего не делаем
     if (changedRows.size === 0) {
@@ -40,7 +40,7 @@ export const createSaveHandler = (
     
     // Обновляем состояние для индикации процесса сохранения
     setIsSaving(true);
-    setStatusMessage(null);
+    setStatusMessage(undefined); // Заменяем null на undefined
     
     try {
       // Создаем сервис для работы с данными

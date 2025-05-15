@@ -25,7 +25,7 @@ export const createDeleteShiftHandler = (
   setStatusMessage: React.Dispatch<React.SetStateAction<{
     type: MessageBarType;
     message: string;
-  } | null>>
+  } | undefined>>
 ): (rowIndex: number) => Promise<void> => {
   return async (rowIndex: number): Promise<void> => {
     try {
@@ -114,7 +114,7 @@ export const createDeleteShiftHandler = (
       
       // Скрываем сообщение через 3 секунды
       setTimeout(() => {
-        setStatusMessage(null);
+        setStatusMessage(undefined);
       }, 3000);
     } catch (error) {
       console.error(`Error processing shift at row ${rowIndex}:`, error);

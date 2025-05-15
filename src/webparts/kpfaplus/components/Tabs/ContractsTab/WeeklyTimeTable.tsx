@@ -94,7 +94,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   //  message: string;
   //} | null>(null);
 
-  const [statusMessage, setStatusMessage] = useState<StatusMessageType>(null);
+  const [statusMessage, setStatusMessage] =useState<StatusMessageType>(undefined);
 
   // Состояние для диалога подтверждения
   const [confirmDialogProps, setConfirmDialogProps] = useState({
@@ -169,7 +169,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     setTimeTableData,
     changedRows,
     setChangedRows,
-    setStatusMessage
+    setStatusMessage as any
   );
 
   const handleLunchChange = useLunchChangeHandler(
@@ -177,7 +177,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     setTimeTableData,
     changedRows,
     setChangedRows,
-    setStatusMessage
+    setStatusMessage as any
   );
 
   const handleContractChange = useContractChangeHandler(
@@ -185,7 +185,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     setTimeTableData,
     changedRows,
     setChangedRows,
-    setStatusMessage
+    setStatusMessage as any
   );
 
 
@@ -873,7 +873,7 @@ const handleAddShiftForRow = (rowIndex: number): void => {
     }
     
     // Сбрасываем статусное сообщение при изменении данных
-    setStatusMessage(null);
+    setStatusMessage(undefined);
   }, [contractId, weeklyTimeData, dayOfStartWeek]);
   
   // Обновляем состояние загрузки, если оно изменилось в пропсах

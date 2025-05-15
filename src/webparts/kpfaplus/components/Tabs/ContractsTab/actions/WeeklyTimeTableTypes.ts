@@ -18,7 +18,7 @@ export enum DialogType {
 export type StatusMessageType = {
   type: MessageBarType;
   message: string;
-} | null;
+} | undefined;
 
 // Определяем тип для pendingActionRowIdRef
 export type PendingActionRowIdRefType = React.MutableRefObject<string | null>;
