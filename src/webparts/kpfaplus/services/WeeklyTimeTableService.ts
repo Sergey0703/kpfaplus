@@ -53,7 +53,7 @@ export class WeeklyTimeTableService {
  * @param contractId ID контракта
  * @returns Массив данных недельного расписания
  */
-public async getWeeklyTimeTableByContractId(contractId: string): Promise<any[]> {
+public async getWeeklyTimeTableByContractId(contractId: string): Promise<Promise<any[]>> {
   try {
     // Используем RemoteSiteService вместо прямого вызова PnP JS
     // Изменяем фильтр, чтобы получать все записи, включая удаленные

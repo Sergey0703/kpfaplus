@@ -27,7 +27,7 @@ export interface IWeeklyTimeTableItem {
     id: string;
     title: string;
   };
-  fields?: any; // Поддержка существующей структуры
+  fields?: Record<string, unknown>; // Поддержка существующей структуры
   
   // Поля для времени начала и окончания
   mondayStartWork?: string;
