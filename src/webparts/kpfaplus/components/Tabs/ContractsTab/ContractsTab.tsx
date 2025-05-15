@@ -16,6 +16,19 @@ import { IComboBoxOption } from '@fluentui/react';
 import { ContractsTable } from './ContractsTable';
 import { WeeklyTimeTable } from './WeeklyTimeTable';
 
+// Определим интерфейс для данных недельного расписания
+interface IWeeklyTimeDataItem {
+  id: string;
+  fields?: Record<string, unknown>;
+  Title?: string;
+  NumberOfWeek?: number;
+  NumberOfShift?: number;
+  Deleted?: number;
+  deleted?: number;
+  // Добавляем другие необходимые поля
+  [key: string]: unknown;
+}
+
 export const ContractsTab: React.FC<ITabProps> = (props) => {
   const { selectedStaff, context } = props;
   
@@ -24,13 +37,13 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
   console.log("[ContractsTab] Context available:", !!context);
   
   // Инициализация RemoteSiteService
-  const remoteSiteService = context ? RemoteSiteService.getInstance(context) : null;
+  const remoteSiteService = context ? RemoteSiteService.getInstance(context) : undefined;
   
   // Состояние для контрактов и состояния загрузки
   const [contracts, setContracts] = useState<IContract[]>([]);
   const [showDeleted, setShowDeleted] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | undefined>(undefined);
   
   // Состояние для панели добавления/редактирования контракта
   const [isContractPanelOpen, setIsContractPanelOpen] = useState<boolean>(false);
@@ -38,10 +51,10 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
   
   // Добавляем состояние для хранения DayOfStartWeek из выбранного департамента
   const [dayOfStartWeek, setDayOfStartWeek] = useState<number>(7); // По умолчанию - суббота (7)
-  const [selectedContract, setSelectedContract] = useState<IContract | null>(null);
+  const [selectedContract, setSelectedContract] = useState<IContract | undefined>(undefined);
 
   // Состояние для данных недельного расписания
-  const [weeklyTimeData, setWeeklyTimeData] = useState<any[]>([]);
+  const [weeklyTimeData, setWeeklyTimeData] = useState<IWeeklyTimeDataItem[]>([]);
   const [isLoadingWeeklyTime, setIsLoadingWeeklyTime] = useState<boolean>(false);
   
   // Состояние для типов работников
@@ -52,10 +65,10 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
   // Проверка наличия контекста перед инициализацией сервиса
   const contractsService = context 
     ? ContractsService.getInstance(context) 
-    : null;
+    : undefined;
 
   // Обработчик завершения сохранения недельного расписания
-  const handleSaveComplete = (success: boolean) => {
+  const handleSaveComplete = (success: boolean): void => {
     if (success) {
       // Можно обновить данные или показать уведомление
       console.log('Weekly time table saved successfully');
@@ -116,7 +129,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
     }
     
     setIsLoading(true);
-    setError(null);
+    setError(undefined);
     
     try {
       // Изменяем на использование employeeId вместо id, и добавляем staffGroupId и managerId
@@ -174,7 +187,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
       }
     } catch (err) {
       console.error('Error fetching contracts:', err);
-      setError(`Failed to refresh the view. ${err.message || ''}`);
+      setError(`Failed to refresh the view. ${err instanceof Error ? err.message : ''}`);
     } finally {
       setIsLoading(false);
     }
@@ -190,7 +203,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
     console.log(`Attempting to delete contract ID: ${contractId}`);
     
     setIsLoading(true);
-    setError(null);
+    setError(undefined);
     
     try {
       const success = await contractsService.markContractAsDeleted(contractId);
@@ -210,7 +223,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
       }
     } catch (err) {
       console.error('Error deleting contract:', err);
-      setError(`Failed to delete the contract. ${err.message || ''}`);
+      setError(`Failed to delete the contract. ${err instanceof Error ? err.message : ''}`);
       throw err;
     } finally {
       setIsLoading(false);
@@ -227,7 +240,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
     console.log(`Attempting to restore contract ID: ${contractId}`);
     
     setIsLoading(true);
-    setError(null);
+    setError(undefined);
     
     try {
       const success = await contractsService.markContractAsNotDeleted(contractId);
@@ -247,7 +260,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
       }
     } catch (err) {
       console.error('Error restoring contract:', err);
-      setError(`Failed to restore the contract. ${err.message || ''}`);
+      setError(`Failed to restore the contract. ${err instanceof Error ? err.message : ''}`);
       throw err;
     } finally {
       setIsLoading(false);
@@ -279,7 +292,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
   }, [props.managingGroupId, props.dayOfStartWeek]);
   useEffect(() => {
     // Сбрасываем выбранный контракт и данные расписания при смене сотрудника
-    setSelectedContract(null);
+    setSelectedContract(undefined);
     setWeeklyTimeData([]);
   }, [selectedStaff?.id]);
   
@@ -358,13 +371,14 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
   // Обработчики для закрытия панели
   const handlePanelDismiss = (): void => {
     console.log("Panel dismissed");
-    setCurrentContract(null);
+    setCurrentContract(null); // Используем null вместо undefined
     setIsContractPanelOpen(false);
   };
   
+  // В методе handleCancelButtonClick
   const handleCancelButtonClick = (): void => {
     console.log("Cancel button clicked directly");
-    setCurrentContract(null);
+    setCurrentContract(null); // Используем null вместо undefined
     setIsContractPanelOpen(false);
   };
   
@@ -382,7 +396,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
     if (!contractData || !contractsService) return;
     
     setIsLoading(true);
-    setError(null);
+    setError(undefined);
     
     try {
       console.log("Preparing to save contract with data:", contractData);
@@ -412,11 +426,11 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
       await fetchContracts();
       
       // Закрываем панель и очищаем состояние
-      setCurrentContract(null);
+      setCurrentContract(null); // Используем null вместо undefined
       setIsContractPanelOpen(false);
     } catch (err) {
       console.error('Error saving contract:', err);
-      setError(`Failed to save the contract: ${err.message || 'Unknown error'}`);
+      setError(`Failed to save the contract: ${err instanceof Error ? err.message : 'Unknown error'}`);
       throw err;
     } finally {
       setIsLoading(false);
@@ -457,7 +471,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
           console.log(`Retrieved ${weeklyTimeTables.length} weekly time tables for contract ${contractId}`);
           
           // Обновляем состояние с данными для таблицы недельного расписания
-          setWeeklyTimeData(weeklyTimeTables);
+          setWeeklyTimeData(weeklyTimeTables as IWeeklyTimeDataItem[]);
           
           // Пример логирования структуры данных
           if (weeklyTimeTables.length > 0) {
@@ -465,14 +479,14 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
           }
         } catch (fetchError) {
           console.error(`Error fetching weekly time tables: ${fetchError}`);
-          setError(`Failed to load weekly time table data: ${fetchError.message || 'Unknown error'}`);
+          setError(`Failed to load weekly time table data: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}`);
         } finally {
           setIsLoadingWeeklyTime(false);
         }
       }
     } catch (error) {
       console.error(`Error showing template for contract ${contractId}:`, error);
-      setError(`Error showing template: ${error.message || 'Unknown error'}`);
+      setError(`Error showing template: ${error instanceof Error ? error.message : 'Unknown error'}`);
       throw error;
     }
   };
@@ -519,7 +533,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
           <MessageBar
             messageBarType={MessageBarType.error}
             isMultiline={false}
-            onDismiss={() => setError(null)}
+            onDismiss={() => setError(undefined)}
             dismissButtonAriaLabel="Close"
           >
             {error}
@@ -582,17 +596,17 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
 
       {/* Таблица недельного расписания - добавляем ниже таблицы контрактов */}
       {selectedContract && (
-  <WeeklyTimeTable
-    contractId={selectedContract.id}
-    contractName={selectedContract.template}
-    weeklyTimeData={weeklyTimeData}
-    isLoading={isLoadingWeeklyTime}
-    dayOfStartWeek={dayOfStartWeek}
-    context={context}
-    currentUserId={props.currentUserId ? parseInt(props.currentUserId) : undefined}// Убедитесь, что этот пропс определен в ITabProps
-    onSaveComplete={handleSaveComplete}
-  />
-)}
+        <WeeklyTimeTable
+          contractId={selectedContract.id}
+          contractName={selectedContract.template}
+          weeklyTimeData={weeklyTimeData}
+          isLoading={isLoadingWeeklyTime}
+          dayOfStartWeek={dayOfStartWeek}
+          context={context}
+          currentUserId={props.currentUserId ? parseInt(props.currentUserId) : undefined}// Убедитесь, что этот пропс определен в ITabProps
+          onSaveComplete={handleSaveComplete}
+        />
+      )}
     </div>
   );
 };
