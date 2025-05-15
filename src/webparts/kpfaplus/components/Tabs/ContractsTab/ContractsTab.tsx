@@ -384,7 +384,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
   };
   
   // Обработчик изменения полей формы
-  const handleContractFormChange = (field: string, value: any): void => {
+  const handleContractFormChange = (field: string, value: unknown): void => {
     if (!currentContract) return;
     
     setCurrentContract({
