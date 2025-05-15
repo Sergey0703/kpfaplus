@@ -2,13 +2,19 @@
 import { WebPartContext } from '@microsoft/sp-webpart-base';
 import { MessageBarType } from '@fluentui/react';
 import { IExtendedWeeklyTimeRow } from '../WeeklyTimeTableLogic';
-import { DialogType, ExecuteAddNewWeekFn, ExecuteAddNewShiftFn } from './WeeklyTimeTableTypes';
+import { 
+  DialogType, 
+  ExecuteAddNewWeekFn, 
+  ExecuteAddNewShiftFn, 
+  StatusMessageType,
+  PendingActionRowIdRefType
+} from './WeeklyTimeTableTypes';
 
 /**
  * Функция для настройки диалога подтверждения для различных действий
  */
 export const createShowConfirmDialog = (
-  pendingActionRowIdRef: React.MutableRefObject<string | null>,
+  pendingActionRowIdRef: PendingActionRowIdRefType,
   setConfirmDialogProps: React.Dispatch<React.SetStateAction<{
     isOpen: boolean;
     title: string;
@@ -26,10 +32,7 @@ export const createShowConfirmDialog = (
   changedRows: Set<string>,
   setChangedRows: React.Dispatch<React.SetStateAction<Set<string>>>,
   setIsSaving: React.Dispatch<React.SetStateAction<boolean>>,
-  setStatusMessage: React.Dispatch<React.SetStateAction<{
-    type: MessageBarType;
-    message: string;
-  } | null>>,
+  setStatusMessage: React.Dispatch<React.SetStateAction<StatusMessageType>>,
   currentUserId: number,
   onSaveComplete?: (success: boolean) => void,
   onRefresh?: () => void,

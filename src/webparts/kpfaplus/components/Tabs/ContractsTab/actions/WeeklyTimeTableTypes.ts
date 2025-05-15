@@ -14,6 +14,15 @@ export enum DialogType {
   INFO = 'info'             // Информационный диалог
 }
 
+// Определяем общий тип для statusMessage, чтобы избежать несоответствий
+export type StatusMessageType = {
+  type: MessageBarType;
+  message: string;
+} | null;
+
+// Определяем тип для pendingActionRowIdRef
+export type PendingActionRowIdRefType = React.MutableRefObject<string | null>;
+
 /**
  * Тип функции для выполнения добавления новой недели
  */
@@ -25,10 +34,7 @@ export type ExecuteAddNewWeekFn = (
   changedRows: Set<string>,
   setChangedRows: React.Dispatch<React.SetStateAction<Set<string>>>,
   setIsSaving: React.Dispatch<React.SetStateAction<boolean>>,
-  setStatusMessage: React.Dispatch<React.SetStateAction<{
-    type: MessageBarType;
-    message: string;
-  } | null>>,
+  setStatusMessage: React.Dispatch<React.SetStateAction<StatusMessageType>>,
   weekNumberToAdd: number,
   currentUserId: number,
   onSaveComplete?: (success: boolean) => void,
@@ -46,10 +52,7 @@ export type ExecuteAddNewShiftFn = (
   changedRows: Set<string>,
   setChangedRows: React.Dispatch<React.SetStateAction<Set<string>>>,
   setIsSaving: React.Dispatch<React.SetStateAction<boolean>>,
-  setStatusMessage: React.Dispatch<React.SetStateAction<{
-    type: MessageBarType;
-    message: string;
-  } | null>>,
+  setStatusMessage: React.Dispatch<React.SetStateAction<StatusMessageType>>,
   weekNumber: number,
   shiftNumber: number,
   currentUserId: number,

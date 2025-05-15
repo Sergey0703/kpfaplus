@@ -48,6 +48,7 @@ import {
 } from './WeeklyTimeTableButtons';
 import { WeeklyTimeBody } from './WeeklyTimeBody';
 import { WeeklyTimeTableService } from '../../../services/WeeklyTimeTableService';
+import { StatusMessageType } from './actions/WeeklyTimeTableTypes';
 
 // Интерфейс пропсов для компонента WeeklyTimeTable
 export interface IWeeklyTimeTableProps {
@@ -88,10 +89,12 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   const [isSaving, setIsSaving] = useState<boolean>(false);
   
   // Состояние для сообщений об ошибках или успешном сохранении
-  const [statusMessage, setStatusMessage] = useState<{
-    type: MessageBarType;
-    message: string;
-  } | null>(null);
+  //const [statusMessage, setStatusMessage] = useState<{
+  //  type: MessageBarType;
+  //  message: string;
+  //} | null>(null);
+
+  const [statusMessage, setStatusMessage] = useState<StatusMessageType>(null);
 
   // Состояние для диалога подтверждения
   const [confirmDialogProps, setConfirmDialogProps] = useState({

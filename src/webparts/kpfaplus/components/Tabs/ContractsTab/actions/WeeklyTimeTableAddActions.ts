@@ -4,7 +4,7 @@ import { WebPartContext } from '@microsoft/sp-webpart-base';
 import { IExtendedWeeklyTimeRow, updateDisplayedTotalHours } from '../WeeklyTimeTableLogic';
 import { IDayHours, WeeklyTimeTableUtils } from '../../../../models/IWeeklyTimeTable'; //../../../models/IWeeklyTimeTable
 import { IWeeklyTimeTableUpdateItem, WeeklyTimeTableService } from '../../../../services/WeeklyTimeTableService';
-import { DialogType } from './WeeklyTimeTableTypes';  // Импортируем из общего файла типов
+import { DialogType, StatusMessageType } from './WeeklyTimeTableTypes';  // Используем общие типы
 
 /**
  * Функция для обработки добавления новой смены с явным указанием строки
@@ -14,18 +14,15 @@ export const createAddShiftHandler = (
   setTimeTableData: React.Dispatch<React.SetStateAction<IExtendedWeeklyTimeRow[]>>,
   changedRows: Set<string>,
   setChangedRows: React.Dispatch<React.SetStateAction<Set<string>>>,
-  setStatusMessage: React.Dispatch<React.SetStateAction<{
-    type: MessageBarType;
-    message: string;
-  } | null>>,
-  showDialog: (rowId: string, dialogType: DialogType, additionalData?: any) => void,
+  setStatusMessage: React.Dispatch<React.SetStateAction<StatusMessageType>>,
+  showDialog: (rowId: string, dialogType: DialogType, additionalData?: unknown) => void,
   context: WebPartContext,
   contractId: string | undefined,
   setIsSaving: React.Dispatch<React.SetStateAction<boolean>>,
   onSaveComplete?: (success: boolean) => void,
   // Добавляем параметр для доступа к выбранной строке
   getSelectedRow?: () => IExtendedWeeklyTimeRow | null
-) => {
+): () => Promise<void> => {
   return async (): Promise<void> => {
     // Проверяем, есть ли несохраненные изменения
     if (changedRows.size > 0) {
@@ -169,7 +166,7 @@ export const createAddShiftHandler = (
     }
     
    // Функция для проверки удаленных смен в текущей неделе
-   function checkDeletedShiftsInWeek(selectedRow: IExtendedWeeklyTimeRow | null) {
+   function checkDeletedShiftsInWeek(selectedRow: IExtendedWeeklyTimeRow | null): void {
     // Добавим подробное логирование для отладки
     console.log('checkDeletedShiftsInWeek called with selectedRow:', selectedRow ? 
       `ID=${selectedRow.id}, NumberOfWeek=${selectedRow.NumberOfWeek}` : 'null');
@@ -315,7 +312,7 @@ export const createAddShiftHandler = (
   }
   
   // Функция для продолжения процесса добавления новой смены
-  function proceedWithAddingNewShift(currentWeekNumber: number, maxShiftNumberInCurrentWeek: number) {
+  function proceedWithAddingNewShift(currentWeekNumber: number, maxShiftNumberInCurrentWeek: number): void {
     console.log(`Proceeding with adding new shift for week ${currentWeekNumber}`);
     
     // Следующий номер смены = максимальный + 1
@@ -345,10 +342,7 @@ contractId: string | undefined,
 changedRows: Set<string>,
 setChangedRows: React.Dispatch<React.SetStateAction<Set<string>>>,
 setIsSaving: React.Dispatch<React.SetStateAction<boolean>>,
-setStatusMessage: React.Dispatch<React.SetStateAction<{
-  type: MessageBarType;
-  message: string;
-} | null>>,
+setStatusMessage: React.Dispatch<React.SetStateAction<StatusMessageType>>,
 weekNumber: number,
 shiftNumber: number,
 currentUserId: number, 
@@ -397,7 +391,7 @@ try {
   const service = new WeeklyTimeTableService(context);
   
   // Асинхронная функция для сохранения
-  const saveNewShift = async () => {
+  const saveNewShift = async (): Promise<void> => {
     try {
       // Вызываем метод создания и получаем реальный ID
       const realId = await service.createWeeklyTimeTableItem(
@@ -460,7 +454,7 @@ try {
   };
   
   // Запускаем процесс сохранения
-  saveNewShift();
+  void saveNewShift();
   
 } catch (error) {
   // Обрабатываем любые синхронные ошибки
@@ -484,10 +478,7 @@ contractId: string | undefined,
 changedRows: Set<string>,
 setChangedRows: React.Dispatch<React.SetStateAction<Set<string>>>,
 setIsSaving: React.Dispatch<React.SetStateAction<boolean>>,
-setStatusMessage: React.Dispatch<React.SetStateAction<{
-  type: MessageBarType;
-  message: string;
-} | null>>,
+setStatusMessage: React.Dispatch<React.SetStateAction<StatusMessageType>>,
 weekNumberToAdd: number,
 currentUserId: number, 
 onSaveComplete?: (success: boolean) => void,
@@ -535,7 +526,7 @@ try {
   const service = new WeeklyTimeTableService(context);
   
   // Асинхронная функция для сохранения
-  const saveNewWeek = async () => {
+  const saveNewWeek = async (): Promise<void> => {
     try {
       // Вызываем метод создания и получаем реальный ID
       const realId = await service.createWeeklyTimeTableItem(
@@ -598,7 +589,7 @@ try {
   };
   
   // Запускаем процесс сохранения
-  saveNewWeek();
+  void saveNewWeek();
   
 } catch (error) {
   // Обрабатываем любые синхронные ошибки
