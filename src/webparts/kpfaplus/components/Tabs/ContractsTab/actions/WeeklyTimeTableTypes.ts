@@ -14,14 +14,14 @@ export enum DialogType {
   INFO = 'info'             // Информационный диалог
 }
 
-// Определяем общий тип для statusMessage, чтобы избежать несоответствий
+// Определяем общий тип для statusMessage, используя undefined вместо null
 export type StatusMessageType = {
   type: MessageBarType;
   message: string;
 } | undefined;
 
-// Определяем тип для pendingActionRowIdRef
-export type PendingActionRowIdRefType = React.MutableRefObject<string | null>;
+// Определяем тип для pendingActionRowIdRef, используя undefined вместо null
+export type PendingActionRowIdRefType = React.MutableRefObject<string | undefined>;
 
 /**
  * Тип функции для выполнения добавления новой недели

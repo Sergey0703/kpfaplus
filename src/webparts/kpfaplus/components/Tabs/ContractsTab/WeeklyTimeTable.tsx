@@ -111,7 +111,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
 
   // Используем useRef для хранения ID строки, которую нужно удалить
-  const pendingActionRowIdRef = useRef<string | null>(null);
+  const pendingActionRowIdRef = useRef<string | undefined>(undefined);
   
   // Ref для отслеживания, были ли данные уже инициализированы
   const dataInitializedRef = useRef<boolean>(false);
@@ -893,7 +893,7 @@ const handleAddShiftForRow = (rowIndex: number): void => {
   // Обработчик для закрытия диалога
   const handleDismissConfirmDialog = (): void => {
     setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-    pendingActionRowIdRef.current = null;
+    pendingActionRowIdRef.current = undefined;
   };
 
   // Создаем функцию для добавления новой недели

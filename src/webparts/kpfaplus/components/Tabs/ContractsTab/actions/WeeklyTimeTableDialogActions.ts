@@ -72,12 +72,12 @@ export const createShowConfirmDialog = (
                   .then(() => {
                     console.log(`Row ${rowId} deleted successfully`);
                     setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-                    pendingActionRowIdRef.current = null;
+                    pendingActionRowIdRef.current = undefined;
                   })
                   .catch(err => {
                     console.error(`Error deleting row ${rowId}:`, err);
                     setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-                    pendingActionRowIdRef.current = null;
+                    pendingActionRowIdRef.current = undefined;
                   });
               }
             }
@@ -105,12 +105,12 @@ export const createShowConfirmDialog = (
                   .then(() => {
                     console.log(`Row ${rowId} restored successfully`);
                     setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-                    pendingActionRowIdRef.current = null;
+                    pendingActionRowIdRef.current = undefined;
                   })
                   .catch(err => {
                     console.error(`Error restoring row ${rowId}:`, err);
                     setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-                    pendingActionRowIdRef.current = null;
+                    pendingActionRowIdRef.current = undefined;
                   });
               }
             }
@@ -154,7 +154,7 @@ export const createShowConfirmDialog = (
           onConfirm: () => {
             // Закрываем диалог
             setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-            pendingActionRowIdRef.current = null;
+            pendingActionRowIdRef.current = undefined;
 
             // Используем executeAddNewWeek, переданный как параметр, если он доступен
             if (executeAddNewWeek) {
@@ -174,10 +174,8 @@ export const createShowConfirmDialog = (
               );
             } else {
               // Если параметр не передан, пробуем использовать динамический импорт
-              // Удаляем void и добавляем комментарий для webpackChunkName
-              // @ts-ignore
-              /* webpackChunkName: "weeklyTimeTableAddActions" */
-              import('./WeeklyTimeTableAddActions')
+              // @ts-ignore - Dynamic import is expected to have webpack chunk name
+              /* webpackChunkName: "weeklyTimeTableAddActions" */ import('./WeeklyTimeTableAddActions')
                 .then(module => {
                   module.executeAddNewWeek(
                     context,
@@ -238,7 +236,7 @@ export const createShowConfirmDialog = (
           onConfirm: () => {
             // Закрываем диалог
             setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-            pendingActionRowIdRef.current = null;
+            pendingActionRowIdRef.current = undefined;
 
             // Используем executeAddNewShift, переданный как параметр, если он доступен
             if (executeAddNewShift) {
@@ -259,10 +257,8 @@ export const createShowConfirmDialog = (
               );
             } else {
               // Если параметр не передан, пробуем использовать динамический импорт
-              // Удаляем void и добавляем комментарий для webpackChunkName
-              // @ts-ignore
-              /* webpackChunkName: "weeklyTimeTableAddActions" */
-              import('./WeeklyTimeTableAddActions')
+              // @ts-ignore - Dynamic import is expected to have webpack chunk name
+              /* webpackChunkName: "weeklyTimeTableAddActions" */ import('./WeeklyTimeTableAddActions')
                 .then(module => {
                   module.executeAddNewShift(
                     context,
@@ -330,7 +326,7 @@ export const createShowConfirmDialog = (
           cancelButtonText,
           onConfirm: () => {
             setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-            pendingActionRowIdRef.current = null;
+            pendingActionRowIdRef.current = undefined;
             
             // Если есть кастомное действие при подтверждении
             if (customAction && typeof customAction === 'function') {
