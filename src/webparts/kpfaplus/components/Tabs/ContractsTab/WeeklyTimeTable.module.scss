@@ -126,21 +126,24 @@
   background-color: #f3f2f1;
 }
 
+/* Теперь строка с обедом не нужна - скрываем её или удаляем из структуры */
 .lunchRow {
-  border-bottom: 2px solid #d0d0d0;
+  display: none; /* Скрываем вместо использования */
+  /* Альтернатива - полностью удалить код, создающий эту строку */
 }
 
 .nameCell {
   display: flex;
   flex-direction: column;
   text-align: left !important;
+  padding: 4px 8px; /* Увеличиваем отступы */
   min-width: 120px; /* Минимальная ширина */
   max-width: 180px; /* Максимальная ширина */
 }
 
 .rowName {
   font-weight: 600;
-  margin-bottom: 4px;
+  margin-bottom: 8px; /* Увеличиваем отступ для лучшего разделения */
   white-space: nowrap; /* Предотвращаем перенос имени */
   overflow: hidden;
   text-overflow: ellipsis; /* Добавляем многоточие при переполнении */
@@ -148,13 +151,18 @@
 }
 
 .lunchLabel {
-  font-size: 14px;
+  font-size: 13px; /* Уменьшаем размер шрифта */
   color: #666;
+  margin-bottom: 4px; /* Добавляем отступ перед выпадающим списком */
+  font-weight: 500; /* Делаем чуть более заметным */
 }
 
+/* Ячейка обеда теперь находится внутри ячейки nameCell */
 .lunchCell {
+  margin-top: 4px; /* Добавляем отступ сверху */
   text-align: left !important;
-  padding-left: 40px !important; /* Уменьшенный отступ слева */
+  display: flex;
+  align-items: center;
 }
 
 .hoursCell {
@@ -270,6 +278,13 @@
   pointer-events: none;
   background-color: #f5f5f5;
   border: 1px solid #ddd !important;
+}
+
+/* Дополнительные стили для выпадающих списков внутри nameCell */
+.nameCell .ms-Dropdown {
+  width: 100%; /* Занимает всю ширину ячейки */
+  max-width: 100%;
+  margin-top: 4px;
 }
 
 /* Адаптивный стиль для разных размеров экрана */
