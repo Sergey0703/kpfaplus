@@ -12,6 +12,44 @@ export interface IDayHoursComplete {
   end: IDayHours;
 }
 
+// Интерфейс для сырых данных из источника (API SharePoint)
+export interface IWeeklyTimeTableRawItem {
+  id?: string | number;
+  ID?: string | number;
+  fields?: {
+    id?: string | number;
+    ID?: string | number;
+    Deleted?: number;
+    deleted?: number;
+    NumberOfShift?: number;
+    numberOfShift?: number; 
+    NumberOfWeek?: number;
+    numberOfWeek?: number;
+    IdOfTemplate?: string | number;
+    idOfTemplate?: string | number;
+    IdOfTemplateLookupId?: string | number;
+    Title?: string;
+    Contract?: number;
+    TimeForLunch?: number;
+    MondeyStartWork?: string; // С опечаткой как в коде
+    MondayEndWork?: string;
+    TuesdayStartWork?: string;
+    TuesdayEndWork?: string;
+    WednesdayStartWork?: string;
+    WednesdayEndWork?: string;
+    ThursdayStartWork?: string;
+    ThursdayEndWork?: string;
+    FridayStartWork?: string;
+    FridayEndWork?: string;
+    SaturdayStartWork?: string;
+    SaturdayEndWork?: string;
+    SundayStartWork?: string;
+    SundayEndWork?: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
 // Обновление интерфейса для данных из списка WeeklyTimeTables
 export interface IWeeklyTimeTableItem {
   id: string;
@@ -100,6 +138,29 @@ export class WeeklyTimeTableUtils {
     }
   }
   
+  // Вспомогательный метод для безопасного получения строки из unknown
+  private static safeString(value: unknown): string | undefined {
+    if (typeof value === 'string') {
+      return value;
+    }
+    if (typeof value === 'number') {
+      return value.toString();
+    }
+    return undefined;
+  }
+  
+  // Вспомогательный метод для безопасного получения числа из unknown
+  private static safeNumber(value: unknown, defaultValue: number = 0): number {
+    if (typeof value === 'number') {
+      return value;
+    }
+    if (typeof value === 'string') {
+      const parsed = parseFloat(value);
+      return isNaN(parsed) ? defaultValue : parsed;
+    }
+    return defaultValue;
+  }
+  
   // Метод для получения порядка дней в зависимости от DayOfStartWeek
   public static getDayOrder(dayOfStartWeek: number): string[] {
     // Массив дней недели в стандартном порядке (начиная с воскресенья)
@@ -121,7 +182,7 @@ export class WeeklyTimeTableUtils {
   
   
   public static formatWeeklyTimeTableData(
-    items: any[],
+    items: IWeeklyTimeTableRawItem[],
     dayOfStartWeek: number = 7
   ): IFormattedWeeklyTimeRow[] {
     // Если нет данных, возвращаем пустой массив
@@ -139,41 +200,42 @@ export class WeeklyTimeTableUtils {
     items.forEach(item => {
       const fields = item.fields || item; // Поддержка как старого формата с fields, так и нового прямого формата
       
-      // Получаем номер недели и смены
-      const weekNumber = fields.NumberOfWeek || 1;
-      const shiftNumber = fields.NumberOfShift || 1;
-      const contract = fields.Contract || 1;
+      // Получаем номер недели и смены с использованием safeNumber
+      const weekNumber = this.safeNumber(fields.NumberOfWeek, 1);
+      const shiftNumber = this.safeNumber(fields.NumberOfShift, 1);
+      const contract = this.safeNumber(fields.Contract, 1);
       
       // Получаем время обеда из поля TimeForLunch, используем фактическое значение вместо значения по умолчанию
-      const timeForLunch = fields.TimeForLunch !== undefined ? fields.TimeForLunch : 30;
+      const timeForLunch = fields.TimeForLunch !== undefined ? this.safeNumber(fields.TimeForLunch, 30) : 30;
       
       // Формируем имя строки
-      let rowName = fields.Title || `Week ${weekNumber}`;
+      const title = this.safeString(fields.Title) || '';
+      let rowName = title ? title : `Week ${weekNumber}`;
       if (shiftNumber > 1) {
         rowName += ` Shift ${shiftNumber}`;
       }
       
       // Извлекаем часы и минуты для начала работы каждого дня
-      const mondayStart = this.extractTimeFromDate(fields.MondeyStartWork); // Обратите внимание на опечатку
-      const tuesdayStart = this.extractTimeFromDate(fields.TuesdayStartWork);
-      const wednesdayStart = this.extractTimeFromDate(fields.WednesdayStartWork);
-      const thursdayStart = this.extractTimeFromDate(fields.ThursdayStartWork);
-      const fridayStart = this.extractTimeFromDate(fields.FridayStartWork);
-      const saturdayStart = this.extractTimeFromDate(fields.SaturdayStartWork);
-      const sundayStart = this.extractTimeFromDate(fields.SundayStartWork);
+      const mondayStart = this.extractTimeFromDate(this.safeString(fields.MondeyStartWork)); // Обратите внимание на опечатку
+      const tuesdayStart = this.extractTimeFromDate(this.safeString(fields.TuesdayStartWork));
+      const wednesdayStart = this.extractTimeFromDate(this.safeString(fields.WednesdayStartWork));
+      const thursdayStart = this.extractTimeFromDate(this.safeString(fields.ThursdayStartWork));
+      const fridayStart = this.extractTimeFromDate(this.safeString(fields.FridayStartWork));
+      const saturdayStart = this.extractTimeFromDate(this.safeString(fields.SaturdayStartWork));
+      const sundayStart = this.extractTimeFromDate(this.safeString(fields.SundayStartWork));
       
       // Извлекаем часы и минуты для окончания работы каждого дня
-      const mondayEnd = this.extractTimeFromDate(fields.MondayEndWork);
-      const tuesdayEnd = this.extractTimeFromDate(fields.TuesdayEndWork);
-      const wednesdayEnd = this.extractTimeFromDate(fields.WednesdayEndWork);
-      const thursdayEnd = this.extractTimeFromDate(fields.ThursdayEndWork);
-      const fridayEnd = this.extractTimeFromDate(fields.FridayEndWork);
-      const saturdayEnd = this.extractTimeFromDate(fields.SaturdayEndWork);
-      const sundayEnd = this.extractTimeFromDate(fields.SundayEndWork);
+      const mondayEnd = this.extractTimeFromDate(this.safeString(fields.MondayEndWork));
+      const tuesdayEnd = this.extractTimeFromDate(this.safeString(fields.TuesdayEndWork));
+      const wednesdayEnd = this.extractTimeFromDate(this.safeString(fields.WednesdayEndWork));
+      const thursdayEnd = this.extractTimeFromDate(this.safeString(fields.ThursdayEndWork));
+      const fridayEnd = this.extractTimeFromDate(this.safeString(fields.FridayEndWork));
+      const saturdayEnd = this.extractTimeFromDate(this.safeString(fields.SaturdayEndWork));
+      const sundayEnd = this.extractTimeFromDate(this.safeString(fields.SundayEndWork));
       
       // Создаем объект строки с извлеченными значениями для всех дней
       const row: IFormattedWeeklyTimeRow = {
-        id: item.id,
+        id: typeof item.id === 'number' ? item.id.toString() : (item.id || ''),
         name: rowName,
         lunch: timeForLunch.toString(), // Используем точное значение из поля TimeForLunch
         totalHours: '', // Временно устанавливаем пустую строку, заполним после создания всей структуры
@@ -215,9 +277,9 @@ export class WeeklyTimeTableUtils {
       };
       
       // Выводим для отладки значение timeForLunch
-      console.log(`Row ${item.id} - TimeForLunch from server: ${fields.TimeForLunch}, using value: ${timeForLunch}`);
+      console.log(`Row ${row.id} - TimeForLunch from server: ${fields.TimeForLunch}, using value: ${timeForLunch}`);
       // После создания row
-      console.log(`Row ${item.id} - NumberOfShift from server: ${fields.NumberOfShift}, using value: ${shiftNumber}`);
+      console.log(`Row ${row.id} - NumberOfShift from server: ${fields.NumberOfShift}, using value: ${shiftNumber}`);
       // Рассчитываем общее время работы
       row.totalHours = this.calculateTotalWorkHours(
         {
