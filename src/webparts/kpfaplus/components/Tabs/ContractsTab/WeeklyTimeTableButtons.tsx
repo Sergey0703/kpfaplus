@@ -65,16 +65,16 @@ export const DeleteButton: React.FC<IDeleteButtonProps> = ({
         root: { 
           margin: 0, 
           padding: 0,
-          color: isDeleted ? '#107c10' : '#e81123',
+          color: isDeleted ? '#107c10' : '#e81123', // Зеленый для восстановления, красный для удаления
           selectors: {
             '&:hover': {
-              color: isDeleted ? '#85d185' : '#f1707b'
+              color: isDeleted ? '#85d185' : '#f1707b' // Светло-зеленый или светло-красный при наведении
             }
           }
         },
         icon: {
-          fontSize: '16px',
-          fontWeight: 600
+          fontSize: '16px', // Размер иконки
+          fontWeight: 600 // Делаем иконку немного жирнее для лучшей видимости
         }
       }}
       disabled={isSaving}

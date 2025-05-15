@@ -155,30 +155,60 @@ export interface IWeeklyTimeBodyProps {
                         {row.totalHours || '0ч:00м'}
                       </div>
                     </td>
-   
-                    <td className={styles.actionsColumn} rowSpan={2}>
+  
+                    // В компоненте WeeklyTimeBody.tsx, заменим код для отображения кнопок действий:
+
+<td className={styles.actionsColumn} rowSpan={2}>
   {(() => {
     const isRowDeleted = row.deleted === 1 || row.Deleted === 1;
     console.log(`Row ${rowIndex}, ID=${row.id}: isDeleted=${isRowDeleted}`);
     
-    // Определяем, можно ли выполнить действие с этой строкой
-    const canAction = isRowDeleted
-      ? canRestoreRow(filteredTimeTableData, rowIndex) // Для удаленных строк - можно ли восстановить
-      : canDeleteRow(filteredTimeTableData, rowIndex);  // Для обычных строк - можно ли удалить
-    
-    console.log(`Row ${rowIndex}, ID=${row.id}: canAction=${canAction}`);
-    
-    return canAction ? (
-      <ActionsCell
-        rowId={row.id}
-        renderDeleteButton={() => renderDeleteButton(rowIndex)}
-        isDeleted={isRowDeleted}
-      />
-    ) : (
-      <div className={styles.actionsContainer}>
-        <span style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>ID: {row.id}</span>
-      </div>
-    );
+    // Для неудаленных строк - проверяем можно ли удалить
+    if (!isRowDeleted) {
+      const canDelete = canDeleteRow(filteredTimeTableData, rowIndex);
+      console.log(`Row ${rowIndex}, ID=${row.id}: canDelete=${canDelete}`);
+      
+      if (canDelete) {
+        // Если строку можно удалить, показываем кнопку удаления
+        return (
+          <ActionsCell
+            rowId={row.id}
+            renderDeleteButton={() => renderDeleteButton(rowIndex)}
+            isDeleted={false}
+          />
+        );
+      } else {
+        // Если строку нельзя удалить, показываем только ID
+        return (
+          <div className={styles.actionsContainer}>
+            <span style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>ID: {row.id}</span>
+          </div>
+        );
+      }
+    } 
+    // Для удаленных строк - проверяем можно ли восстановить
+    else {
+      const canRestore = canRestoreRow(filteredTimeTableData, rowIndex);
+      console.log(`Row ${rowIndex}, ID=${row.id}: canRestore=${canRestore}`);
+      
+      if (canRestore) {
+        // Если строку можно восстановить, показываем кнопку восстановления
+        return (
+          <ActionsCell
+            rowId={row.id}
+            renderDeleteButton={() => renderDeleteButton(rowIndex)}
+            isDeleted={true}
+          />
+        );
+      } else {
+        // Если строку нельзя восстановить, показываем только ID
+        return (
+          <div className={styles.actionsContainer}>
+            <span style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>ID: {row.id}</span>
+          </div>
+        );
+      }
+    }
   })()}
 </td>
 

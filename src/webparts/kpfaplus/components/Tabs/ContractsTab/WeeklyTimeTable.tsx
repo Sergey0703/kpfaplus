@@ -981,6 +981,8 @@ const renderAddShiftButton = (rowIndex?: number): JSX.Element => {
 
   // Функция для рендеринга кнопки удаления или восстановления
   const renderDeleteButton = (rowIndex: number): JSX.Element => {
+    console.log(`renderDeleteButton called for row ${rowIndex}`);
+    
     const row = filteredTimeTableData[rowIndex];
     const rowId = row.id;
     
