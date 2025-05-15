@@ -174,8 +174,7 @@ export const createShowConfirmDialog = (
               );
             } else {
               // Если параметр не передан, пробуем использовать динамический импорт
-              // @ts-ignore - Dynamic import is expected to have webpack chunk name
-              /* webpackChunkName: "weeklyTimeTableAddActions" */ import('./WeeklyTimeTableAddActions')
+              import(/* webpackChunkName: "weeklyTimeTableAddActions" */ './WeeklyTimeTableAddActions')
                 .then(module => {
                   module.executeAddNewWeek(
                     context,
@@ -257,8 +256,7 @@ export const createShowConfirmDialog = (
               );
             } else {
               // Если параметр не передан, пробуем использовать динамический импорт
-              // @ts-ignore - Dynamic import is expected to have webpack chunk name
-              /* webpackChunkName: "weeklyTimeTableAddActions" */ import('./WeeklyTimeTableAddActions')
+              import(/* webpackChunkName: "weeklyTimeTableAddActions" */ './WeeklyTimeTableAddActions')
                 .then(module => {
                   module.executeAddNewShift(
                     context,
