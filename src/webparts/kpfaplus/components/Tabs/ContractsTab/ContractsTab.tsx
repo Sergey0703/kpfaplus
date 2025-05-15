@@ -47,7 +47,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
   
   // Состояние для панели добавления/редактирования контракта
   const [isContractPanelOpen, setIsContractPanelOpen] = useState<boolean>(false);
-  const [currentContract, setCurrentContract] = useState<IContractFormData | null>(null);
+  const [currentContract, setCurrentContract] = useState<IContractFormData | undefined>(undefined);
   
   // Добавляем состояние для хранения DayOfStartWeek из выбранного департамента
   const [dayOfStartWeek, setDayOfStartWeek] = useState<number>(7); // По умолчанию - суббота (7)
@@ -371,14 +371,14 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
   // Обработчики для закрытия панели
   const handlePanelDismiss = (): void => {
     console.log("Panel dismissed");
-    setCurrentContract(null); // Используем null вместо undefined
+    setCurrentContract(undefined); // Используем null вместо undefined
     setIsContractPanelOpen(false);
   };
   
   // В методе handleCancelButtonClick
   const handleCancelButtonClick = (): void => {
     console.log("Cancel button clicked directly");
-    setCurrentContract(null); // Используем null вместо undefined
+    setCurrentContract(undefined); // Используем null вместо undefined
     setIsContractPanelOpen(false);
   };
   
@@ -426,7 +426,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
       await fetchContracts();
       
       // Закрываем панель и очищаем состояние
-      setCurrentContract(null); // Используем null вместо undefined
+      setCurrentContract(undefined); // Используем null вместо undefined
       setIsContractPanelOpen(false);
     } catch (err) {
       console.error('Error saving contract:', err);

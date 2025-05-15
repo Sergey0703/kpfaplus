@@ -20,6 +20,15 @@ import { IContract, IContractFormData } from '../../../models/IContract';
 import { ConfirmDialog } from '../../ConfirmDialog/ConfirmDialog';
 import styles from './ContractsTab.module.scss';
 
+// Интерфейс для детальной информации об ошибке
+//interface ErrorWithDetails {
+//  message: string;
+//  statusCode?: number;
+//  code?: string;
+//  requestId?: string;
+//  body?: unknown;
+//}
+
 // Интерфейс пропсов для компонента ContractsTable
 export interface IContractsTableProps {
   // Данные
@@ -43,10 +52,10 @@ export interface IContractsTableProps {
   
   // Состояние панели редактирования
   isContractPanelOpen: boolean;
-  currentContract: IContractFormData | null;
+  currentContract: IContractFormData | undefined; // Заменено с null на undefined
   onPanelDismiss: () => void;
   onCancelButtonClick: () => void;
-  onContractFormChange: (field: string, value: any) => void;
+  onContractFormChange: (field: string, value: unknown) => void; // Заменено any на unknown
 }
 
 export const ContractsTable: React.FC<IContractsTableProps> = (props) => {
@@ -82,8 +91,8 @@ export const ContractsTable: React.FC<IContractsTableProps> = (props) => {
     confirmButtonColor: ''
   });
 
-  // Используем useRef для ID контракта в ожидании действия
-  const pendingActionContractIdRef = useRef<string | null>(null);
+  // Используем useRef для ID контракта в ожидании действия - заменяем null на undefined
+  const pendingActionContractIdRef = useRef<string | undefined>(undefined);
   
   // Обработчик для показа диалога подтверждения удаления
   const showDeleteConfirmDialog = (contractId: string): void => {
@@ -108,12 +117,12 @@ export const ContractsTable: React.FC<IContractsTableProps> = (props) => {
             .then(() => {
               console.log(`Contract ${contractId} deleted successfully`);
               setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-              pendingActionContractIdRef.current = null;
+              pendingActionContractIdRef.current = undefined; // Заменяем null на undefined
             })
             .catch(err => {
               console.error(`Error deleting contract ${contractId}:`, err);
               setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-              pendingActionContractIdRef.current = null;
+              pendingActionContractIdRef.current = undefined; // Заменяем null на undefined
             });
         }
       },
@@ -142,12 +151,12 @@ export const ContractsTable: React.FC<IContractsTableProps> = (props) => {
             .then(() => {
               console.log(`Contract ${contractId} restored successfully`);
               setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-              pendingActionContractIdRef.current = null;
+              pendingActionContractIdRef.current = undefined; // Заменяем null на undefined
             })
             .catch(err => {
               console.error(`Error restoring contract ${contractId}:`, err);
               setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-              pendingActionContractIdRef.current = null;
+              pendingActionContractIdRef.current = undefined; // Заменяем null на undefined
             });
         }
       },
@@ -330,7 +339,7 @@ export const ContractsTable: React.FC<IContractsTableProps> = (props) => {
           className={styles.contractsList}
           isHeaderVisible={true}
           onRenderRow={(props, defaultRender) => {
-            if (!props || !defaultRender) return null;
+            if (!props || !defaultRender) return null; // Используем null здесь
             
             return (
               <div onClick={() => props.item && onEditContract(props.item)}>
