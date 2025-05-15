@@ -21,7 +21,7 @@ export const createAddShiftHandler = (
   setIsSaving: React.Dispatch<React.SetStateAction<boolean>>,
   onSaveComplete?: (success: boolean) => void,
   // Добавляем параметр для доступа к выбранной строке
-  getSelectedRow?: () => IExtendedWeeklyTimeRow | null
+  getSelectedRow?: () => IExtendedWeeklyTimeRow | undefined
 ): () => Promise<void> => {
   return async (): Promise<void> => {
     // Проверяем, есть ли несохраненные изменения
@@ -166,10 +166,11 @@ export const createAddShiftHandler = (
     }
     
    // Функция для проверки удаленных смен в текущей неделе
-   function checkDeletedShiftsInWeek(selectedRow: IExtendedWeeklyTimeRow | null): void {
+   function checkDeletedShiftsInWeek(selectedRow: IExtendedWeeklyTimeRow | null | undefined): void {
+    // Добавим дополнительную проверку на undefined
     // Добавим подробное логирование для отладки
     console.log('checkDeletedShiftsInWeek called with selectedRow:', selectedRow ? 
-      `ID=${selectedRow.id}, NumberOfWeek=${selectedRow.NumberOfWeek}` : 'null');
+      `ID=${selectedRow.id}, NumberOfWeek=${selectedRow.NumberOfWeek}` : 'null/undefined');
     
     if (selectedRow) {
       console.log('Selected row details:', {
@@ -454,7 +455,13 @@ try {
   };
   
   // Запускаем процесс сохранения
-  void saveNewShift();
+  saveNewShift()
+  .then(() => {
+    console.log('Shift saved successfully');
+  })
+  .catch(error => {
+    console.error('Error in saveNewShift:', error);
+  });
   
 } catch (error) {
   // Обрабатываем любые синхронные ошибки
@@ -589,7 +596,13 @@ try {
   };
   
   // Запускаем процесс сохранения
-  void saveNewWeek();
+  saveNewWeek()
+  .then(() => {
+    console.log('Week saved successfully');
+  })
+  .catch(error => {
+    console.error('Error in saveNewWeek:', error);
+  });
   
 } catch (error) {
   // Обрабатываем любые синхронные ошибки
