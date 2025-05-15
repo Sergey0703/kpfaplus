@@ -1,7 +1,7 @@
 // src/webparts/kpfaplus/services/WeeklyTimeTableService.ts
 import { WebPartContext } from '@microsoft/sp-webpart-base';
 import { IDayHours } from '../models/IWeeklyTimeTable';
-import { RemoteSiteService } from './RemoteSiteService';
+import { RemoteSiteService, IRemoteListItemResponse } from './RemoteSiteService';
 
 export interface IWeeklyTimeTableUpdateItem {
   id: string;
@@ -28,6 +28,58 @@ export interface IWeeklyTimeTableUpdateItem {
   deleted?: number;
 }
 
+// Интерфейс для элементов недельного расписания
+export interface IWeeklyTimeTableItem {
+  id: string;
+  fields?: Record<string, unknown>;
+  NumberOfWeek?: number;
+  NumberOfShift?: number;
+  Title?: string;
+  Deleted?: number;
+  [key: string]: unknown;
+}
+
+// Интерфейс для результата создания элемента
+export interface ICreateItemResult {
+  id: string;
+  success: boolean;
+  error?: string;
+}
+
+// Интерфейс для результата обновления элемента
+export interface IUpdateItemResult {
+  id: string;
+  success: boolean;
+  error?: string;
+}
+
+// Интерфейс для данных создания нового элемента
+export interface ICreateWeeklyTimeTableData {
+  Title: string;
+  NumberOfWeek: number;
+  NumberOfShift: number;
+  IdOfTemplateLookupId?: number;
+  CreatorLookupId?: number;
+  MondeyStartWork?: string;
+  MondayEndWork?: string;
+  TuesdayStartWork?: string;
+  TuesdayEndWork?: string;
+  WednesdayStartWork?: string;
+  WednesdayEndWork?: string;
+  ThursdayStartWork?: string;
+  ThursdayEndWork?: string;
+  FridayStartWork?: string;
+  FridayEndWork?: string;
+  SaturdayStartWork?: string;
+  SaturdayEndWork?: string;
+  SundayStartWork?: string;
+  SundayEndWork?: string;
+  TimeForLunch?: number;
+  Contract?: number;
+  Deleted?: number;
+  [key: string]: unknown;
+}
+
 /**
  * Сервис для работы с данными недельного расписания
  */
@@ -48,12 +100,12 @@ export class WeeklyTimeTableService {
     }
   }
 
- /**
+/**
  * Получение данных недельного расписания для контракта
  * @param contractId ID контракта
  * @returns Массив данных недельного расписания
  */
-public async getWeeklyTimeTableByContractId(contractId: string): Promise<Promise<any[]>> {
+public async getWeeklyTimeTableByContractId(contractId: string): Promise<IRemoteListItemResponse[]> {
   try {
     // Используем RemoteSiteService вместо прямого вызова PnP JS
     // Изменяем фильтр, чтобы получать все записи, включая удаленные
@@ -109,7 +161,7 @@ public async getWeeklyTimeTableByContractId(contractId: string): Promise<Promise
   }
 }
 
-  public async updateWeeklyTimeTableItem(item: IWeeklyTimeTableUpdateItem): Promise<any> {
+  public async updateWeeklyTimeTableItem(item: IWeeklyTimeTableUpdateItem): Promise<boolean> {
     try {
       // Формируем объект с полями для обновления - напрямую, без вложенного объекта fields
       const updateData: Record<string, unknown> = {};
@@ -205,26 +257,25 @@ public async getWeeklyTimeTableByContractId(contractId: string): Promise<Promise
    * @param items Массив данных для обновления
    * @returns Результаты операций обновления
    */
-  public async batchUpdateWeeklyTimeTable(items: IWeeklyTimeTableUpdateItem[]): Promise<any[]> {
+  public async batchUpdateWeeklyTimeTable(items: IWeeklyTimeTableUpdateItem[]): Promise<IUpdateItemResult[]> {
     try {
       // Массив для результатов операций
-      const results: any[] = [];
+      const results: IUpdateItemResult[] = [];
       
       // Обновляем каждый элемент по отдельности
       for (const item of items) {
         try {
-          const result = await this.updateWeeklyTimeTableItem(item);
-          results.push({
-            id: item.id,
-            success: true,
-            result
-          });
-        } catch (itemErr: any) {
+          const success = await this.updateWeeklyTimeTableItem(item);
+results.push({
+  id: item.id,
+  success: success
+});
+        } catch (itemErr: unknown) {
           console.error(`Error updating item ${item.id}:`, itemErr);
           results.push({
             id: item.id,
             success: false,
-            error: itemErr.message || 'Unknown error'
+            error: itemErr instanceof Error ? itemErr.message : 'Unknown error'
           });
         }
       }
@@ -262,10 +313,11 @@ public async createWeeklyTimeTableItem(
     const shiftNumber = numberOfShift !== undefined ? numberOfShift : 1;
     
     // Формируем объект с полями для создания
-    const createData: any = {
+    const createData: ICreateWeeklyTimeTableData = {
       Title: `Week ${weekNumber}`,
       NumberOfWeek: weekNumber,
-      NumberOfShift: shiftNumber
+      NumberOfShift: shiftNumber,
+      Deleted: 0
     };
     
     // Проверяем и преобразуем contractId в число для поля IdOfTemplateLookupId
@@ -410,9 +462,6 @@ public async createWeeklyTimeTableItem(
       createData.Contract = 1; // Значение по умолчанию
     }
     
-    // Устанавливаем поле Deleted в 0
-    createData.Deleted = 0;
-    
     // Логируем данные для создания
     console.log(`Creating weekly time table item with data:`, JSON.stringify(createData, null, 2));
     
@@ -496,6 +545,4 @@ public async restoreWeeklyTimeTableItem(itemId: string): Promise<boolean> {
     throw err;
   }
 }
-
-
 }
