@@ -47,38 +47,40 @@ interface IDeleteButtonProps {
  * Компонент кнопки удаления или восстановления (в зависимости от статуса удаления)
  */
 export const DeleteButton: React.FC<IDeleteButtonProps> = ({
-    rowIndex,
-    rowId,
-    onClick,
-    isSaving,
-    isDeleted = false // По умолчанию элемент не удален
-  }) => {
-    return (
-      <IconButton
-        iconProps={{ iconName: isDeleted ? 'Refresh' : 'Delete' }}
-        title={isDeleted ? "Восстановить" : "Удалить"}
-        ariaLabel={isDeleted ? "Восстановить" : "Удалить"}
-        onClick={() => onClick(rowId)}
-        styles={{ 
-          root: { 
-            margin: 0, 
-            padding: 0,
-            color: isDeleted ? '#107c10' : '#e81123', // Зеленый для восстановления, красный для удаления
-            selectors: {
-              '&:hover': {
-                color: isDeleted ? '#85d185' : '#f1707b' // Светло-зеленый или светло-красный при наведении
-              }
+  rowIndex,
+  rowId,
+  onClick,
+  isSaving,
+  isDeleted = false
+}) => {
+  console.log(`DeleteButton for row ID=${rowId}, rowIndex=${rowIndex}, isDeleted=${isDeleted}`);
+  
+  return (
+    <IconButton
+      iconProps={{ iconName: isDeleted ? 'Refresh' : 'Delete' }}
+      title={isDeleted ? "Restore" : "Delete"}
+      ariaLabel={isDeleted ? "Restore" : "Delete"}
+      onClick={() => onClick(rowId)}
+      styles={{ 
+        root: { 
+          margin: 0, 
+          padding: 0,
+          color: isDeleted ? '#107c10' : '#e81123',
+          selectors: {
+            '&:hover': {
+              color: isDeleted ? '#85d185' : '#f1707b'
             }
-          },
-          icon: {
-            fontSize: '16px', // Размер иконки
-            fontWeight: 600 // Делаем иконку немного жирнее для лучшей видимости
           }
-        }}
-        disabled={isSaving}
-      />
-    );
-  };
+        },
+        icon: {
+          fontSize: '16px',
+          fontWeight: 600
+        }
+      }}
+      disabled={isSaving}
+    />
+  );
+};
 
 interface ISaveButtonProps {
   onClick: () => Promise<void>;
@@ -138,19 +140,14 @@ interface IActionsCellProps {
 export const ActionsCell: React.FC<IActionsCellProps> = ({
   rowId,
   renderDeleteButton,
-  isDeleted = false // Добавляем параметр с значением по умолчанию
+  isDeleted = false
 }) => {
+  console.log(`ActionsCell for row ID=${rowId}, isDeleted=${isDeleted}`);
+  
   return (
     <div className={styles.actionsContainer}>
-      {/* Отображаем кнопку удаления только если строка не удалена */}
-      {!isDeleted && renderDeleteButton()}
+      {renderDeleteButton()}
       <span style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>ID: {rowId}</span>
-      {/* Опционально можно добавить индикатор для удаленных строк */}
-      {isDeleted && (
-        <span style={{ fontSize: '10px', color: '#d83b01', marginTop: '2px' }}>
-          (deleted)
-        </span>
-      )}
     </div>
   );
 };

@@ -1,7 +1,7 @@
 // src/webparts/kpfaplus/components/Tabs/ContractsTab/WeeklyTimeBody.tsx
 import * as React from 'react';
 import styles from './WeeklyTimeTable.module.scss';
-import { IExtendedWeeklyTimeRow } from './WeeklyTimeTableLogic';
+import { IExtendedWeeklyTimeRow, canRestoreRow } from './WeeklyTimeTableLogic';
 import { IDayHoursComplete } from '../../../models/IWeeklyTimeTable';
 import { IDropdownOption } from '@fluentui/react';
 import {
@@ -155,21 +155,33 @@ export interface IWeeklyTimeBodyProps {
                         {row.totalHours || '0ч:00м'}
                       </div>
                     </td>
+   
                     <td className={styles.actionsColumn} rowSpan={2}>
-                      {/* Отображаем кнопки действий, если строку можно удалить */}
-                      {canDeleteRow(filteredTimeTableData, rowIndex) ? (
-                        <ActionsCell
-                          rowId={row.id}
-                          renderDeleteButton={() => renderDeleteButton(rowIndex)}
-                          isDeleted={isDeleted} // Передаем флаг удаления
-                        />
-                      ) : (
-                        /* Если строку нельзя удалить, все равно показываем ID */
-                        <div className={styles.actionsContainer}>
-                          <span style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>ID: {row.id}</span>
-                        </div>
-                      )}
-                    </td>
+  {(() => {
+    const isRowDeleted = row.deleted === 1 || row.Deleted === 1;
+    console.log(`Row ${rowIndex}, ID=${row.id}: isDeleted=${isRowDeleted}`);
+    
+    // Определяем, можно ли выполнить действие с этой строкой
+    const canAction = isRowDeleted
+      ? canRestoreRow(filteredTimeTableData, rowIndex) // Для удаленных строк - можно ли восстановить
+      : canDeleteRow(filteredTimeTableData, rowIndex);  // Для обычных строк - можно ли удалить
+    
+    console.log(`Row ${rowIndex}, ID=${row.id}: canAction=${canAction}`);
+    
+    return canAction ? (
+      <ActionsCell
+        rowId={row.id}
+        renderDeleteButton={() => renderDeleteButton(rowIndex)}
+        isDeleted={isRowDeleted}
+      />
+    ) : (
+      <div className={styles.actionsContainer}>
+        <span style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>ID: {row.id}</span>
+      </div>
+    );
+  })()}
+</td>
+
                   </tr>
                   
                   {/* Вторая строка - конец рабочего дня */}

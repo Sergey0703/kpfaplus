@@ -985,7 +985,7 @@ const renderAddShiftButton = (rowIndex?: number): JSX.Element => {
     const rowId = row.id;
     
     // Логирование для диагностики
-    console.log(`Row ${rowIndex} (ID: ${rowId}): deleted status = ${row.deleted}, type: ${typeof row.deleted}`);
+    console.log(`renderDeleteButton for row ${rowIndex} (ID: ${rowId}): deleted status = ${row.deleted}, type: ${typeof row.deleted}`);
     
     // Проверяем, удалена ли строка
     const isDeleted = row.deleted === 1 || row.Deleted === 1;

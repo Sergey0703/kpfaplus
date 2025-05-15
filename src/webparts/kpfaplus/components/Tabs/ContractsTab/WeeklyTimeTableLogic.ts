@@ -485,3 +485,69 @@ export const checkCanAddNewWeekFromData = (data: IExtendedWeeklyTimeRow[]): IAdd
   // Проверяем возможность добавления
   return checkCanAddNewWeek(analysisResult);
 };
+
+export const canRestoreRow = (data: IExtendedWeeklyTimeRow[], rowIndex: number): boolean => {
+  if (!data || rowIndex < 0 || rowIndex >= data.length) {
+    console.log(`canRestoreRow: Invalid input, data.length=${data?.length}, rowIndex=${rowIndex}`);
+    return false;
+  }
+  
+  const currentRow = data[rowIndex];
+  console.log(`canRestoreRow: Checking row ${rowIndex}, ID=${currentRow.id}, deleted=${currentRow.deleted}, Deleted=${currentRow.Deleted}`);
+  
+  // Проверяем, удалена ли строка
+  const isDeleted = currentRow.deleted === 1 || currentRow.Deleted === 1;
+  if (!isDeleted) {
+    console.log(`canRestoreRow: Row ${rowIndex} is not deleted`);
+    // Если строка не удалена, то её нельзя восстанавливать
+    return false;
+  }
+  
+  // Получаем номер недели текущей строки
+  const currentWeekNumber = currentRow.NumberOfWeek || extractWeekNumber(currentRow.name);
+  // Получаем номер смены текущей строки
+  const currentShiftNumber = currentRow.NumberOfShift || 1;
+  
+  console.log(`canRestoreRow: Row ${rowIndex} is in week ${currentWeekNumber}, shift ${currentShiftNumber}`);
+  
+  // Найдем все удаленные строки в той же неделе
+  const deletedRowsInSameWeek = data.filter(row => {
+    const rowWeekNumber = row.NumberOfWeek || extractWeekNumber(row.name);
+    const isRowDeleted = row.deleted === 1 || row.Deleted === 1;
+    
+    return rowWeekNumber === currentWeekNumber && isRowDeleted;
+  });
+  
+  console.log(`canRestoreRow: Found ${deletedRowsInSameWeek.length} deleted rows in week ${currentWeekNumber}`);
+  
+  // Если удаленных строк в этой неделе нет, то что-то пошло не так
+  if (deletedRowsInSameWeek.length === 0) {
+    console.error(`No deleted rows found in week ${currentWeekNumber} but row ${rowIndex} is marked as deleted`);
+    return false;
+  }
+  
+  // Логируем найденные удаленные строки для отладки
+  deletedRowsInSameWeek.forEach((row, idx) => {
+    console.log(`canRestoreRow: Deleted row ${idx} in week ${currentWeekNumber}: ID=${row.id}, shift=${row.NumberOfShift || 1}`);
+  });
+  
+  // Найдем строку с минимальным номером смены среди удаленных
+  const minShiftNumber = Math.min(...deletedRowsInSameWeek.map(row => row.NumberOfShift || 1));
+  
+  console.log(`canRestoreRow: Min shift number among deleted rows: ${minShiftNumber}`);
+  console.log(`canRestoreRow: Current row shift number: ${currentShiftNumber}`);
+  console.log(`canRestoreRow: Can restore row ${rowIndex}? ${currentShiftNumber === minShiftNumber}`);
+  
+  // Строку можно восстановить, если её номер смены минимален среди всех удаленных в этой неделе
+  return currentShiftNumber === minShiftNumber;
+};
+
+/**
+ * Вспомогательная функция для извлечения номера недели из названия строки
+ * @param name Название строки
+ * @returns Номер недели или 1, если не удалось извлечь
+ */
+function extractWeekNumber(name: string): number {
+  const match = name?.match(/Week\s+(\d+)/i);
+  return match ? parseInt(match[1], 10) : 1;
+}
