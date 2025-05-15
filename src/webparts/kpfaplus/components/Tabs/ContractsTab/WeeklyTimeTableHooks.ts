@@ -80,8 +80,8 @@ export const useTimeChangeHandler = (
   setStatusMessage: React.Dispatch<React.SetStateAction<{
     type: MessageBarType;
     message: string;
-  } | null>>
-) => {
+  } | undefined>>
+): ((rowIndex: number, dayKey: string, field: 'hours' | 'minutes', value: string) => void) => {
   return (rowIndex: number, dayKey: string, field: 'hours' | 'minutes', value: string): void => {
     // Проверяем, существует ли строка с таким индексом
     if (rowIndex < 0 || rowIndex >= timeTableData.length) {
@@ -103,7 +103,7 @@ export const useTimeChangeHandler = (
       
       // Скрываем сообщение через некоторое время
       setTimeout(() => {
-        setStatusMessage(null);
+        setStatusMessage(undefined);
       }, 3000);
       
       return;
@@ -167,7 +167,7 @@ export const useTimeChangeHandler = (
         setChangedRows(newChangedRows);
         
         // Сбрасываем статусное сообщение при внесении изменений
-        setStatusMessage(null);
+        setStatusMessage(undefined);
         
         // Выводим информацию об изменении для отладки
         console.log(`Updated ${dayName}.${timeType}.${field} to ${value} for row ${rowIndex} (ID: ${rowId})`);
@@ -206,8 +206,8 @@ export const useLunchChangeHandler = (
   setStatusMessage: React.Dispatch<React.SetStateAction<{
     type: MessageBarType;
     message: string;
-  } | null>>
-) => {
+  } | undefined>>
+): ((rowIndex: number, value: string) => void) => {
   return (rowIndex: number, value: string): void => {
     // Проверяем, существует ли строка с таким индексом
     if (rowIndex < 0 || rowIndex >= timeTableData.length) {
@@ -229,7 +229,7 @@ export const useLunchChangeHandler = (
       
       // Скрываем сообщение через некоторое время
       setTimeout(() => {
-        setStatusMessage(null);
+        setStatusMessage(undefined);
       }, 3000);
       
       return;
@@ -271,7 +271,7 @@ export const useLunchChangeHandler = (
     setChangedRows(newChangedRows);
     
     // Сбрасываем статусное сообщение при внесении изменений
-    setStatusMessage(null);
+    setStatusMessage(undefined);
     
     // Обновляем отображаемое общее время в первой строке каждого шаблона
     const updatedData = updateDisplayedTotalHours(newData);
@@ -296,8 +296,8 @@ export const useContractChangeHandler = (
   setStatusMessage: React.Dispatch<React.SetStateAction<{
     type: MessageBarType;
     message: string;
-  } | null>>
-) => {
+  } | undefined>>
+): ((rowIndex: number, value: string) => void) => {
   return (rowIndex: number, value: string): void => {
     // Проверяем, существует ли строка с таким индексом
     if (rowIndex < 0 || rowIndex >= timeTableData.length) {
@@ -319,7 +319,7 @@ export const useContractChangeHandler = (
       
       // Скрываем сообщение через некоторое время
       setTimeout(() => {
-        setStatusMessage(null);
+        setStatusMessage(undefined);
       }, 3000);
       
       return;
@@ -339,7 +339,7 @@ export const useContractChangeHandler = (
     setChangedRows(newChangedRows);
     
     // Сбрасываем статусное сообщение при внесении изменений
-    setStatusMessage(null);
+    setStatusMessage(undefined);
   };
 };
 
@@ -352,7 +352,7 @@ export const useContractChangeHandler = (
 export const useUpdateTotalHours = (
   timeTableData: IExtendedWeeklyTimeRow[],
   setTimeTableData: React.Dispatch<React.SetStateAction<IExtendedWeeklyTimeRow[]>>
-) => {
+): (() => void) => {
   return (): void => {
     const updatedData = updateDisplayedTotalHours(timeTableData);
     setTimeTableData(updatedData);
