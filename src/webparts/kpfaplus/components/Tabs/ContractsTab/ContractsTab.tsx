@@ -15,6 +15,7 @@ import { RemoteSiteService } from '../../../services/RemoteSiteService';
 import { IComboBoxOption } from '@fluentui/react';
 import { ContractsTable } from './ContractsTable';
 import { WeeklyTimeTable } from './WeeklyTimeTable';
+import { IExtendedWeeklyTimeRow } from './WeeklyTimeTableLogic';
 
 // Определим интерфейс для данных недельного расписания
 interface IWeeklyTimeDataItem {
@@ -599,7 +600,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
         <WeeklyTimeTable
           contractId={selectedContract.id}
           contractName={selectedContract.template}
-          weeklyTimeData={weeklyTimeData}
+          weeklyTimeData={weeklyTimeData as unknown as IExtendedWeeklyTimeRow[]} 
           isLoading={isLoadingWeeklyTime}
           dayOfStartWeek={dayOfStartWeek}
           context={context}

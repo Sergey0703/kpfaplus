@@ -2,8 +2,6 @@
 import * as React from 'react';
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { WebPartContext } from '@microsoft/sp-webpart-base';
-// Удаляем неиспользуемый импорт
-// import { IDropdownOption } from '@fluentui/react';
 
 // Импортируем новые компоненты
 import WeeklyTimeTableControls from './WeeklyTimeTableControls';
@@ -24,10 +22,8 @@ import {
 import { 
   getOrderedWeekDays,
   IExtendedWeeklyTimeRow,
-  // Исправление: используем правильное имя функции
-  // isFirstRowWithNewTemplate
 } from './WeeklyTimeTableLogic';
-import { DialogType } from './actions/WeeklyTimeTableTypes';
+import { DialogType, StatusMessageType } from './actions/WeeklyTimeTableTypes';
 
 // Импортируем хуки для опций и обработчиков
 import {
@@ -42,11 +38,35 @@ import {
 // Импортируем компоненты для кнопок
 import { AddShiftButton, DeleteButton } from './WeeklyTimeTableButtons';
 
+// Интерфейс для данных дополнительной информации диалогов
+interface IAddWeekDialogData {
+  canAdd: boolean;
+  weekNumberToAdd: number;
+  message: string;
+  fullyDeletedWeeks: number[];
+}
+
+interface IAddShiftDialogData {
+  weekNumber: number;
+  nextShiftNumber: number;
+  contractId?: string;
+}
+
+interface IInfoDialogData {
+  message: string;
+  confirmButtonText?: string;
+  cancelButtonText?: string;
+  customAction?: (confirmed: boolean) => void;
+}
+
 // Интерфейс пропсов для компонента WeeklyTimeTable
+// src/webparts/kpfaplus/components/Tabs/ContractsTab/WeeklyTimeTable.tsx
+// Изменяем тип в интерфейсе IWeeklyTimeTableProps
 export interface IWeeklyTimeTableProps {
   contractId?: string;
   contractName?: string;
-  weeklyTimeData?: any[]; // Данные из списка WeeklyTimeTables
+  // Меняем тип на более общий для обратной совместимости
+  weeklyTimeData?: any[]; // Возвращаем any[] для совместимости
   isLoading?: boolean;
   dayOfStartWeek?: number; // День начала недели
   context: WebPartContext; // Контекст веб-части для доступа к API
@@ -82,7 +102,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   const [isSaving, setIsSaving] = useState<boolean>(false);
   
   // Состояние для сообщений об ошибках или успешном сохранении
-  const [statusMessage, setStatusMessage] = useState(undefined);
+  const [statusMessage, setStatusMessage] = useState<StatusMessageType>(undefined);
 
   // Состояние для диалога подтверждения
   // Добавляем onConfirm в объект состояния
@@ -111,7 +131,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   const lunchOptions = useLunchOptions();
 
   // Создаем функцию для триггера перезагрузки
-  const triggerRefresh = () => {
+  const triggerRefresh = (): void => {
     console.log('Triggering data refresh');
     setRefreshTrigger(prev => prev + 1);
   };
@@ -122,7 +142,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     setTimeTableData,
     changedRows,
     setChangedRows,
-    setStatusMessage as any
+    setStatusMessage
   );
 
   const handleLunchChange = useLunchChangeHandler(
@@ -130,7 +150,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     setTimeTableData,
     changedRows,
     setChangedRows,
-    setStatusMessage as any
+    setStatusMessage
   );
 
   const handleContractChange = useContractChangeHandler(
@@ -138,7 +158,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     setTimeTableData,
     changedRows,
     setChangedRows,
-    setStatusMessage as any
+    setStatusMessage
   );
 
   // Вычисляем упорядоченные дни недели на основе dayOfStartWeek
@@ -162,7 +182,8 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   useEffect(() => {
     if (refreshTrigger === 0) return; // Пропускаем первый рендеринг
     
-    loadWeeklyTimeTableData(
+    // Исправление: добавляем void перед вызовом промиса
+    void loadWeeklyTimeTableData(
       context,
       contractId,
       setIsTableLoading,
@@ -199,7 +220,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   };
 
   // Функция для показа диалога подтверждения
-  const showDialog = (dialogType: DialogType, rowId?: string, additionalData?: unknown) => {
+  const showDialog = (dialogType: DialogType, rowId?: string, additionalData?: unknown): void => {
     if (rowId) {
       pendingActionRowIdRef.current = rowId;
     }
@@ -208,17 +229,18 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     const newDialogProps = createDialogProps(dialogType, additionalData);
     
     // Устанавливаем обработчик для диалога в зависимости от типа
-    let onConfirm;
+    let onConfirm: () => void;
     
     switch (dialogType) {
       case DialogType.DELETE:
       case DialogType.RESTORE:
-        onConfirm = () => {
+        onConfirm = (): void => {
           const rowId = pendingActionRowIdRef.current;
           if (rowId) {
             const rowIndex = timeTableData.findIndex(row => row.id === rowId);
             if (rowIndex !== -1) {
-              deleteRestoreShift({
+              // Исправление: добавляем void перед вызовом промиса
+              void deleteRestoreShift({
                 context,
                 timeTableData,
                 rowIndex,
@@ -235,10 +257,11 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
         break;
         
       case DialogType.ADD_WEEK:
-        onConfirm = () => {
-          const addWeekCheck = additionalData as any;
+        onConfirm = (): void => {
+          const addWeekCheck = additionalData as IAddWeekDialogData; // Используем конкретный тип
           if (addWeekCheck?.canAdd && addWeekCheck?.weekNumberToAdd) {
-            addNewWeek({
+            // Исправление: добавляем void перед вызовом промиса
+            void addNewWeek({
               context,
               timeTableData,
               contractId,
@@ -258,10 +281,11 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
         break;
         
       case DialogType.ADD_SHIFT:
-        onConfirm = () => {
-          const addShiftData = additionalData as any;
+        onConfirm = (): void => {
+          const addShiftData = additionalData as IAddShiftDialogData; // Используем конкретный тип
           if (addShiftData?.weekNumber && addShiftData?.nextShiftNumber) {
-            addNewShift({
+            // Исправление: добавляем void перед вызовом промиса
+            void addNewShift({
               context,
               timeTableData,
               contractId,
@@ -282,8 +306,9 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
         break;
         
       case DialogType.INFO:
-        onConfirm = () => {
-          const customAction = (additionalData as any)?.customAction;
+        onConfirm = (): void => {
+          const infoData = additionalData as IInfoDialogData; // Используем конкретный тип
+          const customAction = infoData?.customAction;
           if (customAction && typeof customAction === 'function') {
             customAction(true);
           }
@@ -293,7 +318,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
         break;
         
       default:
-        onConfirm = () => {
+        onConfirm = (): void => {
           setDialogProps(prev => ({ ...prev, isOpen: false }));
           pendingActionRowIdRef.current = undefined;
         };
@@ -308,7 +333,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   };
 
   // Обработчик для закрытия диалога
-  const handleDismissDialog = () => {
+  const handleDismissDialog = (): void => {
     setDialogProps(prev => ({ ...prev, isOpen: false }));
     pendingActionRowIdRef.current = undefined;
   };
@@ -321,7 +346,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   };
   
   // Обработчик для сохранения изменений
-  const handleSave = () => {
+  const handleSave = (): Promise<void> => {
     return saveWeeklyTimeTable({
       context,
       timeTableData,
@@ -336,7 +361,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   };
   
   // Обработчик для добавления новой недели
-  const handleAddWeek = () => {
+  const handleAddWeek = (): void => {
     // Анализируем структуру данных для определения текущих недель
     const addWeekCheckResult = checkCanAddNewWeekFromData(timeTableData);
     
@@ -354,7 +379,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   };
   
   // Обработчик для добавления новой смены
-  const handleAddShift = (rowIndex: number) => {
+  const handleAddShift = (rowIndex: number): void => {
     const row = filteredTimeTableData[rowIndex];
     if (!row) return;
     
@@ -383,7 +408,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   };
   
   // Функция для показа диалога удаления/восстановления
-  const handleDeleteToggle = (rowId: string) => {
+  const handleDeleteToggle = (rowId: string): void => {
     const row = timeTableData.find(r => r.id === rowId);
     if (!row) return;
     
@@ -395,7 +420,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   };
   
   // Функция для рендеринга кнопки "+Shift" в строке
-  const renderAddShiftButton = (rowIndex?: number) => {
+  const renderAddShiftButton = (rowIndex?: number): JSX.Element => {
     return (
       <AddShiftButton 
         onClick={() => {
@@ -409,7 +434,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   };
   
   // Функция для рендеринга кнопки удаления/восстановления
-  const renderDeleteButton = (rowIndex: number) => {
+  const renderDeleteButton = (rowIndex: number): JSX.Element => {
     const row = filteredTimeTableData[rowIndex];
     const rowId = row.id;
     const isDeleted = row.deleted === 1 || row.Deleted === 1;
