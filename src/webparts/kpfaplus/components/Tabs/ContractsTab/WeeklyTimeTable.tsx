@@ -22,6 +22,7 @@ import {
   deleteRestoreShift,
   checkCanAddNewWeekFromData,
   initializeWithExistingData,
+  IWeeklyTimeTableRawItem,
   filterTimeTableData
 } from './WeeklyTimeTableAPI';
 import { 
@@ -150,7 +151,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   // Эффект для инициализации с данными из props
   useLayoutEffect(() => {
     initializeWithExistingData(
-      weeklyTimeData,
+      weeklyTimeData as IWeeklyTimeTableRawItem[] | undefined,
       dataInitializedRef,
       setTimeTableData,
       setChangedRows,
