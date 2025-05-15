@@ -67,7 +67,8 @@ export const createShowConfirmDialog = (
             if (rowId) {
               const rowIndex = timeTableData.findIndex(row => row.id === rowId);
               if (rowIndex !== -1) {
-                void deleteHandler(rowIndex)
+                // Удаляем void перед вызовом Promise
+                deleteHandler(rowIndex)
                   .then(() => {
                     console.log(`Row ${rowId} deleted successfully`);
                     setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
@@ -99,7 +100,8 @@ export const createShowConfirmDialog = (
             if (rowId) {
               const rowIndex = timeTableData.findIndex(row => row.id === rowId);
               if (rowIndex !== -1) {
-                void deleteHandler(rowIndex)
+                // Удаляем void перед вызовом Promise
+                deleteHandler(rowIndex)
                   .then(() => {
                     console.log(`Row ${rowId} restored successfully`);
                     setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
@@ -172,29 +174,33 @@ export const createShowConfirmDialog = (
               );
             } else {
               // Если параметр не передан, пробуем использовать динамический импорт
-              /* webpackChunkName: 'weeklyTimeTableAddActions' */
-              void import('./WeeklyTimeTableAddActions').then(module => {
-                module.executeAddNewWeek(
-                  context,
-                  timeTableData,
-                  setTimeTableData,
-                  contractId,
-                  changedRows,
-                  setChangedRows,
-                  setIsSaving,
-                  setStatusMessage,
-                  weekNumberToAdd,
-                  currentUserId, 
-                  onSaveComplete,
-                  onRefresh
-                );
-              }).catch(error => {
-                console.error('Error importing WeeklyTimeTableAddActions:', error);
-                setStatusMessage({
-                  type: MessageBarType.error,
-                  message: 'Failed to add new week due to a technical issue. Please try again.'
+              // Удаляем void и добавляем комментарий для webpackChunkName
+              // @ts-ignore
+              /* webpackChunkName: "weeklyTimeTableAddActions" */
+              import('./WeeklyTimeTableAddActions')
+                .then(module => {
+                  module.executeAddNewWeek(
+                    context,
+                    timeTableData,
+                    setTimeTableData,
+                    contractId,
+                    changedRows,
+                    setChangedRows,
+                    setIsSaving,
+                    setStatusMessage,
+                    weekNumberToAdd,
+                    currentUserId, 
+                    onSaveComplete,
+                    onRefresh
+                  );
+                })
+                .catch(error => {
+                  console.error('Error importing WeeklyTimeTableAddActions:', error);
+                  setStatusMessage({
+                    type: MessageBarType.error,
+                    message: 'Failed to add new week due to a technical issue. Please try again.'
+                  });
                 });
-              });
             }
           },
           confirmButtonColor: '#0078d4' // синий цвет для добавления
@@ -253,30 +259,34 @@ export const createShowConfirmDialog = (
               );
             } else {
               // Если параметр не передан, пробуем использовать динамический импорт
-              /* webpackChunkName: 'weeklyTimeTableAddActions' */
-              void import('./WeeklyTimeTableAddActions').then(module => {
-                module.executeAddNewShift(
-                  context,
-                  timeTableData,
-                  setTimeTableData,
-                  contractId || shiftContractId,
-                  changedRows,
-                  setChangedRows,
-                  setIsSaving,
-                  setStatusMessage,
-                  weekNumber,
-                  nextShiftNumber,
-                  currentUserId, 
-                  onSaveComplete,
-                  onRefresh
-                );
-              }).catch(error => {
-                console.error('Error importing WeeklyTimeTableAddActions:', error);
-                setStatusMessage({
-                  type: MessageBarType.error,
-                  message: 'Failed to add new shift due to a technical issue. Please try again.'
+              // Удаляем void и добавляем комментарий для webpackChunkName
+              // @ts-ignore
+              /* webpackChunkName: "weeklyTimeTableAddActions" */
+              import('./WeeklyTimeTableAddActions')
+                .then(module => {
+                  module.executeAddNewShift(
+                    context,
+                    timeTableData,
+                    setTimeTableData,
+                    contractId || shiftContractId,
+                    changedRows,
+                    setChangedRows,
+                    setIsSaving,
+                    setStatusMessage,
+                    weekNumber,
+                    nextShiftNumber,
+                    currentUserId, 
+                    onSaveComplete,
+                    onRefresh
+                  );
+                })
+                .catch(error => {
+                  console.error('Error importing WeeklyTimeTableAddActions:', error);
+                  setStatusMessage({
+                    type: MessageBarType.error,
+                    message: 'Failed to add new shift due to a technical issue. Please try again.'
+                  });
                 });
-              });
             }
           },
           confirmButtonColor: '#0078d4' // синий цвет для добавления
