@@ -3,6 +3,27 @@ import * as React from 'react';
 import { ConfirmDialog } from '../../ConfirmDialog/ConfirmDialog';
 import { DialogType } from './actions/WeeklyTimeTableTypes';
 
+// Определяем интерфейсы для данных диалогов
+export interface IAddWeekDialogData {
+  weekNumberToAdd: number;
+  message: string;
+  canAdd: boolean;
+  fullyDeletedWeeks: number[];
+}
+
+export interface IAddShiftDialogData {
+  weekNumber: number;
+  nextShiftNumber: number;
+  contractId?: string;
+}
+
+export interface IInfoDialogData {
+  message: string;
+  confirmButtonText?: string;
+  cancelButtonText?: string;
+  customAction?: (confirmed: boolean) => void;
+}
+
 export interface IWeeklyTimeTableDialogsProps {
   // Состояние диалогов
   isDialogOpen: boolean;
@@ -49,7 +70,7 @@ export const WeeklyTimeTableDialogs: React.FC<IWeeklyTimeTableDialogsProps> = ({
  */
 export const createDialogProps = (
   dialogType: DialogType,
-  additionalData?: any
+  additionalData?: unknown // Используем unknown для обратной совместимости
 ): {
   title: string;
   message: string;
@@ -68,7 +89,8 @@ export const createDialogProps = (
   
   // Настраиваем свойства в зависимости от типа диалога
   switch (dialogType) {
-    case DialogType.DELETE:
+    case DialogType.DELETE: {
+      // Используем блок кода с фигурными скобками для case, чтобы избежать проблем с областью видимости
       dialogProps = {
         title: 'Confirm Deletion',
         message: 'Are you sure you want to delete this shift?',
@@ -77,8 +99,9 @@ export const createDialogProps = (
         confirmButtonColor: '#d83b01' // Red color for deletion
       };
       break;
+    }
       
-    case DialogType.RESTORE:
+    case DialogType.RESTORE: {
       dialogProps = {
         title: 'Confirm Restoration',
         message: 'Are you sure you want to restore this shift?',
@@ -87,11 +110,13 @@ export const createDialogProps = (
         confirmButtonColor: '#107c10' // Green color for restoration
       };
       break;
+    }
       
-    case DialogType.ADD_WEEK:
+    case DialogType.ADD_WEEK: {
       // Получаем информацию о новой неделе из additionalData
-      const weekNumberToAdd = additionalData?.weekNumberToAdd || 1;
-      const message = additionalData?.message || `New week ${weekNumberToAdd} will be added.`;
+      const addWeekData = additionalData as IAddWeekDialogData;
+      const weekNumberToAdd = addWeekData?.weekNumberToAdd || 1;
+      const message = addWeekData?.message || `New week ${weekNumberToAdd} will be added.`;
       
       dialogProps = {
         title: 'Add New Week',
@@ -101,11 +126,13 @@ export const createDialogProps = (
         confirmButtonColor: '#0078d4' // Blue color for adding
       };
       break;
+    }
       
-    case DialogType.ADD_SHIFT:
+    case DialogType.ADD_SHIFT: {
       // Получаем информацию о новой смене из additionalData
-      const weekNumber = additionalData?.weekNumber || 1;
-      const nextShiftNumber = additionalData?.nextShiftNumber || 1;
+      const addShiftData = additionalData as IAddShiftDialogData;
+      const weekNumber = addShiftData?.weekNumber || 1;
+      const nextShiftNumber = addShiftData?.nextShiftNumber || 1;
       
       dialogProps = {
         title: 'Add New Shift',
@@ -115,12 +142,14 @@ export const createDialogProps = (
         confirmButtonColor: '#0078d4' // Blue color for adding
       };
       break;
+    }
       
-    case DialogType.INFO:
+    case DialogType.INFO: {
       // Информационный диалог с различными вариантами сообщений
-      const infoMessage = additionalData?.message || 'Information';
-      const customConfirmText = additionalData?.confirmButtonText || 'OK';
-      const customCancelText = additionalData?.cancelButtonText || 'Cancel';
+      const infoData = additionalData as IInfoDialogData;
+      const infoMessage = infoData?.message || 'Information';
+      const customConfirmText = infoData?.confirmButtonText || 'OK';
+      const customCancelText = infoData?.cancelButtonText || 'Cancel';
       
       dialogProps = {
         title: 'Information',
@@ -130,6 +159,7 @@ export const createDialogProps = (
         confirmButtonColor: '#0078d4' // Blue color for information
       };
       break;
+    }
       
     default:
       console.error(`Unknown dialog type: ${dialogType}`);
