@@ -4,25 +4,10 @@ import {
   Dropdown,
   IDropdownOption
 } from '@fluentui/react';
-//import { IDropdownOption, MessageBarType } from '@fluentui/react';
 import styles from './WeeklyTimeTable.module.scss';
 import { IExtendedWeeklyTimeRow } from './WeeklyTimeTableLogic';
+//import { IDayHoursComplete } from '../../../models/IWeeklyTimeTable';
 
-interface ITimeCellProps {
-  hours: string;
-  minutes: string;
-  rowIndex: number;
-  dayKey: string;
-  isChanged: boolean;
-  isDeleted?: boolean; // Добавляем флаг удаления
-  hoursOptions: IDropdownOption[];
-  minutesOptions: IDropdownOption[];
-  onTimeChange: (rowIndex: number, dayKey: string, field: 'hours' | 'minutes', value: string) => void;
-}
-
-/**
- * Компонент для отображения ячейки времени
- */
 /**
  * Интерфейс для свойств компонента TimeCell
  */
@@ -32,7 +17,7 @@ interface ITimeCellProps {
   rowIndex: number;
   dayKey: string;
   isChanged: boolean;
-  isDeleted?: boolean; // Добавляем флаг для определения удаленной строки
+  isDeleted?: boolean; // Флаг для определения удаленной строки
   hoursOptions: IDropdownOption[];
   minutesOptions: IDropdownOption[];
   onTimeChange: (rowIndex: number, dayKey: string, field: 'hours' | 'minutes', value: string) => void;
@@ -55,10 +40,11 @@ export const TimeCell: React.FC<ITimeCellProps> = ({
   // Определяем стили для ячейки в зависимости от того, была ли она изменена и удалена
   const cellClassName = `${styles.timeCell} ${isChanged ? styles.changedCell : ''} ${isDeleted ? styles.deletedCell : ''}`;
   
-  // Создаем собственные стили для выпадающих списков в зависимости от статуса удаления
+  // Создаем собственные стили для выпадающих списков
   const dropdownStyles = {
     dropdown: { 
-      width: 50,
+      width: 40, // Уменьшаем ширину dropdown
+      minWidth: 40, // Устанавливаем минимальную ширину
       fontSize: '12px',
       // Добавляем стили для удаленных ячеек
       ...(isDeleted && {
@@ -69,7 +55,7 @@ export const TimeCell: React.FC<ITimeCellProps> = ({
     },
     title: {
       fontSize: '12px',
-      padding: '0 8px',
+      padding: '0 4px', // Уменьшаем внутренние отступы
       // Добавляем стили для удаленных ячеек
       ...(isDeleted && {
         color: '#888',
@@ -81,14 +67,17 @@ export const TimeCell: React.FC<ITimeCellProps> = ({
     },
     dropdownItem: {
       fontSize: '12px',
-      minHeight: '24px'
+      minHeight: '24px',
+      padding: '2px 8px' // Уменьшаем padding в выпадающем списке
     },
     dropdownItemSelected: {
       fontSize: '12px',
       minHeight: '24px'
     },
-    // Добавляем стили для стрелки выпадающего списка
+    // Стили для стрелки выпадающего списка
     caretDown: {
+      fontSize: '8px', // Уменьшаем размер стрелки
+      padding: '0 2px', // Уменьшаем отступы вокруг стрелки
       ...(isDeleted && {
         color: '#aaa'
       })
@@ -108,6 +97,7 @@ export const TimeCell: React.FC<ITimeCellProps> = ({
         disabled={isDeleted} // Блокируем выпадающий список для удаленных строк
         styles={dropdownStyles}
         ariaLabel={`Hours for ${dayKey}`}
+        dropdownWidth={40} // Явно устанавливаем ширину выпадающего списка
       />
       <span className={`${styles.timeSeparator} ${isDeleted ? styles.deletedText : ''}`}>:</span>
       <Dropdown
@@ -121,29 +111,31 @@ export const TimeCell: React.FC<ITimeCellProps> = ({
         disabled={isDeleted} // Блокируем выпадающий список для удаленных строк
         styles={dropdownStyles}
         ariaLabel={`Minutes for ${dayKey}`}
+        dropdownWidth={40} // Явно устанавливаем ширину выпадающего списка
       />
       
       {/* Дополнительный индикатор для удаленных строк (опционально) */}
       {isDeleted && (
         <div 
-          
           title="This item is deleted. Restore it to make changes."
-          
         />
       )}
     </div>
   );
 };
 
-
+/**
+ * Интерфейс для свойств компонента LunchCell
+ */
 interface ILunchCellProps {
   lunch: string;
   rowIndex: number;
   isChanged: boolean;
-  isDeleted?: boolean; // Добавляем флаг удаления
+  isDeleted?: boolean; // Флаг для определения удаленной строки
   lunchOptions: IDropdownOption[];
   onLunchChange: (rowIndex: number, value: string) => void;
 }
+
 /**
  * Компонент для отображения ячейки с временем обеда
  */
@@ -151,52 +143,52 @@ export const LunchCell: React.FC<ILunchCellProps> = ({
   lunch,
   rowIndex,
   isChanged,
-  isDeleted = false, // Добавляем по умолчанию
+  isDeleted = false,
   lunchOptions,
   onLunchChange
 }) => {
-  // Определяем стили для ячейки в зависимости от того, была ли она изменена
-  const dropdownStyles = isChanged ? {
+  // Компактные стили для dropdown
+  const dropdownStyles = {
     dropdown: { 
       width: 50,
+      minWidth: 45,
       fontSize: '12px',
-      backgroundColor: 'rgba(255, 255, 0, 0.1)',
-      border: '1px solid #ffcc00'
+      ...(isChanged && {
+        backgroundColor: 'rgba(255, 255, 0, 0.1)',
+        border: '1px solid #ffcc00'
+      }),
+      ...(isDeleted && {
+        backgroundColor: '#f5f5f5',
+        color: '#888',
+        borderColor: '#ddd'
+      })
     },
     title: {
       fontSize: '12px',
-      padding: '0 8px'
+      padding: '0 4px', // Уменьшаем внутренние отступы
+      ...(isDeleted && {
+        color: '#888',
+        textDecoration: 'line-through'
+      })
     },
     dropdownItemHeader: {
       fontSize: '12px'
     },
     dropdownItem: {
       fontSize: '12px',
-      minHeight: '24px'
+      minHeight: '24px',
+      padding: '2px 8px' // Уменьшаем padding в выпадающем списке
     },
     dropdownItemSelected: {
       fontSize: '12px',
       minHeight: '24px'
-    }
-  } : {
-    dropdown: { 
-      width: 50,
-      fontSize: '12px'
     },
-    title: {
-      fontSize: '12px',
-      padding: '0 8px'
-    },
-    dropdownItemHeader: {
-      fontSize: '12px'
-    },
-    dropdownItem: {
-      fontSize: '12px',
-      minHeight: '24px'
-    },
-    dropdownItemSelected: {
-      fontSize: '12px',
-      minHeight: '24px'
+    caretDown: {
+      fontSize: '8px', // Уменьшаем размер стрелки
+      padding: '0 2px', // Уменьшаем отступы вокруг стрелки
+      ...(isDeleted && {
+        color: '#aaa'
+      })
     }
   };
   
@@ -204,17 +196,26 @@ export const LunchCell: React.FC<ILunchCellProps> = ({
     <Dropdown
       options={lunchOptions}
       selectedKey={lunch}
-      onChange={(e, option) => onLunchChange(rowIndex, option?.key as string || '0')}
+      onChange={(e, option) => {
+        if (!isDeleted && option) {
+          onLunchChange(rowIndex, option?.key as string || '0');
+        }
+      }}
+      disabled={isDeleted}
       styles={dropdownStyles}
+      dropdownWidth={50}
     />
   );
 };
 
+/**
+ * Интерфейс для свойств компонента ContractCell
+ */
 interface IContractCellProps {
   contractNumber: string;
   rowIndex: number;
   isChanged: boolean;
-  isDeleted?: boolean; // Добавляем флаг для определения удаленной строки
+  isDeleted?: boolean; // Флаг для определения удаленной строки
   onContractChange: (rowIndex: number, value: string) => void;
 }
 
@@ -225,28 +226,51 @@ export const ContractCell: React.FC<IContractCellProps> = ({
   contractNumber,
   rowIndex,
   isChanged,
+  isDeleted = false,
   onContractChange
 }) => {
-  // Определяем стили для ячейки в зависимости от того, была ли она изменена
-  const dropdownStyles = isChanged ? {
+  // Компактные стили для dropdown
+  const dropdownStyles = {
     dropdown: { 
-      width: 50,
+      width: 40,
+      minWidth: 35,
       fontSize: '12px',
-      backgroundColor: 'rgba(255, 255, 0, 0.1)',
-      border: '1px solid #ffcc00'
+      ...(isChanged && {
+        backgroundColor: 'rgba(255, 255, 0, 0.1)',
+        border: '1px solid #ffcc00'
+      }),
+      ...(isDeleted && {
+        backgroundColor: '#f5f5f5',
+        color: '#888',
+        borderColor: '#ddd'
+      })
     },
     title: {
       fontSize: '12px',
-      padding: '0 8px'
-    }
-  } : {
-    dropdown: { 
-      width: 50,
+      padding: '0 4px', // Уменьшаем внутренние отступы
+      ...(isDeleted && {
+        color: '#888',
+        textDecoration: 'line-through'
+      })
+    },
+    dropdownItemHeader: {
       fontSize: '12px'
     },
-    title: {
+    dropdownItem: {
       fontSize: '12px',
-      padding: '0 8px'
+      minHeight: '24px',
+      padding: '2px 8px' // Уменьшаем padding в выпадающем списке
+    },
+    dropdownItemSelected: {
+      fontSize: '12px',
+      minHeight: '24px'
+    },
+    caretDown: {
+      fontSize: '8px', // Уменьшаем размер стрелки
+      padding: '0 2px', // Уменьшаем отступы вокруг стрелки
+      ...(isDeleted && {
+        color: '#aaa'
+      })
     }
   };
   
@@ -258,25 +282,30 @@ export const ContractCell: React.FC<IContractCellProps> = ({
         { key: '3', text: '3' },
       ]}
       selectedKey={contractNumber}
-      onChange={(e, option) => onContractChange(rowIndex, option?.key as string || '1')}
+      onChange={(e, option) => {
+        if (!isDeleted && option) {
+          onContractChange(rowIndex, option?.key as string || '1');
+        }
+      }}
+      disabled={isDeleted}
       styles={dropdownStyles}
+      dropdownWidth={40}
     />
   );
 };
 
+/**
+ * Интерфейс для свойств компонента TotalHoursCell
+ */
 interface ITotalHoursCellProps {
   timeTableData: IExtendedWeeklyTimeRow[];
   rowIndex: number;
   isFirstRowInTemplate: boolean;
   isLastRowInTemplate: boolean;
-  isDeleted?: boolean; // Добавляем флаг для определения удаленной строки
+  isDeleted?: boolean; // Флаг для определения удаленной строки
   renderAddShiftButton: (rowIndex?: number) => JSX.Element;
 }
 
-
-/**
- * Компонент для отображения ячейки с общим временем и кнопкой добавления смены
- */
 /**
  * Компонент для отображения ячейки с общим временем и кнопкой добавления смены
  */

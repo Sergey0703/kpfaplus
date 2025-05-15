@@ -202,37 +202,40 @@ export const updateDisplayedTotalHours = (data: IExtendedWeeklyTimeRow[]): IExte
   };
   
   // Функция для получения упорядоченных дней недели в зависимости от dayOfStartWeek
-  export const getOrderedWeekDays = (dayOfStartWeek: number): { name: string; key: string; }[] => {
-    // Определяем все дни недели (начиная с воскресенья, как в стандарте)
-    const allDays = [
-      { name: 'Sunday', key: 'sunday' },
-      { name: 'Monday', key: 'monday' },
-      { name: 'Tuesday', key: 'tuesday' },
-      { name: 'Wednesday', key: 'wednesday' },
-      { name: 'Thursday', key: 'thursday' },
-      { name: 'Friday', key: 'friday' },
-      { name: 'Saturday', key: 'saturday' }
-    ];
-    
-    // Если dayOfStartWeek в пределах 1-7
-    if (dayOfStartWeek >= 1 && dayOfStartWeek <= 7) {
-      // Вычисляем смещение (dayOfStartWeek - 1, т.к. индексы массива начинаются с 0)
-      const offset = dayOfStartWeek - 1;
-      // Смещаем массив
-      return [...allDays.slice(offset), ...allDays.slice(0, offset)];
-    }
-    
-    // По умолчанию (или при некорректном значении) используем порядок с субботы (7)
-    return [
-      { name: 'Saturday', key: 'saturday' },
-      { name: 'Sunday', key: 'sunday' },
-      { name: 'Monday', key: 'monday' },
-      { name: 'Tuesday', key: 'tuesday' },
-      { name: 'Wednesday', key: 'wednesday' },
-      { name: 'Thursday', key: 'thursday' },
-      { name: 'Friday', key: 'friday' }
-    ];
-  };
+  // В файле src/webparts/kpfaplus/components/Tabs/ContractsTab/WeeklyTimeTableLogic.ts
+// Замените функцию getOrderedWeekDays на следующую:
+
+export const getOrderedWeekDays = (dayOfStartWeek: number): { name: string; key: string; }[] => {
+  // Определяем все дни недели с сокращенными названиями (до 3 букв)
+  const allDays = [
+    { name: 'Sun', key: 'sunday' },
+    { name: 'Mon', key: 'monday' },
+    { name: 'Tue', key: 'tuesday' },
+    { name: 'Wed', key: 'wednesday' },
+    { name: 'Thu', key: 'thursday' },
+    { name: 'Fri', key: 'friday' },
+    { name: 'Sat', key: 'saturday' }
+  ];
+  
+  // Если dayOfStartWeek в пределах 1-7
+  if (dayOfStartWeek >= 1 && dayOfStartWeek <= 7) {
+    // Вычисляем смещение (dayOfStartWeek - 1, т.к. индексы массива начинаются с 0)
+    const offset = dayOfStartWeek - 1;
+    // Смещаем массив
+    return [...allDays.slice(offset), ...allDays.slice(0, offset)];
+  }
+  
+  // По умолчанию (или при некорректном значении) используем порядок с субботы (7)
+  return [
+    { name: 'Sat', key: 'saturday' },
+    { name: 'Sun', key: 'sunday' },
+    { name: 'Mon', key: 'monday' },
+    { name: 'Tue', key: 'tuesday' },
+    { name: 'Wed', key: 'wednesday' },
+    { name: 'Thu', key: 'thursday' },
+    { name: 'Fri', key: 'friday' }
+  ];
+};
 
 // Определяет, является ли строка последней в своем шаблоне
 export const isLastRowInTemplate = (data: IExtendedWeeklyTimeRow[], rowIndex: number): boolean => {

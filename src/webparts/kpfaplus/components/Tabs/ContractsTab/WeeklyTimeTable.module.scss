@@ -54,10 +54,11 @@
     background-color: #f3f2f1;
     font-weight: 600;
     text-align: center;
-    padding: 6px;
+    padding: 4px; /* Уменьшаем отступы в заголовках */
     border: 1px solid #e0e0e0;
     font-size: 13px;
     white-space: nowrap; /* Предотвращает перенос текста в заголовках */
+    min-width: 85px; /* Минимальная ширина колонки дня недели */
   }
   
   td {
@@ -75,15 +76,15 @@
   background-color: #f3f2f1;
   font-weight: 600;
   text-align: center;
-  padding: 6px;
+  padding: 4px; /* Уменьшенный отступ */
   border: 1px solid #e0e0e0;
   font-size: 13px;
 }
 
 .nameColumn {
   width: 140px;
-  min-width: 140px; /* Минимальная ширина */
-  max-width: 200px; /* Максимальная ширина */
+  min-width: 120px; /* Уменьшенная минимальная ширина */
+  max-width: 180px; /* Максимальная ширина */
   text-align: left !important;
   font-size: 12px;
   overflow: hidden; /* Скрываем переполнение контента */
@@ -93,13 +94,13 @@
 .totalColumn {
   width: 60px;
   min-width: 60px; /* Минимальная ширина */
-  max-width: 80px; /* Максимальная ширина */
+  max-width: 70px; /* Максимальная ширина */
 }
 
 .actionsColumn {
   width: 60px;
   min-width: 60px; /* Минимальная ширина */
-  max-width: 80px; /* Максимальная ширина */
+  max-width: 70px; /* Максимальная ширина */
 }
 
 .timeCell {
@@ -107,7 +108,8 @@
   justify-content: center;
   align-items: center;
   font-size: 12px;
-  min-width: 100px; /* Минимальная ширина для ячеек с выпадающими списками */
+  min-width: 85px; /* Минимальная ширина для ячеек с двумя выпадающими списками */
+  padding: 2px; /* Уменьшаем внутренние отступы */
 }
 
 .timeSeparator {
@@ -132,6 +134,8 @@
   display: flex;
   flex-direction: column;
   text-align: left !important;
+  min-width: 120px; /* Минимальная ширина */
+  max-width: 180px; /* Максимальная ширина */
 }
 
 .rowName {
@@ -140,6 +144,7 @@
   white-space: nowrap; /* Предотвращаем перенос имени */
   overflow: hidden;
   text-overflow: ellipsis; /* Добавляем многоточие при переполнении */
+  max-width: 100%; /* Обеспечиваем, чтобы текст не выходил за пределы контейнера */
 }
 
 .lunchLabel {
@@ -149,7 +154,7 @@
 
 .lunchCell {
   text-align: left !important;
-  padding-left: 60px !important;
+  padding-left: 40px !important; /* Уменьшенный отступ слева */
 }
 
 .hoursCell {
@@ -267,9 +272,44 @@
   border: 1px solid #ddd !important;
 }
 
-/* Дополнительные стили для улучшения адаптивности */
+/* Адаптивный стиль для разных размеров экрана */
 @media screen and (max-width: 1024px) {
   .timeTable {
-    min-width: 1000px; /* Минимальная ширина таблицы на маленьких экранах */
+    min-width: 900px; /* Минимальная ширина таблицы на маленьких экранах */
+  }
+  
+  .timeCell {
+    min-width: 80px; /* Уменьшаем минимальную ширину для ячеек на малых экранах */
+  }
+  
+  .hoursColumn {
+    min-width: 70px;
+  }
+  
+  .nameColumn {
+    min-width: 100px;
+  }
+}
+
+/* Стили для компактного режима на очень маленьких экранах */
+@media screen and (max-width: 768px) {
+  .timeTable {
+    min-width: 800px; /* Еще меньшая минимальная ширина таблицы */
+  }
+  
+  .timeCell {
+    min-width: 70px; /* Еще меньше ячейки */
+  }
+  
+  .nameColumn {
+    min-width: 90px;
+  }
+  
+  .hoursColumn {
+    min-width: 60px;
+  }
+  
+  .totalColumn, .actionsColumn {
+    min-width: 50px;
   }
 }
