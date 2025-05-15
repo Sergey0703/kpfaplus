@@ -72,7 +72,7 @@ export const WeeklyTimeTableBody: React.FC<IWeeklyTimeTableBodyProps> = ({
   if ((filteredTimeTableData.length === 0 && !isLoading) || (!dataInitialized && filteredTimeTableData.length === 0)) {
     return (
       <div style={{ padding: '20px', textAlign: 'center' }}>
-        <p>No schedule data found for this contract. Click "New Week" to create a schedule.</p>
+        <p>No schedule data found for this contract. Click &quot;New Week&quot; to create a schedule.</p>
         <button 
           onClick={onAddWeek}
           style={{ 

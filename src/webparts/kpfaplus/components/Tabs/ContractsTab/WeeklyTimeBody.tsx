@@ -72,7 +72,7 @@ export interface IWeeklyTimeBodyProps {
                 <th key={day.key}>{day.name}</th>
               ))}
               <th className={styles.totalColumn}>Contract</th>
-              <th className={styles.actionsColumn}></th>
+              <th className={styles.actionsColumn} /> {/* ИСПРАВЛЕНИЕ #1: Заменен на самозакрывающийся тег */}
             </tr>
           </thead>
           <tbody>
@@ -100,7 +100,7 @@ export interface IWeeklyTimeBodyProps {
                         height: '3px',
                         padding: 0,
                         border: 'none'
-                      }}></td>
+                      }} /> {/* ИСПРАВЛЕНИЕ #2: Заменен на самозакрывающийся тег */}
                     </tr>
                   )}
                   
@@ -247,7 +247,7 @@ export interface IWeeklyTimeBodyProps {
                         onLunchChange={handleLunchChange}
                       />
                     </td>
-                    <td colSpan={9}></td>
+                    <td colSpan={9} /> {/* ИСПРАВЛЕНИЕ #3: Заменен на самозакрывающийся тег */}
                   </tr>
                 </React.Fragment>
               );
