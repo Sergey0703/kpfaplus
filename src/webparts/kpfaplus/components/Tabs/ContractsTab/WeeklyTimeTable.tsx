@@ -163,8 +163,8 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   useEffect(() => {
     if (refreshTrigger === 0) return; // Пропускаем первый рендеринг
     
-    // Вызываем функцию загрузки данных
-    loadWeeklyTimeTableData(
+    // Вызываем функцию загрузки данных и добавляем void
+    void loadWeeklyTimeTableData(
       context,
       contractId,
       setIsTableLoading,
@@ -219,7 +219,8 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
           if (rowId) {
             const rowIndex = timeTableData.findIndex(row => row.id === rowId);
             if (rowIndex !== -1) {
-              deleteRestoreShift({
+              // Добавляем void перед вызовом Promise
+              void deleteRestoreShift({
                 context,
                 timeTableData,
                 rowIndex,
@@ -239,7 +240,8 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
         onConfirm = (): void => {
           const addWeekCheck = additionalData as IAddWeekDialogData;
           if (addWeekCheck?.canAdd && addWeekCheck?.weekNumberToAdd) {
-            addNewWeek({
+            // Добавляем void перед вызовом Promise
+            void addNewWeek({
               context,
               timeTableData,
               contractId,
@@ -262,7 +264,8 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
         onConfirm = (): void => {
           const addShiftData = additionalData as IAddShiftDialogData;
           if (addShiftData?.weekNumber && addShiftData?.nextShiftNumber) {
-            addNewShift({
+            // Добавляем void перед вызовом Promise
+            void addNewShift({
               context,
               timeTableData,
               contractId,
