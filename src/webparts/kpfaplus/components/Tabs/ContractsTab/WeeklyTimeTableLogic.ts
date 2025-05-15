@@ -2,12 +2,13 @@
 import { 
     IFormattedWeeklyTimeRow
   } from '../../../models/IWeeklyTimeTable';
-  
+  // В начале файла WeeklyTimeTableLogic.ts добавьте импорт
+import { IDayHoursComplete } from '../../../models/IWeeklyTimeTable';
   // Интерфейс для расширенной строки с дополнительным полем displayedTotalHours
   export interface IExtendedWeeklyTimeRow extends IFormattedWeeklyTimeRow {
     displayedTotalHours?: string;
     NumberOfShift?: number;
-    [key: string]: any; // Это позволит иметь индексацию по строке
+    [key: string]: string | IDayHoursComplete | number | undefined;
   }
   
   // Функция для получения множества уникальных шаблонов в данных
@@ -400,11 +401,13 @@ export const analyzeWeeklyTableData = (data: IExtendedWeeklyTimeRow[]): IWeekAna
   const fullyDeletedWeeks: number[] = [];
   
   for (const weekNumber in weekShifts) {
-    const stats = weekShifts[weekNumber];
-    
-    // Если все смены недели удалены, добавляем неделю в список полностью удаленных
-    if (stats.total > 0 && stats.total === stats.deleted) {
-      fullyDeletedWeeks.push(parseInt(weekNumber, 10));
+    if (Object.prototype.hasOwnProperty.call(weekShifts, weekNumber)) {
+      const stats = weekShifts[weekNumber];
+      
+      // Если все смены недели удалены, добавляем неделю в список полностью удаленных
+      if (stats.total > 0 && stats.total === stats.deleted) {
+        fullyDeletedWeeks.push(parseInt(weekNumber, 10));
+      }
     }
   }
   
