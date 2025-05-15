@@ -26,7 +26,7 @@ export const createDeleteShiftHandler = (
     type: MessageBarType;
     message: string;
   } | null>>
-) => {
+): (rowIndex: number) => Promise<void> => {
   return async (rowIndex: number): Promise<void> => {
     try {
       // Получаем ID строки для операции
@@ -66,7 +66,7 @@ export const createDeleteShiftHandler = (
           }
         } catch (serverError) {
           console.error(`Error ${operationType} item on server: ${serverError}`);
-          throw new Error(`Failed to ${operationType} item on server: ${serverError instanceof Error ? serverError.message : 'Unknown error'}`);
+          throw new Error(`Server error ${operationType} weekly time table item: ${serverError instanceof Error ? serverError.message : String(serverError)}`);
         }
       }
       
