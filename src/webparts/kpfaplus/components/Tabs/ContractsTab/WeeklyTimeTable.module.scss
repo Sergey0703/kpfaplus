@@ -4,6 +4,9 @@
   margin-top: 20px;
   border-top: 1px solid #e0e0e0;
   padding-top: 20px;
+  width: 100%; /* Расширяем компонент на всю доступную ширину */
+  max-width: 100%; /* Предотвращаем выход за пределы родительского контейнера */
+  box-sizing: border-box; /* Учитываем padding в общей ширине */
 }
 
 .tableHeader {
@@ -11,6 +14,7 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
+  width: 100%; /* Растягиваем заголовок на всю доступную ширину */
 }
 
 .tableTitle {
@@ -36,11 +40,14 @@
 
 .tableContainer {
   width: 100%;
-  overflow-x: auto;
+  overflow-x: auto; /* Добавляем горизонтальную прокрутку при необходимости */
+  max-width: 100%; /* Предотвращаем выход за пределы родительского контейнера */
 }
 
 .timeTable {
+  min-width: 100%; /* Минимальная ширина равна контейнеру */
   width: 100%;
+  table-layout: auto; /* Автоматический расчет ширины колонок */
   border-collapse: collapse;
   
   th {
@@ -50,6 +57,7 @@
     padding: 6px;
     border: 1px solid #e0e0e0;
     font-size: 13px;
+    white-space: nowrap; /* Предотвращает перенос текста в заголовках */
   }
   
   td {
@@ -60,18 +68,38 @@
   }
 }
 
+.hoursColumn {
+  width: 80px;
+  min-width: 80px; /* Минимальная ширина */
+  max-width: 80px; /* Максимальная ширина */
+  background-color: #f3f2f1;
+  font-weight: 600;
+  text-align: center;
+  padding: 6px;
+  border: 1px solid #e0e0e0;
+  font-size: 13px;
+}
+
 .nameColumn {
   width: 140px;
+  min-width: 140px; /* Минимальная ширина */
+  max-width: 200px; /* Максимальная ширина */
   text-align: left !important;
   font-size: 12px;
+  overflow: hidden; /* Скрываем переполнение контента */
+  text-overflow: ellipsis; /* Добавляем многоточие при переполнении */
 }
 
 .totalColumn {
   width: 60px;
+  min-width: 60px; /* Минимальная ширина */
+  max-width: 80px; /* Максимальная ширина */
 }
 
 .actionsColumn {
   width: 60px;
+  min-width: 60px; /* Минимальная ширина */
+  max-width: 80px; /* Максимальная ширина */
 }
 
 .timeCell {
@@ -79,6 +107,7 @@
   justify-content: center;
   align-items: center;
   font-size: 12px;
+  min-width: 100px; /* Минимальная ширина для ячеек с выпадающими списками */
 }
 
 .timeSeparator {
@@ -89,6 +118,10 @@
 
 .weekRow {
   background-color: #f9f9f9;
+}
+
+.weekEndRow {
+  background-color: #f3f2f1;
 }
 
 .lunchRow {
@@ -104,6 +137,9 @@
 .rowName {
   font-weight: 600;
   margin-bottom: 4px;
+  white-space: nowrap; /* Предотвращаем перенос имени */
+  overflow: hidden;
+  text-overflow: ellipsis; /* Добавляем многоточие при переполнении */
 }
 
 .lunchLabel {
@@ -116,131 +152,124 @@
   padding-left: 60px !important;
 }
 
+.hoursCell {
+  padding: 4px;
+  border: 1px solid #e0e0e0;
+  text-align: center;
+  font-size: 12px;
+  background-color: #f9f9f9;
+  width: 80px;
+  min-width: 80px; /* Минимальная ширина */
+}
+
 .spinnerContainer {
   display: flex;
   justify-content: center;
   align-items: center;
   padding: 40px 0;
+  width: 100%;
 }
-/* Добавьте эти стили в WeeklyTimeTable.module.scss */
 
 .statusMessageContainer {
-    margin: 10px 0;
-  }
-  
-  .changesInfoContainer {
-    margin: 10px 0;
-    padding: 8px;
-    background-color: #f3f2f1;
-    border-left: 3px solid #0078d4;
-  }
-  
-  .changesInfoText {
-    font-size: 14px;
-    color: #323130;
-  }
-  
-  .changedCell {
-    background-color: rgba(255, 255, 0, 0.1);
-    border: 1px solid #ffcc00;
-  }
+  margin: 10px 0;
+  width: 100%;
+}
 
-  .hoursColumn {
-    width: 80px;
-    background-color: #f3f2f1;
-    font-weight: 600;
-    text-align: center;
-    padding: 6px;
-    border: 1px solid #e0e0e0;
-    font-size: 13px;
-  }
-  
-  .hoursCell {
-    padding: 4px;
-    border: 1px solid #e0e0e0;
-    text-align: center;
-    font-size: 12px;
-    background-color: #f9f9f9;
-  }
-  
-  .contractInfo {
-    font-size: 10px;
-    text-align: right;
-    color: #666;
-    margin-top: 2px;
-  }
-  .weekEndRow {
-    background-color: #f3f2f1;
-  }
+.changesInfoContainer {
+  margin: 10px 0;
+  padding: 8px;
+  background-color: #f3f2f1;
+  border-left: 3px solid #0078d4;
+  width: 100%;
+}
 
-  /* Добавьте эти стили в ваш файл WeeklyTimeTable.module.scss */
+.changesInfoText {
+  font-size: 14px;
+  color: #323130;
+}
+
+.changedCell {
+  background-color: rgba(255, 255, 0, 0.1);
+  border: 1px solid #ffcc00;
+}
+
+.contractInfo {
+  font-size: 10px;
+  text-align: right;
+  color: #666;
+  margin-top: 2px;
+}
 
 .totalHoursContainer {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    height: 100%;
-    min-height: 60px; /* Адаптируйте под высоту вашей ячейки */
-  }
-  
-  .totalHoursValue {
-    font-weight: bold;
-    text-align: center;
-    padding-top: 5px;
-  }
-  
-  .addShiftButtonWrapper {
-    display: flex;
-    justify-content: center;
-    padding-bottom: 5px;
-  }
-  
-  .addShiftButtonContainer {
-    display: flex;
-    justify-content: center;
-    align-items: flex-end;
-    height: 100%;
-    padding-bottom: 5px;
-  }
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  min-height: 60px;
+}
 
-  .actionsContainer {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: flex-end; /* Выравниваем по нижнему краю как и кнопку + Shift */
-    height: 100%;
-    padding-bottom: 5px;
-  }
+.totalHoursValue {
+  font-weight: bold;
+  text-align: center;
+  padding-top: 5px;
+}
 
-  .templateSeparator {
-    border-bottom: 2px solid #0078d4; /* Синяя линия */
-    margin-bottom: 8px;
-    padding-bottom: 8px;
-  }
-  .firstTemplateRow {
-    border-top: 2px solid #0078d4; /* Синяя линия сверху */
-    margin-top: 8px;
-    padding-top: 8px;
-  }
+.addShiftButtonWrapper {
+  display: flex;
+  justify-content: center;
+  padding-bottom: 5px;
+}
 
-  /* Стили для удаленных смен */
+.addShiftButtonContainer {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  height: 100%;
+  padding-bottom: 5px;
+}
 
-/* Стиль для ячеек в удаленных строках */
+.actionsContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  padding-bottom: 5px;
+}
+
+.templateSeparator {
+  border-bottom: 2px solid #0078d4;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+}
+
+.firstTemplateRow {
+  border-top: 2px solid #0078d4;
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+/* Стили для удаленных смен */
 .deletedRow {
   filter: grayscale(80%) opacity(0.7);
   text-decoration: line-through;
 }
-/* Стиль для текста с зачеркиванием в удаленных строках */
+
 .deletedText {
   text-decoration: line-through;
   color: #888;
 }
 
-/* Стиль для полей ввода в удаленных строках */
 .deletedCell {
   opacity: 0.6;
-  pointer-events: none; /* Блокирует взаимодействие с элементом */
+  pointer-events: none;
   background-color: #f5f5f5;
   border: 1px solid #ddd !important;
 }
 
+/* Дополнительные стили для улучшения адаптивности */
+@media screen and (max-width: 1024px) {
+  .timeTable {
+    min-width: 1000px; /* Минимальная ширина таблицы на маленьких экранах */
+  }
+}
