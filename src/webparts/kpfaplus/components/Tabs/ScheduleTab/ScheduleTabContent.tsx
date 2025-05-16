@@ -17,11 +17,8 @@ import styles from './ScheduleTab.module.scss';
 
 // Импортируем компоненты
 import { FilterControls } from './components/FilterControls';
-import { LeavesList } from './components/LeavesList';
 import { DayInfo } from './components/DayInfo';
-// Скрываем из отображения, но оставляем импорт для типов и функций
-// import { MonthSummary } from './components/MonthSummary';
-// import { TypesOfLeaveInfo } from './components/TypesOfLeaveInfo';
+import ScheduleTable, { IScheduleItem, IScheduleOptions } from './components/ScheduleTable';
 
 // Интерфейс для типизации сервисов
 interface IHolidaysService {
@@ -87,6 +84,9 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
   
   // Находим выбранный контракт
   const selectedContract = contracts.find(c => c.id === selectedContractId);
+  
+  // Состояние для отображения удаленных записей
+  const [showDeleted, setShowDeleted] = React.useState<boolean>(false);
   
   // Логирование информации для отладки (вместо отображения в UI)
   React.useEffect(() => {
@@ -196,6 +196,86 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     console.groupEnd();
   }, [selectedDate, holidays, leaves, typesOfLeave, contracts, selectedContract]);
   
+  // Временные данные для ScheduleTable
+  const generateMockScheduleItems = (): IScheduleItem[] => {
+    if (!selectedContract) return [];
+    
+    // Создаем дни недели для текущей недели
+    const items: IScheduleItem[] = [];
+    const currentDay = new Date(selectedDate);
+    currentDay.setDate(currentDay.getDate() - currentDay.getDay()); // Начинаем с воскресенья
+    
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(currentDay);
+      date.setDate(date.getDate() + i);
+      
+      const dayOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()];
+      
+      // Рабочие часы - для субботы делаем 5ч 30м, для остальных дней 0ч 00м
+      const workingHours = date.getDay() === 6 ? '5h 30m' : '0h 00m';
+      
+      // Для субботы делаем время с 9 до 15, для остальных 0:00
+      const startHour = date.getDay() === 6 ? '09' : '00';
+      const startMinute = '00';
+      const finishHour = date.getDay() === 6 ? '15' : '00';
+      const finishMinute = '00';
+      
+      items.push({
+        id: `schedule-${date.toISOString().split('T')[0]}-1`,
+        date,
+        dayOfWeek,
+        workingHours,
+        startHour,
+        startMinute,
+        finishHour,
+        finishMinute,
+        lunchTime: '30',
+        typeOfLeave: '',
+        shift: 1,
+        contract: selectedContract.template,
+        contractId: selectedContract.id
+      });
+    }
+    
+    return items;
+  };
+  
+  // Создаем опции для выпадающих списков в таблице
+  const scheduleOptions: IScheduleOptions = {
+    hours: Array.from({ length: 24 }, (_, i) => ({ 
+      key: i.toString().padStart(2, '0'), 
+      text: i.toString().padStart(2, '0') 
+    })),
+    minutes: ['00', '15', '30', '45'].map(m => ({ key: m, text: m })),
+    lunchTimes: ['0', '15', '30', '45', '60'].map(l => ({ key: l, text: l })),
+    leaveTypes: [
+      { key: '', text: 'None' },
+      ...typesOfLeave.map(t => ({ key: t.id, text: t.title })),
+      { key: 'TOIL+', text: 'TOIL+' },
+      { key: 'Parental Leave', text: 'Parental Leave' }
+    ]
+  };
+  
+  // Обработчики для таблицы расписания
+  const handleToggleShowDeleted = (checked: boolean): void => {
+    setShowDeleted(checked);
+  };
+  
+  const handleItemChange = (item: IScheduleItem, field: string, value: any): void => {
+    console.log(`Changed item ${item.id}, field: ${field}, value: ${value}`);
+    // В реальном приложении здесь будет обновление данных
+  };
+  
+  const handleAddShift = (date: Date): void => {
+    console.log(`Adding shift for date: ${date.toLocaleDateString()}`);
+    // В реальном приложении здесь будет добавление новой смены
+  };
+  
+  const handleDeleteItem = (id: string): void => {
+    console.log(`Deleting item with ID: ${id}`);
+    // В реальном приложении здесь будет удаление записи
+  };
+  
   return (
     <div className={styles.scheduleTab}>
       <div className={styles.header}>
@@ -258,30 +338,19 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
                 </div>
               ) : (
                 <div style={{ padding: '10px' }}>
-                  {/* УБРАНО: MonthSummary и TypesOfLeaveInfo */}
-                  
-                  {/* ЗДЕСЬ БУДЕТ НОВАЯ ТАБЛИЦА */}
-                  <div style={{ 
-                    minHeight: '300px', 
-                    border: '1px dashed #ccc', 
-                    borderRadius: '4px', 
-                    display: 'flex', 
-                    justifyContent: 'center', 
-                    alignItems: 'center',
-                    padding: '20px',
-                    marginTop: '20px'
-                  }}>
-                    <p>Здесь будет размещена новая таблица расписания</p>
-                  </div>
-                  
-                  {/* Оставляем список отпусков, так как он может быть полезен для просмотра */}
-                  {leaves.length > 0 && (
-                    <LeavesList
-                      leaves={leaves}
-                      isLoading={isLoadingLeaves}
-                      typesOfLeave={typesOfLeave}
-                    />
-                  )}
+                  {/* Таблица расписания */}
+                  <ScheduleTable
+                    items={generateMockScheduleItems()}
+                    options={scheduleOptions}
+                    selectedDate={selectedDate}
+                    selectedContract={{ id: selectedContract.id, name: selectedContract.template }}
+                    isLoading={false}
+                    showDeleted={showDeleted}
+                    onToggleShowDeleted={handleToggleShowDeleted}
+                    onItemChange={handleItemChange}
+                    onAddShift={handleAddShift}
+                    onDeleteItem={handleDeleteItem}
+                  />
                 </div>
               )}
             </div>
