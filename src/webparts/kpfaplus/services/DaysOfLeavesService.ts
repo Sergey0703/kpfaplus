@@ -17,6 +17,32 @@ export interface ILeaveDay {
   deleted: boolean;
 }
 
+// Интерфейс для необработанных данных из SharePoint
+interface IRawLeaveDayItem {
+  id: string | number;
+  fields?: {
+    Title?: string;
+    Date?: string; // Дата начала в строковом формате
+    Date2?: string; // Дата окончания в строковом формате
+    StaffMember?: { Id?: number; Title?: string; [key: string]: unknown };
+    StaffMemberLookup?: { Id?: number; Title?: string; [key: string]: unknown };
+    StaffMemberLookupId?: number;
+    Manager?: { Id?: number; Title?: string; [key: string]: unknown };
+    ManagerLookup?: { Id?: number; Title?: string; [key: string]: unknown };
+    ManagerLookupId?: number;
+    StaffGroup?: { Id?: number; Title?: string; [key: string]: unknown };
+    StaffGroupLookup?: { Id?: number; Title?: string; [key: string]: unknown };
+    StaffGroupLookupId?: number;
+    TypeOfLeave?: number;
+    Created?: string;
+    CreatedBy?: string;
+    "Created By"?: string;
+    Deleted?: number | boolean;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
 /**
  * Сервис для работы со списком дней отпуска в SharePoint
  */
@@ -198,15 +224,17 @@ export class DaysOfLeavesService {
    * @param items Данные из SharePoint
    * @returns Массив объектов ILeaveDay
    */
-  private mapToLeaveDays(items: any[]): ILeaveDay[] {
-    return items
-      .map(item => {
+  private mapToLeaveDays(items: unknown[]): ILeaveDay[] {
+    // Используем промежуточный массив, который может содержать null
+    const mappedItems = items
+      .map((item): ILeaveDay | null => {
         try {
-          const fields = item.fields || {};
+          const typedItem = item as IRawLeaveDayItem;
+          const fields = typedItem.fields || {};
           
           // Проверка наличия обязательных полей
           if (!fields.Date) {
-            this.logError(`Missing required date field for leave item ${item.id}`);
+            this.logError(`Missing required date field for leave item ${typedItem.id}`);
             return null;
           }
           
@@ -214,7 +242,7 @@ export class DaysOfLeavesService {
           const startDate = new Date(fields.Date);
           
           if (isNaN(startDate.getTime())) {
-            this.logError(`Invalid date format for leave item ${item.id}`);
+            this.logError(`Invalid date format for leave item ${typedItem.id}`);
             return null;
           }
           
@@ -226,45 +254,50 @@ export class DaysOfLeavesService {
             endDate = new Date(fields.Date2);
             
             if (isNaN(endDate.getTime())) {
-              this.logError(`Invalid end date format for leave item ${item.id}, using undefined`);
+              this.logError(`Invalid end date format for leave item ${typedItem.id}, using undefined`);
               endDate = undefined;
             }
           } else {
             // Если дата окончания не задана, оставляем ее как undefined
-            this.logInfo(`Open leave detected for item ${item.id} - no end date specified`);
+            this.logInfo(`Open leave detected for item ${typedItem.id} - no end date specified`);
             endDate = undefined;
           }
           
           // Получаем ID из lookup полей
           const staffMemberId = this.getLookupId(fields.StaffMember) || 
-                               this.getLookupId(fields.StaffMemberLookup) || 0;
+                               this.getLookupId(fields.StaffMemberLookup) || 
+                               fields.StaffMemberLookupId || 0;
           
           const managerId = this.getLookupId(fields.Manager) || 
-                           this.getLookupId(fields.ManagerLookup) || 0;
+                           this.getLookupId(fields.ManagerLookup) || 
+                           fields.ManagerLookupId || 0;
           
           const staffGroupId = this.getLookupId(fields.StaffGroup) || 
-                              this.getLookupId(fields.StaffGroupLookup) || 0;
+                              this.getLookupId(fields.StaffGroupLookup) || 
+                              fields.StaffGroupLookupId || 0;
           
           // Создаем объект ILeaveDay
           return {
-            id: String(item.id),
+            id: String(typedItem.id),
             title: String(fields.Title || ''),
             startDate: startDate,
             endDate: endDate, // Может быть undefined для открытых отпусков
-            staffMemberId: staffMemberId,
-            managerId: managerId,
-            staffGroupId: staffGroupId,
+            staffMemberId: Number(staffMemberId),
+            managerId: Number(managerId),
+            staffGroupId: Number(staffGroupId),
             typeOfLeave: Number(fields.TypeOfLeave || 0),
             created: fields.Created ? new Date(fields.Created) : new Date(),
             createdBy: String(fields.CreatedBy || fields['Created By'] || ''),
             deleted: Boolean(fields.Deleted === 1 || fields.Deleted === true)
           };
         } catch (error) {
-          this.logError(`Error processing leave item ${item.id}: ${error}`);
+          this.logError(`Error processing leave item ${(item as {id?: string | number})?.id || 'unknown'}: ${error}`);
           return null;
         }
-      })
-      .filter(leave => leave !== null) as ILeaveDay[];
+      });
+    
+    // Фильтруем null элементы и возвращаем массив ILeaveDay
+    return mappedItems.filter((item): item is ILeaveDay => item !== null);
   }
 
   /**
@@ -272,7 +305,7 @@ export class DaysOfLeavesService {
    * @param lookup Lookup поле из SharePoint
    * @returns ID или undefined, если поле отсутствует
    */
-  private getLookupId(lookup: any): number | undefined {
+  private getLookupId(lookup?: unknown): number | undefined {
     if (!lookup) return undefined;
     
     // Если lookup - число или строка, возвращаем его как число
@@ -280,11 +313,12 @@ export class DaysOfLeavesService {
     if (typeof lookup === 'string') return parseInt(lookup, 10);
     
     // Если lookup - объект с полем Id, LookupId или id
-    if (typeof lookup === 'object') {
-      if ('Id' in lookup) return Number(lookup.Id);
-      if ('id' in lookup) return Number(lookup.id);
-      if ('LookupId' in lookup) return Number(lookup.LookupId);
-      if ('lookupId' in lookup) return Number(lookup.lookupId);
+    if (typeof lookup === 'object' && lookup !== null) {
+      const lookupObj = lookup as Record<string, unknown>;
+      if ('Id' in lookupObj && lookupObj.Id !== undefined) return Number(lookupObj.Id);
+      if ('id' in lookupObj && lookupObj.id !== undefined) return Number(lookupObj.id);
+      if ('LookupId' in lookupObj && lookupObj.LookupId !== undefined) return Number(lookupObj.LookupId);
+      if ('lookupId' in lookupObj && lookupObj.lookupId !== undefined) return Number(lookupObj.lookupId);
     }
     
     return undefined;
