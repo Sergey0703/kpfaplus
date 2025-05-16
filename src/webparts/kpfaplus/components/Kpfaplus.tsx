@@ -18,6 +18,7 @@ import { RemoteConnectionTest } from './RemoteConnectionTest/RemoteConnectionTes
 // Импортируем компоненты вкладок
 import { MainTab } from './Tabs/MainTab/MainTab';
 import { ContractsTab } from './Tabs/ContractsTab/ContractsTab';
+import { ScheduleTab } from './Tabs/ScheduleTab/ScheduleTab';
 import { NotesTab } from './Tabs/NotesTab/NotesTab';
 import { LeavesTab } from './Tabs/LeavesTab/LeavesTab';
 import { LeaveTimeByYearsTab } from './Tabs/LeaveTimeByYearsTab/LeaveTimeByYearsTab';
@@ -512,6 +513,8 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
        return <MainTab {...tabProps} />;
      case 'contracts':
        return <ContractsTab {...tabProps} />;
+     case 'schedule': // Добавляем обработку нашей новой вкладки
+      return <ScheduleTab {...tabProps} />;
      case 'notes':
        return <NotesTab {...tabProps} />;
      case 'leaves':
@@ -704,6 +707,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
          >
            <PivotItem itemKey="main" headerText="Main" />
            <PivotItem itemKey="contracts" headerText="Contracts" />
+           <PivotItem itemKey="schedule" headerText="Schedule" />
            <PivotItem itemKey="notes" headerText="Notes" />
            <PivotItem itemKey="leaves" headerText="Leaves" />
            <PivotItem itemKey="leaveTimeByYears" headerText="Leave Time by Years" />
