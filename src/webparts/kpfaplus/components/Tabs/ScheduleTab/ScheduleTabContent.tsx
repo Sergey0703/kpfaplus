@@ -126,9 +126,15 @@ export const LeavesList: React.FC<{
       fieldName: 'endDate',
       minWidth: 100,
       isResizable: true,
-      onRender: (item: ILeaveDay) => (
-        <span>{item.endDate.toLocaleDateString()}</span>
-      )
+      onRender: (item: ILeaveDay) => {
+        // Проверяем наличие даты окончания
+        if (item.endDate) {
+          return <span>{item.endDate.toLocaleDateString()}</span>;
+        } else {
+          // Если дата окончания не задана, отображаем "Открыт"
+          return <span style={{ color: '#d13438', fontStyle: 'italic' }}>Открыт</span>;
+        }
+      }
     },
     {
       key: 'duration',
@@ -136,10 +142,20 @@ export const LeavesList: React.FC<{
       minWidth: 100,
       isResizable: true,
       onRender: (item: ILeaveDay) => {
+        // Если нет даты окончания, просто показываем текущую длительность с начала отпуска
+        if (!item.endDate) {
+          const start = new Date(item.startDate);
+          const today = new Date();
+          const diffTime = Math.abs(today.getTime() - start.getTime());
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+          return <span style={{ color: '#d13438' }}>{diffDays}+ дн.</span>;
+        }
+        
+        // Стандартный расчет для законченных отпусков
         const start = new Date(item.startDate);
         const end = new Date(item.endDate);
         const diffTime = Math.abs(end.getTime() - start.getTime());
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 чтобы включить день окончания
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
         return <span>{diffDays} дн.</span>;
       }
     },
@@ -152,6 +168,41 @@ export const LeavesList: React.FC<{
       onRender: (item: ILeaveDay) => (
         <span>{getLeaveTypeText(item.typeOfLeave)}</span>
       )
+    },
+    {
+      key: 'status',
+      name: 'Статус',
+      minWidth: 100,
+      isResizable: true,
+      onRender: (item: ILeaveDay) => {
+        // Определяем статус отпуска
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Сбрасываем время
+        
+        const startDate = new Date(item.startDate);
+        startDate.setHours(0, 0, 0, 0);
+        
+        // Если нет даты окончания, считаем отпуск активным если он уже начался
+        if (!item.endDate) {
+          if (startDate <= today) {
+            return <span style={{ color: '#107c10', fontWeight: 600 }}>Активный</span>;
+          } else {
+            return <span style={{ color: '#0078d4' }}>Будущий</span>;
+          }
+        }
+        
+        // Для отпусков с определенной датой окончания
+        const endDate = new Date(item.endDate);
+        endDate.setHours(0, 0, 0, 0);
+        
+        if (today < startDate) {
+          return <span style={{ color: '#0078d4' }}>Будущий</span>;
+        } else if (today > endDate) {
+          return <span style={{ color: '#666' }}>Завершен</span>;
+        } else {
+          return <span style={{ color: '#107c10', fontWeight: 600 }}>Активный</span>;
+        }
+      }
     }
   ];
   
@@ -241,6 +292,17 @@ export const DayInfo: React.FC<{
         }}>
           <strong>Leave: </strong>
           {leaveInfo.title}
+          {/* Отображаем дополнительную информацию для отпуска */}
+          <div style={{ marginTop: '5px', fontSize: '12px', color: '#666' }}>
+            <div>
+              <strong>Тип: </strong>{getLeaveTypeText(leaveInfo.typeOfLeave)}
+            </div>
+            <div>
+              <strong>Период: </strong>
+              {leaveInfo.startDate.toLocaleDateString()} - 
+              {leaveInfo.endDate ? leaveInfo.endDate.toLocaleDateString() : <span style={{ color: '#d13438', fontStyle: 'italic' }}>открыт</span>}
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -270,6 +332,8 @@ export const MonthSummary: React.FC<{
           <div>
             <strong>Leaves: </strong>
             {leaves.length > 0 ? leaves.length : 'No'} leaves found for month {selectedDate.getMonth() + 1}/{selectedDate.getFullYear()}
+            {leaves.length > 0 && leaves.some(l => !l.endDate) && 
+              ` (Открытых: ${leaves.filter(l => !l.endDate).length})`}
           </div>
         </div>
       </div>

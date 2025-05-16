@@ -7,7 +7,7 @@ export interface ILeaveDay {
   id: string;
   title: string;
   startDate: Date;   // Дата начала отпуска (поле Date в SharePoint)
-  endDate: Date;     // Дата окончания отпуска (поле Date2 в SharePoint)
+  endDate?: Date;    // Дата окончания отпуска (поле Date2 в SharePoint), может быть не задана для открытых отпусков
   staffMemberId: number;
   managerId: number;
   staffGroupId: number;
@@ -98,11 +98,9 @@ export class DaysOfLeavesService {
       const lastDayStr = this.formatDateForFilter(lastDayOfMonth);
       
       // Строим фильтр для запроса
-      // Примечание: мы ищем записи, где:
-      // 1. Дата начала <= последний день месяца И дата окончания >= первый день месяца
-      // (т.е. период отпуска пересекается с выбранным месяцем)
-      // 2. StaffMember, Manager и StaffGroup соответствуют переданным значениям
-      // 3. Deleted не равно 1 (не удаленные записи)
+      // МОДИФИЦИРОВАННЫЙ ФИЛЬТР:
+      // 1. Дата начала <= последний день месяца И (дата окончания >= первый день месяца ИЛИ дата окончания не задана)
+      // Это позволит учесть отпуска без даты окончания
       
       let filter = `fields/StaffMemberLookupId eq ${staffMemberId}`;
       
@@ -116,9 +114,10 @@ export class DaysOfLeavesService {
         filter += ` and fields/StaffGroupLookupId eq ${staffGroupId}`;
       }
       
-      // Добавляем фильтр по Date и Date2 (исправлено с Date1 на Date)
-      // Date <= lastDayOfMonth AND Date2 >= firstDayOfMonth
-      filter += ` and fields/Date le '${lastDayStr}' and fields/Date2 ge '${firstDayStr}'`;
+      // Модифицированное условие для Date и Date2
+      // Период отпуска пересекается с выбранным месяцем ИЛИ отпуск не имеет даты окончания (открытый отпуск)
+      // Дата начала <= последний день месяца И (дата окончания >= первый день месяца ИЛИ дата окончания не задана/null)
+      filter += ` and fields/Date le '${lastDayStr}' and (fields/Date2 ge '${firstDayStr}' or fields/Date2 eq null)`;
       
       // Добавляем фильтр по Deleted
       filter += ` and (fields/Deleted eq null or fields/Deleted ne 1)`;
@@ -130,7 +129,7 @@ export class DaysOfLeavesService {
         this._listName,
         true, // expandFields
         filter,
-        { field: "Date", ascending: true } // сортировка по дате начала (исправлено с Date1 на Date)
+        { field: "Date", ascending: true } // сортировка по дате начала
       );
       
       this.logInfo(`Retrieved ${items.length} leave days with server-side filtering`);
@@ -143,6 +142,16 @@ export class DaysOfLeavesService {
       this.logError(`Error fetching leaves: ${error}`);
       return [];
     }
+  }
+
+  /**
+   * Проверяет, находится ли дата в период отпуска
+   * @param date Дата для проверки
+   * @param leaves Массив дней отпуска
+   * @returns true, если дата находится в период отпуска, иначе false
+   */
+  public isDateOnLeave(date: Date, leaves: ILeaveDay[]): boolean {
+    return this.getLeaveForDate(date, leaves) !== undefined;
   }
 
   /**
@@ -160,21 +169,18 @@ export class DaysOfLeavesService {
       const startDate = new Date(leave.startDate);
       startDate.setHours(0, 0, 0, 0);
       
+      // Для открытых отпусков (без даты окончания)
+      if (!leave.endDate) {
+        // Если дата проверки больше или равна дате начала, считаем что она попадает в отпуск
+        return checkDate >= startDate;
+      }
+      
+      // Для закрытых отпусков с определенной датой окончания
       const endDate = new Date(leave.endDate);
       endDate.setHours(0, 0, 0, 0);
       
       return checkDate >= startDate && checkDate <= endDate;
     });
-  }
-
-  /**
-   * Проверяет, находится ли дата в период отпуска
-   * @param date Дата для проверки
-   * @param leaves Массив дней отпуска
-   * @returns true, если дата находится в период отпуска, иначе false
-   */
-  public isDateOnLeave(date: Date, leaves: ILeaveDay[]): boolean {
-    return this.getLeaveForDate(date, leaves) !== undefined;
   }
 
   /**
@@ -199,18 +205,34 @@ export class DaysOfLeavesService {
           const fields = item.fields || {};
           
           // Проверка наличия обязательных полей
-          if (!fields.Date || !fields.Date2) {
-            this.logError(`Missing required date fields for leave item ${item.id}`);
+          if (!fields.Date) {
+            this.logError(`Missing required date field for leave item ${item.id}`);
             return null;
           }
           
-          // Преобразуем строки дат в объекты Date
+          // Преобразуем строку даты начала в объект Date
           const startDate = new Date(fields.Date);
-          const endDate = new Date(fields.Date2);
           
-          if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+          if (isNaN(startDate.getTime())) {
             this.logError(`Invalid date format for leave item ${item.id}`);
             return null;
+          }
+          
+          // Обработка случая, когда дата окончания не задана (открытый отпуск)
+          let endDate: Date | undefined;
+          
+          if (fields.Date2) {
+            // Если есть дата окончания, преобразуем ее
+            endDate = new Date(fields.Date2);
+            
+            if (isNaN(endDate.getTime())) {
+              this.logError(`Invalid end date format for leave item ${item.id}, using undefined`);
+              endDate = undefined;
+            }
+          } else {
+            // Если дата окончания не задана, оставляем ее как undefined
+            this.logInfo(`Open leave detected for item ${item.id} - no end date specified`);
+            endDate = undefined;
           }
           
           // Получаем ID из lookup полей
@@ -228,7 +250,7 @@ export class DaysOfLeavesService {
             id: String(item.id),
             title: String(fields.Title || ''),
             startDate: startDate,
-            endDate: endDate,
+            endDate: endDate, // Может быть undefined для открытых отпусков
             staffMemberId: staffMemberId,
             managerId: managerId,
             staffGroupId: staffGroupId,
