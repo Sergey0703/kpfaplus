@@ -1,0 +1,265 @@
+// src/webparts/kpfaplus/services/DaysOfLeavesService.ts
+import { WebPartContext } from "@microsoft/sp-webpart-base";
+import { RemoteSiteService } from "./RemoteSiteService";
+
+// Интерфейс для дней отпуска
+export interface ILeaveDay {
+  id: string;
+  title: string;
+  startDate: Date;
+  endDate: Date;
+  staffMemberId: number;
+  managerId: number;
+  staffGroupId: number;
+  typeOfLeave: number;
+  created: Date;
+  createdBy: string;
+  deleted: boolean;
+}
+
+/**
+ * Сервис для работы со списком дней отпуска в SharePoint
+ */
+export class DaysOfLeavesService {
+  private static _instance: DaysOfLeavesService;
+  private _listName: string = "DaysOfLeaves";
+  private _logSource: string = "DaysOfLeavesService";
+  private _remoteSiteService: RemoteSiteService;
+
+  /**
+   * Приватный конструктор для паттерна Singleton
+   * @param context Контекст веб-части
+   */
+  private constructor(context: WebPartContext) {
+    // Инициализация RemoteSiteService для работы с удаленным сайтом
+    this._remoteSiteService = RemoteSiteService.getInstance(context);
+    this.logInfo("DaysOfLeavesService initialized with RemoteSiteService");
+  }
+
+  /**
+   * Получение экземпляра сервиса (Singleton паттерн)
+   * @param context Контекст веб-части
+   * @returns Экземпляр DaysOfLeavesService
+   */
+  public static getInstance(context: WebPartContext): DaysOfLeavesService {
+    if (!DaysOfLeavesService._instance) {
+      DaysOfLeavesService._instance = new DaysOfLeavesService(context);
+    }
+    return DaysOfLeavesService._instance;
+  }
+
+  /**
+   * Получает дни отпуска для указанного месяца и года с серверной фильтрацией
+   * @param date Дата для определения месяца и года
+   * @param staffMemberId ID сотрудника
+   * @param managerId ID менеджера
+   * @param staffGroupId ID группы
+   * @returns Promise с массивом дней отпуска
+   */
+  public async getLeavesForMonthAndYear(
+    date: Date,
+    staffMemberId: number,
+    managerId: number,
+    staffGroupId: number
+  ): Promise<ILeaveDay[]> {
+    try {
+      const year = date.getFullYear();
+      const month = date.getMonth() + 1; // +1 потому что getMonth() возвращает 0-11
+      
+      this.logInfo(`Fetching leaves for year: ${year}, month: ${month}, staff: ${staffMemberId}, manager: ${managerId}, group: ${staffGroupId}`);
+      
+      // Формируем строки с первым и последним днем месяца для фильтрации
+      const firstDayOfMonth = new Date(year, month - 1, 1);
+      const lastDayOfMonth = new Date(year, month, 0);
+      
+      // Форматируем даты в ISO строки для фильтрации
+      const firstDayStr = this.formatDateForFilter(firstDayOfMonth);
+      const lastDayStr = this.formatDateForFilter(lastDayOfMonth);
+      
+      // Строим фильтр для запроса
+      // Примечание: мы ищем записи, где:
+      // 1. Дата начала <= последний день месяца И дата окончания >= первый день месяца
+      // (т.е. период отпуска пересекается с выбранным месяцем)
+      // 2. StaffMember, Manager и StaffGroup соответствуют переданным значениям
+      // 3. Deleted не равно 1 (не удаленные записи)
+      
+      let filter = `fields/StaffMemberLookupId eq ${staffMemberId}`;
+      
+      // Добавляем фильтр по Manager, если указан
+      if (managerId) {
+        filter += ` and fields/ManagerLookupId eq ${managerId}`;
+      }
+      
+      // Добавляем фильтр по StaffGroup, если указан
+      if (staffGroupId) {
+        filter += ` and fields/StaffGroupLookupId eq ${staffGroupId}`;
+      }
+      
+      // Добавляем фильтр по Date1 и Date2
+      // Date1 <= lastDayOfMonth AND Date2 >= firstDayOfMonth
+      filter += ` and fields/Date1 le '${lastDayStr}' and fields/Date2 ge '${firstDayStr}'`;
+      
+      // Добавляем фильтр по Deleted
+      filter += ` and (fields/Deleted eq null or fields/Deleted ne 1)`;
+      
+      this.logInfo(`Using filter: ${filter}`);
+      
+      // Выполняем запрос к SharePoint с фильтром на сервере
+      const items = await this._remoteSiteService.getListItems(
+        this._listName,
+        true, // expandFields
+        filter,
+        { field: "Date1", ascending: true } // сортировка по дате начала
+      );
+      
+      this.logInfo(`Retrieved ${items.length} leave days with server-side filtering`);
+      
+      // Преобразуем данные из SharePoint в формат ILeaveDay
+      const leaveDays = this.mapToLeaveDays(items);
+      
+      return leaveDays;
+    } catch (error) {
+      this.logError(`Error fetching leaves: ${error}`);
+      return [];
+    }
+  }
+
+  /**
+   * Проверяет, попадает ли дата в период отпуска
+   * @param date Дата для проверки
+   * @param leaves Массив дней отпуска
+   * @returns Информация об отпуске или undefined, если дата не попадает в период отпуска
+   */
+  public getLeaveForDate(date: Date, leaves: ILeaveDay[]): ILeaveDay | undefined {
+    // Проверяем, попадает ли дата в диапазон между startDate и endDate
+    return leaves.find(leave => {
+      const checkDate = new Date(date);
+      checkDate.setHours(0, 0, 0, 0); // Нормализуем время
+      
+      const startDate = new Date(leave.startDate);
+      startDate.setHours(0, 0, 0, 0);
+      
+      const endDate = new Date(leave.endDate);
+      endDate.setHours(0, 0, 0, 0);
+      
+      return checkDate >= startDate && checkDate <= endDate;
+    });
+  }
+
+  /**
+   * Проверяет, находится ли дата в период отпуска
+   * @param date Дата для проверки
+   * @param leaves Массив дней отпуска
+   * @returns true, если дата находится в период отпуска, иначе false
+   */
+  public isDateOnLeave(date: Date, leaves: ILeaveDay[]): boolean {
+    return this.getLeaveForDate(date, leaves) !== undefined;
+  }
+
+  /**
+   * Форматирует дату для использования в фильтре запроса
+   * @param date Дата для форматирования
+   * @returns Строка даты в формате для фильтра SharePoint
+   */
+  private formatDateForFilter(date: Date): string {
+    // Формат ISO для SharePoint: YYYY-MM-DDT00:00:00Z
+    return date.toISOString().split('T')[0] + 'T00:00:00Z';
+  }
+
+  /**
+   * Преобразует данные из SharePoint в массив объектов ILeaveDay
+   * @param items Данные из SharePoint
+   * @returns Массив объектов ILeaveDay
+   */
+  private mapToLeaveDays(items: any[]): ILeaveDay[] {
+    return items
+      .map(item => {
+        try {
+          const fields = item.fields || {};
+          
+          // Проверка наличия обязательных полей
+          if (!fields.Date1 || !fields.Date2) {
+            this.logError(`Missing required date fields for leave item ${item.id}`);
+            return null;
+          }
+          
+          // Преобразуем строки дат в объекты Date
+          const startDate = new Date(fields.Date1);
+          const endDate = new Date(fields.Date2);
+          
+          if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+            this.logError(`Invalid date format for leave item ${item.id}`);
+            return null;
+          }
+          
+          // Получаем ID из lookup полей
+          const staffMemberId = this.getLookupId(fields.StaffMember) || 
+                               this.getLookupId(fields.StaffMemberLookup) || 0;
+          
+          const managerId = this.getLookupId(fields.Manager) || 
+                           this.getLookupId(fields.ManagerLookup) || 0;
+          
+          const staffGroupId = this.getLookupId(fields.StaffGroup) || 
+                              this.getLookupId(fields.StaffGroupLookup) || 0;
+          
+          // Создаем объект ILeaveDay
+          return {
+            id: String(item.id),
+            title: String(fields.Title || ''),
+            startDate: startDate,
+            endDate: endDate,
+            staffMemberId: staffMemberId,
+            managerId: managerId,
+            staffGroupId: staffGroupId,
+            typeOfLeave: Number(fields.TypeOfLeave || 0),
+            created: fields.Created ? new Date(fields.Created) : new Date(),
+            createdBy: String(fields.CreatedBy || fields['Created By'] || ''),
+            deleted: Boolean(fields.Deleted === 1 || fields.Deleted === true)
+          };
+        } catch (error) {
+          this.logError(`Error processing leave item ${item.id}: ${error}`);
+          return null;
+        }
+      })
+      .filter(leave => leave !== null) as ILeaveDay[];
+  }
+
+  /**
+   * Получает ID из lookup поля
+   * @param lookup Lookup поле из SharePoint
+   * @returns ID или undefined, если поле отсутствует
+   */
+  private getLookupId(lookup: any): number | undefined {
+    if (!lookup) return undefined;
+    
+    // Если lookup - число или строка, возвращаем его как число
+    if (typeof lookup === 'number') return lookup;
+    if (typeof lookup === 'string') return parseInt(lookup, 10);
+    
+    // Если lookup - объект с полем Id, LookupId или id
+    if (typeof lookup === 'object') {
+      if ('Id' in lookup) return Number(lookup.Id);
+      if ('id' in lookup) return Number(lookup.id);
+      if ('LookupId' in lookup) return Number(lookup.LookupId);
+      if ('lookupId' in lookup) return Number(lookup.lookupId);
+    }
+    
+    return undefined;
+  }
+  
+  /**
+   * Логирование информационных сообщений
+   * @param message Сообщение для логирования
+   */
+  private logInfo(message: string): void {
+    console.log(`[${this._logSource}] ${message}`);
+  }
+  
+  /**
+   * Логирование сообщений об ошибках
+   * @param message Сообщение об ошибке для логирования
+   */
+  private logError(message: string): void {
+    console.error(`[${this._logSource}] ${message}`);
+  }
+}
