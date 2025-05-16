@@ -23,9 +23,6 @@ interface ITimeCellProps {
   onTimeChange: (rowIndex: number, dayKey: string, field: 'hours' | 'minutes', value: string) => void;
 }
 
-/**
- * Компонент для отображения ячейки времени
- */
 export const TimeCell: React.FC<ITimeCellProps> = ({
   hours, 
   minutes, 
@@ -40,9 +37,23 @@ export const TimeCell: React.FC<ITimeCellProps> = ({
   // Определяем стили для ячейки в зависимости от того, была ли она изменена и удалена
   const cellClassName = `${styles.timeCell} ${isChanged ? styles.changedCell : ''} ${isDeleted ? styles.deletedCell : ''}`;
   
+  // Инлайн-стиль для контейнера ячейки времени
+  const cellContainerStyle: React.CSSProperties = {
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'nowrap',
+    whiteSpace: 'nowrap',
+    fontSize: '12px',
+    padding: '2px',
+    height: '30px'
+  };
+  
   // Создаем компактные стили для выпадающих списков
   const dropdownStyles = {
     dropdown: { 
+      width: 40,
       minWidth: 40,
       maxWidth: 40,
       fontSize: '12px',
@@ -55,7 +66,7 @@ export const TimeCell: React.FC<ITimeCellProps> = ({
     },
     title: {
       fontSize: '12px',
-      padding: '0 2px', // Уменьшаем внутренние отступы
+      padding: '0 2px',
       height: '24px',
       lineHeight: '24px',
       // Добавляем стили для удаленных ячеек
@@ -70,16 +81,15 @@ export const TimeCell: React.FC<ITimeCellProps> = ({
     dropdownItem: {
       fontSize: '12px',
       minHeight: '24px',
-      padding: '2px 8px' // Уменьшаем padding в выпадающем списке
+      padding: '2px 8px'
     },
     dropdownItemSelected: {
       fontSize: '12px',
       minHeight: '24px'
     },
-    // Стили для стрелки выпадающего списка
     caretDown: {
-      fontSize: '8px', // Уменьшаем размер стрелки
-      padding: '0 2px', // Уменьшаем отступы вокруг стрелки
+      fontSize: '8px',
+      padding: '0 2px',
       right: '2px',
       ...(isDeleted && {
         color: '#aaa'
@@ -91,35 +101,61 @@ export const TimeCell: React.FC<ITimeCellProps> = ({
     }
   };
   
+  // Инлайн-стиль для контейнера Dropdown
+  const dropdownContainerStyle: React.CSSProperties = {
+    display: 'inline-block',
+    margin: '0 1px',
+    width: '40px',
+    minWidth: '40px',
+    maxWidth: '40px'
+  };
+  
+  // Инлайн-стиль для разделителя
+  const separatorStyle: React.CSSProperties = {
+    margin: '0 1px',
+    fontWeight: 'bold',
+    fontSize: '12px',
+    display: 'inline-block',
+    verticalAlign: 'middle',
+    ...(isDeleted && {
+      color: '#888',
+      textDecoration: 'line-through'
+    })
+  };
+  
   return (
-    <div className={cellClassName}>
-      <Dropdown
-        options={hoursOptions}
-        selectedKey={hours}
-        onChange={(e, option) => {
-          if (!isDeleted && option) {
-            onTimeChange(rowIndex, dayKey, 'hours', option.key as string || '00');
-          }
-        }}
-        disabled={isDeleted} // Блокируем выпадающий список для удаленных строк
-        styles={dropdownStyles}
-        ariaLabel={`Hours for ${dayKey}`}
-        dropdownWidth={40} // Явно устанавливаем ширину выпадающего списка
-      />
-      <span className={`${styles.timeSeparator} ${isDeleted ? styles.deletedText : ''}`}>:</span>
-      <Dropdown
-        options={minutesOptions}
-        selectedKey={minutes}
-        onChange={(e, option) => {
-          if (!isDeleted && option) {
-            onTimeChange(rowIndex, dayKey, 'minutes', option.key as string || '00');
-          }
-        }}
-        disabled={isDeleted} // Блокируем выпадающий список для удаленных строк
-        styles={dropdownStyles}
-        ariaLabel={`Minutes for ${dayKey}`}
-        dropdownWidth={40} // Явно устанавливаем ширину выпадающего списка
-      />
+    <div className={cellClassName} style={cellContainerStyle}>
+      <div style={dropdownContainerStyle}>
+        <Dropdown
+          options={hoursOptions}
+          selectedKey={hours}
+          onChange={(e, option) => {
+            if (!isDeleted && option) {
+              onTimeChange(rowIndex, dayKey, 'hours', option.key as string || '00');
+            }
+          }}
+          disabled={isDeleted}
+          styles={dropdownStyles}
+          ariaLabel={`Hours for ${dayKey}`}
+          dropdownWidth={40}
+        />
+      </div>
+      <span style={separatorStyle}>:</span>
+      <div style={dropdownContainerStyle}>
+        <Dropdown
+          options={minutesOptions}
+          selectedKey={minutes}
+          onChange={(e, option) => {
+            if (!isDeleted && option) {
+              onTimeChange(rowIndex, dayKey, 'minutes', option.key as string || '00');
+            }
+          }}
+          disabled={isDeleted}
+          styles={dropdownStyles}
+          ariaLabel={`Minutes for ${dayKey}`}
+          dropdownWidth={40}
+        />
+      </div>
     </div>
   );
 };
