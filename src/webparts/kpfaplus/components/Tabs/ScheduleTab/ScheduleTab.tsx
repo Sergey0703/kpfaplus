@@ -14,6 +14,7 @@ import { ITabProps } from '../../../models/types';
 import { IContract } from '../../../models/IContract';
 import { ContractsService } from '../../../services/ContractsService';
 import { HolidaysService, IHoliday } from '../../../services/HolidaysService';
+import { DaysOfLeavesService, ILeaveDay } from '../../../services/DaysOfLeavesService';
 import styles from './ScheduleTab.module.scss';
 
 export interface IScheduleTabState {
@@ -24,6 +25,8 @@ export interface IScheduleTabState {
   error?: string;
   holidays: IHoliday[];
   isLoadingHolidays: boolean;
+  leaves: ILeaveDay[];
+  isLoadingLeaves: boolean;
 }
 
 export const ScheduleTab: React.FC<ITabProps> = (props) => {
@@ -36,7 +39,9 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
     selectedContractId: undefined,
     isLoading: false,
     holidays: [],
-    isLoadingHolidays: false
+    isLoadingHolidays: false,
+    leaves: [],
+    isLoadingLeaves: false
   });
   
   // Создаем сервисы
@@ -47,12 +52,18 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
   const holidaysService = context
     ? HolidaysService.getInstance(context)
     : undefined;
+    
+  const daysOfLeavesService = context
+    ? DaysOfLeavesService.getInstance(context)
+    : undefined;
   
   // Для удобства создаем отдельные функции-обработчики для обновления состояния
   const setSelectedDate = (date: Date) => {
     setState(prevState => ({ ...prevState, selectedDate: date }));
     // Загружаем праздники для года выбранной даты
     fetchHolidaysForYear(date.getFullYear());
+    // Загружаем отпуска для месяца и года выбранной даты
+    fetchLeavesForMonthAndYear(date);
   };
   
   const setSelectedContractId = (contractId?: string) => {
@@ -79,6 +90,14 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
     setState(prevState => ({ ...prevState, isLoadingHolidays }));
   };
   
+  const setLeaves = (leaves: ILeaveDay[]) => {
+    setState(prevState => ({ ...prevState, leaves }));
+  };
+  
+  const setIsLoadingLeaves = (isLoadingLeaves: boolean) => {
+    setState(prevState => ({ ...prevState, isLoadingLeaves }));
+  };
+  
   // Функция для загрузки праздников для конкретного года
   const fetchHolidaysForYear = async (year: number): Promise<void> => {
     if (!holidaysService) return;
@@ -102,6 +121,43 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
       setError(`Failed to load holidays. ${err instanceof Error ? err.message : ''}`);
     } finally {
       setIsLoadingHolidays(false);
+    }
+  };
+  
+  // Функция для загрузки отпусков для месяца и года
+  const fetchLeavesForMonthAndYear = async (date: Date): Promise<void> => {
+    if (!daysOfLeavesService || !selectedStaff?.employeeId) return;
+    
+    setIsLoadingLeaves(true);
+    
+    try {
+      // Получаем ID сотрудника, менеджера и группы
+      const staffMemberId = parseInt(selectedStaff.employeeId);
+      const managerId = props.currentUserId ? parseInt(props.currentUserId) : 0;
+      const staffGroupId = props.managingGroupId ? parseInt(props.managingGroupId) : 0;
+      
+      console.log(`[ScheduleTab] Fetching leaves for date: ${date.toLocaleDateString()}, staffMemberId: ${staffMemberId}, managerId: ${managerId}, staffGroupId: ${staffGroupId}`);
+      
+      const leavesData = await daysOfLeavesService.getLeavesForMonthAndYear(
+        date,
+        staffMemberId,
+        managerId,
+        staffGroupId
+      );
+      
+      console.log(`[ScheduleTab] Retrieved ${leavesData.length} leaves for month ${date.getMonth() + 1} and year ${date.getFullYear()}`);
+      setLeaves(leavesData);
+      
+      // Логируем первые несколько отпусков для проверки
+      if (leavesData.length > 0) {
+        const sampleLeaves = leavesData.slice(0, 3);
+        console.log("[ScheduleTab] Sample leaves:", sampleLeaves);
+      }
+    } catch (err) {
+      console.error(`Error fetching leaves for month ${date.getMonth() + 1} and year ${date.getFullYear()}:`, err);
+      setError(`Failed to load leaves. ${err instanceof Error ? err.message : ''}`);
+    } finally {
+      setIsLoadingLeaves(false);
     }
   };
   
@@ -173,6 +229,15 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [holidaysService]);
   
+  // Загружаем отпуска при монтировании компонента
+  useEffect(() => {
+    if (daysOfLeavesService && selectedStaff?.employeeId) {
+      fetchLeavesForMonthAndYear(state.selectedDate)
+        .catch(err => console.error('Error in fetchLeavesForMonthAndYear:', err));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [daysOfLeavesService, selectedStaff]);
+  
   // Загружаем праздники при изменении года в выбранной дате
   useEffect(() => {
     const selectedYear = state.selectedDate.getFullYear();
@@ -201,13 +266,35 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
   const handleDateChange = (date: Date | null | undefined): void => {
     if (date) {
       console.log(`[ScheduleTab] Date changed to: ${date.toLocaleDateString()}`);
+      
+      // Проверяем, изменился ли месяц или год
+      const currentMonth = state.selectedDate.getMonth();
+      const currentYear = state.selectedDate.getFullYear();
+      const newMonth = date.getMonth();
+      const newYear = date.getFullYear();
+      
+      // Устанавливаем новую выбранную дату
       setSelectedDate(date);
+      
+      // Если изменился месяц или год, загружаем новые данные об отпусках
+      if (currentMonth !== newMonth || currentYear !== newYear) {
+        console.log(`[ScheduleTab] Month or year changed from ${currentMonth+1}/${currentYear} to ${newMonth+1}/${newYear}`);
+        fetchLeavesForMonthAndYear(date);
+      }
       
       // Проверяем, является ли выбранная дата праздником
       if (holidaysService && state.holidays.length > 0) {
         const holidayInfo = holidaysService.getHolidayInfo(date, state.holidays);
         if (holidayInfo) {
           console.log(`[ScheduleTab] Selected date is a holiday: ${holidayInfo.title}`);
+        }
+      }
+      
+      // Проверяем, является ли выбранная дата отпуском
+      if (daysOfLeavesService && state.leaves.length > 0) {
+        const leaveInfo = daysOfLeavesService.getLeaveForDate(date, state.leaves);
+        if (leaveInfo) {
+          console.log(`[ScheduleTab] Selected date is on leave: ${leaveInfo.title}`);
         }
       }
     }
@@ -307,34 +394,58 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
               minHeight: '300px',
               backgroundColor: 'white'
             }}>
-              {/* Проверяем, является ли выбранная дата праздником */}
-              {state.holidays.length > 0 && holidaysService && holidaysService.isHoliday(state.selectedDate, state.holidays) ? (
-                <div style={{ 
-                  backgroundColor: '#FFF4CE',
-                  padding: '10px',
-                  marginBottom: '15px',
-                  borderRadius: '4px',
-                  borderLeft: '4px solid #FFB900'
-                }}>
-                  <strong>Holiday: </strong>
-                  {holidaysService.getHolidayInfo(state.selectedDate, state.holidays)?.title || 'Holiday'}
-                </div>
-              ) : null}
+              {/* Проверяем статусы - является ли выбранная дата праздником или отпуском */}
+              <div style={{ marginBottom: '15px' }}>
+                {state.holidays.length > 0 && holidaysService && holidaysService.isHoliday(state.selectedDate, state.holidays) ? (
+                  <div style={{ 
+                    backgroundColor: '#FFF4CE',
+                    padding: '10px',
+                    marginBottom: '10px',
+                    borderRadius: '4px',
+                    borderLeft: '4px solid #FFB900'
+                  }}>
+                    <strong>Holiday: </strong>
+                    {holidaysService.getHolidayInfo(state.selectedDate, state.holidays)?.title || 'Holiday'}
+                  </div>
+                ) : null}
+                
+                {state.leaves.length > 0 && daysOfLeavesService && daysOfLeavesService.isDateOnLeave(state.selectedDate, state.leaves) ? (
+                  <div style={{ 
+                    backgroundColor: '#E8F5FF',
+                    padding: '10px',
+                    marginBottom: '10px',
+                    borderRadius: '4px',
+                    borderLeft: '4px solid #0078D4'
+                  }}>
+                    <strong>Leave: </strong>
+                    {daysOfLeavesService.getLeaveForDate(state.selectedDate, state.leaves)?.title || 'On Leave'}
+                  </div>
+                ) : null}
+              </div>
               
-              {/* Показываем индикатор загрузки для праздников, если они загружаются */}
-              {state.isLoadingHolidays ? (
+              {/* Показываем индикаторы загрузки, если они загружаются */}
+              {(state.isLoadingHolidays || state.isLoadingLeaves) ? (
                 <div style={{ padding: '10px', textAlign: 'center' }}>
-                  <Spinner size={SpinnerSize.small} label="Loading holidays data..." />
+                  {state.isLoadingHolidays && <Spinner size={SpinnerSize.small} label="Loading holidays data..." style={{ marginBottom: '10px' }} />}
+                  {state.isLoadingLeaves && <Spinner size={SpinnerSize.small} label="Loading leaves data..." />}
                 </div>
               ) : (
                 <div style={{ padding: '10px' }}>
                   <div>
                     <p>Selected date: {state.selectedDate.toLocaleDateString()}</p>
-                    {state.holidays.length > 0 ? (
-                      <p>Successfully loaded {state.holidays.length} holidays for year {state.selectedDate.getFullYear()}</p>
-                    ) : (
-                      <p>No holidays loaded for year {state.selectedDate.getFullYear()}</p>
-                    )}
+                    <p>Month: {state.selectedDate.getMonth() + 1}/{state.selectedDate.getFullYear()}</p>
+                    
+                    <div style={{ marginTop: '10px' }}>
+                      <div>
+                        <strong>Holidays: </strong>
+                        {state.holidays.length > 0 ? state.holidays.length : 'No'} holidays loaded for year {state.selectedDate.getFullYear()}
+                      </div>
+                      
+                      <div>
+                        <strong>Leaves: </strong>
+                        {state.leaves.length > 0 ? state.leaves.length : 'No'} leaves found for month {state.selectedDate.getMonth() + 1}/{state.selectedDate.getFullYear()}
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}

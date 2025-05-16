@@ -6,8 +6,8 @@ import { RemoteSiteService } from "./RemoteSiteService";
 export interface ILeaveDay {
   id: string;
   title: string;
-  startDate: Date;
-  endDate: Date;
+  startDate: Date;   // Дата начала отпуска (поле Date в SharePoint)
+  endDate: Date;     // Дата окончания отпуска (поле Date2 в SharePoint)
   staffMemberId: number;
   managerId: number;
   staffGroupId: number;
@@ -68,6 +68,27 @@ export class DaysOfLeavesService {
       
       this.logInfo(`Fetching leaves for year: ${year}, month: ${month}, staff: ${staffMemberId}, manager: ${managerId}, group: ${staffGroupId}`);
       
+      try {
+        // Сначала пробуем получить список всех отпусков без фильтрации
+        // Это поможет определить структуру полей
+        const sampleItems = await this._remoteSiteService.getListItems(
+          this._listName,
+          true, // expandFields
+          undefined,
+          { field: "Date", ascending: true }
+        );
+        
+        this.logInfo(`Retrieved ${sampleItems.length} sample items to analyze field structure`);
+        
+        if (sampleItems.length > 0) {
+          const sampleItem = sampleItems[0];
+          this.logInfo(`Sample item structure: ${JSON.stringify(sampleItem, null, 2)}`);
+        }
+      } catch (sampleError) {
+        this.logError(`Error getting sample items: ${sampleError}`);
+        // Продолжаем выполнение, так как это только для отладки
+      }
+      
       // Формируем строки с первым и последним днем месяца для фильтрации
       const firstDayOfMonth = new Date(year, month - 1, 1);
       const lastDayOfMonth = new Date(year, month, 0);
@@ -95,9 +116,9 @@ export class DaysOfLeavesService {
         filter += ` and fields/StaffGroupLookupId eq ${staffGroupId}`;
       }
       
-      // Добавляем фильтр по Date1 и Date2
-      // Date1 <= lastDayOfMonth AND Date2 >= firstDayOfMonth
-      filter += ` and fields/Date1 le '${lastDayStr}' and fields/Date2 ge '${firstDayStr}'`;
+      // Добавляем фильтр по Date и Date2 (исправлено с Date1 на Date)
+      // Date <= lastDayOfMonth AND Date2 >= firstDayOfMonth
+      filter += ` and fields/Date le '${lastDayStr}' and fields/Date2 ge '${firstDayStr}'`;
       
       // Добавляем фильтр по Deleted
       filter += ` and (fields/Deleted eq null or fields/Deleted ne 1)`;
@@ -109,7 +130,7 @@ export class DaysOfLeavesService {
         this._listName,
         true, // expandFields
         filter,
-        { field: "Date1", ascending: true } // сортировка по дате начала
+        { field: "Date", ascending: true } // сортировка по дате начала
       );
       
       this.logInfo(`Retrieved ${items.length} leave days with server-side filtering`);
@@ -178,13 +199,13 @@ export class DaysOfLeavesService {
           const fields = item.fields || {};
           
           // Проверка наличия обязательных полей
-          if (!fields.Date1 || !fields.Date2) {
+          if (!fields.Date || !fields.Date2) {
             this.logError(`Missing required date fields for leave item ${item.id}`);
             return null;
           }
           
           // Преобразуем строки дат в объекты Date
-          const startDate = new Date(fields.Date1);
+          const startDate = new Date(fields.Date);
           const endDate = new Date(fields.Date2);
           
           if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
