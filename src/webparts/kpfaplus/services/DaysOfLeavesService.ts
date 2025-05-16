@@ -130,7 +130,7 @@ export class DaysOfLeavesService {
         this._listName,
         true, // expandFields
         filter,
-        { field: "Date", ascending: true } // сортировка по дате начала
+        { field: "Date", ascending: true } // сортировка по дате начала (исправлено с Date1 на Date)
       );
       
       this.logInfo(`Retrieved ${items.length} leave days with server-side filtering`);

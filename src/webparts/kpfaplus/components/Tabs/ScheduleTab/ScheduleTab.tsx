@@ -60,8 +60,8 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
   // Для удобства создаем отдельные функции-обработчики для обновления состояния
   const setSelectedDate = (date: Date) => {
     setState(prevState => ({ ...prevState, selectedDate: date }));
-    // Загружаем праздники для года выбранной даты
-    fetchHolidaysForYear(date.getFullYear());
+    // Загружаем праздники для месяца и года выбранной даты
+    fetchHolidaysForMonthAndYear(date);
     // Загружаем отпуска для месяца и года выбранной даты
     fetchLeavesForMonthAndYear(date);
   };
@@ -98,17 +98,25 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
     setState(prevState => ({ ...prevState, isLoadingLeaves }));
   };
   
-  // Функция для загрузки праздников для конкретного года
-  const fetchHolidaysForYear = async (year: number): Promise<void> => {
+  /**
+   * Функция для загрузки праздников для конкретного месяца и года
+   * @param date Дата для определения месяца и года
+   */
+  const fetchHolidaysForMonthAndYear = async (date: Date): Promise<void> => {
     if (!holidaysService) return;
     
     setIsLoadingHolidays(true);
     
     try {
-      console.log(`[ScheduleTab] Fetching holidays for year: ${year}`);
-      const holidaysData = await holidaysService.getHolidaysByYear(year);
+      const year = date.getFullYear();
+      const month = date.getMonth() + 1; // +1 потому что getMonth() возвращает 0-11
       
-      console.log(`[ScheduleTab] Retrieved ${holidaysData.length} holidays for year ${year}`);
+      console.log(`[ScheduleTab] Fetching holidays for year: ${year}, month: ${month}`);
+      
+      // Используем новый метод для получения праздников за месяц с фильтрацией на сервере
+      const holidaysData = await holidaysService.getHolidaysByMonthAndYear(date);
+      
+      console.log(`[ScheduleTab] Retrieved ${holidaysData.length} holidays for month ${month}/${year}`);
       setHolidays(holidaysData);
       
       // Логируем первые несколько праздников для проверки
@@ -117,7 +125,7 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
         console.log("[ScheduleTab] Sample holidays:", sampleHolidays);
       }
     } catch (err) {
-      console.error(`Error fetching holidays for year ${year}:`, err);
+      console.error(`Error fetching holidays for month ${date.getMonth() + 1} and year ${date.getFullYear()}:`, err);
       setError(`Failed to load holidays. ${err instanceof Error ? err.message : ''}`);
     } finally {
       setIsLoadingHolidays(false);
@@ -219,39 +227,19 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedStaff, contractsService]);
   
-  // Загружаем праздники для текущего года при монтировании компонента
+  // Загружаем праздники и отпуска при монтировании компонента
   useEffect(() => {
     if (holidaysService) {
-      const currentYear = new Date().getFullYear();
-      fetchHolidaysForYear(currentYear)
-        .catch(err => console.error('Error in fetchHolidaysForYear:', err));
+      fetchHolidaysForMonthAndYear(state.selectedDate)
+        .catch(err => console.error('Error in fetchHolidaysForMonthAndYear:', err));
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [holidaysService]);
-  
-  // Загружаем отпуска при монтировании компонента
-  useEffect(() => {
+    
     if (daysOfLeavesService && selectedStaff?.employeeId) {
       fetchLeavesForMonthAndYear(state.selectedDate)
         .catch(err => console.error('Error in fetchLeavesForMonthAndYear:', err));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [daysOfLeavesService, selectedStaff]);
-  
-  // Загружаем праздники при изменении года в выбранной дате
-  useEffect(() => {
-    const selectedYear = state.selectedDate.getFullYear();
-    
-    // Проверяем, есть ли уже праздники для этого года
-    const hasHolidaysForSelectedYear = state.holidays.some(h => h.date.getFullYear() === selectedYear);
-    
-    // Если нет праздников для выбранного года, загружаем их
-    if (!hasHolidaysForSelectedYear && holidaysService && !state.isLoadingHolidays) {
-      fetchHolidaysForYear(selectedYear)
-        .catch(err => console.error('Error in fetchHolidaysForYear (year change):', err));
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.selectedDate]);
+  }, [holidaysService, daysOfLeavesService, selectedStaff]);
   
   // Преобразуем контракты в опции для выпадающего списка
   const contractOptions: IDropdownOption[] = state.contracts.map(contract => ({
@@ -276,9 +264,10 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
       // Устанавливаем новую выбранную дату
       setSelectedDate(date);
       
-      // Если изменился месяц или год, загружаем новые данные об отпусках
+      // Если изменился месяц или год, загружаем новые данные о праздниках и отпусках
       if (currentMonth !== newMonth || currentYear !== newYear) {
         console.log(`[ScheduleTab] Month or year changed from ${currentMonth+1}/${currentYear} to ${newMonth+1}/${newYear}`);
+        fetchHolidaysForMonthAndYear(date);
         fetchLeavesForMonthAndYear(date);
       }
       
@@ -438,7 +427,7 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
                     <div style={{ marginTop: '10px' }}>
                       <div>
                         <strong>Holidays: </strong>
-                        {state.holidays.length > 0 ? state.holidays.length : 'No'} holidays loaded for year {state.selectedDate.getFullYear()}
+                        {state.holidays.length > 0 ? state.holidays.length : 'No'} holidays loaded for month {state.selectedDate.getMonth() + 1}/{state.selectedDate.getFullYear()}
                       </div>
                       
                       <div>

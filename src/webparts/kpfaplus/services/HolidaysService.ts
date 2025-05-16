@@ -118,6 +118,52 @@ export class HolidaysService {
   }
 
   /**
+   * Получение праздников для конкретного месяца и года с фильтрацией на сервере
+   * @param date Дата, содержащая месяц и год для фильтрации
+   * @returns Promise с массивом праздников для указанного месяца и года
+   */
+  public async getHolidaysByMonthAndYear(date: Date): Promise<IHoliday[]> {
+    try {
+      const year = date.getFullYear();
+      const month = date.getMonth() + 1; // +1 потому что getMonth() возвращает 0-11
+      
+      this.logInfo(`Fetching holidays for year: ${year}, month: ${month}`);
+      
+      // Формируем строки с первым и последним днем месяца для фильтрации
+      const firstDayOfMonth = new Date(year, month - 1, 1);
+      const lastDayOfMonth = new Date(year, month, 0);
+      
+      // Форматируем даты в ISO строки для фильтрации
+      const firstDayStr = this.formatDateForFilter(firstDayOfMonth);
+      const lastDayStr = this.formatDateForFilter(lastDayOfMonth);
+      
+      // Строим фильтр для запроса - выбираем праздники, которые попадают в указанный месяц
+      // Date >= firstDayOfMonth AND Date <= lastDayOfMonth
+      const filter = `fields/Date ge '${firstDayStr}' and fields/Date le '${lastDayStr}'`;
+      
+      this.logInfo(`Using filter: ${filter}`);
+      
+      // Выполняем запрос к SharePoint с фильтром на сервере
+      const items = await this._remoteSiteService.getListItems(
+        this._listName,
+        true, // expandFields
+        filter,
+        { field: "Date", ascending: true } // сортировка по дате
+      );
+      
+      this.logInfo(`Retrieved ${items.length} holidays with server-side filtering for month ${month}/${year}`);
+      
+      // Преобразуем данные из SharePoint в формат IHoliday
+      const holidays = this.mapToHolidays(items as IRawHolidayItem[]);
+      
+      return holidays;
+    } catch (error) {
+      this.logError(`Error fetching holidays for month ${date.getMonth() + 1}/${date.getFullYear()}: ${error}`);
+      return [];
+    }
+  }
+
+  /**
    * Проверяет, является ли указанная дата праздничным днем
    * @param date Дата для проверки
    * @param holidays Массив праздников для проверки
@@ -156,6 +202,16 @@ export class HolidaysService {
    */
   private formatDateForComparison(date: Date): string {
     return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+  }
+
+  /**
+   * Форматирует дату для использования в фильтре запроса
+   * @param date Дата для форматирования
+   * @returns Строка даты в формате для фильтра SharePoint
+   */
+  private formatDateForFilter(date: Date): string {
+    // Формат ISO для SharePoint: YYYY-MM-DDT00:00:00Z
+    return date.toISOString().split('T')[0] + 'T00:00:00Z';
   }
 
   /**
