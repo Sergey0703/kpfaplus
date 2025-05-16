@@ -139,6 +139,50 @@ export const fetchLeavesForMonthAndYear = async (
 };
 
 /**
+* Проверяет, активен ли контракт в указанном месяце
+* @param contract Контракт для проверки
+* @param date Дата, для определения месяца и года
+* @returns true если контракт активен в указанном месяце, иначе false
+*/
+export const isContractActiveInMonth = (contract: IContract, date: Date): boolean => {
+ // Контракт должен иметь дату начала
+ if (!contract.startDate) {
+   return false;
+ }
+ 
+ // Получаем первый и последний день месяца для выбранной даты
+ const year = date.getFullYear();
+ const month = date.getMonth();
+ const firstDayOfMonth = new Date(year, month, 1);
+ const lastDayOfMonth = new Date(year, month + 1, 0);
+ 
+ // Нормализуем даты - только год, месяц, день, без времени
+ firstDayOfMonth.setHours(0, 0, 0, 0);
+ lastDayOfMonth.setHours(23, 59, 59, 999);
+ 
+ const startDate = new Date(contract.startDate);
+ startDate.setHours(0, 0, 0, 0);
+ 
+ // Проверяем дату начала контракта
+ // Контракт должен начаться не позже последнего дня месяца
+ if (startDate > lastDayOfMonth) {
+   return false;
+ }
+ 
+ // Если нет даты окончания, контракт активен
+ if (!contract.finishDate) {
+   return true;
+ }
+ 
+ const finishDate = new Date(contract.finishDate);
+ finishDate.setHours(23, 59, 59, 999);
+ 
+ // Проверяем дату окончания контракта
+ // Контракт должен закончиться не раньше первого дня месяца
+ return finishDate >= firstDayOfMonth;
+};
+
+/**
 * Функция для загрузки контрактов сотрудника
 */
 export const fetchContracts = async (
@@ -149,7 +193,8 @@ export const fetchContracts = async (
  setIsLoading?: (isLoading: boolean) => void,
  setContracts?: (contracts: IContract[]) => void,
  setSelectedContractId?: (contractId?: string) => void,
- setError?: (error?: string) => void
+ setError?: (error?: string) => void,
+ selectedDate?: Date
 ): Promise<IContract[]> => {
  const contractsService = ContractsService.getInstance(context);
  if (!contractsService || !employeeId) return [];
@@ -173,21 +218,35 @@ export const fetchContracts = async (
      staffGroupId
    );
    
-   console.log(`[ScheduleTab] Retrieved ${contractsData.length} contracts`);
+   console.log(`[ScheduleTab] Retrieved ${contractsData.length} total contracts`);
    
-   // Фильтруем только активные контракты
-   const activeContracts = contractsData.filter(contract => !contract.isDeleted);
+   // Фильтруем только не удаленные контракты
+   let filteredContracts = contractsData.filter(contract => !contract.isDeleted);
+   
+   // Если указана дата, фильтруем контракты по активности в выбранном месяце
+   if (selectedDate) {
+     const dateForFilter = new Date(selectedDate);
+     
+     filteredContracts = filteredContracts.filter(contract => 
+       isContractActiveInMonth(contract, dateForFilter)
+     );
+     
+     console.log(`[ScheduleTab] Filtered to ${filteredContracts.length} contracts active in month ${selectedDate.getMonth() + 1}/${selectedDate.getFullYear()}`);
+   }
    
    if (setContracts) {
-     setContracts(activeContracts);
+     setContracts(filteredContracts);
    }
    
    // Если есть контракты, выбираем первый
-   if (activeContracts.length > 0 && setSelectedContractId) {
-     setSelectedContractId(activeContracts[0].id);
+   if (filteredContracts.length > 0 && setSelectedContractId) {
+     setSelectedContractId(filteredContracts[0].id);
+   } else if (filteredContracts.length === 0 && setSelectedContractId) {
+     // Если контрактов нет, сбрасываем выбранный ID
+     setSelectedContractId(undefined);
    }
    
-   return activeContracts;
+   return filteredContracts;
  } catch (err) {
    console.error('Error fetching contracts:', err);
    if (setError) {

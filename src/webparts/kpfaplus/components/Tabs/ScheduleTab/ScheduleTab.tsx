@@ -103,6 +103,9 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
      // Загружаем праздники и отпуска для нового месяца
      loadDataForDate(date);
    }
+   
+   // Загружаем контракты с учетом новой даты в любом случае
+   loadContracts(date);
  };
  
  // Загружаем данные для указанной даты
@@ -146,9 +149,12 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
    );
  };
  
- // Загружаем контракты сотрудника
- const loadContracts = (): void => {
+ // Загружаем контракты сотрудника с учетом даты
+ const loadContracts = (date?: Date): void => {
    if (!context || !selectedStaff?.employeeId) return;
+   
+   // Используем переданную дату или текущую выбранную дату
+   const dateToUse = date || state.selectedDate;
    
    fetchContracts(
      context,
@@ -158,7 +164,8 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
      updateState.isLoading,
      updateState.contracts,
      updateState.selectedContractId,
-     updateState.error
+     updateState.error,
+     dateToUse  // Передаем дату для фильтрации контрактов
    );
  };
  
@@ -177,7 +184,7 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
  // Загружаем контракты при монтировании компонента или изменении сотрудника
  useEffect(() => {
    if (selectedStaff?.id && context) {
-     loadContracts();
+     loadContracts(state.selectedDate);
    } else {
      updateState.contracts([]);
    }

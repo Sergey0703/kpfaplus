@@ -401,7 +401,7 @@ export const ContractsTable: React.FC<IContractsTableProps> = (props) => {
               paddingBottom: '10px',
               marginBottom: '20px'
             }}>
-              <h2 style={{ margin: 0 }}>{currentContract.id ? "Редактировать контракт" : "Добавить новый контракт"}</h2>
+              <h2 style={{ margin: 0 }}>{currentContract.id ? "Edit Contract" : "Add new Contract"}</h2>
               <button 
                 onClick={onPanelDismiss}
                 style={{
