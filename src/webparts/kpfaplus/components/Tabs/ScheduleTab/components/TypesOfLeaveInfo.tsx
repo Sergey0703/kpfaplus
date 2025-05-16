@@ -27,7 +27,8 @@ const isColorDark = (colorHex?: string): boolean => {
     
     // Если яркость ниже 128, считаем цвет темным
     return brightness < 128;
-  } catch (e) {
+  } catch {
+    // Удалили неиспользуемую переменную 'e'
     return false;
   }
 };

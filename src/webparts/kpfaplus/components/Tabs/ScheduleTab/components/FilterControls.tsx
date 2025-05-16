@@ -8,7 +8,7 @@ export interface IFilterControlsProps {
   contracts: IContract[];
   selectedContractId?: string;
   isLoading: boolean;
-  onDateChange: (date: Date | null | undefined) => void;
+  onDateChange: (date: Date | undefined) => void; // заменили null на undefined
   onContractChange: (event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption) => void;
 }
 
