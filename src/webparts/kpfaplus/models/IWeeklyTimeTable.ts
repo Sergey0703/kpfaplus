@@ -416,6 +416,6 @@ export class WeeklyTimeTableUtils {
     const hours = Math.floor(totalMinutes / 60);
     const minutes = totalMinutes % 60;
     
-    return `${hours}ч:${minutes.toString().padStart(2, '0')}м`;
+    return `${hours}h:${minutes.toString().padStart(2, '0')}m`;
   }
 }

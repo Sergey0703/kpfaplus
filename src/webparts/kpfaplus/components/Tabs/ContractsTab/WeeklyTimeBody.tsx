@@ -10,7 +10,7 @@ import {
   ContractCell,
   TotalHoursCell
 } from './WeeklyTimeTableCells';
-import { ActionsCell } from './WeeklyTimeTableButtons';
+//import { ActionsCell } from './WeeklyTimeTableButtons';
 
 // Интерфейс для пропсов компонента WeeklyTimeBody
 export interface IWeeklyTimeBodyProps {
@@ -64,7 +64,7 @@ export const WeeklyTimeBody: React.FC<IWeeklyTimeBodyProps> = (props) => {
             {/* Уменьшаем ширину колонки Contract */}
             <th className={styles.totalColumn} style={{ width: '50px', minWidth: '50px', maxWidth: '50px' }}>Contract</th>
             {/* Уменьшаем ширину колонки с ID и левый отступ */}
-            <th className={styles.actionsColumn} style={{ width: '45px', minWidth: '45px', maxWidth: '45px', paddingLeft: '0px' }} />
+            <th className={styles.actionsColumn} style={{ width: '45px', minWidth: '45px', maxWidth: '45px', paddingLeft: '0px' }}>ID</th>
           </tr>
         </thead>
         <tbody>
@@ -153,7 +153,7 @@ export const WeeklyTimeBody: React.FC<IWeeklyTimeBodyProps> = (props) => {
                       onContractChange={handleContractChange}
                     />
                     <div className={`${styles.contractInfo} ${isDeleted ? styles.deletedText : ''}`}>
-                      {row.totalHours || '0ч:00м'}
+                      {row.totalHours || '0h:00m'}
                     </div>
                   </td>
                   
@@ -168,19 +168,18 @@ export const WeeklyTimeBody: React.FC<IWeeklyTimeBodyProps> = (props) => {
                         console.log(`Row ${rowIndex}, ID=${row.id}: canDelete=${canDelete}`);
                         
                         if (canDelete) {
-                          // Если строку можно удалить, показываем кнопку удаления
+                          // Модифицированная структура - кнопка удаления и ID в одной ячейке
                           return (
-                            <ActionsCell
-                              rowId={row.id}
-                              renderDeleteButton={() => renderDeleteButton(rowIndex)}
-                              isDeleted={false}
-                            />
+                            <div className={styles.actionsContainer} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                              {renderDeleteButton(rowIndex)}
+                              <span style={{ fontSize: '10px', color: '#666', marginTop: '4px' }}>ID: {row.id}</span>
+                            </div>
                           );
                         } else {
                           // Если строку нельзя удалить, показываем только ID
                           return (
-                            <div className={styles.actionsContainer}>
-                              <span style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>ID: {row.id}</span>
+                            <div className={styles.actionsContainer} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                              <span style={{ fontSize: '10px', color: '#666', marginTop: '4px' }}>ID: {row.id}</span>
                             </div>
                           );
                         }
@@ -191,19 +190,18 @@ export const WeeklyTimeBody: React.FC<IWeeklyTimeBodyProps> = (props) => {
                         console.log(`Row ${rowIndex}, ID=${row.id}: canRestore=${canRestore}`);
                         
                         if (canRestore) {
-                          // Если строку можно восстановить, показываем кнопку восстановления
+                          // Модифицированная структура - кнопка восстановления и ID в одной ячейке
                           return (
-                            <ActionsCell
-                              rowId={row.id}
-                              renderDeleteButton={() => renderDeleteButton(rowIndex)}
-                              isDeleted={true}
-                            />
+                            <div className={styles.actionsContainer} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                              {renderDeleteButton(rowIndex)}
+                              <span style={{ fontSize: '10px', color: '#666', marginTop: '4px' }}>ID: {row.id}</span>
+                            </div>
                           );
                         } else {
                           // Если строку нельзя восстановить, показываем только ID
                           return (
-                            <div className={styles.actionsContainer}>
-                              <span style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>ID: {row.id}</span>
+                            <div className={styles.actionsContainer} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                              <span style={{ fontSize: '10px', color: '#666', marginTop: '4px' }}>ID: {row.id}</span>
                             </div>
                           );
                         }

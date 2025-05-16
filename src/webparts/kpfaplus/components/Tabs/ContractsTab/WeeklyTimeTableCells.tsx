@@ -358,8 +358,8 @@ export const TotalHoursCell: React.FC<ITotalHoursCellProps> = ({
   return (
     <div className={styles.totalHoursContainer}>
       {isFirstRowInTemplate && (
-        <div className={`${styles.totalHoursValue} ${isDeleted ? styles.deletedText : ''}`}>
-          {row.displayedTotalHours || row.totalHours || '0ч:00м'}
+        <div className={`${styles.totalHoursValue} ${isDeleted ? styles.deletedText : ''}`} style={{ fontWeight: 'bold', fontSize: '14px', color: '#0078d4' }}>
+          {row.displayedTotalHours || row.totalHours || '0h:00m'}
           
           {/* Для удаленных строк добавляем пояснение, что время не учитывается */}
           {isDeleted && (
