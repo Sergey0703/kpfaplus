@@ -5,13 +5,24 @@ import { IHoliday } from '../../../../services/HolidaysService';
 import { ITypeOfLeave } from '../../../../services/TypeOfLeaveService';
 import { getLeaveTypeInfo, getLeaveTypeText } from '../ScheduleTabApi';
 
+// Интерфейсы для сервисов, чтобы избежать использования any
+interface IHolidaysService {
+  isHoliday: (date: Date, holidays: IHoliday[]) => boolean;
+  getHolidayInfo: (date: Date, holidays: IHoliday[]) => IHoliday | undefined;
+}
+
+interface IDaysOfLeavesService {
+  isDateOnLeave: (date: Date, leaves: ILeaveDay[]) => boolean;
+  getLeaveForDate: (date: Date, leaves: ILeaveDay[]) => ILeaveDay | undefined;
+}
+
 export interface IDayInfoProps {
   selectedDate: Date;
   holidays: IHoliday[];
   leaves: ILeaveDay[];
   typesOfLeave: ITypeOfLeave[];
-  holidaysService?: any;
-  daysOfLeavesService?: any;
+  holidaysService?: IHolidaysService;
+  daysOfLeavesService?: IDaysOfLeavesService;
 }
 
 export const DayInfo: React.FC<IDayInfoProps> = ({ 

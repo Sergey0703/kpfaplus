@@ -21,6 +21,22 @@ import { DayInfo } from './components/DayInfo';
 import { MonthSummary } from './components/MonthSummary';
 import { TypesOfLeaveInfo } from './components/TypesOfLeaveInfo';
 
+// Интерфейс для типизации сервисов
+interface IHolidaysService {
+  isHoliday: (date: Date, holidays: IHoliday[]) => boolean;
+  getHolidayInfo: (date: Date, holidays: IHoliday[]) => IHoliday | undefined;
+}
+
+interface IDaysOfLeavesService {
+  isDateOnLeave: (date: Date, leaves: ILeaveDay[]) => boolean;
+  getLeaveForDate: (date: Date, leaves: ILeaveDay[]) => ILeaveDay | undefined;
+}
+
+interface ITypeOfLeaveService {
+  getAllTypesOfLeave: (forceRefresh?: boolean) => Promise<ITypeOfLeave[]>;
+  getTypeOfLeaveById: (id: string | number) => Promise<ITypeOfLeave | undefined>;
+}
+
 // Интерфейс для передачи необходимых свойств в UI компоненты
 export interface IScheduleTabContentProps {
   selectedStaff: ITabProps['selectedStaff'];
@@ -35,10 +51,10 @@ export interface IScheduleTabContentProps {
   isLoadingLeaves: boolean;
   typesOfLeave: ITypeOfLeave[];
   isLoadingTypesOfLeave: boolean;
-  holidaysService?: any;
-  daysOfLeavesService?: any;
-  typeOfLeaveService?: any;
-  onDateChange: (date: Date | null | undefined) => void;
+  holidaysService?: IHolidaysService;
+  daysOfLeavesService?: IDaysOfLeavesService;
+  typeOfLeaveService?: ITypeOfLeaveService;
+  onDateChange: (date: Date | undefined) => void;
   onContractChange: (event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption) => void;
   onErrorDismiss: () => void;
 }

@@ -221,7 +221,7 @@ export class TypeOfLeaveService {
       }
       
       return `Тип отпуска ${typeId}`;
-    } catch (error) {
+    } catch (error: unknown) {
       this.logError(`Error in getTypeOfLeaveTextSync for ID ${typeId}: ${error}`);
       return `Тип отпуска ${typeId}`;
     }
@@ -232,14 +232,27 @@ export class TypeOfLeaveService {
    * @param items Данные из SharePoint
    * @returns Массив объектов ITypeOfLeave
    */
-  private mapToTypesOfLeave(items: any[]): ITypeOfLeave[] {
-    return items
-      .map(item => {
+  private mapToTypesOfLeave(items: unknown[]): ITypeOfLeave[] {
+    // Промежуточный массив типов отпусков, который может содержать null элементы
+    const mappedTypes = items
+      .map((item): ITypeOfLeave | null => {
         try {
-          const fields = item.fields || {};
+          const typedItem = item as {
+            id?: string;
+            fields?: {
+              ID?: string | number;
+              Title?: string;
+              Color?: string;
+              Order?: string | number;
+              [key: string]: unknown;
+            };
+            [key: string]: unknown;
+          };
+          
+          const fields = typedItem.fields || {};
           
           // Извлекаем ID и проверяем
-          const id = fields.ID || item.id || '';
+          const id = fields.ID || typedItem.id || '';
           if (!id) {
             this.logError(`Missing ID for type of leave item`);
             return null;
@@ -255,16 +268,22 @@ export class TypeOfLeaveService {
           // Создаем объект ITypeOfLeave
           return {
             id: id.toString(),
-            title: title,
-            color: fields.Color || undefined,
-            order: fields.Order ? parseInt(fields.Order, 10) : undefined
+            title: title as string,
+            color: fields.Color as string | undefined,
+            order: typeof fields.Order === 'number' 
+              ? fields.Order 
+              : typeof fields.Order === 'string' 
+                ? parseInt(fields.Order, 10) 
+                : undefined
           };
         } catch (error) {
           this.logError(`Error processing type of leave item: ${error}`);
           return null;
         }
-      })
-      .filter(type => type !== null) as ITypeOfLeave[];
+      });
+    
+    // Фильтруем null элементы и возвращаем типизированный массив
+    return mappedTypes.filter((type): type is ITypeOfLeave => type !== null);
   }
 
   /**
