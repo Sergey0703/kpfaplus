@@ -1,11 +1,22 @@
 @import '~@fluentui/react/dist/sass/References.scss';
 
+// Новый общий контейнер для обеих таблиц
+.tablesContainer {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
 .weeklyTimeTable {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   margin-top: 20px;
   border-top: 1px solid #e0e0e0;
   padding-top: 20px;
-  width: 100%; /* Расширяем компонент на всю доступную ширину */
-  max-width: 100%; /* Предотвращаем выход за пределы родительского контейнера */
   box-sizing: border-box; /* Учитываем padding в общей ширине */
 }
 
@@ -38,37 +49,48 @@
   gap: 8px;
 }
 
+// Обновленный контейнер таблицы для обеспечения корректной прокрутки
 .tableContainer {
   width: 100%;
-  overflow-x: auto; /* Добавляем горизонтальную прокрутку при необходимости */
+  overflow-x: auto; /* Горизонтальная прокрутка при необходимости */
   max-width: 100%; /* Предотвращаем выход за пределы родительского контейнера */
+  display: block; /* Важно для некоторых версий SharePoint */
+  position: relative;
+  margin-bottom: 20px;
+  border: 1px solid #e0e0e0; /* Добавляем рамку для соответствия верхней таблице */
 }
 
+// Обновленные стили таблицы
 .timeTable {
-  min-width: 100%; /* Минимальная ширина равна контейнеру */
+  min-width: 1120px; /* Увеличиваем минимальную ширину таблицы */
   width: 100%;
-  table-layout: auto; /* Автоматический расчет ширины колонок */
+  table-layout: fixed; /* Изменить с 'auto' на 'fixed' для более предсказуемого поведения */
   border-collapse: collapse;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
   
   th {
     background-color: #f3f2f1;
     font-weight: 600;
     text-align: center;
-    padding: 4px; /* Уменьшаем отступы в заголовках */
+    padding: 6px; /* Увеличиваем отступы в заголовках */
     border: 1px solid #e0e0e0;
     font-size: 13px;
     white-space: nowrap; /* Предотвращает перенос текста в заголовках */
-    min-width: 85px; /* Минимальная ширина колонки дня недели */
+    height: 36px; /* Фиксированная высота для всех заголовков */
   }
   
   td {
-    padding: 4px;
+    padding: 6px;
     border: 1px solid #e0e0e0;
     text-align: center;
     font-size: 12px;
+    height: 36px; /* Фиксированная высота для всех ячеек */
   }
 }
 
+// Обновленные стили для колонок с фиксированной шириной
 .hoursColumn {
   width: 80px;
   min-width: 80px; /* Минимальная ширина */
@@ -76,19 +98,26 @@
   background-color: #f3f2f1;
   font-weight: 600;
   text-align: center;
-  padding: 4px; /* Уменьшенный отступ */
+  padding: 6px; /* Увеличенный отступ */
   border: 1px solid #e0e0e0;
   font-size: 13px;
 }
 
 .nameColumn {
   width: 140px;
-  min-width: 120px; /* Уменьшенная минимальная ширина */
+  min-width: 140px; /* Увеличено с 120px до 140px */
   max-width: 180px; /* Максимальная ширина */
   text-align: left !important;
   font-size: 12px;
   overflow: hidden; /* Скрываем переполнение контента */
   text-overflow: ellipsis; /* Добавляем многоточие при переполнении */
+}
+
+// Стили для дней недели (все колонки кроме специальных)
+th:not(.hoursColumn):not(.nameColumn):not(.totalColumn):not(.actionsColumn) {
+  width: 95px; /* Увеличиваем с 85px до 95px для обеспечения места для дропдаунов */
+  min-width: 95px;
+  max-width: 95px;
 }
 
 .totalColumn {
@@ -103,19 +132,61 @@
   max-width: 70px; /* Максимальная ширина */
 }
 
+/* ОСНОВНОЕ ИСПРАВЛЕНИЕ - ячейка с временем должна отображать дропдауны в ряд */
 .timeCell {
   display: flex;
+  flex-direction: row; /* Явно указываем горизонтальное расположение */
   justify-content: center;
   align-items: center;
   font-size: 12px;
-  min-width: 85px; /* Минимальная ширина для ячеек с двумя выпадающими списками */
+  min-width: 90px; /* Увеличиваем минимальную ширину для ячеек с двумя выпадающими списками */
   padding: 2px; /* Уменьшаем внутренние отступы */
+  flex-wrap: nowrap; /* Запрещаем перенос элементов */
+  height: 30px; /* Фиксированная высота ячейки */
+
+  /* Стили для вложенных Dropdown компонентов */
+  :global(.ms-Dropdown-container) {
+    min-width: 40px !important;
+    max-width: 40px !important;
+    display: inline-block !important;
+    vertical-align: middle !important;
+    margin: 0 1px !important;
+  }
+
+  :global(.ms-Dropdown) {
+    min-width: 40px !important;
+    max-width: 40px !important;
+  }
+
+  :global(.ms-Dropdown-title) {
+    padding: 0 2px !important;
+    height: 24px !important;
+    line-height: 24px !important;
+    font-size: 12px !important;
+  }
+
+  :global(.ms-Dropdown-caretDown) {
+    font-size: 8px !important;
+    right: 2px !important;
+  }
+}
+
+// Добавляем стиль для ячеек таблицы дней недели, чтобы они не менялись при изменении размера
+.dayCell {
+  width: 95px;
+  min-width: 95px;
+  max-width: 95px;
+  height: 36px;
+  padding: 2px !important;
 }
 
 .timeSeparator {
   margin: 0 1px;
   font-weight: bold;
   font-size: 12px;
+  flex-shrink: 0; /* Запрещаем сжатие разделителя */
+  display: inline-block;
+  vertical-align: middle;
 }
 
 .weekRow {
@@ -126,10 +197,9 @@
   background-color: #f3f2f1;
 }
 
-/* Теперь строка с обедом не нужна - скрываем её или удаляем из структуры */
+// Строка с обедом не нужна - скрываем её
 .lunchRow {
-  display: none; /* Скрываем вместо использования */
-  /* Альтернатива - полностью удалить код, создающий эту строку */
+  display: none;
 }
 
 .nameCell {
@@ -137,7 +207,7 @@
   flex-direction: column;
   text-align: left !important;
   padding: 4px 8px; /* Увеличиваем отступы */
-  min-width: 120px; /* Минимальная ширина */
+  min-width: 140px; /* Увеличено с 120px до 140px */
   max-width: 180px; /* Максимальная ширина */
 }
 
@@ -157,7 +227,7 @@
   font-weight: 500; /* Делаем чуть более заметным */
 }
 
-/* Ячейка обеда теперь находится внутри ячейки nameCell */
+// Ячейка обеда теперь находится внутри ячейки nameCell
 .lunchCell {
   margin-top: 4px; /* Добавляем отступ сверху */
   text-align: left !important;
@@ -166,7 +236,7 @@
 }
 
 .hoursCell {
-  padding: 4px;
+  padding: 6px;
   border: 1px solid #e0e0e0;
   text-align: center;
   font-size: 12px;
@@ -262,7 +332,7 @@
   padding-top: 8px;
 }
 
-/* Стили для удаленных смен */
+// Стили для удаленных смен
 .deletedRow {
   filter: grayscale(80%) opacity(0.7);
   text-decoration: line-through;
@@ -280,51 +350,37 @@
   border: 1px solid #ddd !important;
 }
 
-/* Удаляем проблемный селектор ms-Dropdown и используем более общий подход */
-.nameCell :global(.ms-Dropdown) {
-  width: 100%; /* Занимает всю ширину ячейки */
+// Исправляем стили для Dropdown в ячейках
+.nameCell :global(.ms-Dropdown-container) {
+  width: 100%;
   max-width: 100%;
-  margin-top: 4px;
 }
 
-/* Адаптивный стиль для разных размеров экрана */
-@media screen and (max-width: 1024px) {
+// Преобразуем общие стили для согласованности с Fluent UI
+:global(.ms-DetailsList) {
+  border: 1px solid #e0e0e0;
+}
+
+:global(.ms-DetailsRow) {
+  border-bottom: 1px solid #eaeaea;
+}
+
+// Адаптивные стили для разных размеров экрана
+@media screen and (max-width: 1200px) {
+  // Для экранов меньше 1200px устанавливаем минимальную ширину таблицы
   .timeTable {
-    min-width: 900px; /* Минимальная ширина таблицы на маленьких экранах */
+    min-width: 1120px; /* Увеличиваем минимальную ширину таблицы */
   }
   
-  .timeCell {
-    min-width: 80px; /* Уменьшаем минимальную ширину для ячеек на малых экранах */
-  }
-  
-  .hoursColumn {
-    min-width: 70px;
-  }
-  
-  .nameColumn {
-    min-width: 100px;
+  // Не меняем ширину ячеек - вместо этого включаем горизонтальную прокрутку
+  .tableContainer {
+    overflow-x: auto;
   }
 }
 
-/* Стили для компактного режима на очень маленьких экранах */
 @media screen and (max-width: 768px) {
+  // Для мобильных устройств устанавливаем еще большую минимальную ширину
   .timeTable {
-    min-width: 800px; /* Еще меньшая минимальная ширина таблицы */
-  }
-  
-  .timeCell {
-    min-width: 70px; /* Еще меньше ячейки */
-  }
-  
-  .nameColumn {
-    min-width: 90px;
-  }
-  
-  .hoursColumn {
-    min-width: 60px;
-  }
-  
-  .totalColumn, .actionsColumn {
-    min-width: 50px;
+    min-width: 1120px;
   }
 }

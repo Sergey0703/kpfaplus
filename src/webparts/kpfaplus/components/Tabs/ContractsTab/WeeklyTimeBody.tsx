@@ -232,8 +232,6 @@ export const WeeklyTimeBody: React.FC<IWeeklyTimeBodyProps> = (props) => {
                     );
                   })}
                 </tr>
-                
-                {/* Удаляем отдельную строку для обеда, так как обед теперь в ячейке имени */}
               </React.Fragment>
             );
           })}

@@ -291,6 +291,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
       console.log(`Department changed, DayOfStartWeek set to: ${props.dayOfStartWeek}`);
     }
   }, [props.managingGroupId, props.dayOfStartWeek]);
+  
   useEffect(() => {
     // Сбрасываем выбранный контракт и данные расписания при смене сотрудника
     setSelectedContract(undefined);
@@ -350,7 +351,6 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
     if (!selectedStaff?.id) return;
     
     // НЕ устанавливаем выбранный контракт для недельного расписания при редактировании
-    // setSelectedContract(contract); - Удаляем эту строку
     
     setCurrentContract({
       id: contract.id,
@@ -372,14 +372,14 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
   // Обработчики для закрытия панели
   const handlePanelDismiss = (): void => {
     console.log("Panel dismissed");
-    setCurrentContract(undefined); // Используем null вместо undefined
+    setCurrentContract(undefined);
     setIsContractPanelOpen(false);
   };
   
   // В методе handleCancelButtonClick
   const handleCancelButtonClick = (): void => {
     console.log("Cancel button clicked directly");
-    setCurrentContract(undefined); // Используем null вместо undefined
+    setCurrentContract(undefined);
     setIsContractPanelOpen(false);
   };
   
@@ -427,7 +427,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
       await fetchContracts();
       
       // Закрываем панель и очищаем состояние
-      setCurrentContract(undefined); // Используем null вместо undefined
+      setCurrentContract(undefined);
       setIsContractPanelOpen(false);
     } catch (err) {
       console.error('Error saving contract:', err);
@@ -573,29 +573,31 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
         </div>
       </div>
       
-      {/* Таблица контрактов - используем новый компонент ContractsTable */}
-      <ContractsTable
-        contracts={contracts}
-        isLoading={isLoading}
-        showDeleted={showDeleted}
-        workerTypeOptions={workerTypeOptions}
-        isLoadingWorkerTypes={isLoadingWorkerTypes}
-        staffMemberId={selectedStaff.employeeId}
-        managerId={props.currentUserId}
-        staffGroupId={props.managingGroupId}
-        onEditContract={handleEditContract}
-        onDeleteContract={handleDeleteContract}
-        onRestoreContract={handleRestoreContract}
-        onShowTemplate={handleShowTemplate}
-        onSaveContract={handleSaveContract}
-        isContractPanelOpen={isContractPanelOpen}
-        currentContract={currentContract}
-        onPanelDismiss={handlePanelDismiss}
-        onCancelButtonClick={handleCancelButtonClick}
-        onContractFormChange={handleContractFormChange}
-      />
+      {/* Таблица контрактов - используем компонент ContractsTable в контейнере tablesContainer */}
+      <div className={styles.tablesContainer}>
+        <ContractsTable
+          contracts={contracts}
+          isLoading={isLoading}
+          showDeleted={showDeleted}
+          workerTypeOptions={workerTypeOptions}
+          isLoadingWorkerTypes={isLoadingWorkerTypes}
+          staffMemberId={selectedStaff.employeeId}
+          managerId={props.currentUserId}
+          staffGroupId={props.managingGroupId}
+          onEditContract={handleEditContract}
+          onDeleteContract={handleDeleteContract}
+          onRestoreContract={handleRestoreContract}
+          onShowTemplate={handleShowTemplate}
+          onSaveContract={handleSaveContract}
+          isContractPanelOpen={isContractPanelOpen}
+          currentContract={currentContract}
+          onPanelDismiss={handlePanelDismiss}
+          onCancelButtonClick={handleCancelButtonClick}
+          onContractFormChange={handleContractFormChange}
+        />
+      </div>
 
-      {/* Таблица недельного расписания - добавляем ниже таблицы контрактов */}
+      {/* Таблица недельного расписания - добавляем в тот же контейнер tablesContainer */}
       {selectedContract && (
         <WeeklyTimeTable
           contractId={selectedContract.id}
@@ -604,7 +606,7 @@ export const ContractsTab: React.FC<ITabProps> = (props) => {
           isLoading={isLoadingWeeklyTime}
           dayOfStartWeek={dayOfStartWeek}
           context={context}
-          currentUserId={props.currentUserId ? parseInt(props.currentUserId) : undefined}// Убедитесь, что этот пропс определен в ITabProps
+          currentUserId={props.currentUserId ? parseInt(props.currentUserId) : undefined}
           onSaveComplete={handleSaveComplete}
         />
       )}

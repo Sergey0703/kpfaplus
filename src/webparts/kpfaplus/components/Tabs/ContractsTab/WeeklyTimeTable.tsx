@@ -44,6 +44,9 @@ import {
 // Импортируем компоненты для кнопок
 import { AddShiftButton, DeleteButton } from './WeeklyTimeTableButtons';
 
+// Импортируем стили
+import styles from './WeeklyTimeTable.module.scss';
+
 // Интерфейс пропсов для компонента WeeklyTimeTable
 export interface IWeeklyTimeTableProps {
   contractId?: string;
@@ -163,7 +166,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   useEffect(() => {
     if (refreshTrigger === 0) return; // Пропускаем первый рендеринг
     
-    // Вызываем функцию загрузки данных и добавляем void
+    // Вызываем функцию загрузки данных
     void loadWeeklyTimeTableData(
       context,
       contractId,
@@ -219,7 +222,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
           if (rowId) {
             const rowIndex = timeTableData.findIndex(row => row.id === rowId);
             if (rowIndex !== -1) {
-              // Добавляем void перед вызовом Promise
+              // Вызываем функцию удаления/восстановления
               void deleteRestoreShift({
                 context,
                 timeTableData,
@@ -240,7 +243,6 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
         onConfirm = (): void => {
           const addWeekCheck = additionalData as IAddWeekDialogData;
           if (addWeekCheck?.canAdd && addWeekCheck?.weekNumberToAdd) {
-            // Добавляем void перед вызовом Promise
             void addNewWeek({
               context,
               timeTableData,
@@ -264,7 +266,6 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
         onConfirm = (): void => {
           const addShiftData = additionalData as IAddShiftDialogData;
           if (addShiftData?.weekNumber && addShiftData?.nextShiftNumber) {
-            // Добавляем void перед вызовом Promise
             void addNewShift({
               context,
               timeTableData,
@@ -308,7 +309,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     setDialogProps({
       ...newDialogProps,
       isOpen: true,
-      onConfirm: onConfirm // Устанавливаем функцию обработчика
+      onConfirm: onConfirm
     });
   };
 
@@ -431,53 +432,55 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   };
   
   return (
-    <div className="weeklyTimeTable">
-      {/* Компонент с элементами управления таблицей */}
-      <WeeklyTimeTableControls
-        contractName={contractName}
-        showDeleted={showDeleted}
-        onShowDeletedChange={handleShowDeletedChange}
-        onAddWeek={handleAddWeek}
-        onSave={handleSave}
-        isButtonsDisabled={isSaving}
-        isSaving={isSaving}
-        hasUnsavedChanges={changedRows.size > 0}
-        changedRowsCount={changedRows.size}
-        statusMessage={statusMessage}
-      />
-      
-      {/* Компонент с телом таблицы */}
-      <WeeklyTimeTableBody
-        timeTableData={timeTableData}
-        filteredTimeTableData={filteredTimeTableData}
-        isLoading={isTableLoading}
-        dataInitialized={dataInitializedRef.current}
-        contractName={contractName}
-        orderedWeekDays={orderedWeekDays}
-        hoursOptions={hoursOptions}
-        minutesOptions={minutesOptions}
-        lunchOptions={lunchOptions}
-        changedRows={changedRows}
-        handleTimeChange={handleTimeChange}
-        handleLunchChange={handleLunchChange}
-        handleContractChange={handleContractChange}
-        renderAddShiftButton={renderAddShiftButton}
-        renderDeleteButton={renderDeleteButton}
-        isFirstRowWithNewTemplate={isFirstRowWithNewTemplate}
-        onAddWeek={handleAddWeek}
-      />
-      
-      {/* Компонент с диалогами подтверждения */}
-      <WeeklyTimeTableDialogs
-        isDialogOpen={dialogProps.isOpen}
-        dialogTitle={dialogProps.title}
-        dialogMessage={dialogProps.message}
-        confirmButtonText={dialogProps.confirmButtonText}
-        cancelButtonText={dialogProps.cancelButtonText}
-        confirmButtonColor={dialogProps.confirmButtonColor}
-        onDialogDismiss={handleDismissDialog}
-        onDialogConfirm={dialogProps.onConfirm}
-      />
+    <div className={styles.tablesContainer}>
+      <div className={styles.weeklyTimeTable}>
+        {/* Компонент с элементами управления таблицей */}
+        <WeeklyTimeTableControls
+          contractName={contractName}
+          showDeleted={showDeleted}
+          onShowDeletedChange={handleShowDeletedChange}
+          onAddWeek={handleAddWeek}
+          onSave={handleSave}
+          isButtonsDisabled={isSaving}
+          isSaving={isSaving}
+          hasUnsavedChanges={changedRows.size > 0}
+          changedRowsCount={changedRows.size}
+          statusMessage={statusMessage}
+        />
+        
+        {/* Компонент с телом таблицы */}
+        <WeeklyTimeTableBody
+          timeTableData={timeTableData}
+          filteredTimeTableData={filteredTimeTableData}
+          isLoading={isTableLoading}
+          dataInitialized={dataInitializedRef.current}
+          contractName={contractName}
+          orderedWeekDays={orderedWeekDays}
+          hoursOptions={hoursOptions}
+          minutesOptions={minutesOptions}
+          lunchOptions={lunchOptions}
+          changedRows={changedRows}
+          handleTimeChange={handleTimeChange}
+          handleLunchChange={handleLunchChange}
+          handleContractChange={handleContractChange}
+          renderAddShiftButton={renderAddShiftButton}
+          renderDeleteButton={renderDeleteButton}
+          isFirstRowWithNewTemplate={isFirstRowWithNewTemplate}
+          onAddWeek={handleAddWeek}
+        />
+        
+        {/* Компонент с диалогами подтверждения */}
+        <WeeklyTimeTableDialogs
+          isDialogOpen={dialogProps.isOpen}
+          dialogTitle={dialogProps.title}
+          dialogMessage={dialogProps.message}
+          confirmButtonText={dialogProps.confirmButtonText}
+          cancelButtonText={dialogProps.cancelButtonText}
+          confirmButtonColor={dialogProps.confirmButtonColor}
+          onDialogDismiss={handleDismissDialog}
+          onDialogConfirm={dialogProps.onConfirm}
+        />
+      </div>
     </div>
   );
 };

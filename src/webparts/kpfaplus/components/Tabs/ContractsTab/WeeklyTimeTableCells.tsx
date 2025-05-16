@@ -40,11 +40,11 @@ export const TimeCell: React.FC<ITimeCellProps> = ({
   // Определяем стили для ячейки в зависимости от того, была ли она изменена и удалена
   const cellClassName = `${styles.timeCell} ${isChanged ? styles.changedCell : ''} ${isDeleted ? styles.deletedCell : ''}`;
   
-  // Создаем собственные стили для выпадающих списков
+  // Создаем компактные стили для выпадающих списков
   const dropdownStyles = {
     dropdown: { 
-      width: 40, // Уменьшаем ширину dropdown
-      minWidth: 40, // Устанавливаем минимальную ширину
+      minWidth: 40,
+      maxWidth: 40,
       fontSize: '12px',
       // Добавляем стили для удаленных ячеек
       ...(isDeleted && {
@@ -55,7 +55,9 @@ export const TimeCell: React.FC<ITimeCellProps> = ({
     },
     title: {
       fontSize: '12px',
-      padding: '0 4px', // Уменьшаем внутренние отступы
+      padding: '0 2px', // Уменьшаем внутренние отступы
+      height: '24px',
+      lineHeight: '24px',
       // Добавляем стили для удаленных ячеек
       ...(isDeleted && {
         color: '#888',
@@ -78,9 +80,14 @@ export const TimeCell: React.FC<ITimeCellProps> = ({
     caretDown: {
       fontSize: '8px', // Уменьшаем размер стрелки
       padding: '0 2px', // Уменьшаем отступы вокруг стрелки
+      right: '2px',
       ...(isDeleted && {
         color: '#aaa'
       })
+    },
+    callout: {
+      minWidth: '80px',
+      maxWidth: '90px'
     }
   };
   
@@ -113,13 +120,6 @@ export const TimeCell: React.FC<ITimeCellProps> = ({
         ariaLabel={`Minutes for ${dayKey}`}
         dropdownWidth={40} // Явно устанавливаем ширину выпадающего списка
       />
-      
-      {/* Дополнительный индикатор для удаленных строк (опционально) */}
-      {isDeleted && (
-        <div 
-          title="This item is deleted. Restore it to make changes."
-        />
-      )}
     </div>
   );
 };
