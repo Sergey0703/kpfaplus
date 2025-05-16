@@ -52,17 +52,19 @@ export const WeeklyTimeBody: React.FC<IWeeklyTimeBodyProps> = (props) => {
   
   return (
     <div className={styles.tableContainer}>
-      <table className={styles.timeTable}>
+      <table className={styles.timeTable} style={{ borderSpacing: '0', borderCollapse: 'collapse' }}>
         <thead>
           <tr>
-            {/* Столбец для рабочих часов */}
-            <th className={styles.hoursColumn}>Hours</th>
-            <th className={styles.nameColumn}>Name / Lunch</th>
+            {/* Столбец для рабочих часов - уменьшаем ширину и правый отступ */}
+            <th className={styles.hoursColumn} style={{ width: '60px', minWidth: '60px', maxWidth: '60px', paddingRight: '0px' }}>Hours</th>
+            <th className={styles.nameColumn} style={{ paddingLeft: '4px' }}>Name / Lunch</th>
             {orderedWeekDays.map(day => (
               <th key={day.key}>{day.name}</th>
             ))}
-            <th className={styles.totalColumn}>Contract</th>
-            <th className={styles.actionsColumn} />
+            {/* Уменьшаем ширину колонки Contract */}
+            <th className={styles.totalColumn} style={{ width: '50px', minWidth: '50px', maxWidth: '50px' }}>Contract</th>
+            {/* Уменьшаем ширину колонки с ID и левый отступ */}
+            <th className={styles.actionsColumn} style={{ width: '45px', minWidth: '45px', maxWidth: '45px', paddingLeft: '0px' }} />
           </tr>
         </thead>
         <tbody>
@@ -93,7 +95,7 @@ export const WeeklyTimeBody: React.FC<IWeeklyTimeBodyProps> = (props) => {
                 {/* Первая строка - начало рабочего дня */}
                 <tr className={weekRowClassName}>
                   {/* Ячейка для рабочих часов - отображаем общее время для первой строки шаблона */}
-                  <td className={styles.hoursCell} rowSpan={2}>
+                  <td className={styles.hoursCell} rowSpan={2} style={{ width: '60px', minWidth: '60px', maxWidth: '60px', paddingRight: '0px' }}>
                     <TotalHoursCell
                       timeTableData={filteredTimeTableData}
                       rowIndex={rowIndex}
@@ -105,7 +107,7 @@ export const WeeklyTimeBody: React.FC<IWeeklyTimeBodyProps> = (props) => {
                   </td>
                   
                   {/* Ячейка для имени и обеда - теперь содержит и выпадающий список обеда */}
-                  <td className={styles.nameCell} rowSpan={2}>
+                  <td className={styles.nameCell} rowSpan={2} style={{ paddingLeft: '4px' }}>
                     <div className={`${styles.rowName} ${isDeleted ? styles.deletedText : ''}`}>
                       {row.name}
                       {isDeleted && <span style={{ color: '#d83b01', marginLeft: '5px' }}>(Deleted)</span>}
@@ -127,7 +129,7 @@ export const WeeklyTimeBody: React.FC<IWeeklyTimeBodyProps> = (props) => {
                   {orderedWeekDays.map(day => {
                     const dayData = row[day.key] as IDayHoursComplete;
                     return (
-                      <td key={`${day.key}-start`}>
+                      <td key={`${day.key}-start`} style={{ padding: '2px' }}>
                         <TimeCell
                           hours={dayData?.start?.hours || '00'}
                           minutes={dayData?.start?.minutes || '00'}
@@ -142,7 +144,7 @@ export const WeeklyTimeBody: React.FC<IWeeklyTimeBodyProps> = (props) => {
                       </td>
                     );
                   })}
-                  <td className={styles.totalColumn} rowSpan={2}>
+                  <td className={styles.totalColumn} rowSpan={2} style={{ width: '50px', minWidth: '50px', maxWidth: '50px' }}>
                     <ContractCell
                       contractNumber={row.total}
                       rowIndex={rowIndex}
@@ -155,7 +157,7 @@ export const WeeklyTimeBody: React.FC<IWeeklyTimeBodyProps> = (props) => {
                     </div>
                   </td>
                   
-                  <td className={styles.actionsColumn} rowSpan={2}>
+                  <td className={styles.actionsColumn} rowSpan={2} style={{ width: '45px', minWidth: '45px', maxWidth: '45px', paddingLeft: '0px' }}>
                     {(() => {
                       const isRowDeleted = row.deleted === 1 || row.Deleted === 1;
                       console.log(`Row ${rowIndex}, ID=${row.id}: isDeleted=${isRowDeleted}`);
@@ -216,7 +218,7 @@ export const WeeklyTimeBody: React.FC<IWeeklyTimeBodyProps> = (props) => {
                   {orderedWeekDays.map(day => {
                     const dayData = row[day.key] as IDayHoursComplete;
                     return (
-                      <td key={`${day.key}-end`}>
+                      <td key={`${day.key}-end`} style={{ padding: '2px' }}>
                         <TimeCell
                           hours={dayData?.end?.hours || '00'}
                           minutes={dayData?.end?.minutes || '00'}

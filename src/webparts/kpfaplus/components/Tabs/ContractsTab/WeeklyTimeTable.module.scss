@@ -74,7 +74,7 @@
     background-color: #f3f2f1;
     font-weight: 600;
     text-align: center;
-    padding: 6px; /* Увеличиваем отступы в заголовках */
+    padding: 4px; /* Увеличиваем отступы в заголовках */
     border: 1px solid #e0e0e0;
     font-size: 13px;
     white-space: nowrap; /* Предотвращает перенос текста в заголовках */
@@ -82,23 +82,24 @@
   }
   
   td {
-    padding: 6px;
+    padding: 4px;
     border: 1px solid #e0e0e0;
     text-align: center;
     font-size: 12px;
     height: 36px; /* Фиксированная высота для всех ячеек */
   }
+
 }
 
 // Обновленные стили для колонок с фиксированной шириной
 .hoursColumn {
-  width: 80px;
-  min-width: 80px; /* Минимальная ширина */
-  max-width: 80px; /* Максимальная ширина */
+  width: 60px; /* Уменьшено с 80px до 60px */
+  min-width: 60px;
+  max-width: 60px;
   background-color: #f3f2f1;
   font-weight: 600;
   text-align: center;
-  padding: 6px; /* Увеличенный отступ */
+  padding: 6px;
   border: 1px solid #e0e0e0;
   font-size: 13px;
 }
@@ -121,15 +122,15 @@ th:not(.hoursColumn):not(.nameColumn):not(.totalColumn):not(.actionsColumn) {
 }
 
 .totalColumn {
-  width: 60px;
-  min-width: 60px; /* Минимальная ширина */
-  max-width: 70px; /* Максимальная ширина */
+  width: 50px; /* Уменьшено с 60px до 50px */
+  min-width: 50px;
+  max-width: 50px;
 }
 
 .actionsColumn {
-  width: 60px;
-  min-width: 60px; /* Минимальная ширина */
-  max-width: 70px; /* Максимальная ширина */
+  width: 45px; /* Уменьшено с 60px до 45px */
+  min-width: 45px;
+  max-width: 45px;
 }
 
 /* ОСНОВНОЕ ИСПРАВЛЕНИЕ - ячейка с временем должна отображать дропдауны в ряд */
