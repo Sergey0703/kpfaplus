@@ -28,6 +28,7 @@ export interface IScheduleItem {
   shift: number;
   contract: string;
   contractId: string;
+  contractNumber?: string; // Добавляем поле для номера контракта
 }
 
 // Опции для выпадающих списков
@@ -36,6 +37,7 @@ export interface IScheduleOptions {
   minutes: IDropdownOption[];
   lunchTimes: IDropdownOption[];
   leaveTypes: IDropdownOption[];
+  contractNumbers?: IDropdownOption[]; // Сделаем необязательным с помощью ?
 }
 
 // Интерфейс свойств компонента
@@ -73,6 +75,13 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
     onDeleteItem
   } = props;
 
+  // Используем предоставленные опции или дефолтные
+  const contractOptions = options.contractNumbers || [
+    { key: '1', text: '1' },
+    { key: '2', text: '2' },
+    { key: '3', text: '3' }
+  ];
+
   // Состояние для выбора всех строк
   const [selectAllRows, setSelectAllRows] = useState<boolean>(false);
   
@@ -82,6 +91,11 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
   // Обработчик изменения времени
   const handleTimeChange = (item: IScheduleItem, field: string, value: string) => {
     onItemChange(item, field, value);
+  };
+
+  // Обработчик изменения контракта
+  const handleContractNumberChange = (item: IScheduleItem, value: string) => {
+    onItemChange(item, 'contractNumber', value);
   };
 
   // Обработчик выбора/отмены выбора всех строк
@@ -138,146 +152,179 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
         />
       </Stack>
 
-      {/* Заголовки колонок в виде текста (для лучшего форматирования) */}
-      <div style={{ 
-        display: 'flex', 
-        borderBottom: '1px solid #edebe9', 
-        paddingBottom: '8px',
-        fontWeight: 'bold'
-      }}>
-        <div style={{ width: '100px' }}>Date</div>
-        <div style={{ width: '80px' }}></div> {/* Увеличил ширину с 120px до 150px */}
-        <div style={{ width: '150px' }}>Start Work</div>
-        <div style={{ width: '150px' }}>Finish Work</div>
-        <div style={{ width: '150px' }}>Time for Lunch:</div>
-        <div style={{ width: '150px' }}>Type of Leave</div>
-        <div style={{ width: '80px' }}></div> {/* Для кнопки +Shift */}
-        <div style={{ width: '40px' }}></div> {/* Для кнопки удаления */}
-        <div style={{ width: '80px' }}>ID</div> {/* Для ID */}
+      {/* Таблица расписания - задаем общую ширину и убираем spacing */}
+      <div className={styles.tableContainer} style={{ width: '100%' }}>
+        <table style={{ borderSpacing: '0', borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed' }}>
+          <colgroup>
+            <col style={{ width: '100px' }} /> {/* Date */}
+            <col style={{ width: '80px' }} /> {/* Hours */}
+            <col style={{ width: '150px' }} /> {/* Start Work */}
+            <col style={{ width: '150px' }} /> {/* Finish Work */}
+            <col style={{ width: '100px' }} /> {/* Time for Lunch */}
+            <col style={{ width: '150px' }} /> {/* Type of Leave */}
+            <col style={{ width: '70px' }} /> {/* +Shift */}
+            <col style={{ width: '60px' }} /> {/* Contract */}
+            <col style={{ width: '30px' }} /> {/* Delete */}
+            <col style={{ width: '80px' }} /> {/* ID */}
+          </colgroup>
+          <thead>
+            <tr>
+              <th style={{ textAlign: 'left', padding: '8px 0' }}>Date</th>
+              <th style={{ textAlign: 'center', padding: '8px 0' }}>Hours</th>
+              <th style={{ textAlign: 'center', padding: '8px 0' }}>Start Work</th>
+              <th style={{ textAlign: 'center', padding: '8px 0' }}>Finish Work</th>
+              <th style={{ textAlign: 'center', padding: '8px 0' }}>Time for Lunch:</th>
+              <th style={{ textAlign: 'center', padding: '8px 0' }}>Type of Leave</th>
+              <th style={{ textAlign: 'center', padding: '8px 0' }}></th> {/* Для кнопки +Shift */}
+              <th style={{ textAlign: 'left', padding: '8px 0' }}>Contract</th>
+              <th style={{ textAlign: 'center', padding: '8px 0' }}></th> {/* Для кнопки удаления */}
+              <th style={{ textAlign: 'center', padding: '8px 0' }}>ID</th> {/* Для ID */}
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading ? (
+              <tr>
+                <td colSpan={10} style={{ textAlign: 'center', padding: '32px' }}>
+                  Loading schedule data...
+                </td>
+              </tr>
+            ) : items.length === 0 ? (
+              <tr>
+                <td colSpan={10} style={{ textAlign: 'center', padding: '32px' }}>
+                  No schedule items found for the selected date and contract.
+                </td>
+              </tr>
+            ) : (
+              items.map((item, index) => {
+                // Определяем цвет фона для строки (чередование, выделение и т.д.)
+                const isEvenRow = index % 2 === 0;
+                const backgroundColor = isEvenRow ? '#f9f9f9' : '#ffffff';
+                
+                return (
+                  <tr 
+                    key={item.id}
+                    style={{ 
+                      backgroundColor,
+                      border: '1px solid #edebe9',
+                      marginBottom: '4px',
+                      borderRadius: '2px'
+                    }}
+                  >
+                    {/* Ячейка с датой */}
+                    <td style={{ padding: '8px 0 8px 8px' }}>
+                      <div>{formatDate(item.date)}</div>
+                      <div style={{ fontWeight: 'normal', fontSize: '12px' }}>{item.dayOfWeek}</div>
+                    </td>
+                    
+                    {/* Ячейка с рабочими часами */}
+                    <td style={{ 
+                      textAlign: 'center',
+                      fontWeight: 'bold',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {item.workingHours}
+                    </td>
+                    
+                    {/* Ячейка с началом работы */}
+                    <td style={{ textAlign: 'center' }}>
+                      <div style={{ display: 'flex', justifyContent: 'center' }}>
+                        <Dropdown
+                          selectedKey={item.startHour}
+                          options={options.hours}
+                          onChange={(_, option) => handleTimeChange(item, 'startHour', option?.key as string)}
+                          styles={{ root: { width: 60, margin: '0 4px' } }}
+                        />
+                        <Dropdown
+                          selectedKey={item.startMinute}
+                          options={options.minutes}
+                          onChange={(_, option) => handleTimeChange(item, 'startMinute', option?.key as string)}
+                          styles={{ root: { width: 60, margin: '0 4px' } }}
+                        />
+                      </div>
+                    </td>
+                    
+                    {/* Ячейка с окончанием работы */}
+                    <td style={{ textAlign: 'center' }}>
+                      <div style={{ display: 'flex', justifyContent: 'center' }}>
+                        <Dropdown
+                          selectedKey={item.finishHour}
+                          options={options.hours}
+                          onChange={(_, option) => handleTimeChange(item, 'finishHour', option?.key as string)}
+                          styles={{ root: { width: 60, margin: '0 4px' } }}
+                        />
+                        <Dropdown
+                          selectedKey={item.finishMinute}
+                          options={options.minutes}
+                          onChange={(_, option) => handleTimeChange(item, 'finishMinute', option?.key as string)}
+                          styles={{ root: { width: 60, margin: '0 4px' } }}
+                        />
+                      </div>
+                    </td>
+                    
+                    {/* Ячейка с временем обеда */}
+                    <td style={{ textAlign: 'center' }}>
+                      <Dropdown
+                        selectedKey={item.lunchTime}
+                        options={options.lunchTimes}
+                        onChange={(_, option) => handleTimeChange(item, 'lunchTime', option?.key as string)}
+                        styles={{ root: { width: 80 } }}
+                      />
+                    </td>
+                    
+                    {/* Ячейка с типом отпуска */}
+                    <td style={{ textAlign: 'center' }}>
+                      <Dropdown
+                        selectedKey={item.typeOfLeave}
+                        options={options.leaveTypes}
+                        onChange={(_, option) => handleTimeChange(item, 'typeOfLeave', option?.key as string)}
+                        styles={{ root: { width: 150 } }}
+                      />
+                    </td>
+                    
+                    {/* Кнопка +Shift */}
+                    <td style={{ textAlign: 'center', padding: '0' }}>
+                      <PrimaryButton
+                        text="+Shift"
+                        styles={{ root: { minWidth: 60, padding: '0 4px', backgroundColor: '#107c10' } }}
+                        onClick={() => onAddShift(item.date)}
+                      />
+                    </td>
+                    
+                    {/* Ячейка с номером контракта - оставляем нормальный размер */}
+                    <td>
+                      <Dropdown
+                        selectedKey={item.contractNumber || '1'} // По умолчанию '1'
+                        options={contractOptions}
+                        onChange={(_, option) => handleContractNumberChange(item, option?.key as string)}
+                        styles={{ root: { width: 50 } }}
+                      />
+                    </td>
+                    
+                    {/* Иконка удаления - делаем красной */}
+                    <td style={{ textAlign: 'center', padding: '0' }}>
+                      <IconButton
+                        iconProps={{ iconName: 'Delete' }}
+                        title="Delete"
+                        ariaLabel="Delete"
+                        onClick={() => onDeleteItem(item.id)}
+                        styles={{ 
+                          root: { color: '#e81123' },
+                          rootHovered: { color: '#a80000' }
+                        }}
+                      />
+                    </td>
+                    
+                    {/* Текстовое поле для ID */}
+                    <td style={{ textAlign: 'center', fontSize: '12px', color: '#666' }}>
+                      {item.id}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
       </div>
-
-      {/* Содержимое таблицы */}
-      {isLoading ? (
-        <div style={{ textAlign: 'center', padding: '32px' }}>
-          Loading schedule data...
-        </div>
-      ) : items.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '32px' }}>
-          No schedule items found for the selected date and contract.
-        </div>
-      ) : (
-        <div>
-          {items.map((item, index) => {
-            // Определяем цвет фона для строки (чередование, выделение и т.д.)
-            const isEvenRow = index % 2 === 0;
-            const backgroundColor = isEvenRow ? '#f9f9f9' : '#ffffff';
-                
-            return (
-              <div 
-                key={item.id}
-                style={{ 
-                  display: 'flex', 
-                  padding: '8px 0',
-                  backgroundColor,
-                  border: '1px solid #edebe9',
-                  marginBottom: '4px',
-                  borderRadius: '2px'
-                }}
-              >
-                {/* Ячейки данных */}
-                <div style={{ width: '100px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                  <div>{formatDate(item.date)}</div>
-                  <div style={{ fontWeight: 'normal', fontSize: '12px' }}>{item.dayOfWeek}</div>
-                </div>
-                
-                <div style={{ 
-                  width: '80px', /* Увеличил ширину с 120px до 150px */
-                  minWidth: '80px', /* Добавил minWidth чтобы гарантировать ширину */
-                  display: 'flex', 
-                  alignItems: 'center',
-                  fontWeight: 'bold',
-                  whiteSpace: 'nowrap', /* Запрещаем перенос текста */
-                  paddingLeft: '15px' /* Добавил отступ справа */
-                }}>
-                  {item.workingHours}
-                </div>
-                
-                <div style={{ width: '150px', display: 'flex', alignItems: 'center' }}>
-                  <Dropdown
-                    selectedKey={item.startHour}
-                    options={options.hours}
-                    onChange={(_, option) => handleTimeChange(item, 'startHour', option?.key as string)}
-                    styles={{ root: { width: 60, margin: '0 4px' } }}
-                  />
-                  <Dropdown
-                    selectedKey={item.startMinute}
-                    options={options.minutes}
-                    onChange={(_, option) => handleTimeChange(item, 'startMinute', option?.key as string)}
-                    styles={{ root: { width: 60, margin: '0 4px' } }}
-                  />
-                </div>
-                
-                <div style={{ width: '150px', display: 'flex', alignItems: 'center' }}>
-                  <Dropdown
-                    selectedKey={item.finishHour}
-                    options={options.hours}
-                    onChange={(_, option) => handleTimeChange(item, 'finishHour', option?.key as string)}
-                    styles={{ root: { width: 60, margin: '0 4px' } }}
-                  />
-                  <Dropdown
-                    selectedKey={item.finishMinute}
-                    options={options.minutes}
-                    onChange={(_, option) => handleTimeChange(item, 'finishMinute', option?.key as string)}
-                    styles={{ root: { width: 60, margin: '0 4px' } }}
-                  />
-                </div>
-                
-                <div style={{ width: '150px', display: 'flex', alignItems: 'center' }}>
-                  <Dropdown
-                    selectedKey={item.lunchTime}
-                    options={options.lunchTimes}
-                    onChange={(_, option) => handleTimeChange(item, 'lunchTime', option?.key as string)}
-                    styles={{ root: { width: 80 } }}
-                  />
-                </div>
-                
-                <div style={{ width: '150px', display: 'flex', alignItems: 'center' }}>
-                  <Dropdown
-                    selectedKey={item.typeOfLeave}
-                    options={options.leaveTypes}
-                    onChange={(_, option) => handleTimeChange(item, 'typeOfLeave', option?.key as string)}
-                    styles={{ root: { width: 150 } }}
-                  />
-                </div>
-                
-                {/* Кнопка +Shift */}
-                <div style={{ width: '80px', display: 'flex', alignItems: 'center' }}>
-                  <PrimaryButton
-                    text="+Shift"
-                    styles={{ root: { minWidth: 70, padding: '0 8px', backgroundColor: '#107c10' } }}
-                    onClick={() => onAddShift(item.date)}
-                  />
-                </div>
-                
-                {/* Иконка удаления */}
-                <div style={{ width: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginLeft: '10px' }}>
-                  <IconButton
-                    iconProps={{ iconName: 'Delete' }}
-                    title="Delete"
-                    ariaLabel="Delete"
-                    onClick={() => onDeleteItem(item.id)}
-                  />
-                </div>
-                
-                {/* Текстовое поле для ID */}
-                <div style={{ width: '80px', display: 'flex', alignItems: 'center', fontSize: '12px', color: '#666', marginLeft: '10px' }}>
-                  {item.id}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 };
