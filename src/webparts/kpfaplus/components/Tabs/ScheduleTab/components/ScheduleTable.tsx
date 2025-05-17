@@ -99,8 +99,6 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
     }
   };
 
-  // Удалена неиспользуемая функция handleSelectRow
-
   // Обработчик для удаления всех выбранных строк
   const handleDeleteSelected = () => {
     selectedRows.forEach(id => {
@@ -147,16 +145,15 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
         paddingBottom: '8px',
         fontWeight: 'bold'
       }}>
-        {/* Удалена колонка для checkbox/toggle */}
         <div style={{ width: '100px' }}>Date</div>
-        <div style={{ width: '80px' }}></div>
+        <div style={{ width: '80px' }}></div> {/* Увеличил ширину с 120px до 150px */}
         <div style={{ width: '150px' }}>Start Work</div>
         <div style={{ width: '150px' }}>Finish Work</div>
         <div style={{ width: '150px' }}>Time for Lunch:</div>
         <div style={{ width: '150px' }}>Type of Leave</div>
-        <div style={{ width: '100px' }}>Shift</div>
-        <div style={{ width: '120px' }}>Contract</div>
-        <div style={{ width: '40px' }}></div> {/* Увеличена ширина для кнопки удаления */}
+        <div style={{ width: '80px' }}></div> {/* Для кнопки +Shift */}
+        <div style={{ width: '40px' }}></div> {/* Для кнопки удаления */}
+        <div style={{ width: '80px' }}>ID</div> {/* Для ID */}
       </div>
 
       {/* Содержимое таблицы */}
@@ -187,8 +184,6 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
                   borderRadius: '2px'
                 }}
               >
-                {/* Удалён чекбокс/toggle для выбора строки */}
-                
                 {/* Ячейки данных */}
                 <div style={{ width: '100px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                   <div>{formatDate(item.date)}</div>
@@ -196,10 +191,13 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
                 </div>
                 
                 <div style={{ 
-                  width: '80px', 
+                  width: '80px', /* Увеличил ширину с 120px до 150px */
+                  minWidth: '80px', /* Добавил minWidth чтобы гарантировать ширину */
                   display: 'flex', 
                   alignItems: 'center',
-                  fontWeight: item.workingHours !== '0h 00m' ? 'bold' : 'normal' 
+                  fontWeight: 'bold',
+                  whiteSpace: 'nowrap', /* Запрещаем перенос текста */
+                  paddingLeft: '15px' /* Добавил отступ справа */
                 }}>
                   {item.workingHours}
                 </div>
@@ -252,36 +250,28 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
                   />
                 </div>
                 
-                <div style={{ width: '100px', display: 'flex', alignItems: 'center' }}>
+                {/* Кнопка +Shift */}
+                <div style={{ width: '80px', display: 'flex', alignItems: 'center' }}>
                   <PrimaryButton
                     text="+Shift"
                     styles={{ root: { minWidth: 70, padding: '0 8px', backgroundColor: '#107c10' } }}
                     onClick={() => onAddShift(item.date)}
                   />
-                  <Dropdown
-                    selectedKey={item.shift.toString()}
-                    options={[
-                      { key: '1', text: '1' },
-                      { key: '2', text: '2' },
-                      { key: '3', text: '3' }
-                    ]}
-                    onChange={(_, option) => handleTimeChange(item, 'shift', option?.key as string)}
-                    styles={{ root: { width: 50, marginLeft: 8 } }}
-                  />
                 </div>
                 
-                {/* Удалено отображение item.contract (текст "test222") */}
-                <div style={{ width: '120px', display: 'flex', alignItems: 'center' }}>
-                  {/* Пустая ячейка для Contract */}
-                </div>
-                
-                <div style={{ width: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {/* Иконка удаления */}
+                <div style={{ width: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginLeft: '10px' }}>
                   <IconButton
                     iconProps={{ iconName: 'Delete' }}
                     title="Delete"
                     ariaLabel="Delete"
                     onClick={() => onDeleteItem(item.id)}
                   />
+                </div>
+                
+                {/* Текстовое поле для ID */}
+                <div style={{ width: '80px', display: 'flex', alignItems: 'center', fontSize: '12px', color: '#666', marginLeft: '10px' }}>
+                  {item.id}
                 </div>
               </div>
             );
