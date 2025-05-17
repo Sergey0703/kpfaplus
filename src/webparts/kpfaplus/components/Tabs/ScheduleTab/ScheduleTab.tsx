@@ -126,10 +126,9 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
     }
   };
 
-  // Функция для загрузки данных расписания
   const loadStaffRecords = async (): Promise<void> => {
-    console.log('[ScheduleTab] loadStaffRecords called with params:', {
-      date: state.selectedDate,
+    console.log('[ScheduleTab] [DEBUG] loadStaffRecords вызван с параметрами:', {
+      date: state.selectedDate.toISOString(),
       employeeId: selectedStaff?.employeeId,
       currentUserId: props.currentUserId,
       managingGroupId: props.managingGroupId,
@@ -138,7 +137,7 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
     
     // Проверяем наличие необходимых данных
     if (!context || !staffRecordsService) {
-      console.log('[ScheduleTab] Cannot load staff records: missing context or service', {
+      console.log('[ScheduleTab] [ОШИБКА] Не удается загрузить записи: отсутствует context или service', {
         hasContext: !!context,
         hasStaffRecordsService: !!staffRecordsService
       });
@@ -147,7 +146,7 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
     
     // Проверяем наличие сотрудника
     if (!selectedStaff || !selectedStaff.employeeId) {
-      console.log('[ScheduleTab] Cannot load staff records: missing selected staff or employeeId', {
+      console.log('[ScheduleTab] [ОШИБКА] Не удается загрузить записи: отсутствует выбранный сотрудник или employeeId', {
         hasSelectedStaff: !!selectedStaff,
         employeeId: selectedStaff?.employeeId
       });
@@ -164,20 +163,36 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
       const firstDayOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
       const lastDayOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0);
       
-      console.log(`[ScheduleTab] Loading staff records for period: ${firstDayOfMonth.toLocaleDateString()} - ${lastDayOfMonth.toLocaleDateString()}`);
+      console.log(`[ScheduleTab] [DEBUG] Загрузка записей для периода: 
+        ${firstDayOfMonth.toLocaleDateString()} (${firstDayOfMonth.toISOString()}) - 
+        ${lastDayOfMonth.toLocaleDateString()} (${lastDayOfMonth.toISOString()})`);
       
       // Получаем ID сотрудника
       const employeeId = selectedStaff.employeeId;
+      console.log(`[ScheduleTab] [DEBUG] ID сотрудника: ${employeeId}`);
       
       // ID временной таблицы (если выбран контракт)
       const timeTableId = state.selectedContractId;
+      console.log(`[ScheduleTab] [DEBUG] ID временной таблицы: ${timeTableId || 'не выбрана'}`);
       
       // Получаем ID текущего пользователя и группы
       const currentUserID = props.currentUserId ? props.currentUserId : '0';
       const staffGroupID = props.managingGroupId ? props.managingGroupId : '0';
       
+      // Проверим типы данных
+      console.log('[ScheduleTab] [DEBUG] Типы данных параметров:', {
+        currentUserID: `${currentUserID} (${typeof currentUserID})`,
+        staffGroupID: `${staffGroupID} (${typeof staffGroupID})`,
+        employeeId: `${employeeId} (${typeof employeeId})`,
+        timeTableId: timeTableId ? `${timeTableId} (${typeof timeTableId})` : 'undefined'
+      });
+      
+      // Добавим проверку текущих контрактов 
+      console.log(`[ScheduleTab] [DEBUG] Текущие контракты (${state.contracts.length}):`, 
+        state.contracts.map(c => ({ id: c.id, template: c.template })));
+      
       // Логируем параметры запроса
-      console.log('[ScheduleTab] API call parameters:', {
+      console.log('[ScheduleTab] [DEBUG] Параметры вызова API:', {
         firstDayOfMonth: firstDayOfMonth.toISOString(),
         lastDayOfMonth: lastDayOfMonth.toISOString(),
         employeeId,
@@ -186,32 +201,59 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
         timeTableId
       });
       
+      // Проверка staffRecordsService перед вызовом
+      console.log('[ScheduleTab] [DEBUG] staffRecordsService:', {
+        type: typeof staffRecordsService,
+        hasGetStaffRecords: typeof staffRecordsService.getStaffRecords === 'function'
+      });
+      
       // Вызываем сервис для получения данных
-      console.log('[ScheduleTab] Calling staffRecordsService.getStaffRecords...');
-      const records = await staffRecordsService.getStaffRecords(
-        firstDayOfMonth,
-        lastDayOfMonth,
-        currentUserID,
-        staffGroupID,
-        employeeId,
-        timeTableId
-      );
+      console.log('[ScheduleTab] [DEBUG] Вызываем staffRecordsService.getStaffRecords...');
       
-      // Обновляем состояние
-      console.log(`[ScheduleTab] Loaded ${records.length} staff records`);
-      updateState.staffRecords(records);
-      
-      // Логируем первый элемент (если есть)
-      if (records.length > 0) {
-        console.log('[ScheduleTab] First staff record:', records[0]);
-      } else {
-        console.log('[ScheduleTab] No staff records returned from service');
+      try {
+        const records = await staffRecordsService.getStaffRecords(
+          firstDayOfMonth,
+          lastDayOfMonth,
+          currentUserID,
+          staffGroupID,
+          employeeId,
+          timeTableId
+        );
+        
+        // Обновляем состояние
+        console.log(`[ScheduleTab] [DEBUG] Загружено ${records.length} записей расписания`);
+        updateState.staffRecords(records);
+        
+        // Логируем первый элемент (если есть)
+        if (records.length > 0) {
+          console.log('[ScheduleTab] [DEBUG] Первая запись расписания:', records[0]);
+          
+          // Проверим некоторые даты в первой записи
+          if (records[0].Date) {
+            console.log('[ScheduleTab] [DEBUG] Date в первой записи:', {
+              date: records[0].Date.toISOString(),
+              isValid: !isNaN(records[0].Date.getTime())
+            });
+          }
+          
+          if (records[0].ShiftDate1) {
+            console.log('[ScheduleTab] [DEBUG] ShiftDate1 в первой записи:', {
+              date: records[0].ShiftDate1.toISOString(),
+              isValid: !isNaN(records[0].ShiftDate1.getTime())
+            });
+          }
+        } else {
+          console.log('[ScheduleTab] [DEBUG] Записи не возвращены сервисом');
+        }
+      } catch (serviceError) {
+        console.error('[ScheduleTab] [ОШИБКА] Ошибка при вызове staffRecordsService.getStaffRecords:', serviceError);
+        throw serviceError;
       }
     } catch (error) {
       // В случае ошибки обновляем состояние
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('[ScheduleTab] Error loading staff records:', error);
-      updateState.errorStaffRecords(`Failed to load staff records: ${errorMessage}`);
+      console.error('[ScheduleTab] [КРИТИЧЕСКАЯ ОШИБКА] при загрузке записей расписания:', error);
+      updateState.errorStaffRecords(`Не удалось загрузить записи расписания: ${errorMessage}`);
     } finally {
       // В любом случае снимаем индикатор загрузки
       updateState.isLoadingStaffRecords(false);
