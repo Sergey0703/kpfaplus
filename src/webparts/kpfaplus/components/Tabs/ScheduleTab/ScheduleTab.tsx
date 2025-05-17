@@ -15,22 +15,24 @@ import {
   shouldRefreshDataOnDateChange
 } from './ScheduleTabApi';
 import { ScheduleTabContent } from './ScheduleTabContent';
+import styles from './ScheduleTab.module.scss'; // Исправленный путь к стилям
 
 // Интерфейс для состояния компонента ScheduleTab
 export interface IScheduleTabState {
   selectedDate: Date;
-  contracts: IContract[]; // Заменили any на IContract[]
+  contracts: IContract[];
   selectedContractId?: string;
   isLoading: boolean;
   error?: string;
-  holidays: IHoliday[]; // Заменили any на IHoliday[]
+  holidays: IHoliday[];
   isLoadingHolidays: boolean;
-  leaves: ILeaveDay[]; // Заменили any на ILeaveDay[]
+  leaves: ILeaveDay[];
   isLoadingLeaves: boolean;
   typesOfLeave: ITypeOfLeave[];
   isLoadingTypesOfLeave: boolean;
 }
 
+// Здесь используем именованный экспорт, как ожидается в Kpfaplus.tsx
 export const ScheduleTab: React.FC<ITabProps> = (props) => {
   const { selectedStaff, context } = props;
   
@@ -48,6 +50,8 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
     isLoadingTypesOfLeave: false
   });
   
+  // Остальной код компонента остается неизменным...
+  
   // Получаем сервисы
   const holidaysService = context ? HolidaysService.getInstance(context) : undefined;
   const daysOfLeavesService = context ? DaysOfLeavesService.getInstance(context) : undefined;
@@ -61,7 +65,7 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
     selectedContractId: (selectedContractId?: string) => {
       setState(prevState => ({ ...prevState, selectedContractId }));
     },
-    contracts: (contracts: IContract[]) => { // Заменили any[] на IContract[]
+    contracts: (contracts: IContract[]) => {
       setState(prevState => ({ ...prevState, contracts }));
     },
     isLoading: (isLoading: boolean) => {
@@ -70,13 +74,13 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
     error: (error?: string) => {
       setState(prevState => ({ ...prevState, error }));
     },
-    holidays: (holidays: IHoliday[]) => { // Заменили any[] на IHoliday[]
+    holidays: (holidays: IHoliday[]) => {
       setState(prevState => ({ ...prevState, holidays }));
     },
     isLoadingHolidays: (isLoadingHolidays: boolean) => {
       setState(prevState => ({ ...prevState, isLoadingHolidays }));
     },
-    leaves: (leaves: ILeaveDay[]) => { // Заменили any[] на ILeaveDay[]
+    leaves: (leaves: ILeaveDay[]) => {
       setState(prevState => ({ ...prevState, leaves }));
     },
     isLoadingLeaves: (isLoadingLeaves: boolean) => {
@@ -210,25 +214,30 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
   
   // Рендеринг компонента с использованием ScheduleTabContent
   return (
-    <ScheduleTabContent
-      selectedStaff={selectedStaff}
-      selectedDate={state.selectedDate}
-      contracts={state.contracts}
-      selectedContractId={state.selectedContractId}
-      isLoading={state.isLoading}
-      error={state.error}
-      holidays={state.holidays}
-      isLoadingHolidays={state.isLoadingHolidays}
-      leaves={state.leaves}
-      isLoadingLeaves={state.isLoadingLeaves}
-      typesOfLeave={state.typesOfLeave}
-      isLoadingTypesOfLeave={state.isLoadingTypesOfLeave}
-      holidaysService={holidaysService}
-      daysOfLeavesService={daysOfLeavesService}
-      typeOfLeaveService={typeOfLeaveService}
-      onDateChange={handleDateChange}
-      onContractChange={handleContractChange}
-      onErrorDismiss={handleErrorDismiss}
-    />
+    <div className={styles.scheduleTab}>
+      <ScheduleTabContent
+        selectedStaff={selectedStaff}
+        selectedDate={state.selectedDate}
+        contracts={state.contracts}
+        selectedContractId={state.selectedContractId}
+        isLoading={state.isLoading}
+        error={state.error}
+        holidays={state.holidays}
+        isLoadingHolidays={state.isLoadingHolidays}
+        leaves={state.leaves}
+        isLoadingLeaves={state.isLoadingLeaves}
+        typesOfLeave={state.typesOfLeave}
+        isLoadingTypesOfLeave={state.isLoadingTypesOfLeave}
+        holidaysService={holidaysService}
+        daysOfLeavesService={daysOfLeavesService}
+        typeOfLeaveService={typeOfLeaveService}
+        onDateChange={handleDateChange}
+        onContractChange={handleContractChange}
+        onErrorDismiss={handleErrorDismiss}
+      />
+    </div>
   );
 };
+
+// Также добавляем экспорт по умолчанию для совместимости
+export default ScheduleTab;

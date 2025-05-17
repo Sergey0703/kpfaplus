@@ -9,8 +9,7 @@ import {
   DefaultButton,
   Stack,
   IStackTokens,
-  Toggle,
-  Text
+  Toggle
 } from '@fluentui/react';
 import styles from '../ScheduleTab.module.scss';
 
@@ -100,21 +99,7 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
     }
   };
 
-  // Обработчик выбора/отмены выбора отдельной строки
-  const handleSelectRow = (id: string, isSelected: boolean) => {
-    const newSelected = new Set(selectedRows);
-    
-    if (isSelected) {
-      newSelected.add(id);
-    } else {
-      newSelected.delete(id);
-    }
-    
-    setSelectedRows(newSelected);
-    
-    // Обновляем состояние "выбрать все" в зависимости от того, все ли строки выбраны
-    setSelectAllRows(newSelected.size === items.length);
-  };
+  // Удалена неиспользуемая функция handleSelectRow
 
   // Обработчик для удаления всех выбранных строк
   const handleDeleteSelected = () => {
@@ -162,6 +147,7 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
         paddingBottom: '8px',
         fontWeight: 'bold'
       }}>
+        {/* Удалена колонка для checkbox/toggle */}
         <div style={{ width: '100px' }}>Date</div>
         <div style={{ width: '80px' }}></div>
         <div style={{ width: '150px' }}>Start Work</div>
@@ -170,8 +156,7 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
         <div style={{ width: '150px' }}>Type of Leave</div>
         <div style={{ width: '100px' }}>Shift</div>
         <div style={{ width: '120px' }}>Contract</div>
-        <div style={{ width: '30px' }}></div>
-        <div style={{ width: '100px' }}></div>
+        <div style={{ width: '40px' }}></div> {/* Увеличена ширина для кнопки удаления */}
       </div>
 
       {/* Содержимое таблицы */}
@@ -187,13 +172,8 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
         <div>
           {items.map((item, index) => {
             // Определяем цвет фона для строки (чередование, выделение и т.д.)
-            const isSelected = selectedRows.has(item.id);
             const isEvenRow = index % 2 === 0;
-            const backgroundColor = isSelected 
-              ? '#deecf9' 
-              : isEvenRow 
-                ? '#f9f9f9' 
-                : '#ffffff';
+            const backgroundColor = isEvenRow ? '#f9f9f9' : '#ffffff';
                 
             return (
               <div 
@@ -207,14 +187,7 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
                   borderRadius: '2px'
                 }}
               >
-                {/* Чекбокс для выбора строки */}
-                <div style={{ width: '24px', display: 'flex', alignItems: 'center', marginRight: '8px' }}>
-                  <Toggle
-                    checked={isSelected}
-                    onChange={(_, checked) => handleSelectRow(item.id, checked!)}
-                    styles={{ root: { margin: 0 } }}
-                  />
-                </div>
+                {/* Удалён чекбокс/toggle для выбора строки */}
                 
                 {/* Ячейки данных */}
                 <div style={{ width: '100px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
@@ -281,8 +254,8 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
                 
                 <div style={{ width: '100px', display: 'flex', alignItems: 'center' }}>
                   <PrimaryButton
-                    iconProps={{ iconName: 'Add' }}
-                    styles={{ root: { minWidth: 32, padding: '0 4px', backgroundColor: '#107c10' } }}
+                    text="+Shift"
+                    styles={{ root: { minWidth: 70, padding: '0 8px', backgroundColor: '#107c10' } }}
                     onClick={() => onAddShift(item.date)}
                   />
                   <Dropdown
@@ -297,21 +270,18 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
                   />
                 </div>
                 
+                {/* Удалено отображение item.contract (текст "test222") */}
                 <div style={{ width: '120px', display: 'flex', alignItems: 'center' }}>
-                  <Text variant="small">{item.contract}</Text>
+                  {/* Пустая ячейка для Contract */}
                 </div>
                 
-                <div style={{ width: '30px', display: 'flex', alignItems: 'center' }}>
+                <div style={{ width: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <IconButton
                     iconProps={{ iconName: 'Delete' }}
                     title="Delete"
                     ariaLabel="Delete"
                     onClick={() => onDeleteItem(item.id)}
                   />
-                </div>
-                
-                <div style={{ width: '100px', display: 'flex', alignItems: 'center', fontSize: '12px', color: '#666' }}>
-                  {item.id}
                 </div>
               </div>
             );
