@@ -14,6 +14,9 @@ import {
 import styles from '../ScheduleTab.module.scss';
 
 // Интерфейс для записи о расписании
+// src/webparts/kpfaplus/components/Tabs/ScheduleTab/components/ScheduleTable.tsx
+
+// Обновите определение интерфейса IScheduleItem, добавив поле deleted:
 export interface IScheduleItem {
   id: string;
   date: Date;
@@ -28,7 +31,8 @@ export interface IScheduleItem {
   shift: number;
   contract: string;
   contractId: string;
-  contractNumber?: string; // Добавляем поле для номера контракта
+  contractNumber?: string;
+  deleted?: boolean; // Добавляем поле для отметки удаленных записей
 }
 
 // Опции для выпадающих списков

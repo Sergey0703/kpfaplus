@@ -6,6 +6,7 @@ import { ITabProps } from '../../../models/types';
 import { HolidaysService, IHoliday } from '../../../services/HolidaysService';
 import { DaysOfLeavesService, ILeaveDay } from '../../../services/DaysOfLeavesService';
 import { TypeOfLeaveService, ITypeOfLeave } from '../../../services/TypeOfLeaveService';
+import { StaffRecordsService, IStaffRecord } from '../../../services/StaffRecordsService';
 import { IContract } from '../../../models/IContract';
 import { 
   fetchHolidaysForMonthAndYear, 
@@ -15,7 +16,7 @@ import {
   shouldRefreshDataOnDateChange
 } from './ScheduleTabApi';
 import { ScheduleTabContent } from './ScheduleTabContent';
-import styles from './ScheduleTab.module.scss'; // Исправленный путь к стилям
+import styles from './ScheduleTab.module.scss';
 
 // Интерфейс для состояния компонента ScheduleTab
 export interface IScheduleTabState {
@@ -30,11 +31,24 @@ export interface IScheduleTabState {
   isLoadingLeaves: boolean;
   typesOfLeave: ITypeOfLeave[];
   isLoadingTypesOfLeave: boolean;
+  staffRecords: IStaffRecord[];
+  isLoadingStaffRecords: boolean;
+  errorStaffRecords?: string;
 }
 
 // Здесь используем именованный экспорт, как ожидается в Kpfaplus.tsx
 export const ScheduleTab: React.FC<ITabProps> = (props) => {
   const { selectedStaff, context } = props;
+  
+  // Дополнительное логирование при инициализации компонента
+  console.log('[ScheduleTab] Initializing component with props:', {
+    hasSelectedStaff: !!selectedStaff,
+    selectedStaffId: selectedStaff?.id,
+    selectedStaffEmployeeId: selectedStaff?.employeeId,
+    hasContext: !!context,
+    currentUserId: props.currentUserId,
+    managingGroupId: props.managingGroupId
+  });
   
   // Инициализируем состояние компонента
   const [state, setState] = useState<IScheduleTabState>({
@@ -47,15 +61,24 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
     leaves: [],
     isLoadingLeaves: false,
     typesOfLeave: [],
-    isLoadingTypesOfLeave: false
+    isLoadingTypesOfLeave: false,
+    staffRecords: [],
+    isLoadingStaffRecords: false
   });
-  
-  // Остальной код компонента остается неизменным...
   
   // Получаем сервисы
   const holidaysService = context ? HolidaysService.getInstance(context) : undefined;
   const daysOfLeavesService = context ? DaysOfLeavesService.getInstance(context) : undefined;
   const typeOfLeaveService = context ? TypeOfLeaveService.getInstance(context) : undefined;
+  const staffRecordsService = context ? StaffRecordsService.getInstance(context) : undefined;
+  
+  // Логируем инициализацию сервисов
+  console.log('[ScheduleTab] Services initialization:', {
+    hasHolidaysService: !!holidaysService,
+    hasDaysOfLeavesService: !!daysOfLeavesService,
+    hasTypeOfLeaveService: !!typeOfLeaveService,
+    hasStaffRecordsService: !!staffRecordsService
+  });
   
   // Функции для обновления состояния - используем именованный объект для удобства чтения
   const updateState = {
@@ -91,12 +114,118 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
     },
     isLoadingTypesOfLeave: (isLoadingTypesOfLeave: boolean) => {
       setState(prevState => ({ ...prevState, isLoadingTypesOfLeave }));
+    },
+    staffRecords: (staffRecords: IStaffRecord[]) => {
+      setState(prevState => ({ ...prevState, staffRecords }));
+    },
+    isLoadingStaffRecords: (isLoadingStaffRecords: boolean) => {
+      setState(prevState => ({ ...prevState, isLoadingStaffRecords }));
+    },
+    errorStaffRecords: (errorStaffRecords?: string) => {
+      setState(prevState => ({ ...prevState, errorStaffRecords }));
+    }
+  };
+
+  // Функция для загрузки данных расписания
+  const loadStaffRecords = async (): Promise<void> => {
+    console.log('[ScheduleTab] loadStaffRecords called with params:', {
+      date: state.selectedDate,
+      employeeId: selectedStaff?.employeeId,
+      currentUserId: props.currentUserId,
+      managingGroupId: props.managingGroupId,
+      selectedContractId: state.selectedContractId
+    });
+    
+    // Проверяем наличие необходимых данных
+    if (!context || !staffRecordsService) {
+      console.log('[ScheduleTab] Cannot load staff records: missing context or service', {
+        hasContext: !!context,
+        hasStaffRecordsService: !!staffRecordsService
+      });
+      return;
+    }
+    
+    // Проверяем наличие сотрудника
+    if (!selectedStaff || !selectedStaff.employeeId) {
+      console.log('[ScheduleTab] Cannot load staff records: missing selected staff or employeeId', {
+        hasSelectedStaff: !!selectedStaff,
+        employeeId: selectedStaff?.employeeId
+      });
+      return;
+    }
+    
+    try {
+      // Устанавливаем состояние загрузки
+      updateState.isLoadingStaffRecords(true);
+      updateState.errorStaffRecords(undefined);
+      
+      // Получаем первый и последний день месяца
+      const date = state.selectedDate;
+      const firstDayOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+      const lastDayOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+      
+      console.log(`[ScheduleTab] Loading staff records for period: ${firstDayOfMonth.toLocaleDateString()} - ${lastDayOfMonth.toLocaleDateString()}`);
+      
+      // Получаем ID сотрудника
+      const employeeId = selectedStaff.employeeId;
+      
+      // ID временной таблицы (если выбран контракт)
+      const timeTableId = state.selectedContractId;
+      
+      // Получаем ID текущего пользователя и группы
+      const currentUserID = props.currentUserId ? props.currentUserId : '0';
+      const staffGroupID = props.managingGroupId ? props.managingGroupId : '0';
+      
+      // Логируем параметры запроса
+      console.log('[ScheduleTab] API call parameters:', {
+        firstDayOfMonth: firstDayOfMonth.toISOString(),
+        lastDayOfMonth: lastDayOfMonth.toISOString(),
+        employeeId,
+        currentUserID,
+        staffGroupID,
+        timeTableId
+      });
+      
+      // Вызываем сервис для получения данных
+      console.log('[ScheduleTab] Calling staffRecordsService.getStaffRecords...');
+      const records = await staffRecordsService.getStaffRecords(
+        firstDayOfMonth,
+        lastDayOfMonth,
+        currentUserID,
+        staffGroupID,
+        employeeId,
+        timeTableId
+      );
+      
+      // Обновляем состояние
+      console.log(`[ScheduleTab] Loaded ${records.length} staff records`);
+      updateState.staffRecords(records);
+      
+      // Логируем первый элемент (если есть)
+      if (records.length > 0) {
+        console.log('[ScheduleTab] First staff record:', records[0]);
+      } else {
+        console.log('[ScheduleTab] No staff records returned from service');
+      }
+    } catch (error) {
+      // В случае ошибки обновляем состояние
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('[ScheduleTab] Error loading staff records:', error);
+      updateState.errorStaffRecords(`Failed to load staff records: ${errorMessage}`);
+    } finally {
+      // В любом случае снимаем индикатор загрузки
+      updateState.isLoadingStaffRecords(false);
     }
   };
   
   // Функция для загрузки данных для указанной даты
   const loadDataForDate = (date: Date): void => {
-    if (!context) return;
+    console.log('[ScheduleTab] loadDataForDate called for:', date.toISOString());
+    
+    if (!context) {
+      console.log('[ScheduleTab] Cannot load data for date: missing context');
+      return;
+    }
     
     // Загружаем праздники
     void fetchHolidaysForMonthAndYear(
@@ -120,11 +249,20 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
         updateState.error
       );
     }
+    
+    // Загружаем расписание для сотрудника
+    console.log('[ScheduleTab] Calling loadStaffRecords from loadDataForDate');
+    void loadStaffRecords();
   };
   
   // Загружаем типы отпусков
   const loadTypesOfLeave = (): void => {
-    if (!context || !typeOfLeaveService) return;
+    console.log('[ScheduleTab] loadTypesOfLeave called');
+    
+    if (!context || !typeOfLeaveService) {
+      console.log('[ScheduleTab] Cannot load types of leave: missing context or service');
+      return;
+    }
     
     void fetchTypesOfLeave(
       context,
@@ -137,7 +275,12 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
   
   // Загружаем контракты сотрудника с учетом даты
   const loadContracts = (date?: Date): void => {
-    if (!context || !selectedStaff?.employeeId) return;
+    console.log('[ScheduleTab] loadContracts called for date:', date?.toISOString() || state.selectedDate.toISOString());
+    
+    if (!context || !selectedStaff?.employeeId) {
+      console.log('[ScheduleTab] Cannot load contracts: missing context or employeeId');
+      return;
+    }
     
     // Используем переданную дату или текущую выбранную дату
     const dateToUse = date || state.selectedDate;
@@ -157,7 +300,12 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
   
   // Загружаем данные о праздниках и отпусках при изменении даты
   const handleDateChange = (date: Date | undefined): void => {
-    if (!date) return;
+    console.log('[ScheduleTab] handleDateChange called with date:', date?.toISOString());
+    
+    if (!date) {
+      console.log('[ScheduleTab] No date provided to handleDateChange');
+      return;
+    }
     
     const currentDate = state.selectedDate;
     
@@ -166,8 +314,13 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
     
     // Если изменился месяц или год, загружаем новые данные
     if (shouldRefreshDataOnDateChange(currentDate, date)) {
+      console.log('[ScheduleTab] Month or year changed, reloading all data');
       // Загружаем праздники и отпуска для нового месяца
       loadDataForDate(date);
+    } else {
+      console.log('[ScheduleTab] Only day changed, reloading staff records');
+      // Даже если месяц не изменился, перезагружаем расписание для нового дня
+      void loadStaffRecords();
     }
     
     // Загружаем контракты с учетом новой даты в любом случае
@@ -176,36 +329,65 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
   
   // Обработчик изменения контракта
   const handleContractChange = (event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
+    console.log('[ScheduleTab] handleContractChange called with option:', option);
+    
     if (option) {
+      // Обновляем ID выбранного контракта
       updateState.selectedContractId(option.key.toString());
+      
+      // При изменении контракта перезагружаем расписание
+      console.log('[ScheduleTab] Contract changed, will reload staff records');
+      setTimeout(() => {
+        loadStaffRecords();
+      }, 0);
     }
   };
   
   // Обработчик закрытия сообщения об ошибке
   const handleErrorDismiss = (): void => {
     updateState.error(undefined);
+    updateState.errorStaffRecords(undefined);
   };
   
   // Загружаем контракты при монтировании компонента или изменении сотрудника
   useEffect(() => {
+    console.log('[ScheduleTab] useEffect triggered for selectedStaff/context:', {
+      hasSelectedStaff: !!selectedStaff,
+      selectedStaffId: selectedStaff?.id,
+      hasContext: !!context
+    });
+    
     if (selectedStaff?.id && context) {
+      console.log('[ScheduleTab] Loading contracts and staff records for staff:', selectedStaff.name);
       void loadContracts(state.selectedDate);
+      void loadStaffRecords(); // Загружаем расписание при изменении сотрудника
     } else {
+      console.log('[ScheduleTab] Clearing contracts and staff records');
       updateState.contracts([]);
+      updateState.staffRecords([]); // Очищаем расписание, если нет сотрудника
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedStaff, context]);
   
   // Загружаем праздники и отпуска при монтировании компонента
   useEffect(() => {
+    console.log('[ScheduleTab] useEffect triggered for context/managingGroupId/currentUserId:', {
+      hasContext: !!context,
+      managingGroupId: props.managingGroupId,
+      currentUserId: props.currentUserId
+    });
+    
     if (context) {
+      console.log('[ScheduleTab] Loading data for date from useEffect');
       void loadDataForDate(state.selectedDate);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [context, selectedStaff]);
+  }, [context, props.managingGroupId, props.currentUserId]); // Добавляем зависимости от managingGroupId и currentUserId
   
   // Загружаем типы отпусков при монтировании компонента
   useEffect(() => {
+    console.log('[ScheduleTab] useEffect triggered for typeOfLeaveService');
+    
     if (context && typeOfLeaveService) {
       void loadTypesOfLeave();
     }
@@ -220,8 +402,8 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
         selectedDate={state.selectedDate}
         contracts={state.contracts}
         selectedContractId={state.selectedContractId}
-        isLoading={state.isLoading}
-        error={state.error}
+        isLoading={state.isLoading || state.isLoadingStaffRecords}
+        error={state.error || state.errorStaffRecords}
         holidays={state.holidays}
         isLoadingHolidays={state.isLoadingHolidays}
         leaves={state.leaves}
@@ -234,6 +416,7 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
         onDateChange={handleDateChange}
         onContractChange={handleContractChange}
         onErrorDismiss={handleErrorDismiss}
+        staffRecords={state.staffRecords}
       />
     </div>
   );

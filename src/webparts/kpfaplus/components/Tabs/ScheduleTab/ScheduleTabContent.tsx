@@ -1,4 +1,4 @@
-// src/webparts/kpfaplus/components/Tabs/ScheduleTab/components/ScheduleTabContent.tsx
+// src/webparts/kpfaplus/components/Tabs/ScheduleTab/ScheduleTabContent.tsx
 import * as React from 'react';
 import { 
   MessageBar,
@@ -12,6 +12,7 @@ import { IContract } from '../../../models/IContract';
 import { IHoliday } from '../../../services/HolidaysService';
 import { ILeaveDay } from '../../../services/DaysOfLeavesService';
 import { ITypeOfLeave } from '../../../services/TypeOfLeaveService';
+import { IStaffRecord } from '../../../services/StaffRecordsService';
 import { getLeaveTypeInfo } from './ScheduleTabApi';
 import styles from './ScheduleTab.module.scss';
 
@@ -56,6 +57,7 @@ export interface IScheduleTabContentProps {
   onDateChange: (date: Date | undefined) => void;
   onContractChange: (event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption) => void;
   onErrorDismiss: () => void;
+  staffRecords?: IStaffRecord[]; // Добавляем поле для данных расписания
 }
 
 /**
@@ -79,7 +81,8 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     daysOfLeavesService,
     onDateChange,
     onContractChange,
-    onErrorDismiss
+    onErrorDismiss,
+    staffRecords // Получаем данные расписания из пропсов
   } = props;
   
   // Находим выбранный контракт
@@ -88,7 +91,7 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
   // Состояние для отображения удаленных записей
   const [showDeleted, setShowDeleted] = React.useState<boolean>(false);
   
-  // Логирование информации для отладки (вместо отображения в UI)
+  // Логирование информации для отладки
   React.useEffect(() => {
     // Создаем группу в консоли для более организованного вывода
     console.group("Schedule Tab Data");
@@ -132,60 +135,18 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
         const count = leavesByType[typeId].length;
         console.log(`${typeInfo.title}: ${count} ${count === 1 ? 'leave' : 'leaves'}`);
       });
-      
-      // Выводим детальную информацию о каждом отпуске
-      console.log(`\n--- Leave Details ---`);
-      leaves.forEach((leave, index) => {
-        const typeInfo = getLeaveTypeInfo(leave.typeOfLeave, typesOfLeave);
-        console.log(`Leave #${index + 1}: ${leave.title}`);
-        console.log(`  Type: ${typeInfo.title}`);
-        console.log(`  Period: ${leave.startDate.toLocaleDateString()} - ${leave.endDate ? leave.endDate.toLocaleDateString() : 'open'}`);
-        
-        // Определение статуса отпуска
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const startDate = new Date(leave.startDate);
-        startDate.setHours(0, 0, 0, 0);
-        
-        let status = '';
-        if (!leave.endDate) {
-          status = startDate <= today ? 'Active' : 'Future';
-        } else {
-          const endDate = new Date(leave.endDate);
-          endDate.setHours(0, 0, 0, 0);
-          
-          if (today < startDate) {
-            status = 'Future';
-          } else if (today > endDate) {
-            status = 'Completed';
-          } else {
-            status = 'Active';
-          }
-        }
-        console.log(`  Status: ${status}`);
-        
-        // Расчет длительности отпуска
-        if (!leave.endDate) {
-          const diffTime = Math.abs(today.getTime() - startDate.getTime());
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-          console.log(`  Duration: ${diffDays}+ days (ongoing)`);
-        } else {
-          const endDate = new Date(leave.endDate);
-          const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-          console.log(`  Duration: ${diffDays} days`);
-        }
-      });
+    }
+    
+    // Логирование информации о данных расписания
+    console.log(`\n--- Staff Records ---`);
+    console.log(`${staffRecords && staffRecords.length > 0 ? staffRecords.length : 'No'} staff records loaded for month ${selectedDate.getMonth() + 1}/${selectedDate.getFullYear()}`);
+    if (staffRecords && staffRecords.length > 0) {
+      console.log(`First staff record:`, staffRecords[0]);
     }
     
     // Логирование информации о типах отпусков
     console.log(`\n--- Types of Leave ---`);
     console.log(`${typesOfLeave.length} types of leave loaded`);
-    if (typesOfLeave.length > 0) {
-      typesOfLeave.forEach((type, index) => {
-        console.log(`Type #${index + 1}: ${type.title}${type.color ? `, Color: ${type.color}` : ''}`);
-      });
-    }
     
     // Логирование информации о контрактах
     console.log(`\n--- Contracts ---`);
@@ -194,7 +155,44 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     
     // Завершаем группу консоли
     console.groupEnd();
-  }, [selectedDate, holidays, leaves, typesOfLeave, contracts, selectedContract]);
+  }, [selectedDate, holidays, leaves, typesOfLeave, contracts, selectedContract, staffRecords]);
+  
+  // Преобразование данных расписания в формат для ScheduleTable
+  const convertStaffRecordsToScheduleItems = (records: IStaffRecord[] | undefined): IScheduleItem[] => {
+    if (!records || records.length === 0) {
+      return [];
+    }
+
+    return records.map(record => {
+      // Форматирование дня недели
+      const dayOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][record.Date.getDay()];
+      
+      // Получение часов и минут из дат
+      const startHour = record.ShiftDate1 ? record.ShiftDate1.getHours().toString().padStart(2, '0') : '00';
+      const startMinute = record.ShiftDate1 ? record.ShiftDate1.getMinutes().toString().padStart(2, '0') : '00';
+      const finishHour = record.ShiftDate2 ? record.ShiftDate2.getHours().toString().padStart(2, '0') : '00';
+      const finishMinute = record.ShiftDate2 ? record.ShiftDate2.getMinutes().toString().padStart(2, '0') : '00';
+      
+      // Формирование объекта IScheduleItem
+      return {
+        id: record.ID,
+        date: record.Date,
+        dayOfWeek,
+        workingHours: record.WorkTime || '0.00',
+        startHour,
+        startMinute,
+        finishHour,
+        finishMinute,
+        lunchTime: record.TimeForLunch.toString(),
+        typeOfLeave: record.TypeOfLeaveID || '',
+        shift: 1, // По умолчанию 1
+        contract: record.WeeklyTimeTableTitle || selectedContract?.template || '',
+        contractId: record.WeeklyTimeTableID || selectedContract?.id || '',
+        contractNumber: record.Contract.toString(),
+        deleted: record.Deleted === 1 // Добавляем флаг deleted
+      };
+    });
+  };
   
   // Обработчик для кнопки Fill
   const handleFillButtonClick = (): void => {
@@ -204,51 +202,6 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     
     // Пример логики:
     alert('Filling schedule data for selected week. This feature will be implemented in a future update.');
-  };
-  
-  // Временные данные для ScheduleTable
-  const generateMockScheduleItems = (): IScheduleItem[] => {
-    if (!selectedContract) return [];
-    
-    // Создаем дни недели для текущей недели
-    const items: IScheduleItem[] = [];
-    const currentDay = new Date(selectedDate);
-    currentDay.setDate(currentDay.getDate() - currentDay.getDay()); // Начинаем с воскресенья
-    
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(currentDay);
-      date.setDate(date.getDate() + i);
-      
-      const dayOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()];
-      
-      // Рабочие часы - для субботы делаем 5ч 30м, для остальных дней 0ч 00м
-      const workingHours = date.getDay() === 6 ? '5h 30m' : '0h 00m';
-      
-      // Для субботы делаем время с 9 до 15, для остальных 0:00
-      const startHour = date.getDay() === 6 ? '09' : '00';
-      const startMinute = '00';
-      const finishHour = date.getDay() === 6 ? '15' : '00';
-      const finishMinute = '00';
-      
-      items.push({
-        id: `schedule-${date.toISOString().split('T')[0]}-1`,
-        date,
-        dayOfWeek,
-        workingHours,
-        startHour,
-        startMinute,
-        finishHour,
-        finishMinute,
-        lunchTime: '30',
-        typeOfLeave: '',
-        shift: 1,
-        contract: selectedContract.template,
-        contractId: selectedContract.id,
-        contractNumber: '1' // По умолчанию 1
-      });
-    }
-    
-    return items;
   };
   
   // Создаем опции для выпадающих списков в таблице
@@ -278,6 +231,12 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
   };
   
   const handleItemChange = (item: IScheduleItem, field: string, value: string | number): void => {
+    // Проверяем, не удалена ли запись
+    if (item.deleted && !showDeleted) {
+      console.log(`Cannot modify deleted item ${item.id}`);
+      return;
+    }
+    
     console.log(`Changed item ${item.id}, field: ${field}, value: ${value}`);
     // В реальном приложении здесь будет обновление данных
   };
@@ -330,7 +289,7 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
         <>
           {selectedContract ? (
             <div style={{ 
-                border: 'none',              // Удаляем рамку
+                border: 'none',
                 padding: '0px',    
               borderRadius: '4px',
               minHeight: '300px',
@@ -355,9 +314,9 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
                 </div>
               ) : (
                 <div style={{ padding: '10px' }}>
-                  {/* Таблица расписания */}
+                  {/* Таблица расписания - используем реальные данные вместо mock-данных */}
                   <ScheduleTable
-                    items={generateMockScheduleItems()}
+                    items={convertStaffRecordsToScheduleItems(staffRecords)}
                     options={scheduleOptions}
                     selectedDate={selectedDate}
                     selectedContract={{ id: selectedContract.id, name: selectedContract.template }}

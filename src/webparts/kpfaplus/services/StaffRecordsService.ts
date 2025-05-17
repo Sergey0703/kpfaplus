@@ -82,6 +82,7 @@ export class StaffRecordsService {
    * @param context Контекст веб-части
    */
   private constructor(context: WebPartContext) {
+    console.log('[StaffRecordsService] Initializing service with context');
     this._remoteSiteService = RemoteSiteService.getInstance(context);
     this.logInfo("StaffRecordsService initialized with RemoteSiteService");
   }
@@ -93,7 +94,10 @@ export class StaffRecordsService {
    */
   public static getInstance(context: WebPartContext): StaffRecordsService {
     if (!StaffRecordsService._instance) {
+      console.log('[StaffRecordsService] Creating new instance');
       StaffRecordsService._instance = new StaffRecordsService(context);
+    } else {
+      console.log('[StaffRecordsService] Returning existing instance');
     }
     return StaffRecordsService._instance;
   }
@@ -127,17 +131,45 @@ export class StaffRecordsService {
         timeTableID: ${timeTableID || 'not specified'}`
       );
 
+      // Проверяем наличие RemoteSiteService
+      if (!this._remoteSiteService) {
+        this.logError('RemoteSiteService is not initialized');
+        return [];
+      }
+
+      // Проверяем, что RemoteSiteService авторизован
+      if (!this._remoteSiteService.isAuthorized()) {
+        this.logError('RemoteSiteService is not authorized');
+        await this._remoteSiteService.ensureAuthorization();
+      }
+
+      // Проверка listName
+      if (!this._listName) {
+        this.logError('List name is not defined');
+        return [];
+      }
+
       // Форматирование дат для фильтрации
       const startDateStr = this.formatDateForFilter(startDate);
       const endDateStr = this.formatDateForFilter(endDate);
 
       // Строим фильтр для запроса к SharePoint
-      // Базовое условие: сотрудник и период
-      let filter = `fields/EmployeeLookupId eq ${employeeID} and fields/Date ge '${startDateStr}' and fields/Date le '${endDateStr}'`;
+      // Базовое условие: период
+      let filter = `fields/Date ge '${startDateStr}' and fields/Date le '${endDateStr}'`;
+      
+      // Добавляем условие по сотруднику, если указано
+      if (employeeID) {
+        filter += ` and fields/StaffmemberLookupId eq ${employeeID}`;
+      }
       
       // Добавляем условие по группе, если указано
       if (staffGroupID) {
         filter += ` and fields/StaffGroupLookupId eq ${staffGroupID}`;
+      }
+      
+      // Добавляем условие по менеджеру (текущему пользователю), если указано
+      if (currentUserID) {
+        filter += ` and fields/ManagerLookupId eq ${currentUserID}`;
       }
       
       // Добавляем условие по недельному расписанию, если указано
@@ -146,6 +178,10 @@ export class StaffRecordsService {
       }
       
       this.logInfo(`Using filter: ${filter}`);
+      console.log(`[${this._logSource}] Calling RemoteSiteService.getListItems with:`, {
+        listName: this._listName,
+        filter
+      });
       
       // Получаем записи из SharePoint с использованием RemoteSiteService
       const rawItems = await this._remoteSiteService.getListItems(
@@ -156,11 +192,21 @@ export class StaffRecordsService {
       );
       
       this.logInfo(`Retrieved ${rawItems.length} staff record items from SharePoint`);
+      console.log(`[${this._logSource}] Raw response from server (first item):`, rawItems.length > 0 ? rawItems[0] : 'No items');
       
       // Логируем первый элемент для отладки (если есть)
       if (rawItems.length > 0) {
         this.logInfo(`First raw item sample structure:
         ${JSON.stringify(rawItems[0], null, 2)}`);
+      } else {
+        this.logInfo(`No items returned from the server for filter: ${filter}`);
+        // Проверим, существует ли список
+        try {
+          const listInfo = await this._remoteSiteService.getListInfo(this._listName);
+          this.logInfo(`List "${this._listName}" exists with ID: ${listInfo.id}, item count: ${listInfo.itemCount}`);
+        } catch (listError) {
+          this.logError(`Error checking list "${this._listName}": ${listError}`);
+        }
       }
       
       // Преобразуем полученные сырые данные в формат IStaffRecord
@@ -190,6 +236,7 @@ export class StaffRecordsService {
       return sortedRecords;
     } catch (error) {
       this.logError(`Error getting staff records: ${error instanceof Error ? error.message : String(error)}`);
+      console.error('[StaffRecordsService] Error details:', error);
       
       // В случае ошибки возвращаем пустой массив
       return [];
