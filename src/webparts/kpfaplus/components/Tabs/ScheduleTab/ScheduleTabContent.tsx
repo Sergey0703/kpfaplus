@@ -1,4 +1,4 @@
-// src/webparts/kpfaplus/components/Tabs/ScheduleTab/ScheduleTabContent.tsx
+// src/webparts/kpfaplus/components/Tabs/ScheduleTab/components/ScheduleTabContent.tsx
 import * as React from 'react';
 import { 
   MessageBar,
@@ -196,6 +196,16 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     console.groupEnd();
   }, [selectedDate, holidays, leaves, typesOfLeave, contracts, selectedContract]);
   
+  // Обработчик для кнопки Fill
+  const handleFillButtonClick = (): void => {
+    console.log('Fill button clicked');
+    // Здесь будет логика заполнения данных по расписанию
+    // Например, можно автоматически заполнить расписание на всю неделю
+    
+    // Пример логики:
+    alert('Filling schedule data for selected week. This feature will be implemented in a future update.');
+  };
+  
   // Временные данные для ScheduleTable
   const generateMockScheduleItems = (): IScheduleItem[] => {
     if (!selectedContract) return [];
@@ -233,7 +243,8 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
         typeOfLeave: '',
         shift: 1,
         contract: selectedContract.template,
-        contractId: selectedContract.id
+        contractId: selectedContract.id,
+        contractNumber: '1' // По умолчанию 1
       });
     }
     
@@ -253,6 +264,11 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
       ...typesOfLeave.map(t => ({ key: t.id, text: t.title })),
       { key: 'TOIL+', text: 'TOIL+' },
       { key: 'Parental Leave', text: 'Parental Leave' }
+    ],
+    contractNumbers: [
+      { key: '1', text: '1' },
+      { key: '2', text: '2' },
+      { key: '3', text: '3' }
     ]
   };
   
@@ -261,7 +277,7 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     setShowDeleted(checked);
   };
   
-  const handleItemChange = (item: IScheduleItem, field: string, value: any): void => {
+  const handleItemChange = (item: IScheduleItem, field: string, value: string | number): void => {
     console.log(`Changed item ${item.id}, field: ${field}, value: ${value}`);
     // В реальном приложении здесь будет обновление данных
   };
@@ -294,7 +310,7 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
         </MessageBar>
       )}
       
-      {/* Фильтры выбора даты и контракта */}
+      {/* Фильтры выбора даты и контракта с кнопкой Fill */}
       <FilterControls
         selectedDate={selectedDate}
         contracts={contracts}
@@ -302,6 +318,7 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
         isLoading={isLoading}
         onDateChange={onDateChange}
         onContractChange={onContractChange}
+        onFillButtonClick={handleFillButtonClick}
       />
       
       {/* Показываем спиннер при загрузке */}

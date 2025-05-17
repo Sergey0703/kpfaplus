@@ -49,7 +49,7 @@ export interface IScheduleTableProps {
   isLoading: boolean;
   showDeleted: boolean;
   onToggleShowDeleted: (checked: boolean) => void;
-  onItemChange: (item: IScheduleItem, field: string, value: any) => void;
+  onItemChange: (item: IScheduleItem, field: string, value: string | number) => void; // Исправлено: указан конкретный тип вместо any
   onAddShift: (date: Date) => void;
   onDeleteItem: (id: string) => void;
 }
@@ -89,17 +89,17 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
 
   // Обработчик изменения времени
-  const handleTimeChange = (item: IScheduleItem, field: string, value: string) => {
+  const handleTimeChange = (item: IScheduleItem, field: string, value: string): void => {
     onItemChange(item, field, value);
   };
 
   // Обработчик изменения контракта
-  const handleContractNumberChange = (item: IScheduleItem, value: string) => {
+  const handleContractNumberChange = (item: IScheduleItem, value: string): void => {
     onItemChange(item, 'contractNumber', value);
   };
 
   // Обработчик выбора/отмены выбора всех строк
-  const handleSelectAllRows = (checked: boolean) => {
+  const handleSelectAllRows = (checked: boolean): void => {
     setSelectAllRows(checked);
     
     if (checked) {
@@ -114,7 +114,7 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
   };
 
   // Обработчик для удаления всех выбранных строк
-  const handleDeleteSelected = () => {
+  const handleDeleteSelected = (): void => {
     selectedRows.forEach(id => {
       onDeleteItem(id);
     });
@@ -135,7 +135,7 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
           <Toggle
             label="Select All rows"
             checked={selectAllRows}
-            onChange={(_, checked) => handleSelectAllRows(checked!)}
+            onChange={(_, checked): void => handleSelectAllRows(checked!)}
           />
           {selectedRows.size > 0 && (
             <DefaultButton
@@ -148,7 +148,7 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
         <Toggle
           label="Show Deleted"
           checked={showDeleted}
-          onChange={(_, checked) => onToggleShowDeleted(checked!)}
+          onChange={(_, checked): void => onToggleShowDeleted(checked!)}
         />
       </Stack>
 
@@ -175,9 +175,9 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
               <th style={{ textAlign: 'center', padding: '8px 0' }}>Finish Work</th>
               <th style={{ textAlign: 'center', padding: '8px 0' }}>Time for Lunch:</th>
               <th style={{ textAlign: 'center', padding: '8px 0' }}>Type of Leave</th>
-              <th style={{ textAlign: 'center', padding: '8px 0' }}></th> {/* Для кнопки +Shift */}
+              <th style={{ textAlign: 'center', padding: '8px 0' }} /> {/* Для кнопки +Shift - исправлено на самозакрывающийся тег */}
               <th style={{ textAlign: 'left', padding: '8px 0' }}>Contract</th>
-              <th style={{ textAlign: 'center', padding: '8px 0' }}></th> {/* Для кнопки удаления */}
+              <th style={{ textAlign: 'center', padding: '8px 0' }} /> {/* Для кнопки удаления - исправлено на самозакрывающийся тег */}
               <th style={{ textAlign: 'center', padding: '8px 0' }}>ID</th> {/* Для ID */}
             </tr>
           </thead>
@@ -231,13 +231,13 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
                         <Dropdown
                           selectedKey={item.startHour}
                           options={options.hours}
-                          onChange={(_, option) => handleTimeChange(item, 'startHour', option?.key as string)}
+                          onChange={(_, option): void => handleTimeChange(item, 'startHour', option?.key as string)}
                           styles={{ root: { width: 60, margin: '0 4px' } }}
                         />
                         <Dropdown
                           selectedKey={item.startMinute}
                           options={options.minutes}
-                          onChange={(_, option) => handleTimeChange(item, 'startMinute', option?.key as string)}
+                          onChange={(_, option): void => handleTimeChange(item, 'startMinute', option?.key as string)}
                           styles={{ root: { width: 60, margin: '0 4px' } }}
                         />
                       </div>
@@ -249,13 +249,13 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
                         <Dropdown
                           selectedKey={item.finishHour}
                           options={options.hours}
-                          onChange={(_, option) => handleTimeChange(item, 'finishHour', option?.key as string)}
+                          onChange={(_, option): void => handleTimeChange(item, 'finishHour', option?.key as string)}
                           styles={{ root: { width: 60, margin: '0 4px' } }}
                         />
                         <Dropdown
                           selectedKey={item.finishMinute}
                           options={options.minutes}
-                          onChange={(_, option) => handleTimeChange(item, 'finishMinute', option?.key as string)}
+                          onChange={(_, option): void => handleTimeChange(item, 'finishMinute', option?.key as string)}
                           styles={{ root: { width: 60, margin: '0 4px' } }}
                         />
                       </div>
@@ -266,7 +266,7 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
                       <Dropdown
                         selectedKey={item.lunchTime}
                         options={options.lunchTimes}
-                        onChange={(_, option) => handleTimeChange(item, 'lunchTime', option?.key as string)}
+                        onChange={(_, option): void => handleTimeChange(item, 'lunchTime', option?.key as string)}
                         styles={{ root: { width: 80 } }}
                       />
                     </td>
@@ -276,7 +276,7 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
                       <Dropdown
                         selectedKey={item.typeOfLeave}
                         options={options.leaveTypes}
-                        onChange={(_, option) => handleTimeChange(item, 'typeOfLeave', option?.key as string)}
+                        onChange={(_, option): void => handleTimeChange(item, 'typeOfLeave', option?.key as string)}
                         styles={{ root: { width: 150 } }}
                       />
                     </td>
@@ -286,7 +286,7 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
                       <PrimaryButton
                         text="+Shift"
                         styles={{ root: { minWidth: 60, padding: '0 4px', backgroundColor: '#107c10' } }}
-                        onClick={() => onAddShift(item.date)}
+                        onClick={(): void => onAddShift(item.date)}
                       />
                     </td>
                     
@@ -295,7 +295,7 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
                       <Dropdown
                         selectedKey={item.contractNumber || '1'} // По умолчанию '1'
                         options={contractOptions}
-                        onChange={(_, option) => handleContractNumberChange(item, option?.key as string)}
+                        onChange={(_, option): void => handleContractNumberChange(item, option?.key as string)}
                         styles={{ root: { width: 50 } }}
                       />
                     </td>
@@ -306,7 +306,7 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
                         iconProps={{ iconName: 'Delete' }}
                         title="Delete"
                         ariaLabel="Delete"
-                        onClick={() => onDeleteItem(item.id)}
+                        onClick={(): void => onDeleteItem(item.id)}
                         styles={{ 
                           root: { color: '#e81123' },
                           rootHovered: { color: '#a80000' }
