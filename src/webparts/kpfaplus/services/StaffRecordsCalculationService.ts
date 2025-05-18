@@ -5,6 +5,13 @@ import {
     ISortOptions,
     StaffRecordsSortType
   } from "./StaffRecordsInterfaces";
+  import {
+    calculateWorkTime,
+    formatMinutesToTime,
+    parseTimeToMinutes,
+    IWorkTimeInput
+    // Удалили неиспользуемый импорт IWorkTimeResult
+  } from "../utils/TimeCalculationUtils";
   
   /**
    * Сервис для расчетов и обработки данных расписания персонала
@@ -29,38 +36,23 @@ import {
      */
     public calculateWorkTime(record: IStaffRecord): IStaffRecord {
       try {
-        // Проверяем, что есть время начала и окончания работы
-        if (!record.ShiftDate1 || !record.ShiftDate2) {
-          // Если нет времени начала или окончания, устанавливаем WorkTime в "0.00"
-          return {
-            ...record,
-            SortOrder: 1, // Значение по умолчанию для сортировки
-            WorkTime: "0.00"
-          };
-        }
+        // Подготавливаем входные данные для расчета
+        const input: IWorkTimeInput = {
+          startTime: record.ShiftDate1,
+          endTime: record.ShiftDate2,
+          lunchStartTime: record.ShiftDate3,
+          lunchEndTime: record.ShiftDate4,
+          lunchDurationMinutes: record.TimeForLunch
+        };
   
-        // Получаем время начала и окончания работы
-        const startWork = record.ShiftDate1;
-        const endWork = record.ShiftDate2;
-  
-        // Получаем время начала и окончания обеда
-        const startLunch = record.ShiftDate3;
-        const endLunch = record.ShiftDate4;
-  
-        // Выполняем расчет рабочего времени
-        const result = this.calculateWorkTimeDetails(
-          startWork, 
-          endWork, 
-          startLunch, 
-          endLunch, 
-          record.TimeForLunch
-        );
+        // Используем утилиту для расчета рабочего времени
+        const result = calculateWorkTime(input);
   
         // Возвращаем запись с рассчитанным рабочим временем и порядком сортировки
         return {
           ...record,
           SortOrder: result.sortOrder,
-          WorkTime: result.workTime
+          WorkTime: result.formattedTime
         };
       } catch (error) {
         this.logError(`[ОШИБКА] Ошибка при расчете рабочего времени для записи ID ${record.ID}: ${error instanceof Error ? error.message : String(error)}`);
@@ -90,76 +82,24 @@ import {
       endLunch: Date | undefined,
       timeForLunch: number
     ): IWorkTimeCalculationResult {
-      // Рассчитываем минуты для времени начала работы
-      const startMinutes = startWork.getHours() * 60 + startWork.getMinutes();
+      // Перенаправляем вызов на утилиту
+      const input: IWorkTimeInput = {
+        startTime: startWork,
+        endTime: endWork,
+        lunchStartTime: startLunch,
+        lunchEndTime: endLunch,
+        lunchDurationMinutes: timeForLunch
+      };
   
-      // Рассчитываем минуты для времени окончания работы
-      const endMinutes = endWork.getHours() * 60 + endWork.getMinutes();
+      const result = calculateWorkTime(input);
   
-      // Расчет рабочих минут с учетом перехода через полночь
-      let workMinutes = 0;
-  
-      if (endMinutes <= startMinutes && endMinutes > 0) {
-        // Если окончание раньше начала и не 00:00, значит смена переходит через полночь
-        workMinutes = endMinutes + (24 * 60) - startMinutes;
-      } else if (endMinutes === 0) {
-        // Если окончание в 00:00, считаем это как конец дня (24:00)
-        workMinutes = (24 * 60) - startMinutes;
-      } else {
-        // Обычный случай, когда окончание позже начала
-        workMinutes = endMinutes - startMinutes;
-      }
-  
-      // Расчет минут обеда
-      let lunchMinutes = 0;
-  
-      // Используем время обеда из поля TimeForLunch, если задано
-      if (timeForLunch > 0) {
-        lunchMinutes = timeForLunch;
-      } 
-      // Иначе рассчитываем из времени начала и окончания обеда, если они заданы
-      else if (startLunch && endLunch && 
-              !(startLunch.getHours() === 0 && startLunch.getMinutes() === 0 &&
-                endLunch.getHours() === 0 && endLunch.getMinutes() === 0)) {
-        
-        const lunchStartMinutes = startLunch.getHours() * 60 + startLunch.getMinutes();
-        const lunchEndMinutes = endLunch.getHours() * 60 + endLunch.getMinutes();
-        
-        lunchMinutes = lunchEndMinutes - lunchStartMinutes;
-      }
-  
-      // Рассчитываем чистое рабочее время (общее время - обед)
-      const netWorkMinutes = Math.max(0, workMinutes - lunchMinutes);
-  
-      // Форматируем результат в формате "часы.минуты"
-      const hours = Math.floor(netWorkMinutes / 60);
-      const minutes = netWorkMinutes % 60;
-      const workTime = `${hours}.${minutes.toString().padStart(2, '0')}`;
-  
-      // Рассчитываем SortOrder (порядок сортировки)
-      let sortOrder = 1; // По умолчанию
-  
-      // Проверяем, являются ли времена начала и окончания нулевыми (00:00)
-      const isStartTimeZero = startWork.getHours() === 0 && startWork.getMinutes() === 0;
-      const isEndTimeZero = endWork.getHours() === 0 && endWork.getMinutes() === 0;
-  
-      if (isStartTimeZero && isEndTimeZero) {
-        // Если оба времени нулевые, устанавливаем SortOrder в 1
-        sortOrder = 1;
-      } else if (!isStartTimeZero) {
-        // Если время начала не нулевое, устанавливаем SortOrder в 0
-        sortOrder = 0;
-      } else if (!isEndTimeZero) {
-        // Если время начала нулевое, но время окончания не нулевое, устанавливаем SortOrder в 0
-        sortOrder = 0;
-      }
-  
+      // Преобразуем результат в IWorkTimeCalculationResult
       return {
-        workTime,
-        sortOrder,
-        workMinutes,
-        lunchMinutes,
-        netWorkMinutes
+        workTime: result.formattedTime,
+        sortOrder: result.sortOrder,
+        workMinutes: result.totalMinutes,
+        lunchMinutes: result.lunchMinutes,
+        netWorkMinutes: result.totalMinutes
       };
     }
   
@@ -217,10 +157,10 @@ import {
               break;
               
             case StaffRecordsSortType.ByWorkTime:
-              // Сортировка по рабочему времени
+              // Сортировка по рабочему времени, используя утилиту для парсинга
               {
-                const workTimeA = this.parseWorkTime(a.WorkTime || "0.00");
-                const workTimeB = this.parseWorkTime(b.WorkTime || "0.00");
+                const workTimeA = parseTimeToMinutes(a.WorkTime || "0.00");
+                const workTimeB = parseTimeToMinutes(b.WorkTime || "0.00");
                 compareResult = workTimeA - workTimeB;
               }
               break;
@@ -253,34 +193,15 @@ import {
       try {
         this.logInfo(`[DEBUG] Расчет общего рабочего времени для ${records.length} записей`);
         
-        // Суммируем рабочее время по всем записям
+        // Используем утилиту для парсинга и суммирования времени
         const totalMinutes = records.reduce((total, record) => {
-          // Извлекаем минуты из строки формата "часы.минуты"
-          const workTimeMinutes = this.parseWorkTime(record.WorkTime || "0.00");
-          return total + workTimeMinutes;
+          return total + parseTimeToMinutes(record.WorkTime || "0.00");
         }, 0);
         
-        this.logInfo(`[DEBUG] Общее рабочее время: ${totalMinutes} минут`);
+        this.logInfo(`[DEBUG] Общее рабочее время: ${totalMinutes} минут (${formatMinutesToTime(totalMinutes)})`);
         return totalMinutes;
       } catch (error) {
         this.logError(`[ОШИБКА] Ошибка при расчете общего рабочего времени: ${error instanceof Error ? error.message : String(error)}`);
-        return 0;
-      }
-    }
-  
-    /**
-     * Преобразует строку рабочего времени в минуты
-     * @param workTime Строка рабочего времени в формате "часы.минуты"
-     * @returns Количество минут
-     */
-    private parseWorkTime(workTime: string): number {
-      try {
-        const parts = workTime.split('.');
-        const hours = parseInt(parts[0], 10) || 0;
-        const minutes = parseInt(parts[1], 10) || 0;
-        return hours * 60 + minutes;
-      } catch (error) {
-        this.logError(`[ОШИБКА] Ошибка преобразования рабочего времени "${workTime}": ${error}`);
         return 0;
       }
     }
