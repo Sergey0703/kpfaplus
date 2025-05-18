@@ -38,7 +38,7 @@ const datePickerStringsEN: IDatePickerStrings = {
     'Sunday', 'Monday', 'Tuesday', 'Wednesday',
     'Thursday', 'Friday', 'Saturday'
   ],
-  shortDays: ['S', 'M', 'T', 'W', 'T', 'F', 'S'], // Or Sun, Mon, Tue...
+  shortDays: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], // Or Sun, Mon, Tue...
   goToToday: 'Go to today',
   prevMonthAriaLabel: 'Go to previous month',
   nextMonthAriaLabel: 'Go to next month',
