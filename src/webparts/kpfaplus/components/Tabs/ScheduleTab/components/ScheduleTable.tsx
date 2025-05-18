@@ -341,6 +341,12 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
                 // Отображаемое рабочее время
                 const displayWorkTime = getDisplayWorkTime(item);
                 
+                // Логи для диагностики проблемы с типами отпусков
+                console.log(`[DEBUG] Rendering TypeOfLeave dropdown for item ${item.id}:`);
+                console.log(`  - typeOfLeave value: ${item.typeOfLeave} (type: ${typeof item.typeOfLeave})`);
+                console.log(`  - Available options: ${JSON.stringify(options.leaveTypes.map(opt => ({ key: opt.key, text: opt.text })))}`);
+                console.log(`  - Selected option matches: ${options.leaveTypes.some(opt => String(opt.key) === String(item.typeOfLeave))}`);
+                
                 return (
                   <tr 
                     key={item.id}
@@ -446,7 +452,7 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
                     {/* Ячейка с типом отпуска */}
                     <td style={{ textAlign: 'center' }}>
                       <Dropdown
-                        selectedKey={item.typeOfLeave}
+                        selectedKey={item.typeOfLeave ? String(item.typeOfLeave) : ''}
                         options={options.leaveTypes}
                         onChange={(_, option): void => handleTimeChange(item, 'typeOfLeave', option?.key as string)}
                         styles={{ root: { width: 150 } }}

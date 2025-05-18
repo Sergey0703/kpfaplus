@@ -8,10 +8,6 @@ import {
   SpinnerSize,
   IDropdownOption,
   DefaultButton
-  //Stack,
-  //IStackTokens
-  //IStackStyles,
-  //Toggle
 } from '@fluentui/react';
 import { ITabProps } from '../../../models/types';
 import { IContract } from '../../../models/IContract';
@@ -104,9 +100,6 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
   
   // Состояние для отображения удаленных записей
   const [showDeleted, setShowDeleted] = useState<boolean>(false);
-  
-  // Состояние для выбора всех строк
-  //const [selectAllRows, setSelectAllRows] = useState<boolean>(false);
   
   // Локальное состояние для отслеживания изменений в записях расписания
   const [modifiedRecords, setModifiedRecords] = useState<Record<string, IScheduleItem>>({});
@@ -267,42 +260,75 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     return result;
   };
 
-  // Преобразование данных расписания в формат для ScheduleTable
-  const convertStaffRecordsToScheduleItems = useCallback((records: IStaffRecord[] | undefined): IScheduleItem[] => {
-    if (!records || records.length === 0) {
-      return [];
-    }
+  
+// Преобразование данных расписания в формат для ScheduleTable
+const convertStaffRecordsToScheduleItems = useCallback((records: IStaffRecord[] | undefined): IScheduleItem[] => {
+  if (!records || records.length === 0) {
+    return [];
+  }
 
-    return records.map(record => {
-      // Форматирование дня недели
-      const dayOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][record.Date.getDay()];
-      
-      // Получение часов и минут из дат
-      const startHour = record.ShiftDate1 ? record.ShiftDate1.getHours().toString().padStart(2, '0') : '00';
-      const startMinute = record.ShiftDate1 ? record.ShiftDate1.getMinutes().toString().padStart(2, '0') : '00';
-      const finishHour = record.ShiftDate2 ? record.ShiftDate2.getHours().toString().padStart(2, '0') : '00';
-      const finishMinute = record.ShiftDate2 ? record.ShiftDate2.getMinutes().toString().padStart(2, '0') : '00';
-      
-      // Формирование объекта IScheduleItem
-      return {
-        id: record.ID,
-        date: record.Date,
-        dayOfWeek,
-        workingHours: record.WorkTime || '0.00',
-        startHour,
-        startMinute,
-        finishHour,
-        finishMinute,
-        lunchTime: record.TimeForLunch.toString(),
-        typeOfLeave: record.TypeOfLeaveID || '',
-        shift: 1, // По умолчанию 1
-        contract: record.WeeklyTimeTableTitle || selectedContract?.template || '',
-        contractId: record.WeeklyTimeTableID || selectedContract?.id || '',
-        contractNumber: record.Contract.toString(),
-        deleted: record.Deleted === 1 // Добавляем флаг deleted
-      };
-    });
-  }, [selectedContract]);
+  return records.map(record => {
+    // Форматирование дня недели
+    const dayOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][record.Date.getDay()];
+    
+    // Получение часов и минут из дат
+    const startHour = record.ShiftDate1 ? record.ShiftDate1.getHours().toString().padStart(2, '0') : '00';
+    const startMinute = record.ShiftDate1 ? record.ShiftDate1.getMinutes().toString().padStart(2, '0') : '00';
+    const finishHour = record.ShiftDate2 ? record.ShiftDate2.getHours().toString().padStart(2, '0') : '00';
+    const finishMinute = record.ShiftDate2 ? record.ShiftDate2.getMinutes().toString().padStart(2, '0') : '00';
+    
+    // Извлекаем значение TypeOfLeaveID, проверяя оба возможных формата данных
+    let typeOfLeaveValue = '';
+    
+    // Проверяем, есть ли объект TypeOfLeave с Id внутри
+    if (record.TypeOfLeave && record.TypeOfLeave.Id) {
+      typeOfLeaveValue = String(record.TypeOfLeave.Id);
+      console.log(`[DEBUG] Record ${record.ID}: Using TypeOfLeave.Id: ${typeOfLeaveValue}`);
+    } 
+    // Если нет объекта TypeOfLeave, проверяем прямое поле TypeOfLeaveID
+    else if (record.TypeOfLeaveID) {
+      typeOfLeaveValue = String(record.TypeOfLeaveID);
+      console.log(`[DEBUG] Record ${record.ID}: Using TypeOfLeaveID directly: ${typeOfLeaveValue}`);
+    } else {
+      console.log(`[DEBUG] Record ${record.ID}: No TypeOfLeave found, using empty string`);
+    }
+    
+    // Формирование объекта IScheduleItem
+    const scheduleItem = {
+      id: record.ID,
+      date: record.Date,
+      dayOfWeek,
+      workingHours: record.WorkTime || '0.00',
+      startHour,
+      startMinute,
+      finishHour,
+      finishMinute,
+      lunchTime: record.TimeForLunch.toString(),
+      typeOfLeave: typeOfLeaveValue, // Используем извлеченное значение типа отпуска
+      shift: 1, // По умолчанию 1
+      contract: record.WeeklyTimeTableTitle || selectedContract?.template || '',
+      contractId: record.WeeklyTimeTableID || selectedContract?.id || '',
+      contractNumber: record.Contract.toString(),
+      deleted: record.Deleted === 1 // Добавляем флаг deleted
+    };
+    
+    // Добавляем логи для диагностики проблемы с типами отпусков
+    console.log(`[DEBUG] Converting record ID ${record.ID}: TypeOfLeaveID=${typeOfLeaveValue} (type: ${typeof typeOfLeaveValue}) -> typeOfLeave=${scheduleItem.typeOfLeave} (type: ${typeof scheduleItem.typeOfLeave})`);
+    
+    // Дополнительные логи для конкретной записи 27565
+    if (record.ID === '27565' || parseInt(record.ID) === 27565) {
+      console.log(`[DEBUG] RECORD 27565 DETAILS:
+        - Full record: ${JSON.stringify(record)}
+        - TypeOfLeaveID direct: ${record.TypeOfLeaveID || 'undefined'} (type: ${typeof record.TypeOfLeaveID})
+        - TypeOfLeave object: ${record.TypeOfLeave ? JSON.stringify(record.TypeOfLeave) : 'undefined'}
+        - Final typeOfLeave value: ${typeOfLeaveValue} (type: ${typeof typeOfLeaveValue})
+      `);
+    }
+    
+    return scheduleItem;
+  });
+}, [selectedContract]);
+
   
   // Получаем список элементов для таблицы, включая локальные изменения
   const getScheduleItemsWithModifications = useCallback((): IScheduleItem[] => {
@@ -351,15 +377,16 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     ]
   };
   
+  // Добавляем логи для диагностики проблемы с типами отпусков
+  console.log('[DEBUG] Created leaveTypes options:');
+  scheduleOptions.leaveTypes.forEach(option => {
+    console.log(`  - Option: key=${option.key} (type: ${typeof option.key}), text=${option.text}`);
+  });
+  
   // Обработчики для таблицы расписания
   const handleToggleShowDeleted = (checked: boolean): void => {
     setShowDeleted(checked);
   };
-
-  // Обработчик выбора/отмены выбора всех строк
-  //const handleSelectAllRows = (checked: boolean): void => {
-  //  setSelectAllRows(checked);
-  //};
   
   // Обработчик изменения элемента расписания
   const handleItemChange = (item: IScheduleItem, field: string, value: string | number): void => {
@@ -485,9 +512,6 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     }
   };
   
-  // Разделители для Stack
-  //const stackTokens: IStackTokens = { childrenGap: 10 };
-  
   return (
     <div className={styles.scheduleTab}>
       <div className={styles.header}>
@@ -564,40 +588,38 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
                     </div>
                   )}
 
-                  {/* Таблица расписания - используем обновленный компонент и передаем данные с учетом модификаций */}
-                  {/* Важно: убираем тогглеры из ScheduleTable и передаем свои обработчики */}
+                  {/* Таблица расписания - использует обновленный компонент и передаем данные с учетом модификаций */}
                   <ScheduleTable
-  items={getScheduleItemsWithModifications()}
-  options={scheduleOptions}
-  selectedDate={selectedDate}
-  selectedContract={{ id: selectedContract.id, name: selectedContract.template }}
-  isLoading={false}
-  showDeleted={showDeleted}
-  onToggleShowDeleted={handleToggleShowDeleted}
-  onItemChange={handleItemChange}
-  onAddShift={handleAddShift}
-  onDeleteItem={handleDeleteItem}
-  // Добавляем кнопку Save Changes, если есть модифицированные записи
-  saveChangesButton={
-    Object.keys(modifiedRecords).length > 0 ? (
-      <DefaultButton
-        text={`Save Changes (${Object.keys(modifiedRecords).length})`}
-        onClick={saveAllChanges}
-        disabled={isSaving}
-        styles={{
-          root: {
-            backgroundColor: '#0078d4',
-            color: 'white'
-          },
-          rootHovered: {
-            backgroundColor: '#106ebe',
-            color: 'white'
-          }
-        }}
-      />
-    ) : undefined
-  }
-/>
+                    items={getScheduleItemsWithModifications()}
+                    options={scheduleOptions}
+                    selectedDate={selectedDate}
+                    selectedContract={{ id: selectedContract.id, name: selectedContract.template }}
+                    isLoading={false}
+                    showDeleted={showDeleted}
+                    onToggleShowDeleted={handleToggleShowDeleted}
+                    onItemChange={handleItemChange}
+                    onAddShift={handleAddShift}
+                    onDeleteItem={handleDeleteItem}
+                    saveChangesButton={
+                      Object.keys(modifiedRecords).length > 0 ? (
+                        <DefaultButton
+                          text={`Save Changes (${Object.keys(modifiedRecords).length})`}
+                          onClick={saveAllChanges}
+                          disabled={isSaving}
+                          styles={{
+                            root: {
+                              backgroundColor: '#0078d4',
+                              color: 'white'
+                            },
+                            rootHovered: {
+                              backgroundColor: '#106ebe',
+                              color: 'white'
+                            }
+                          }}
+                        />
+                      ) : undefined
+                    }
+                  />
                 </div>
               )}
             </div>
