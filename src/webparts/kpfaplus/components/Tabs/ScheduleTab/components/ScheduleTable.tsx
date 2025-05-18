@@ -50,7 +50,7 @@ export interface IScheduleOptions {
   contractNumbers?: IDropdownOption[];
 }
 
-// Интерфейс свойств компонента
+// Интерфейс свойств компонента (обновленный)
 export interface IScheduleTableProps {
   items: IScheduleItem[];
   options: IScheduleOptions;
@@ -62,6 +62,8 @@ export interface IScheduleTableProps {
   onItemChange: (item: IScheduleItem, field: string, value: string | number) => void;
   onAddShift: (date: Date) => void;
   onDeleteItem: (id: string) => void;
+  // Новый проп для кнопки "Save Changes"
+  saveChangesButton?: React.ReactNode;
 }
 
 // Вспомогательная функция
@@ -82,7 +84,8 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
     onToggleShowDeleted,
     onItemChange,
     onAddShift,
-    onDeleteItem
+    onDeleteItem,
+    saveChangesButton // Новый проп для кнопки "Save Changes"
   //  selectedDate
   } = props;
 
@@ -248,7 +251,7 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
 
   return (
     <div className={styles.scheduleTab}>
-      {/* Верхняя панель управления */}
+      {/* Верхняя панель управления - модифицирована для включения кнопки Save Changes */}
       <Stack horizontal tokens={stackTokens} style={{ marginBottom: '16px', justifyContent: 'space-between', alignItems: 'center' }}>
         <Stack horizontal tokens={stackTokens} style={{ alignItems: 'center' }}>
           <Toggle
@@ -264,11 +267,21 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
             />
           )}
         </Stack>
-        <Toggle
-          label="Show Deleted"
-          checked={showDeleted}
-          onChange={(_, checked): void => onToggleShowDeleted(checked!)}
-        />
+        
+        {/* Правая часть панели с тогглером Show Deleted и кнопкой Save Changes */}
+        <Stack horizontal tokens={stackTokens} style={{ alignItems: 'center' }}>
+          <Toggle
+            label="Show Deleted"
+            checked={showDeleted}
+            onChange={(_, checked): void => onToggleShowDeleted(checked!)}
+          />
+          {/* Отображаем кнопку Save Changes, если она передана */}
+          {saveChangesButton && (
+            <div style={{ marginLeft: '16px' }}>
+              {saveChangesButton}
+            </div>
+          )}
+        </Stack>
       </Stack>
 
       {/* Таблица расписания - задаем общую ширину и убираем spacing */}

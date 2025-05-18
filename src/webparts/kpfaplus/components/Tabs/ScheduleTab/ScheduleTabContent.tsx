@@ -7,9 +7,11 @@ import {
   Spinner,
   SpinnerSize,
   IDropdownOption,
-  DefaultButton,
-  Stack,
-  IStackTokens
+  DefaultButton
+  //Stack,
+  //IStackTokens
+  //IStackStyles,
+  //Toggle
 } from '@fluentui/react';
 import { ITabProps } from '../../../models/types';
 import { IContract } from '../../../models/IContract';
@@ -88,8 +90,6 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     isLoadingTypesOfLeave,
     holidaysService,
     daysOfLeavesService,
-    // Удаляем typeOfLeaveService из деструктуризации, так как она не используется
-    // typeOfLeaveService,
     onDateChange,
     onContractChange,
     onErrorDismiss,
@@ -104,6 +104,9 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
   
   // Состояние для отображения удаленных записей
   const [showDeleted, setShowDeleted] = useState<boolean>(false);
+  
+  // Состояние для выбора всех строк
+  //const [selectAllRows, setSelectAllRows] = useState<boolean>(false);
   
   // Локальное состояние для отслеживания изменений в записях расписания
   const [modifiedRecords, setModifiedRecords] = useState<Record<string, IScheduleItem>>({});
@@ -352,6 +355,11 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
   const handleToggleShowDeleted = (checked: boolean): void => {
     setShowDeleted(checked);
   };
+
+  // Обработчик выбора/отмены выбора всех строк
+  //const handleSelectAllRows = (checked: boolean): void => {
+  //  setSelectAllRows(checked);
+  //};
   
   // Обработчик изменения элемента расписания
   const handleItemChange = (item: IScheduleItem, field: string, value: string | number): void => {
@@ -478,7 +486,7 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
   };
   
   // Разделители для Stack
-  const stackTokens: IStackTokens = { childrenGap: 10 };
+  //const stackTokens: IStackTokens = { childrenGap: 10 };
   
   return (
     <div className={styles.scheduleTab}>
@@ -497,46 +505,6 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
           {error}
         </MessageBar>
       )}
-      
-      {/* Отображаем операционное сообщение, если есть */}
-      {operationMessage && (
-        <MessageBar
-          messageBarType={operationMessage.type}
-          isMultiline={false}
-          onDismiss={() => setOperationMessage(null)}
-          dismissButtonAriaLabel="Close"
-        >
-          {operationMessage.text}
-        </MessageBar>
-      )}
-      
-      {/* Панель управления с кнопками и информацией о изменениях */}
-      <Stack 
-        horizontal 
-        horizontalAlign="space-between" 
-        tokens={stackTokens} 
-        style={{ marginBottom: '15px' }}
-      >
-        <Stack horizontal tokens={stackTokens}>
-          {Object.keys(modifiedRecords).length > 0 && (
-            <DefaultButton
-              text={`Save Changes (${Object.keys(modifiedRecords).length})`}
-              onClick={saveAllChanges}
-              disabled={isSaving}
-              styles={{
-                root: {
-                  backgroundColor: '#0078d4',
-                  color: 'white'
-                },
-                rootHovered: {
-                  backgroundColor: '#106ebe',
-                  color: 'white'
-                }
-              }}
-            />
-          )}
-        </Stack>
-      </Stack>
       
       {/* Фильтры выбора даты и контракта с кнопкой Fill */}
       <FilterControls
@@ -560,9 +528,9 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
             <div style={{ 
                 border: 'none',
                 padding: '0px',    
-              borderRadius: '4px',
-              minHeight: '300px',
-              backgroundColor: 'white'
+                borderRadius: '4px',
+                minHeight: '300px',
+                backgroundColor: 'white'
             }}>
               {/* Проверяем статусы - является ли выбранная дата праздником или отпуском */}
               <DayInfo
@@ -583,19 +551,53 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
                 </div>
               ) : (
                 <div style={{ padding: '10px' }}>
+                  {/* Отображаем информационную панель, если есть изменения */}
+                  {Object.keys(modifiedRecords).length > 0 && (
+                    <div style={{ 
+                      backgroundColor: '#FFF4CE', 
+                      padding: '8px 12px', 
+                      marginBottom: '10px', 
+                      borderRadius: '2px',
+                      borderLeft: '4px solid #FFB900'
+                    }}>
+                      <span>Changes detected. Click "Save Changes" when finished editing.</span>
+                    </div>
+                  )}
+
                   {/* Таблица расписания - используем обновленный компонент и передаем данные с учетом модификаций */}
+                  {/* Важно: убираем тогглеры из ScheduleTable и передаем свои обработчики */}
                   <ScheduleTable
-                    items={getScheduleItemsWithModifications()}
-                    options={scheduleOptions}
-                    selectedDate={selectedDate}
-                    selectedContract={{ id: selectedContract.id, name: selectedContract.template }}
-                    isLoading={false}
-                    showDeleted={showDeleted}
-                    onToggleShowDeleted={handleToggleShowDeleted}
-                    onItemChange={handleItemChange}
-                    onAddShift={handleAddShift}
-                    onDeleteItem={handleDeleteItem}
-                  />
+  items={getScheduleItemsWithModifications()}
+  options={scheduleOptions}
+  selectedDate={selectedDate}
+  selectedContract={{ id: selectedContract.id, name: selectedContract.template }}
+  isLoading={false}
+  showDeleted={showDeleted}
+  onToggleShowDeleted={handleToggleShowDeleted}
+  onItemChange={handleItemChange}
+  onAddShift={handleAddShift}
+  onDeleteItem={handleDeleteItem}
+  // Добавляем кнопку Save Changes, если есть модифицированные записи
+  saveChangesButton={
+    Object.keys(modifiedRecords).length > 0 ? (
+      <DefaultButton
+        text={`Save Changes (${Object.keys(modifiedRecords).length})`}
+        onClick={saveAllChanges}
+        disabled={isSaving}
+        styles={{
+          root: {
+            backgroundColor: '#0078d4',
+            color: 'white'
+          },
+          rootHovered: {
+            backgroundColor: '#106ebe',
+            color: 'white'
+          }
+        }}
+      />
+    ) : undefined
+  }
+/>
                 </div>
               )}
             </div>
@@ -617,6 +619,19 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
             </div>
           )}
         </>
+      )}
+      
+      {/* Отображаем операционное сообщение, если есть */}
+      {operationMessage && (
+        <MessageBar
+          messageBarType={operationMessage.type}
+          isMultiline={false}
+          onDismiss={() => setOperationMessage(null)}
+          dismissButtonAriaLabel="Close"
+          style={{ marginTop: '15px' }}
+        >
+          {operationMessage.text}
+        </MessageBar>
       )}
     </div>
   );
