@@ -44,8 +44,21 @@ export const RemoteConnectionTest: React.FC<IRemoteConnectionTestProps> = (props
   };
   
   // Вызываем проверку соединения при монтировании компонента
+  // Исправление: добавлена обработка Promise через .then/.catch
   useEffect(() => {
-    testConnection();
+    // Использование void оператора для явного указания, что Promise игнорируется
+    void testConnection();
+    
+    // Альтернативный вариант с .then/.catch:
+    /*
+    testConnection()
+      .then(() => {
+        console.log('Initial connection test completed successfully');
+      })
+      .catch(error => {
+        console.error('Error during initial connection test:', error);
+      });
+    */
   }, []);
   
   return (
@@ -138,7 +151,16 @@ export const RemoteConnectionTest: React.FC<IRemoteConnectionTestProps> = (props
       <div style={{ marginTop: '20px' }}>
         <PrimaryButton
           text="Test Connection Again"
-          onClick={testConnection}
+          onClick={(): void => {
+            // Использование .then/.catch для явной обработки Promise
+            testConnection()
+              .then(() => {
+                console.log('Connection test completed successfully');
+              })
+              .catch(error => {
+                console.error('Error during connection test:', error);
+              });
+          }}
           disabled={isLoading}
         />
       </div>

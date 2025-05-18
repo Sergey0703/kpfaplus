@@ -84,7 +84,7 @@ export class StaffRecordsFetchService {
       this.logInfo(`[DEBUG] Форматированные даты для запроса: ${startDateStr} - ${endDateStr}`);
 
       // Строим фильтр для запроса к SharePoint
-      let filter = this.buildFilterExpression(startDateStr, endDateStr, employeeID, staffGroupID, currentUserID, timeTableID);
+      const filter = this.buildFilterExpression(startDateStr, endDateStr, employeeID, staffGroupID, currentUserID, timeTableID);
       this.logInfo(`[DEBUG] ИТОГОВЫЙ ФИЛЬТР: ${filter}`);
       
       // ПЕРЕД запросом проверим список
@@ -137,7 +137,7 @@ export class StaffRecordsFetchService {
    */
   public async fetchStaffRecordById(
     recordId: string | number
-  ): Promise<{ id: string | number; fields?: Record<string, unknown> } | null> {
+  ): Promise<{ id: string | number; fields?: Record<string, unknown> } | undefined> {
     try {
       this.logInfo(`[DEBUG] Получение записи по ID: ${recordId}`);
       
@@ -158,14 +158,14 @@ export class StaffRecordsFetchService {
       
       if (items.length === 0) {
         this.logInfo(`[DEBUG] Запись с ID: ${recordId} не найдена`);
-        return null;
+        return undefined;
       }
       
       this.logInfo(`[DEBUG] Запись с ID: ${recordId} успешно получена`);
       return items[0];
     } catch (error) {
       this.logError(`[ОШИБКА] Не удалось получить запись по ID: ${recordId}: ${error}`);
-      return null;
+      return undefined;
     }
   }
 

@@ -387,8 +387,14 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
       // При изменении контракта перезагружаем расписание
       console.log('[ScheduleTab] Contract changed, will reload staff records');
       setTimeout(() => {
-        // ИСПРАВЛЕНО: Явно передаем текущую выбранную дату
-        loadStaffRecords(state.selectedDate);
+        // ИСПРАВЛЕНО: Добавлена обработка Promise через .then/.catch
+        loadStaffRecords(state.selectedDate)
+          .then(() => {
+            console.log("[ScheduleTab] Staff records loaded successfully after contract change");
+          })
+          .catch(error => {
+            console.error("[ScheduleTab] Error loading staff records after contract change:", error);
+          });
       }, 0);
     }
   };

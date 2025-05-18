@@ -218,9 +218,11 @@ import {
               
             case StaffRecordsSortType.ByWorkTime:
               // Сортировка по рабочему времени
-              const workTimeA = this.parseWorkTime(a.WorkTime || "0.00");
-              const workTimeB = this.parseWorkTime(b.WorkTime || "0.00");
-              compareResult = workTimeA - workTimeB;
+              {
+                const workTimeA = this.parseWorkTime(a.WorkTime || "0.00");
+                const workTimeB = this.parseWorkTime(b.WorkTime || "0.00");
+                compareResult = workTimeA - workTimeB;
+              }
               break;
               
             default:
