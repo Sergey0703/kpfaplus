@@ -1,6 +1,6 @@
 // src/webparts/kpfaplus/components/Tabs/ScheduleTab/components/ScheduleTable.tsx
 import * as React from 'react';
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Dropdown,
   IDropdownOption,
@@ -9,14 +9,20 @@ import {
   DefaultButton,
   Stack,
   IStackTokens,
-  Toggle
+  Toggle,
+  Text,
+  TooltipHost
 } from '@fluentui/react';
 import styles from '../ScheduleTab.module.scss';
+import { 
+  calculateWorkTime, 
+  IWorkTimeInput, 
+  createTimeFromComponents,
+  isStartEndTimeSame,
+  isZeroTime
+} from '../../../../utils/TimeCalculationUtils';
 
 // Интерфейс для записи о расписании
-// src/webparts/kpfaplus/components/Tabs/ScheduleTab/components/ScheduleTable.tsx
-
-// Обновите определение интерфейса IScheduleItem, добавив поле deleted:
 export interface IScheduleItem {
   id: string;
   date: Date;
@@ -32,7 +38,7 @@ export interface IScheduleItem {
   contract: string;
   contractId: string;
   contractNumber?: string;
-  deleted?: boolean; // Добавляем поле для отметки удаленных записей
+  deleted?: boolean;
 }
 
 // Опции для выпадающих списков
@@ -41,7 +47,7 @@ export interface IScheduleOptions {
   minutes: IDropdownOption[];
   lunchTimes: IDropdownOption[];
   leaveTypes: IDropdownOption[];
-  contractNumbers?: IDropdownOption[]; // Сделаем необязательным с помощью ?
+  contractNumbers?: IDropdownOption[];
 }
 
 // Интерфейс свойств компонента
@@ -53,7 +59,7 @@ export interface IScheduleTableProps {
   isLoading: boolean;
   showDeleted: boolean;
   onToggleShowDeleted: (checked: boolean) => void;
-  onItemChange: (item: IScheduleItem, field: string, value: string | number) => void; // Исправлено: указан конкретный тип вместо any
+  onItemChange: (item: IScheduleItem, field: string, value: string | number) => void;
   onAddShift: (date: Date) => void;
   onDeleteItem: (id: string) => void;
 }
@@ -77,6 +83,7 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
     onItemChange,
     onAddShift,
     onDeleteItem
+  //  selectedDate
   } = props;
 
   // Используем предоставленные опции или дефолтные
@@ -92,14 +99,95 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
   // Состояние для выбранных строк
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
 
+  // Состояние для локальных расчетов рабочего времени (для мгновенного отображения)
+  const [calculatedWorkTimes, setCalculatedWorkTimes] = useState<Record<string, string>>({});
+
+  // Эффект для инициализации рассчитанных рабочих времен
+  useEffect(() => {
+    const initialWorkTimes: Record<string, string> = {};
+    items.forEach(item => {
+      initialWorkTimes[item.id] = item.workingHours;
+    });
+    setCalculatedWorkTimes(initialWorkTimes);
+  }, [items]);
+
+  // Функция для расчета рабочего времени
+  const calculateItemWorkTime = useCallback((item: IScheduleItem): string => {
+    // Парсим часы и минуты из строк
+    const startHour = parseInt(item.startHour, 10) || 0;
+    const startMinute = parseInt(item.startMinute, 10) || 0;
+    const finishHour = parseInt(item.finishHour, 10) || 0;
+    const finishMinute = parseInt(item.finishMinute, 10) || 0;
+    const lunchMinutes = parseInt(item.lunchTime, 10) || 0;
+
+    // Создаем даты для расчета
+    const startDate = createTimeFromComponents(item.date, startHour, startMinute);
+    const finishDate = createTimeFromComponents(item.date, finishHour, finishMinute);
+
+    // Если начальное и конечное время совпадают, и они не 00:00
+    if (isStartEndTimeSame(startDate, finishDate) && 
+        (!isZeroTime(startDate) || !isZeroTime(finishDate))) {
+      console.log(`[ScheduleTable] Start and end times are the same for item ${item.id}. Returning 0.00`);
+      return "0.00";
+    }
+
+    // Подготавливаем входные данные для расчета
+    const input: IWorkTimeInput = {
+      startTime: startDate,
+      endTime: finishDate,
+      lunchDurationMinutes: lunchMinutes
+    };
+
+    // Используем утилиту для расчета рабочего времени
+    const result = calculateWorkTime(input);
+    return result.formattedTime;
+  }, []);
+
   // Обработчик изменения времени
   const handleTimeChange = (item: IScheduleItem, field: string, value: string): void => {
-    onItemChange(item, field, value);
+    // Создаем копию элемента с новым значением
+    const updatedItem = { ...item, [field]: value };
+    
+    // Рассчитываем новое рабочее время
+    const workTime = calculateItemWorkTime(updatedItem);
+    
+    // Обновляем локальное состояние для мгновенного отображения
+    setCalculatedWorkTimes(prev => ({
+      ...prev,
+      [item.id]: workTime
+    }));
+    
+    // Уведомляем родителя об изменении
+    onItemChange(updatedItem, field, value);
+    
+    // Также отправляем обновленное рабочее время
+    onItemChange(updatedItem, 'workingHours', workTime);
   };
 
   // Обработчик изменения контракта
   const handleContractNumberChange = (item: IScheduleItem, value: string): void => {
     onItemChange(item, 'contractNumber', value);
+  };
+
+  // Обработчик изменения времени обеда
+  const handleLunchTimeChange = (item: IScheduleItem, value: string): void => {
+    // Создаем копию элемента с новым значением
+    const updatedItem = { ...item, lunchTime: value };
+    
+    // Рассчитываем новое рабочее время
+    const workTime = calculateItemWorkTime(updatedItem);
+    
+    // Обновляем локальное состояние для мгновенного отображения
+    setCalculatedWorkTimes(prev => ({
+      ...prev,
+      [item.id]: workTime
+    }));
+    
+    // Уведомляем родителя об изменении
+    onItemChange(updatedItem, 'lunchTime', value);
+    
+    // Также отправляем обновленное рабочее время
+    onItemChange(updatedItem, 'workingHours', workTime);
   };
 
   // Обработчик выбора/отмены выбора всех строк
@@ -126,6 +214,33 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
     // Сбрасываем выбор
     setSelectedRows(new Set());
     setSelectAllRows(false);
+  };
+
+  // Функция для получения отображаемого рабочего времени
+  const getDisplayWorkTime = (item: IScheduleItem): string => {
+    // Если есть рассчитанное значение, используем его
+    if (calculatedWorkTimes[item.id]) {
+      return calculatedWorkTimes[item.id];
+    }
+    // Иначе используем значение из элемента
+    return item.workingHours;
+  };
+
+  // Функция для проверки, совпадают ли время начала и окончания
+  const checkStartEndTimeSame = (item: IScheduleItem): boolean => {
+    // Парсим часы и минуты из строк
+    const startHour = parseInt(item.startHour, 10) || 0;
+    const startMinute = parseInt(item.startMinute, 10) || 0;
+    const finishHour = parseInt(item.finishHour, 10) || 0;
+    const finishMinute = parseInt(item.finishMinute, 10) || 0;
+
+    // Создаем даты для сравнения
+    const startDate = createTimeFromComponents(item.date, startHour, startMinute);
+    const finishDate = createTimeFromComponents(item.date, finishHour, finishMinute);
+
+    // Проверяем, совпадают ли даты и не равны ли они обе 00:00
+    return isStartEndTimeSame(startDate, finishDate) && 
+           !(isZeroTime(startDate) && isZeroTime(finishDate));
   };
 
   // Разделители для Stack
@@ -179,9 +294,9 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
               <th style={{ textAlign: 'center', padding: '8px 0' }}>Finish Work</th>
               <th style={{ textAlign: 'center', padding: '8px 0' }}>Time for Lunch:</th>
               <th style={{ textAlign: 'center', padding: '8px 0' }}>Type of Leave</th>
-              <th style={{ textAlign: 'center', padding: '8px 0' }} /> {/* Для кнопки +Shift - исправлено на самозакрывающийся тег */}
+              <th style={{ textAlign: 'center', padding: '8px 0' }} /> {/* Для кнопки +Shift */}
               <th style={{ textAlign: 'left', padding: '8px 0' }}>Contract</th>
-              <th style={{ textAlign: 'center', padding: '8px 0' }} /> {/* Для кнопки удаления - исправлено на самозакрывающийся тег */}
+              <th style={{ textAlign: 'center', padding: '8px 0' }} /> {/* Для кнопки удаления */}
               <th style={{ textAlign: 'center', padding: '8px 0' }}>ID</th> {/* Для ID */}
             </tr>
           </thead>
@@ -202,7 +317,16 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
               items.map((item, index) => {
                 // Определяем цвет фона для строки (чередование, выделение и т.д.)
                 const isEvenRow = index % 2 === 0;
-                const backgroundColor = isEvenRow ? '#f9f9f9' : '#ffffff';
+                let backgroundColor = isEvenRow ? '#f9f9f9' : '#ffffff';
+                
+                // Если время начала и окончания совпадают и не равны 00:00
+                const isTimesEqual = checkStartEndTimeSame(item);
+                if (isTimesEqual) {
+                  backgroundColor = '#ffeded'; // Светло-красный фон для некорректных записей
+                }
+                
+                // Отображаемое рабочее время
+                const displayWorkTime = getDisplayWorkTime(item);
                 
                 return (
                   <tr 
@@ -224,9 +348,16 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
                     <td style={{ 
                       textAlign: 'center',
                       fontWeight: 'bold',
-                      whiteSpace: 'nowrap'
+                      whiteSpace: 'nowrap',
+                      color: isTimesEqual ? '#a4262c' : (displayWorkTime === '0.00' ? '#666' : 'inherit')
                     }}>
-                      {item.workingHours}
+                      {isTimesEqual ? (
+                        <TooltipHost content="Start and end times are the same. Please adjust the times.">
+                          <Text style={{ color: '#a4262c', fontWeight: 'bold' }}>{displayWorkTime}</Text>
+                        </TooltipHost>
+                      ) : (
+                        displayWorkTime
+                      )}
                     </td>
                     
                     {/* Ячейка с началом работы */}
@@ -236,13 +367,25 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
                           selectedKey={item.startHour}
                           options={options.hours}
                           onChange={(_, option): void => handleTimeChange(item, 'startHour', option?.key as string)}
-                          styles={{ root: { width: 60, margin: '0 4px' } }}
+                          styles={{ 
+                            root: { 
+                              width: 60, 
+                              margin: '0 4px',
+                              borderColor: isTimesEqual ? '#a4262c' : undefined 
+                            } 
+                          }}
                         />
                         <Dropdown
                           selectedKey={item.startMinute}
                           options={options.minutes}
                           onChange={(_, option): void => handleTimeChange(item, 'startMinute', option?.key as string)}
-                          styles={{ root: { width: 60, margin: '0 4px' } }}
+                          styles={{ 
+                            root: { 
+                              width: 60, 
+                              margin: '0 4px',
+                              borderColor: isTimesEqual ? '#a4262c' : undefined 
+                            } 
+                          }}
                         />
                       </div>
                     </td>
@@ -254,13 +397,25 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
                           selectedKey={item.finishHour}
                           options={options.hours}
                           onChange={(_, option): void => handleTimeChange(item, 'finishHour', option?.key as string)}
-                          styles={{ root: { width: 60, margin: '0 4px' } }}
+                          styles={{ 
+                            root: { 
+                              width: 60, 
+                              margin: '0 4px',
+                              borderColor: isTimesEqual ? '#a4262c' : undefined 
+                            } 
+                          }}
                         />
                         <Dropdown
                           selectedKey={item.finishMinute}
                           options={options.minutes}
                           onChange={(_, option): void => handleTimeChange(item, 'finishMinute', option?.key as string)}
-                          styles={{ root: { width: 60, margin: '0 4px' } }}
+                          styles={{ 
+                            root: { 
+                              width: 60, 
+                              margin: '0 4px',
+                              borderColor: isTimesEqual ? '#a4262c' : undefined 
+                            } 
+                          }}
                         />
                       </div>
                     </td>
@@ -270,7 +425,7 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
                       <Dropdown
                         selectedKey={item.lunchTime}
                         options={options.lunchTimes}
-                        onChange={(_, option): void => handleTimeChange(item, 'lunchTime', option?.key as string)}
+                        onChange={(_, option): void => handleLunchTimeChange(item, option?.key as string)}
                         styles={{ root: { width: 80 } }}
                       />
                     </td>
@@ -294,7 +449,7 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
                       />
                     </td>
                     
-                    {/* Ячейка с номером контракта - оставляем нормальный размер */}
+                    {/* Ячейка с номером контракта */}
                     <td>
                       <Dropdown
                         selectedKey={item.contractNumber || '1'} // По умолчанию '1'
@@ -304,7 +459,7 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
                       />
                     </td>
                     
-                    {/* Иконка удаления - делаем красной */}
+                    {/* Иконка удаления */}
                     <td style={{ textAlign: 'center', padding: '0' }}>
                       <IconButton
                         iconProps={{ iconName: 'Delete' }}
