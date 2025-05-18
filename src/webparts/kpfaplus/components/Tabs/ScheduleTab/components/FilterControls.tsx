@@ -24,30 +24,31 @@ export interface IFilterControlsProps {
   onFillButtonClick?: () => void;
 }
 
-const datePickerStrings: IDatePickerStrings = {
+// English localization for the DatePicker
+const datePickerStringsEN: IDatePickerStrings = {
   months: [
-    'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
-    'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
   ],
   shortMonths: [
-    'Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июнь',
-    'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
   ],
   days: [
-    'Воскресенье', 'Понедельник', 'Вторник', 'Среда',
-    'Четверг', 'Пятница', 'Суббота'
+    'Sunday', 'Monday', 'Tuesday', 'Wednesday',
+    'Thursday', 'Friday', 'Saturday'
   ],
-  shortDays: ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'],
-  goToToday: 'Сегодня',
-  prevMonthAriaLabel: 'Предыдущий месяц',
-  nextMonthAriaLabel: 'Следующий месяц',
-  prevYearAriaLabel: 'Предыдущий год',
-  nextYearAriaLabel: 'Следующий год',
-  closeButtonAriaLabel: 'Закрыть',
-  monthPickerHeaderAriaLabel: '{0}, выберите месяц',
-  yearPickerHeaderAriaLabel: '{0}, выберите год',
-  isRequiredErrorMessage: 'Необходимо выбрать дату',
-  invalidInputErrorMessage: 'Неверный формат даты'
+  shortDays: ['S', 'M', 'T', 'W', 'T', 'F', 'S'], // Or Sun, Mon, Tue...
+  goToToday: 'Go to today',
+  prevMonthAriaLabel: 'Go to previous month',
+  nextMonthAriaLabel: 'Go to next month',
+  prevYearAriaLabel: 'Go to previous year',
+  nextYearAriaLabel: 'Go to next year',
+  closeButtonAriaLabel: 'Close date picker',
+  monthPickerHeaderAriaLabel: '{0}, select a month',
+  yearPickerHeaderAriaLabel: '{0}, select a year',
+  isRequiredErrorMessage: 'Field is required.',
+  invalidInputErrorMessage: 'Invalid date format.'
 };
 
 const controlStyles = mergeStyleSets({
@@ -57,6 +58,9 @@ const controlStyles = mergeStyleSets({
   label: {
     marginBottom: '5px',
     fontWeight: 600
+    // No need to translate "Выберите дату" / "Выберите контракт" here,
+    // as these are part of your component's JSX, not the DatePicker's internal strings.
+    // If you want to translate these labels too, you'll need to do it in the JSX.
   }
 });
 
@@ -96,6 +100,16 @@ export const FilterControls: React.FC<IFilterControlsProps> = ({
     }
   };
 
+  // Date formatting can remain language-agnostic (dd.mm.yyyy) or be changed
+  // For example, for US format (mm/dd/yyyy):
+  // const formatDate = (date?: Date): string => {
+  //   if (!date) return '';
+  //   const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  //   const day = date.getDate().toString().padStart(2, '0');
+  //   const year = date.getFullYear();
+  //   return `${month}/${day}/${year}`;
+  // };
+  // For now, keeping your dd.mm.yyyy format:
   const formatDate = (date?: Date): string => {
     if (!date) return '';
     const day = date.getDate().toString().padStart(2, '0');
@@ -103,6 +117,7 @@ export const FilterControls: React.FC<IFilterControlsProps> = ({
     const year = date.getFullYear();
     return `${day}.${month}.${year}`;
   };
+
 
   const calendarDismissHandler = (): void => {
     console.log('[FilterControls] Calendar dismissed');
@@ -113,13 +128,14 @@ export const FilterControls: React.FC<IFilterControlsProps> = ({
   return (
     <Stack horizontal styles={stackStyles} tokens={stackTokens}>
       <Stack.Item className={controlStyles.controlGroup}>
-        <div className={controlStyles.label}>Выберите дату</div>
+        {/* Translate these labels if needed */}
+        <div className={controlStyles.label}>Select date</div> {/* Изменено */}
         <DatePicker
           value={selectedDate}
           onSelectDate={handleDateSelect}
-          firstDayOfWeek={DayOfWeek.Monday}
-          strings={datePickerStrings}
-          formatDate={formatDate}
+          firstDayOfWeek={DayOfWeek.Monday} // Monday is common in Europe, Sunday in US
+          strings={datePickerStringsEN} // Using English strings
+          formatDate={formatDate} // Using your custom dd.mm.yyyy format
           allowTextInput={false}
           disabled={isLoading}
           showGoToToday={true}
@@ -145,18 +161,12 @@ export const FilterControls: React.FC<IFilterControlsProps> = ({
                   fontSize: '14px',
                   textAlign: 'center',
                 },
-                // Попытка скрыть дни из других месяцев через CSS
-                // Этот селектор может потребовать уточнения на основе DOM!
-                '.ms-DatePicker-day--disabled.ms-DatePicker-day--outfocus .ms-DatePicker-day-button': {
-                   visibility: 'hidden', // Скрываем содержимое кнопки дня
+                'td[class*="dayOutsideNavigatedMonth"] button[class*="dayButton"]': {
+                  color: '#a19f9d', // Style to dim days from other months
                 },
-                // Или, если у них есть более специфический класс для "вне месяца":
-                // '.ms-DatePicker-day--นอกเดือน .ms-DatePicker-day-button': { // Замените 'นอกเดือน' на реальный класс
-                //   visibility: 'hidden',
-                // },
-                // Если нужно скрыть всю ячейку, а не только текст:
-                // '.ms-DatePicker-day--disabled.ms-DatePicker-day--outfocus': {
-                //   visibility: 'hidden',
+                // If the above doesn't work, and text is in a span:
+                // 'td[class*="dayOutsideNavigatedMonth"] button[class*="dayButton"] span': {
+                //   color: '#a19f9d',
                 // },
                 '.ms-DatePicker-table': {
                   width: '100%',
@@ -175,9 +185,8 @@ export const FilterControls: React.FC<IFilterControlsProps> = ({
             onDismiss: calendarDismissHandler,
             firstDayOfWeek: DayOfWeek.Monday,
             showGoToToday: true,
-            showSixWeeksByDefault: true, // Важно оставить, чтобы сетка не "прыгала"
+            showSixWeeksByDefault: true,
             showWeekNumbers: false,
-            // showDaysOutsideCurrentMonth: false, // Убрано из-за ошибки
           }}
           calloutProps={{
             styles: {
@@ -190,9 +199,11 @@ export const FilterControls: React.FC<IFilterControlsProps> = ({
       </Stack.Item>
 
       <Stack.Item className={controlStyles.controlGroup}>
-        <div className={controlStyles.label}>Выберите контракт</div>
+        {/* Translate these labels if needed */}
+        <div className={controlStyles.label}>Select contract</div> {/* Изменено */}
         <Dropdown
-          placeholder="Выберите контракт"
+          // placeholder="Выберите контракт" // Translate if needed
+          placeholder="Select contract" // Изменено
           options={contractOptions}
           selectedKey={selectedContractId}
           onChange={onContractChange}
@@ -205,7 +216,7 @@ export const FilterControls: React.FC<IFilterControlsProps> = ({
 
       <Stack.Item align="end">
         <PrimaryButton
-          text="Fill"
+          text="Fill" // "Fill" is already English
           onClick={onFillButtonClick}
           disabled={isLoading}
           styles={{
