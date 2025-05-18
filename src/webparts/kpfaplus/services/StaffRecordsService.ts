@@ -102,49 +102,54 @@ export class StaffRecordsService {
     return StaffRecordsService._instance;
   }
 
-  /**
-   * Получение записей расписания персонала
-   * @param startDate Дата начала периода
-   * @param endDate Дата окончания периода
-   * @param currentUserID ID текущего пользователя
-   * @param staffGroupID ID группы сотрудников
-   * @param employeeID ID сотрудника
-   * @param timeTableID ID недельного расписания (опционально)
-   * @returns Promise с массивом записей расписания
-   */
-  public async getStaffRecords(
-    startDate: Date,
-    endDate: Date,
-    currentUserID: string | number,
-    staffGroupID: string | number,
-    employeeID: string | number,
-    timeTableID?: string | number
-  ): Promise<IStaffRecord[]> {
-    try {
-      // Расширенное логирование параметров запроса
-      this.logInfo(`[DEBUG] getStaffRecords ВЫЗВАН С ПАРАМЕТРАМИ:
-        startDate: ${startDate.toISOString()},
-        endDate: ${endDate.toISOString()},
-        currentUserID: ${currentUserID} (тип: ${typeof currentUserID}),
-        staffGroupID: ${staffGroupID} (тип: ${typeof staffGroupID}),
-        employeeID: ${employeeID} (тип: ${typeof employeeID}),
-        timeTableID: ${timeTableID || 'не указан'} (тип: ${typeof timeTableID})`
-      );
+/**
+ * Получение записей расписания персонала
+ * @param startDate Дата начала периода
+ * @param endDate Дата окончания периода
+ * @param currentUserID ID текущего пользователя
+ * @param staffGroupID ID группы сотрудников
+ * @param employeeID ID сотрудника
+ * @param timeTableID ID недельного расписания (опционально)
+ * @returns Promise с массивом записей расписания
+ */
+public async getStaffRecords(
+  startDate: Date,
+  endDate: Date,
+  currentUserID: string | number,
+  staffGroupID: string | number,
+  employeeID: string | number,
+  timeTableID?: string | number
+): Promise<IStaffRecord[]> {
+  try {
+    // Расширенное логирование параметров запроса
+    this.logInfo(`[DEBUG] getStaffRecords ВЫЗВАН С ПАРАМЕТРАМИ:
+      startDate: ${startDate.toISOString()},
+      endDate: ${endDate.toISOString()},
+      currentUserID: ${currentUserID} (тип: ${typeof currentUserID}),
+      staffGroupID: ${staffGroupID} (тип: ${typeof staffGroupID}),
+      employeeID: ${employeeID} (тип: ${typeof employeeID}),
+      timeTableID: ${timeTableID || 'не указан'} (тип: ${typeof timeTableID})`
+    );
 
-      // Проверяем наличие RemoteSiteService
-      if (!this._remoteSiteService) {
-        this.logError('[ОШИБКА] RemoteSiteService не инициализирован');
-        return [];
-      }
+    // Проверяем наличие RemoteSiteService
+    if (!this._remoteSiteService) {
+      this.logError('[ОШИБКА] RemoteSiteService не инициализирован');
+      return [];
+    }
 
-      // Проверяем, что RemoteSiteService авторизован
-      if (!this._remoteSiteService.isAuthorized()) {
-        this.logError('[ОШИБКА] RemoteSiteService не авторизован, пытаемся авторизоваться...');
-        await this._remoteSiteService.ensureAuthorization();
+    // Проверяем авторизацию RemoteSiteService (изменено)
+    if (!this._remoteSiteService.isAuthorized()) {
+      this.logError('[ОШИБКА] RemoteSiteService не авторизован, пытаемся получить авторизованный клиент...');
+      try {
+        // Вызываем getGraphClient(), который в свою очередь вызовет ensureAuthorization()
+        await this._remoteSiteService.getGraphClient();
         this.logInfo('[DEBUG] Статус авторизации после попытки: ' + 
           (this._remoteSiteService.isAuthorized() ? 'успешно' : 'неудачно'));
+      } catch (authError) {
+        this.logError(`[ОШИБКА] Не удалось получить авторизацию: ${authError}`);
+        return [];
       }
-
+    }
       // Проверка listName
       if (!this._listName) {
         this.logError('[ОШИБКА] Имя списка не определено');

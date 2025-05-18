@@ -1,8 +1,8 @@
 // src/webparts/kpfaplus/services/WeeklyTimeTableService.ts
 import { WebPartContext } from '@microsoft/sp-webpart-base';
 import { IDayHours } from '../models/IWeeklyTimeTable';
-import { RemoteSiteService, IRemoteListItemResponse } from './RemoteSiteService';
-
+import { RemoteSiteService } from './RemoteSiteService';
+import { IRemoteListItemResponse } from '../services';
 export interface IWeeklyTimeTableUpdateItem {
   id: string;
   // Время начала

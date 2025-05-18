@@ -1,7 +1,5 @@
 // src/webparts/kpfaplus/utils/DataTypeAdapter.ts
 
-import { ILookupField } from '../services/RemoteSiteService';
-
 /**
  * Адаптер для привидения различных типов данных из SharePoint/Graph API
  * к стандартным типам, используемым в приложении
@@ -32,8 +30,8 @@ export class DataTypeAdapter {
       }
       
       // Lookup объект
-      if ('Title' in value && typeof (value as ILookupField).Title === 'string') {
-        return (value as ILookupField).Title;
+      if ('Title' in value && typeof (value as { Title: string }).Title === 'string') {
+        return (value as { Title: string }).Title;
       }
       
       // Прочие объекты
@@ -78,8 +76,8 @@ export class DataTypeAdapter {
       }
       
       // Lookup объект
-      if ('Id' in value && typeof (value as ILookupField).Id === 'number') {
-        return (value as ILookupField).Id;
+      if ('Id' in value && typeof (value as { Id: number }).Id === 'number') {
+        return (value as { Id: number }).Id;
       }
       
       return defaultValue;
@@ -144,8 +142,8 @@ export class DataTypeAdapter {
     
     if (typeof value === 'object') {
       // Lookup объект
-      if ('Id' in value && typeof (value as ILookupField).Id === 'number') {
-        return (value as ILookupField).Id;
+      if ('Id' in value && typeof (value as { Id: number }).Id === 'number') {
+        return (value as { Id: number }).Id;
       }
       
       // Lookup ID
