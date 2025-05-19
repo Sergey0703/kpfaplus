@@ -117,23 +117,6 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
     }
   };
 
-  // Обработчик для удаления всех выбранных строк
-  const handleDeleteSelected = (): void => {
-    selectedRows.forEach(id => {
-      showDeleteConfirmDialog(id);
-    });
-  };
-
-  // Функция для получения отображаемого рабочего времени
-  const getDisplayWorkTime = (item: IScheduleItem): string => {
-    // Если есть рассчитанное значение, используем его
-    if (calculatedWorkTimes[item.id]) {
-      return calculatedWorkTimes[item.id];
-    }
-    // Иначе используем значение из элемента
-    return item.workingHours;
-  };
-
   // Обработчики для диалогов подтверждения удаления и восстановления
   const showDeleteConfirmDialog = (itemId: string): void => {
     console.log(`Setting up delete for item ID: ${itemId}`);
@@ -208,6 +191,23 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
       },
       confirmButtonColor: '#107c10' // зеленый цвет для восстановления
     });
+  };
+
+  // Обработчик для удаления всех выбранных строк
+  const handleDeleteSelected = (): void => {
+    selectedRows.forEach(id => {
+      showDeleteConfirmDialog(id);
+    });
+  };
+
+  // Функция для получения отображаемого рабочего времени
+  const getDisplayWorkTime = (item: IScheduleItem): string => {
+    // Если есть рассчитанное значение, используем его
+    if (calculatedWorkTimes[item.id]) {
+      return calculatedWorkTimes[item.id];
+    }
+    // Иначе используем значение из элемента
+    return item.workingHours;
   };
 
   // Обработчик для закрытия диалога

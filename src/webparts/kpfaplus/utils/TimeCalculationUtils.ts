@@ -27,13 +27,13 @@ export interface IWorkTimeResult {
    */
   export interface IWorkTimeInput {
     /** Дата и время начала работы */
-    startTime?: Date | null;
+    startTime?: Date | undefined;
     /** Дата и время окончания работы */
-    endTime?: Date | null;
+    endTime?: Date | undefined;
     /** Дата и время начала обеда (опционально) */
-    lunchStartTime?: Date | null;
+    lunchStartTime?: Date | undefined;
     /** Дата и время окончания обеда (опционально) */
-    lunchEndTime?: Date | null;
+    lunchEndTime?: Date | undefined;
     /** Продолжительность обеда в минутах (альтернатива lunchStartTime/lunchEndTime) */
     lunchDurationMinutes?: number;
   }
@@ -279,7 +279,7 @@ export interface IWorkTimeResult {
    * @param endTime Время окончания
    * @returns true, если время начала и окончания совпадает
    */
-  export function isStartEndTimeSame(startTime?: Date | null, endTime?: Date | null): boolean {
+  export function isStartEndTimeSame(startTime?: Date | undefined, endTime?: Date | undefined): boolean {
     if (!startTime || !endTime) {
       return false;
     }
@@ -298,7 +298,7 @@ export interface IWorkTimeResult {
    * @param time Время для проверки
    * @returns true, если время равно 00:00
    */
-  export function isZeroTime(time?: Date | null): boolean {
+  export function isZeroTime(time?: Date | undefined): boolean {
     if (!time) {
       return false;
     }
