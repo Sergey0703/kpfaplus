@@ -14,6 +14,9 @@ import { formatDate } from './ScheduleTableUtils';
 export interface IScheduleTableRowProps {
   item: IScheduleItem;
   rowIndex: number;
+  rowPositionInDate: number; // Позиция строки внутри даты (0 - первая, 1 - вторая и т.д.)
+  totalTimeForDate: string; // Общее время работы за день в формате "Total: XXh:XXm"
+  totalRowsInDate: number; // Общее количество строк в дате (включая удаленные)
   options: IScheduleOptions;
   displayWorkTime: string;
   isTimesEqual: boolean;
@@ -30,6 +33,9 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
   const { 
     item, 
     rowIndex, 
+    rowPositionInDate,
+    totalTimeForDate,
+    totalRowsInDate,
     options, 
     displayWorkTime, 
     isTimesEqual,
@@ -155,6 +161,48 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
     { key: '3', text: '3' }
   ];
 
+  // Определяем содержимое ячейки с датой в зависимости от позиции строки
+  const renderDateCell = () => {
+    // Если это первая строка даты, отображаем дату и день недели
+    if (rowPositionInDate === 0) {
+      return (
+        <>
+          <div className={isDeleted ? styles.deletedText : ''}>
+            {formatDate(item.date)}
+          </div>
+          <div style={{ fontWeight: 'normal', fontSize: '12px' }} className={isDeleted ? styles.deletedText : ''}>
+            {item.dayOfWeek}
+            {isDeleted && <span style={{ color: '#d83b01', marginLeft: '5px', textDecoration: 'none' }}>(Deleted)</span>}
+          </div>
+        </>
+      );
+    }
+    // Если это вторая строка даты и в дате несколько строк, отображаем общую сумму часов за день
+    else if (rowPositionInDate === 1 && totalRowsInDate > 1) {
+      return (
+        <div style={{ 
+          fontWeight: 'bold', 
+          fontSize: '12px', 
+          color: '#0078d4', 
+          textAlign: 'center',
+          marginTop: '8px',
+          ...(isDeleted && { color: '#88a0bd', textDecoration: 'line-through' }) // Более светлый синий для удаленных
+        }}>
+          {totalTimeForDate}
+          {isDeleted && <span style={{ color: '#d83b01', marginLeft: '5px', textDecoration: 'none', fontSize: '10px' }}>(Deleted)</span>}
+        </div>
+      );
+    }
+    // Если это третья или последующие строки даты, оставляем ячейку пустой
+    else {
+      return (
+        <div>
+          {isDeleted && <span style={{ color: '#d83b01', fontSize: '10px', textDecoration: 'none' }}>(Deleted)</span>}
+        </div>
+      );
+    }
+  };
+
   return (
     <tr 
       style={{ 
@@ -168,13 +216,7 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
     >
       {/* Ячейка с датой */}
       <td style={{ padding: '8px 0 8px 8px' }}>
-        <div className={isDeleted ? styles.deletedText : ''}>
-          {formatDate(item.date)}
-        </div>
-        <div style={{ fontWeight: 'normal', fontSize: '12px' }} className={isDeleted ? styles.deletedText : ''}>
-          {item.dayOfWeek}
-          {isDeleted && <span style={{ color: '#d83b01', marginLeft: '5px', textDecoration: 'none' }}>(Deleted)</span>}
-        </div>
+        {renderDateCell()}
       </td>
       
       {/* Ячейка с рабочими часами */}

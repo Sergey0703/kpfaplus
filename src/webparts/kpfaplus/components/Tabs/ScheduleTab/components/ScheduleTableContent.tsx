@@ -51,6 +51,93 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
     );
   };
 
+  // Функция для определения позиции строки в группе строк с одинаковой датой
+  const getRowPositionInDate = (items: IScheduleItem[], index: number): number => {
+    if (index === 0) return 0; // Первая строка всегда имеет позицию 0
+    
+    const currentDate = new Date(items[index].date);
+    let position = 0;
+    
+    // Считаем, сколько строк с такой же датой было до текущей (включая удаленные)
+    for (let i = 0; i < index; i++) {
+      const itemDate = new Date(items[i].date);
+      
+      // Если даты совпадают, увеличиваем позицию
+      if (
+        itemDate.getFullYear() === currentDate.getFullYear() &&
+        itemDate.getMonth() === currentDate.getMonth() &&
+        itemDate.getDate() === currentDate.getDate()
+      ) {
+        position++;
+      }
+    }
+    
+    return position;
+  };
+
+  // Функция для расчета общего времени работы за день (только для неудаленных строк)
+  const calculateTotalTimeForDate = (items: IScheduleItem[], index: number): string => {
+    const currentDate = new Date(items[index].date);
+    
+    // Находим все строки с такой же датой
+    const sameDataRows = items.filter(item => {
+      const itemDate = new Date(item.date);
+      return (
+        itemDate.getFullYear() === currentDate.getFullYear() &&
+        itemDate.getMonth() === currentDate.getMonth() &&
+        itemDate.getDate() === currentDate.getDate()
+      );
+    });
+    
+    // Если у нас только одна смена в день, все равно рассчитываем и возвращаем сумму
+    // (но она будет отображаться только если строк больше одной)
+    
+    // Рассчитываем общее время, складывая время работы только неудаленных смен
+    let totalHours = 0;
+    let totalMinutes = 0;
+    
+    sameDataRows.forEach(item => {
+      // Пропускаем удаленные записи
+      if (item.deleted === true) {
+        return;
+      }
+      
+      // Получаем время работы из формата "H.MM"
+      const workTime = getDisplayWorkTime(item);
+      const [hoursStr, minutesStr] = workTime.split('.');
+      
+      const hours = parseInt(hoursStr, 10) || 0;
+      const minutes = parseInt(minutesStr, 10) || 0;
+      
+      totalHours += hours;
+      totalMinutes += minutes;
+    });
+    
+    // Переводим лишние минуты в часы
+    if (totalMinutes >= 60) {
+      totalHours += Math.floor(totalMinutes / 60);
+      totalMinutes = totalMinutes % 60;
+    }
+    
+    return `Total: ${totalHours}h:${totalMinutes.toString().padStart(2, '0')}m`;
+  };
+
+  // Функция для подсчета всех строк (включая удаленные) в группе с одинаковой датой
+  const countTotalRowsInDate = (items: IScheduleItem[], index: number): number => {
+    const currentDate = new Date(items[index].date);
+    
+    // Считаем все строки с такой же датой
+    return items.filter(item => {
+      const itemDate = new Date(item.date);
+      
+      return (
+        itemDate.getFullYear() === currentDate.getFullYear() &&
+        itemDate.getMonth() === currentDate.getMonth() &&
+        itemDate.getDate() === currentDate.getDate()
+      );
+    }).length;
+  };
+
   return (
     <div className={styles.tableContainer} style={{ width: '100%' }}>
       <table style={{ borderSpacing: '0', borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed' }}>
@@ -111,6 +198,9 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
                 <ScheduleTableRow 
                   item={item}
                   rowIndex={index}
+                  rowPositionInDate={getRowPositionInDate(items, index)}
+                  totalTimeForDate={calculateTotalTimeForDate(items, index)}
+                  totalRowsInDate={countTotalRowsInDate(items, index)}
                   options={options}
                   displayWorkTime={getDisplayWorkTime(item)}
                   isTimesEqual={checkStartEndTimeSame(item)}
