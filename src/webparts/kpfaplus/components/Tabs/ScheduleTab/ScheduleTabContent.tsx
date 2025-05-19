@@ -204,7 +204,7 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
             // TypeOfLeave could be a string ID or empty
             TypeOfLeaveID: scheduleItem.typeOfLeave || '',
             // Work time as calculated
-           // WorkTime: scheduleItem.workingHours
+            WorkTime: scheduleItem.workingHours
           };
           
           console.log(`[DEBUG] Formatted update data for ID ${recordId}:`, updateData);
@@ -603,14 +603,43 @@ const convertStaffRecordsToScheduleItems = useCallback((records: IStaffRecord[] 
                 <div style={{ padding: '10px' }}>
                   {/* Отображаем информационную панель, если есть изменения */}
                   {Object.keys(modifiedRecords).length > 0 && (
-                    <div style={{ 
-                      backgroundColor: '#FFF4CE', 
-                      padding: '8px 12px', 
-                      marginBottom: '10px', 
-                      borderRadius: '2px',
-                      borderLeft: '4px solid #FFB900'
-                    }}>
-                      <span>Changes detected. Click "Save Changes" when finished editing.</span>
+                    <div>
+                      {/* Yellow banner notification */}
+                      <div style={{ 
+                        backgroundColor: '#FFF4CE', 
+                        padding: '8px 12px', 
+                        marginBottom: '10px', 
+                        borderRadius: '2px',
+                        borderLeft: '4px solid #FFB900'
+                      }}>
+                        <span>Changes detected. Click "Save Changes" when finished editing.</span>
+                      </div>
+                      
+                      {/* Toast notification - moved from bottom of page to here, under the yellow banner */}
+                      <div style={{
+                        backgroundColor: 'white',
+                        padding: '8px 12px',
+                        marginBottom: '10px',
+                        borderRadius: '2px',
+                        border: '1px solid #e0e0e0',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}>
+                        <div style={{ marginRight: '8px', color: '#0078d4' }}>ⓘ</div>
+                        <span>Changes detected. Click "Save Changes" when finished editing.</span>
+                        <button 
+                          style={{ 
+                            marginLeft: 'auto', 
+                            background: 'transparent', 
+                            border: 'none', 
+                            cursor: 'pointer',
+                            fontSize: '14px'
+                          }}
+                          onClick={() => {/* Close function would go here */}}
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -626,36 +655,25 @@ const convertStaffRecordsToScheduleItems = useCallback((records: IStaffRecord[] 
                     onItemChange={handleItemChange}
                     onAddShift={handleAddShift}
                     onDeleteItem={handleDeleteItem}
-                  saveChangesButton={
-  Object.keys(modifiedRecords).length > 0 ? (
-    <DefaultButton
-      text={`Save Changes (${Object.keys(modifiedRecords).length})`}
-      onClick={() => {
-        console.log("Save Changes button clicked");
-        try {
-          saveAllChanges();
-        } catch (error) {
-          console.error("Error in saveAllChanges:", error);
-          setOperationMessage({
-            text: `Error saving changes: ${error instanceof Error ? error.message : String(error)}`,
-            type: MessageBarType.error
-          });
-        }
-      }}
-      disabled={isSaving}
-      styles={{
-        root: {
-          backgroundColor: '#0078d4',
-          color: 'white'
-        },
-        rootHovered: {
-          backgroundColor: '#106ebe',
-          color: 'white'
-        }
-      }}
-    />
-  ) : undefined
-}
+                    saveChangesButton={
+                      Object.keys(modifiedRecords).length > 0 ? (
+                        <DefaultButton
+                          text={`Save Changes (${Object.keys(modifiedRecords).length})`}
+                          onClick={saveAllChanges}
+                          disabled={isSaving}
+                          styles={{
+                            root: {
+                              backgroundColor: '#0078d4',
+                              color: 'white'
+                            },
+                            rootHovered: {
+                              backgroundColor: '#106ebe',
+                              color: 'white'
+                            }
+                          }}
+                        />
+                      ) : undefined
+                    }
                   />
                 </div>
               )}
