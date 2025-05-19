@@ -144,6 +144,19 @@ export class StaffRecordsService {
         );
       }
       
+       if (sortedRecords.length > 0) {
+        console.log(`[DEBUG] Пример первой обработанной записи:
+          ID: ${sortedRecords[0].ID}
+          Date: ${sortedRecords[0].Date.toLocaleDateString()}
+          SortOrder: ${sortedRecords[0].SortOrder}
+          WorkTime: ${sortedRecords[0].WorkTime}
+          Start: ${sortedRecords[0].ShiftDate1 ? sortedRecords[0].ShiftDate1.toLocaleTimeString() : 'N/A'}
+          End: ${sortedRecords[0].ShiftDate2 ? sortedRecords[0].ShiftDate2.toLocaleTimeString() : 'N/A'}
+          TypeOfLeaveID: ${sortedRecords[0].TypeOfLeaveID}
+          WeeklyTimeTableTitle: ${sortedRecords[0].WeeklyTimeTableTitle}`
+        );
+      }
+      
       return sortedRecords;
     } catch (error) {
       this.logError(`[КРИТИЧЕСКАЯ ОШИБКА] Не удалось получить записи расписания: ${error instanceof Error ? error.message : String(error)}`);

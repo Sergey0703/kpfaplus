@@ -118,35 +118,50 @@ import {
       };
     }
   
-    /**
-     * Извлекает информацию о типе отпуска из сырых данных
-     * @param typeOfLeaveRaw Сырые данные типа отпуска
-     * @param index Индекс записи (для логов)
-     * @returns Объект с ID и структурированным объектом типа отпуска
-     */
-    private extractTypeOfLeave(typeOfLeaveRaw: unknown, index: number): {
-      typeOfLeaveID: string;
-      typeOfLeave: IStaffRecordTypeOfLeave | undefined;
-    } {
-      let typeOfLeave: IStaffRecordTypeOfLeave | undefined = undefined;
-      let typeOfLeaveID = '';
+   /**
+ * Extracts information about type of leave from raw data
+ * @param typeOfLeaveRaw Raw data of type of leave
+ * @param index Record index (for logs)
+ * @returns Object with ID and structured type of leave object
+ */
+private extractTypeOfLeave(typeOfLeaveRaw: unknown, index: number): {
+  typeOfLeaveID: string;
+  typeOfLeave: IStaffRecordTypeOfLeave | undefined;
+} {
+  let typeOfLeave: IStaffRecordTypeOfLeave | undefined = undefined;
+  let typeOfLeaveID = '';
+  
+  if (typeOfLeaveRaw) {
+    this.logInfo(`[DEBUG] Record #${index} has TypeOfLeave field: ${JSON.stringify(typeOfLeaveRaw)}`);
+    
+    // Handle the case when TypeOfLeave is a direct string or number value
+    if (typeof typeOfLeaveRaw === 'string' || typeof typeOfLeaveRaw === 'number') {
+      typeOfLeaveID = String(typeOfLeaveRaw);
+      this.logInfo(`[DEBUG] TypeOfLeave is direct value: ${typeOfLeaveID}`);
       
-      if (typeOfLeaveRaw) {
-        this.logInfo(`[DEBUG] Элемент #${index} имеет поле TypeOfLeave: ${JSON.stringify(typeOfLeaveRaw)}`);
-        
-        const typeData = typeOfLeaveRaw as { Id?: string | number; Title?: string };
-        typeOfLeaveID = typeData.Id?.toString() || '';
-        
-        if (typeOfLeaveID && typeData.Title) {
-          typeOfLeave = {
-            Id: typeOfLeaveID,
-            Title: typeData.Title.toString()
-          };
-        }
-      }
-      
-      return { typeOfLeaveID, typeOfLeave };
+      // Create minimal TypeOfLeave object with just ID
+      typeOfLeave = {
+        Id: typeOfLeaveID,
+        Title: `Type ${typeOfLeaveID}` // Default title, will be replaced when full data is loaded
+      };
     }
+    // Handle the case when TypeOfLeave is an object (normal lookup field)
+    else if (typeof typeOfLeaveRaw === 'object' && typeOfLeaveRaw !== null) {
+      const typeData = typeOfLeaveRaw as { Id?: string | number; Title?: string };
+      typeOfLeaveID = typeData.Id?.toString() || '';
+      
+      if (typeOfLeaveID && typeData.Title) {
+        typeOfLeave = {
+          Id: typeOfLeaveID,
+          Title: typeData.Title.toString()
+        };
+      }
+    }
+  }
+  
+  this.logInfo(`[DEBUG] Extracted TypeOfLeaveID: ${typeOfLeaveID}`);
+  return { typeOfLeaveID, typeOfLeave };
+}
   
     /**
      * Извлекает информацию о недельном расписании из сырых данных
