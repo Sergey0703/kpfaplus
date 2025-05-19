@@ -81,7 +81,7 @@ export const DayInfo: React.FC<IDayInfoProps> = ({
           {/* Отображаем дополнительную информацию для отпуска */}
           <div style={{ marginTop: '5px', fontSize: '12px', color: '#666' }}>
             <div>
-              <strong>Тип: </strong>
+              <strong>Type: </strong>
               <span style={leaveTypeInfo?.color ? { color: leaveTypeInfo.color } : undefined}>
                 {leaveTypeInfo?.title || getLeaveTypeText(leaveInfo.typeOfLeave)}
               </span>
@@ -89,7 +89,7 @@ export const DayInfo: React.FC<IDayInfoProps> = ({
             <div>
               <strong>Period:</strong>
               {leaveInfo.startDate.toLocaleDateString()} - 
-              {leaveInfo.endDate ? leaveInfo.endDate.toLocaleDateString() : <span style={{ color: '#d13438', fontStyle: 'italic' }}>открыт</span>}
+              {leaveInfo.endDate ? leaveInfo.endDate.toLocaleDateString() : <span style={{ color: '#d13438', fontStyle: 'italic' }}>open</span>}
             </div>
           </div>
         </div>

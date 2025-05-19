@@ -1,29 +1,13 @@
 // src/webparts/kpfaplus/components/Tabs/ScheduleTab/components/ScheduleTable.tsx
 import * as React from 'react';
-import { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  Dropdown,
-  IDropdownOption,
-  IconButton,
-  PrimaryButton,
-  DefaultButton,
-  Stack,
-  IStackTokens,
-  Toggle,
-  Text,
-  TooltipHost
-} from '@fluentui/react';
+import { useState, useEffect, useRef } from 'react';
 import styles from '../ScheduleTab.module.scss';
-import { 
-  calculateWorkTime, 
-  IWorkTimeInput, 
-  createTimeFromComponents,
-  isStartEndTimeSame,
-  isZeroTime
-} from '../../../../utils/TimeCalculationUtils';
-import { ConfirmDialog } from '../../../ConfirmDialog/ConfirmDialog';
+import { ScheduleTableHeader } from './ScheduleTableHeader';
+import { ScheduleTableContent } from './ScheduleTableContent';
+import { ScheduleTableDialogs } from './ScheduleTableDialogs';
+import { calculateItemWorkTime } from './ScheduleTableUtils';
 
-// Интерфейс для записи о расписании
+// Интерфейс для записи о расписании (из оригинального файла)
 export interface IScheduleItem {
   id: string;
   date: Date;
@@ -42,7 +26,7 @@ export interface IScheduleItem {
   deleted?: boolean;
 }
 
-// Опции для выпадающих списков
+// Опции для выпадающих списков (из оригинального файла)
 export interface IScheduleOptions {
   hours: IDropdownOption[];
   minutes: IDropdownOption[];
@@ -51,7 +35,10 @@ export interface IScheduleOptions {
   contractNumbers?: IDropdownOption[];
 }
 
-// Интерфейс свойств компонента (обновленный)
+// Импортируем IDropdownOption из @fluentui/react
+import { IDropdownOption } from '@fluentui/react';
+
+// Интерфейс свойств компонента (из оригинального файла)
 export interface IScheduleTableProps {
   items: IScheduleItem[];
   options: IScheduleOptions;
@@ -63,25 +50,17 @@ export interface IScheduleTableProps {
   onItemChange: (item: IScheduleItem, field: string, value: string | number) => void;
   onAddShift: (date: Date) => void;
   onDeleteItem: (id: string) => Promise<void>;
-  onRestoreItem?: (id: string) => Promise<void>; // Добавлен обработчик восстановления записи
-  // Кнопка "Save Changes"
+  onRestoreItem?: (id: string) => Promise<void>;
   saveChangesButton?: React.ReactNode;
 }
 
-// Вспомогательная функция
-const formatDate = (date: Date): string => {
-  const day = date.getDate().toString().padStart(2, '0');
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  const year = date.getFullYear();
-  return `${day}.${month}.${year}`;
-};
-
-// Компонент таблицы расписания
 export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
   const {
     items,
     options,
     isLoading,
+ //   selectedDate,
+ //   selectedContract,
     showDeleted,
     onToggleShowDeleted,
     onItemChange,
@@ -90,13 +69,6 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
     onRestoreItem,
     saveChangesButton
   } = props;
-
-  // Используем предоставленные опции или дефолтные
-  const contractOptions = options.contractNumbers || [
-    { key: '1', text: '1' },
-    { key: '2', text: '2' },
-    { key: '3', text: '3' }
-  ];
 
   // Состояние для выбора всех строк
   const [selectAllRows, setSelectAllRows] = useState<boolean>(false);
@@ -130,85 +102,6 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
     setCalculatedWorkTimes(initialWorkTimes);
   }, [items]);
 
-  // Функция для расчета рабочего времени
-  const calculateItemWorkTime = useCallback((item: IScheduleItem): string => {
-    // Парсим часы и минуты из строк
-    const startHour = parseInt(item.startHour, 10) || 0;
-    const startMinute = parseInt(item.startMinute, 10) || 0;
-    const finishHour = parseInt(item.finishHour, 10) || 0;
-    const finishMinute = parseInt(item.finishMinute, 10) || 0;
-    const lunchMinutes = parseInt(item.lunchTime, 10) || 0;
-
-    // Создаем даты для расчета
-    const startDate = createTimeFromComponents(item.date, startHour, startMinute);
-    const finishDate = createTimeFromComponents(item.date, finishHour, finishMinute);
-
-    // Если начальное и конечное время совпадают, и они не 00:00
-    if (isStartEndTimeSame(startDate, finishDate) && 
-        (!isZeroTime(startDate) || !isZeroTime(finishDate))) {
-      console.log(`[ScheduleTable] Start and end times are the same for item ${item.id}. Returning 0.00`);
-      return "0.00";
-    }
-
-    // Подготавливаем входные данные для расчета
-    const input: IWorkTimeInput = {
-      startTime: startDate,
-      endTime: finishDate,
-      lunchDurationMinutes: lunchMinutes
-    };
-
-    // Используем утилиту для расчета рабочего времени
-    const result = calculateWorkTime(input);
-    return result.formattedTime;
-  }, []);
-
-  // Обработчик изменения времени
-  const handleTimeChange = (item: IScheduleItem, field: string, value: string): void => {
-    // Создаем копию элемента с новым значением
-    const updatedItem = { ...item, [field]: value };
-    
-    // Рассчитываем новое рабочее время
-    const workTime = calculateItemWorkTime(updatedItem);
-    
-    // Обновляем локальное состояние для мгновенного отображения
-    setCalculatedWorkTimes(prev => ({
-      ...prev,
-      [item.id]: workTime
-    }));
-    
-    // Уведомляем родителя об изменении
-    onItemChange(updatedItem, field, value);
-    
-    // Также отправляем обновленное рабочее время
-    onItemChange(updatedItem, 'workingHours', workTime);
-  };
-
-  // Обработчик изменения контракта
-  const handleContractNumberChange = (item: IScheduleItem, value: string): void => {
-    onItemChange(item, 'contractNumber', value);
-  };
-
-  // Обработчик изменения времени обеда
-  const handleLunchTimeChange = (item: IScheduleItem, value: string): void => {
-    // Создаем копию элемента с новым значением
-    const updatedItem = { ...item, lunchTime: value };
-    
-    // Рассчитываем новое рабочее время
-    const workTime = calculateItemWorkTime(updatedItem);
-    
-    // Обновляем локальное состояние для мгновенного отображения
-    setCalculatedWorkTimes(prev => ({
-      ...prev,
-      [item.id]: workTime
-    }));
-    
-    // Уведомляем родителя об изменении
-    onItemChange(updatedItem, 'lunchTime', value);
-    
-    // Также отправляем обновленное рабочее время
-    onItemChange(updatedItem, 'workingHours', workTime);
-  };
-
   // Обработчик выбора/отмены выбора всех строк
   const handleSelectAllRows = (checked: boolean): void => {
     setSelectAllRows(checked);
@@ -241,24 +134,7 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
     return item.workingHours;
   };
 
-  // Функция для проверки, совпадают ли время начала и окончания
-  const checkStartEndTimeSame = (item: IScheduleItem): boolean => {
-    // Парсим часы и минуты из строк
-    const startHour = parseInt(item.startHour, 10) || 0;
-    const startMinute = parseInt(item.startMinute, 10) || 0;
-    const finishHour = parseInt(item.finishHour, 10) || 0;
-    const finishMinute = parseInt(item.finishMinute, 10) || 0;
-
-    // Создаем даты для сравнения
-    const startDate = createTimeFromComponents(item.date, startHour, startMinute);
-    const finishDate = createTimeFromComponents(item.date, finishHour, finishMinute);
-
-    // Проверяем, совпадают ли даты и не равны ли они обе 00:00
-    return isStartEndTimeSame(startDate, finishDate) && 
-           !(isZeroTime(startDate) && isZeroTime(finishDate));
-  };
-
-  // Добавляем обработчики для диалогов подтверждения удаления и восстановления
+  // Обработчики для диалогов подтверждения удаления и восстановления
   const showDeleteConfirmDialog = (itemId: string): void => {
     console.log(`Setting up delete for item ID: ${itemId}`);
     
@@ -334,296 +210,106 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
     });
   };
 
-  // Разделители для Stack
-  const stackTokens: IStackTokens = { childrenGap: 10 };
+  // Обработчик для закрытия диалога
+  const handleDismissDialog = (): void => {
+    setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
+    pendingActionItemIdRef.current = undefined;
+  };
+
+  // Обработчик изменения времени
+  const handleTimeChange = (item: IScheduleItem, field: string, value: string): void => {
+    // Проверяем, что запись не удалена
+    if (item.deleted) {
+      return; // Не позволяем изменять удаленные записи
+    }
+    
+    // Создаем копию элемента с новым значением
+    const updatedItem = { ...item, [field]: value };
+    
+    // Рассчитываем новое рабочее время
+    const workTime = calculateItemWorkTime(updatedItem);
+    
+    // Обновляем локальное состояние для мгновенного отображения
+    setCalculatedWorkTimes(prev => ({
+      ...prev,
+      [item.id]: workTime
+    }));
+    
+    // Уведомляем родителя об изменении
+    onItemChange(updatedItem, field, value);
+    
+    // Также отправляем обновленное рабочее время
+    onItemChange(updatedItem, 'workingHours', workTime);
+  };
+
+  // Обработчик изменения контракта
+  const handleContractNumberChange = (item: IScheduleItem, value: string): void => {
+    // Проверяем, что запись не удалена
+    if (item.deleted) {
+      return; // Не позволяем изменять удаленные записи
+    }
+    
+    onItemChange(item, 'contractNumber', value);
+  };
+
+  // Обработчик изменения времени обеда
+  const handleLunchTimeChange = (item: IScheduleItem, value: string): void => {
+    // Проверяем, что запись не удалена
+    if (item.deleted) {
+      return; // Не позволяем изменять удаленные записи
+    }
+    
+    // Создаем копию элемента с новым значением
+    const updatedItem = { ...item, lunchTime: value };
+    
+    // Рассчитываем новое рабочее время
+    const workTime = calculateItemWorkTime(updatedItem);
+    
+    // Обновляем локальное состояние для мгновенного отображения
+    setCalculatedWorkTimes(prev => ({
+      ...prev,
+      [item.id]: workTime
+    }));
+    
+    // Уведомляем родителя об изменении
+    onItemChange(updatedItem, 'lunchTime', value);
+    
+    // Также отправляем обновленное рабочее время
+    onItemChange(updatedItem, 'workingHours', workTime);
+  };
 
   return (
     <div className={styles.scheduleTab}>
-      {/* Верхняя панель управления - модифицирована для включения кнопки Save Changes */}
-      <Stack horizontal tokens={stackTokens} style={{ marginBottom: '16px', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Stack horizontal tokens={stackTokens} style={{ alignItems: 'center' }}>
-          <Toggle
-            label="Select All rows"
-            checked={selectAllRows}
-            onChange={(_, checked): void => handleSelectAllRows(checked!)}
-          />
-          {selectedRows.size > 0 && (
-            <DefaultButton
-              text={`Delete all selected rows (${selectedRows.size})`}
-              onClick={handleDeleteSelected}
-              style={{ marginLeft: '16px' }}
-            />
-          )}
-        </Stack>
-        
-        {/* Правая часть панели с тогглером Show Deleted и кнопкой Save Changes */}
-        <Stack horizontal tokens={stackTokens} style={{ alignItems: 'center' }}>
-          <Toggle
-            label="Show Deleted"
-            checked={showDeleted}
-            onChange={(_, checked): void => onToggleShowDeleted(checked!)}
-          />
-          {/* Отображаем кнопку Save Changes, если она передана */}
-          {saveChangesButton && (
-            <div style={{ marginLeft: '16px' }}>
-              {saveChangesButton}
-            </div>
-          )}
-        </Stack>
-      </Stack>
+      {/* Заголовок и управление */}
+      <ScheduleTableHeader 
+        selectAllRows={selectAllRows}
+        selectedRows={selectedRows}
+        showDeleted={showDeleted}
+        onSelectAllRows={handleSelectAllRows}
+        onDeleteSelected={handleDeleteSelected}
+        onToggleShowDeleted={onToggleShowDeleted}
+        saveChangesButton={saveChangesButton}
+      />
 
-      {/* Таблица расписания - задаем общую ширину и убираем spacing */}
-      <div className={styles.tableContainer} style={{ width: '100%' }}>
-        <table style={{ borderSpacing: '0', borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed' }}>
-          <colgroup>
-            <col style={{ width: '100px' }} /> {/* Date */}
-            <col style={{ width: '80px' }} /> {/* Hours */}
-            <col style={{ width: '150px' }} /> {/* Start Work */}
-            <col style={{ width: '150px' }} /> {/* Finish Work */}
-            <col style={{ width: '100px' }} /> {/* Time for Lunch */}
-            <col style={{ width: '150px' }} /> {/* Type of Leave */}
-            <col style={{ width: '70px' }} /> {/* +Shift */}
-            <col style={{ width: '60px' }} /> {/* Contract */}
-            <col style={{ width: '30px' }} /> {/* Delete */}
-            <col style={{ width: '80px' }} /> {/* ID */}
-          </colgroup>
-          <thead>
-            <tr>
-              <th style={{ textAlign: 'left', padding: '8px 0' }}>Date</th>
-              <th style={{ textAlign: 'center', padding: '8px 0' }}>Hours</th>
-              <th style={{ textAlign: 'center', padding: '8px 0' }}>Start Work</th>
-              <th style={{ textAlign: 'center', padding: '8px 0' }}>Finish Work</th>
-              <th style={{ textAlign: 'center', padding: '8px 0' }}>Time for Lunch:</th>
-              <th style={{ textAlign: 'center', padding: '8px 0' }}>Type of Leave</th>
-              <th style={{ textAlign: 'center', padding: '8px 0' }} /> {/* Для кнопки +Shift */}
-              <th style={{ textAlign: 'left', padding: '8px 0' }}>Contract</th>
-              <th style={{ textAlign: 'center', padding: '8px 0' }} /> {/* Для кнопки удаления */}
-              <th style={{ textAlign: 'center', padding: '8px 0' }}>ID</th> {/* Для ID */}
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr>
-                <td colSpan={10} style={{ textAlign: 'center', padding: '32px' }}>
-                  Loading schedule data...
-                </td>
-              </tr>
-            ) : items.length === 0 ? (
-              <tr>
-                <td colSpan={10} style={{ textAlign: 'center', padding: '32px' }}>
-                  No schedule items found for the selected date and contract.
-                </td>
-              </tr>
-            ) : (
-              items.map((item, index) => {
-                // Определяем цвет фона для строки (чередование, выделение и т.д.)
-                const isEvenRow = index % 2 === 0;
-                let backgroundColor = isEvenRow ? '#f9f9f9' : '#ffffff';
-                
-                // Если время начала и окончания совпадают и не равны 00:00
-                const isTimesEqual = checkStartEndTimeSame(item);
-                if (isTimesEqual) {
-                  backgroundColor = '#ffeded'; // Светло-красный фон для некорректных записей
-                }
-                
-                // Отображаемое рабочее время
-                const displayWorkTime = getDisplayWorkTime(item);
-                
-                // Логи для диагностики проблемы с типами отпусков
-                console.log(`[DEBUG] Rendering TypeOfLeave dropdown for item ${item.id}:`);
-                console.log(`  - typeOfLeave value: ${item.typeOfLeave} (type: ${typeof item.typeOfLeave})`);
-                console.log(`  - Available options: ${JSON.stringify(options.leaveTypes.map(opt => ({ key: opt.key, text: opt.text })))}`);
-                console.log(`  - Selected option matches: ${options.leaveTypes.some(opt => String(opt.key) === String(item.typeOfLeave))}`);
-                
-                return (
-                  <tr 
-                    key={item.id}
-                    style={{ 
-                      backgroundColor,
-                      border: '1px solid #edebe9',
-                      marginBottom: '4px',
-                      borderRadius: '2px'
-                    }}
-                  >
-                    {/* Ячейка с датой */}
-                    <td style={{ padding: '8px 0 8px 8px' }}>
-                      <div>{formatDate(item.date)}</div>
-                      <div style={{ fontWeight: 'normal', fontSize: '12px' }}>{item.dayOfWeek}</div>
-                    </td>
-                    
-                    {/* Ячейка с рабочими часами */}
-                    <td style={{ 
-                      textAlign: 'center',
-                      fontWeight: 'bold',
-                      whiteSpace: 'nowrap',
-                      color: isTimesEqual ? '#a4262c' : (displayWorkTime === '0.00' ? '#666' : 'inherit')
-                    }}>
-                      {isTimesEqual ? (
-                        <TooltipHost content="Start and end times are the same. Please adjust the times.">
-                          <Text style={{ color: '#a4262c', fontWeight: 'bold' }}>{displayWorkTime}</Text>
-                        </TooltipHost>
-                      ) : (
-                        displayWorkTime
-                      )}
-                    </td>
-                    
-                    {/* Ячейка с началом работы */}
-                    <td style={{ textAlign: 'center' }}>
-                      <div style={{ display: 'flex', justifyContent: 'center' }}>
-                        <Dropdown
-                          selectedKey={item.startHour}
-                          options={options.hours}
-                          onChange={(_, option): void => handleTimeChange(item, 'startHour', option?.key as string)}
-                          styles={{ 
-                            root: { 
-                              width: 60, 
-                              margin: '0 4px',
-                              borderColor: isTimesEqual ? '#a4262c' : undefined 
-                            } 
-                          }}
-                        />
-                        <Dropdown
-                          selectedKey={item.startMinute}
-                          options={options.minutes}
-                          onChange={(_, option): void => handleTimeChange(item, 'startMinute', option?.key as string)}
-                          styles={{ 
-                            root: { 
-                              width: 60, 
-                              margin: '0 4px',
-                              borderColor: isTimesEqual ? '#a4262c' : undefined 
-                            } 
-                          }}
-                        />
-                      </div>
-                    </td>
-                    
-                    {/* Ячейка с окончанием работы */}
-                    <td style={{ textAlign: 'center' }}>
-                      <div style={{ display: 'flex', justifyContent: 'center' }}>
-                        <Dropdown
-                          selectedKey={item.finishHour}
-                          options={options.hours}
-                          onChange={(_, option): void => handleTimeChange(item, 'finishHour', option?.key as string)}
-                          styles={{ 
-                            root: { 
-                              width: 60, 
-                              margin: '0 4px',
-                              borderColor: isTimesEqual ? '#a4262c' : undefined 
-                            } 
-                          }}
-                        />
-                        <Dropdown
-                          selectedKey={item.finishMinute}
-                          options={options.minutes}
-                          onChange={(_, option): void => handleTimeChange(item, 'finishMinute', option?.key as string)}
-                          styles={{ 
-                            root: { 
-                              width: 60, 
-                              margin: '0 4px',
-                              borderColor: isTimesEqual ? '#a4262c' : undefined 
-                            } 
-                          }}
-                        />
-                      </div>
-                    </td>
-                    
-                    {/* Ячейка с временем обеда */}
-                    <td style={{ textAlign: 'center' }}>
-                      <Dropdown
-                        selectedKey={item.lunchTime}
-                        options={options.lunchTimes}
-                        onChange={(_, option): void => handleLunchTimeChange(item, option?.key as string)}
-                        styles={{ root: { width: 80 } }}
-                      />
-                    </td>
-                    
-                    {/* Ячейка с типом отпуска */}
-                    <td style={{ textAlign: 'center' }}>
-                      <Dropdown
-                        selectedKey={item.typeOfLeave ? String(item.typeOfLeave) : ''}
-                        options={options.leaveTypes}
-                        onChange={(_, option): void => handleTimeChange(item, 'typeOfLeave', option?.key as string)}
-                        styles={{ root: { width: 150 } }}
-                      />
-                    </td>
-                    
-                    {/* Кнопка +Shift */}
-                    <td style={{ textAlign: 'center', padding: '0' }}>
-                      <PrimaryButton
-                        text="+Shift"
-                        styles={{ root: { minWidth: 60, padding: '0 4px', backgroundColor: '#107c10' } }}
-                        onClick={(): void => onAddShift(item.date)}
-                      />
-                    </td>
-                    
-                    {/* Ячейка с номером контракта */}
-                    <td>
-                      <Dropdown
-                        selectedKey={item.contractNumber || '1'} // По умолчанию '1'
-                        options={contractOptions}
-                        onChange={(_, option): void => handleContractNumberChange(item, option?.key as string)}
-                        styles={{ root: { width: 50 } }}
-                      />
-                    </td>
-                    
-                    {/* Иконка удаления или восстановления в зависимости от статуса */}
-                    <td style={{ textAlign: 'center', padding: '0' }}>
-                      {item.deleted ? (
-                        // Кнопка восстановления для удаленных записей
-                        <IconButton
-                          iconProps={{ iconName: 'Refresh' }}
-                          title="Restore"
-                          ariaLabel="Restore"
-                          onClick={(): void => {
-                            if (onRestoreItem) {
-                              showRestoreConfirmDialog(item.id);
-                            } else {
-                              console.error('Restore handler is not available');
-                            }
-                          }}
-                          styles={{
-                            root: { color: '#107c10' }, // Зеленый цвет для восстановления
-                            rootHovered: { color: '#0b5a0b' }
-                          }}
-                          disabled={!onRestoreItem}
-                        />
-                      ) : (
-                        // Кнопка удаления для активных записей
-                        <IconButton
-                          iconProps={{ iconName: 'Delete' }}
-                          title="Delete"
-                          ariaLabel="Delete"
-                          onClick={(): void => showDeleteConfirmDialog(item.id)}
-                          styles={{ 
-                            root: { color: '#e81123' },
-                            rootHovered: { color: '#a80000' }
-                          }}
-                        />
-                      )}
-                    </td>
-                    
-                    {/* Текстовое поле для ID */}
-                    <td style={{ textAlign: 'center', fontSize: '12px', color: '#666' }}>
-                      {item.id}
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+      {/* Контент таблицы */}
+      <ScheduleTableContent 
+        items={items}
+        options={options}
+        isLoading={isLoading}
+        showDeleteConfirmDialog={showDeleteConfirmDialog}
+        showRestoreConfirmDialog={showRestoreConfirmDialog}
+        onRestoreItem={onRestoreItem}
+        getDisplayWorkTime={getDisplayWorkTime}
+        onItemChange={handleTimeChange}
+        onContractNumberChange={handleContractNumberChange}
+        onLunchTimeChange={handleLunchTimeChange}
+        onAddShift={onAddShift}
+      />
 
-      {/* Диалог подтверждения */}
-      <ConfirmDialog
-        isOpen={confirmDialogProps.isOpen}
-        title={confirmDialogProps.title}
-        message={confirmDialogProps.message}
-        confirmButtonText={confirmDialogProps.confirmButtonText}
-        cancelButtonText={confirmDialogProps.cancelButtonText}
-        onConfirm={confirmDialogProps.onConfirm}
-        onDismiss={() => setConfirmDialogProps(prev => ({ ...prev, isOpen: false }))}
-        confirmButtonColor={confirmDialogProps.confirmButtonColor}
+      {/* Диалоги подтверждения */}
+      <ScheduleTableDialogs 
+        confirmDialogProps={confirmDialogProps}
+        onDismiss={handleDismissDialog}
       />
     </div>
   );
