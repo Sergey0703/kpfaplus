@@ -387,14 +387,8 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
       // При изменении контракта перезагружаем расписание
       console.log('[ScheduleTab] Contract changed, will reload staff records');
       setTimeout(() => {
-        // ИСПРАВЛЕНО: Добавлена обработка Promise через .then/.catch
-        loadStaffRecords(state.selectedDate)
-          .then(() => {
-            console.log("[ScheduleTab] Staff records loaded successfully after contract change");
-          })
-          .catch(error => {
-            console.error("[ScheduleTab] Error loading staff records after contract change:", error);
-          });
+        // ИСПРАВЛЕНО: Добавлена обработка Promise через void
+        void loadStaffRecords(state.selectedDate);
       }, 0);
     }
   };
@@ -423,7 +417,7 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
       // After successful update, refresh the data
       if (success) {
         setTimeout(() => {
-          loadStaffRecords(state.selectedDate);
+          void loadStaffRecords(state.selectedDate);
         }, 1000);
       }
       
@@ -452,7 +446,7 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
       // After successful creation, refresh the data
       if (newRecordId) {
         setTimeout(() => {
-          loadStaffRecords(state.selectedDate);
+          void loadStaffRecords(state.selectedDate);
         }, 1000);
       }
       
@@ -481,7 +475,7 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
       // After successful deletion, refresh the data
       if (success) {
         setTimeout(() => {
-          loadStaffRecords(state.selectedDate);
+          void loadStaffRecords(state.selectedDate);
         }, 1000);
       }
       
@@ -510,7 +504,7 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
       // After successful restoration, refresh the data
       if (success) {
         setTimeout(() => {
-          loadStaffRecords(state.selectedDate);
+          void loadStaffRecords(state.selectedDate);
         }, 1000);
       }
       
@@ -524,7 +518,7 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
   // Обработчик обновления данных
   const handleRefreshData = (): void => {
     console.log(`[ScheduleTab] handleRefreshData called`);
-    loadStaffRecords(state.selectedDate);
+    void loadStaffRecords(state.selectedDate);
   };
   
   // Загружаем контракты при монтировании компонента или изменении сотрудника
