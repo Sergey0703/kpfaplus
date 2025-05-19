@@ -109,7 +109,7 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
   // Состояние для отслеживания процесса сохранения
   const [isSaving, setIsSaving] = useState<boolean>(false);
   
-  // Состояние для сообщений об операциях
+  // Сохраняем состояние для сообщений об операциях
   const [operationMessage, setOperationMessage] = useState<{
     text: string;
     type: MessageBarType;
@@ -418,13 +418,8 @@ const convertStaffRecordsToScheduleItems = useCallback((records: IStaffRecord[] 
       }
     }));
     
-    // Показываем сообщение о необходимости сохранения
-    if (Object.keys(modifiedRecords).length === 0) {
-      setOperationMessage({
-        text: 'Changes detected. Click "Save Changes" when finished editing.',
-        type: MessageBarType.info
-      });
-    }
+    // НЕ устанавливаем operationMessage для сообщения о необходимости сохранения изменений
+    // Это сообщение теперь отображается напрямую в JSX
   };
   
   // Обработчик добавления новой смены
@@ -556,6 +551,30 @@ const convertStaffRecordsToScheduleItems = useCallback((records: IStaffRecord[] 
         </MessageBar>
       )}
       
+      {/* Показываем информационное сообщение о необходимости сохранения изменений */}
+      {Object.keys(modifiedRecords).length > 0 && (
+        <MessageBar
+          messageBarType={MessageBarType.info}
+          isMultiline={false}
+          onDismiss={() => {}}
+          dismissButtonAriaLabel="Close"
+        >
+          Changes detected. Click "Save Changes" when finished editing.
+        </MessageBar>
+      )}
+      
+      {/* Отображаем операционное сообщение, если есть */}
+      {operationMessage && (
+        <MessageBar
+          messageBarType={operationMessage.type}
+          isMultiline={false}
+          onDismiss={() => setOperationMessage(null)}
+          dismissButtonAriaLabel="Close"
+        >
+          {operationMessage.text}
+        </MessageBar>
+      )}
+      
       {/* Фильтры выбора даты и контракта с кнопкой Fill */}
       <FilterControls
         selectedDate={selectedDate}
@@ -601,48 +620,6 @@ const convertStaffRecordsToScheduleItems = useCallback((records: IStaffRecord[] 
                 </div>
               ) : (
                 <div style={{ padding: '10px' }}>
-                  {/* Отображаем информационную панель, если есть изменения */}
-                  {Object.keys(modifiedRecords).length > 0 && (
-                    <div>
-                      {/* Yellow banner notification */}
-                      <div style={{ 
-                        backgroundColor: '#FFF4CE', 
-                        padding: '8px 12px', 
-                        marginBottom: '10px', 
-                        borderRadius: '2px',
-                        borderLeft: '4px solid #FFB900'
-                      }}>
-                        <span>Changes detected. Click "Save Changes" when finished editing.</span>
-                      </div>
-                      
-                      {/* Toast notification - moved from bottom of page to here, under the yellow banner */}
-                      <div style={{
-                        backgroundColor: 'white',
-                        padding: '8px 12px',
-                        marginBottom: '10px',
-                        borderRadius: '2px',
-                        border: '1px solid #e0e0e0',
-                        display: 'flex',
-                        alignItems: 'center'
-                      }}>
-                        <div style={{ marginRight: '8px', color: '#0078d4' }}>ⓘ</div>
-                        <span>Changes detected. Click "Save Changes" when finished editing.</span>
-                        <button 
-                          style={{ 
-                            marginLeft: 'auto', 
-                            background: 'transparent', 
-                            border: 'none', 
-                            cursor: 'pointer',
-                            fontSize: '14px'
-                          }}
-                          onClick={() => {/* Close function would go here */}}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
                   {/* Таблица расписания - использует обновленный компонент и передаем данные с учетом модификаций */}
                   <ScheduleTable
                     items={getScheduleItemsWithModifications()}
@@ -696,19 +673,6 @@ const convertStaffRecordsToScheduleItems = useCallback((records: IStaffRecord[] 
             </div>
           )}
         </>
-      )}
-      
-      {/* Отображаем операционное сообщение, если есть */}
-      {operationMessage && (
-        <MessageBar
-          messageBarType={operationMessage.type}
-          isMultiline={false}
-          onDismiss={() => setOperationMessage(null)}
-          dismissButtonAriaLabel="Close"
-          style={{ marginTop: '15px' }}
-        >
-          {operationMessage.text}
-        </MessageBar>
       )}
     </div>
   );
