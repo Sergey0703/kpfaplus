@@ -35,6 +35,22 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
     onAddShift
   } = props;
 
+  // Функция для проверки, нужно ли добавлять разделительную линию перед строкой
+  const isFirstRowWithNewDate = (items: IScheduleItem[], index: number): boolean => {
+    if (index === 0) return true; // Первая строка всегда начинает новую дату
+    
+    // Сравниваем даты текущей и предыдущей строки
+    const currentDate = new Date(items[index].date);
+    const previousDate = new Date(items[index - 1].date);
+    
+    // Сравниваем только год, месяц и день
+    return (
+      currentDate.getFullYear() !== previousDate.getFullYear() ||
+      currentDate.getMonth() !== previousDate.getMonth() ||
+      currentDate.getDate() !== previousDate.getDate()
+    );
+  };
+
   return (
     <div className={styles.tableContainer} style={{ width: '100%' }}>
       <table style={{ borderSpacing: '0', borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed' }}>
@@ -79,21 +95,34 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
             </tr>
           ) : (
             items.map((item, index) => (
-              <ScheduleTableRow 
-                key={item.id}
-                item={item}
-                rowIndex={index}
-                options={options}
-                displayWorkTime={getDisplayWorkTime(item)}
-                isTimesEqual={checkStartEndTimeSame(item)}
-                showDeleteConfirmDialog={showDeleteConfirmDialog}
-                showRestoreConfirmDialog={showRestoreConfirmDialog}
-                onRestoreItem={onRestoreItem}
-                onItemChange={onItemChange}
-                onContractNumberChange={onContractNumberChange}
-                onLunchTimeChange={onLunchTimeChange}
-                onAddShift={onAddShift}
-              />
+              <React.Fragment key={item.id}>
+                {/* Добавляем синюю линию перед строками с новой датой */}
+                {isFirstRowWithNewDate(items, index) && (
+                  <tr style={{ height: '1px', padding: 0 }}>
+                    <td colSpan={10} style={{ 
+                      backgroundColor: '#0078d4', 
+                      height: '1px',
+                      padding: 0,
+                      border: 'none'
+                    }} />
+                  </tr>
+                )}
+                
+                <ScheduleTableRow 
+                  item={item}
+                  rowIndex={index}
+                  options={options}
+                  displayWorkTime={getDisplayWorkTime(item)}
+                  isTimesEqual={checkStartEndTimeSame(item)}
+                  showDeleteConfirmDialog={showDeleteConfirmDialog}
+                  showRestoreConfirmDialog={showRestoreConfirmDialog}
+                  onRestoreItem={onRestoreItem}
+                  onItemChange={onItemChange}
+                  onContractNumberChange={onContractNumberChange}
+                  onLunchTimeChange={onLunchTimeChange}
+                  onAddShift={onAddShift}
+                />
+              </React.Fragment>
             ))
           )}
         </tbody>
