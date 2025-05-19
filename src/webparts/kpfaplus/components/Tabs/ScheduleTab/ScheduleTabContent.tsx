@@ -65,6 +65,7 @@ export interface IScheduleTabContentProps {
   onUpdateStaffRecord?: (recordId: string, updateData: Partial<IStaffRecord>) => Promise<boolean>;
   onCreateStaffRecord?: (createData: Partial<IStaffRecord>) => Promise<string | undefined>;
   onDeleteStaffRecord?: (recordId: string) => Promise<boolean>;
+  onRefreshData?: () => void;
 }
 
 /**
@@ -92,7 +93,8 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     staffRecords,
     onUpdateStaffRecord,
     onCreateStaffRecord,
-    onDeleteStaffRecord
+    onDeleteStaffRecord,
+    onRefreshData
   } = props;
   
   // Находим выбранный контракт
@@ -148,7 +150,9 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     console.groupEnd();
   }, [selectedDate, holidays, leaves, typesOfLeave, contracts, selectedContract, staffRecords, modifiedRecords]);
   
-  // Функция для сохранения всех измененных записей
+  /**
+   * Функция для сохранения всех измененных записей
+   */
   const saveAllChanges = async (): Promise<void> => {
     if (!onUpdateStaffRecord) {
       console.error('Update staff record function is not provided');
@@ -178,56 +182,76 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
       let successCount = 0;
       const failedRecords: string[] = [];
       
-      // Параллельное сохранение записей
-      const savePromises = modifiedIds.map(async (recordId) => {
-        const scheduleItem = modifiedRecords[recordId];
+      // Process records in batches to avoid overloading the server
+      const batchSize = 5; // Process 5 records at a time
+      for (let i = 0; i < modifiedIds.length; i += batchSize) {
+        const currentBatch = modifiedIds.slice(i, i + batchSize);
         
-        // Преобразование IScheduleItem в формат для обновления
-        const updateData: Partial<IStaffRecord> = {
-          // Преобразование строковых значений в объекты Date
-          ShiftDate1: createTimeFromScheduleItem(scheduleItem.date, scheduleItem.startHour, scheduleItem.startMinute),
-          ShiftDate2: createTimeFromScheduleItem(scheduleItem.date, scheduleItem.finishHour, scheduleItem.finishMinute),
-          TimeForLunch: parseInt(scheduleItem.lunchTime, 10) || 0,
-          TypeOfLeaveID: scheduleItem.typeOfLeave || '',
-          Contract: parseInt(scheduleItem.contractNumber || '1', 10),
-          WorkTime: scheduleItem.workingHours
-        };
-        
-        try {
-          const success = await onUpdateStaffRecord(recordId, updateData);
+        // Create an array of promises for the current batch
+        const batchPromises = currentBatch.map(async (recordId) => {
+          const scheduleItem = modifiedRecords[recordId];
           
-          if (success) {
-            successCount++;
-            return { recordId, success: true };
-          } else {
+          console.log(`[DEBUG] Saving record ID ${recordId}:`, scheduleItem);
+          
+          // Format data for update
+          const updateData: Partial<IStaffRecord> = {
+            // Dates need to be proper Date objects
+            ShiftDate1: createTimeFromScheduleItem(scheduleItem.date, scheduleItem.startHour, scheduleItem.startMinute),
+            ShiftDate2: createTimeFromScheduleItem(scheduleItem.date, scheduleItem.finishHour, scheduleItem.finishMinute),
+            // Numeric values
+            TimeForLunch: parseInt(scheduleItem.lunchTime, 10) || 0,
+            Contract: parseInt(scheduleItem.contractNumber || '1', 10),
+            // TypeOfLeave could be a string ID or empty
+            TypeOfLeaveID: scheduleItem.typeOfLeave || '',
+            // Work time as calculated
+           // WorkTime: scheduleItem.workingHours
+          };
+          
+          console.log(`[DEBUG] Formatted update data for ID ${recordId}:`, updateData);
+          
+          try {
+            const success = await onUpdateStaffRecord(recordId, updateData);
+            
+            if (success) {
+              successCount++;
+              return { recordId, success: true };
+            } else {
+              failedRecords.push(recordId);
+              return { recordId, success: false, error: 'Update returned false' };
+            }
+          } catch (error) {
+            console.error(`Error saving record ${recordId}:`, error);
             failedRecords.push(recordId);
-            return { recordId, success: false };
+            return { recordId, success: false, error };
           }
-        } catch (error) {
-          console.error(`Error saving record ${recordId}:`, error);
-          failedRecords.push(recordId);
-          return { recordId, success: false, error };
+        });
+        
+        // Wait for all promises in this batch to complete before moving to the next batch
+        const batchResults = await Promise.all(batchPromises);
+        console.log(`[DEBUG] Batch results:`, batchResults);
+        
+        // Add a small delay between batches to not overwhelm the server
+        if (i + batchSize < modifiedIds.length) {
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
-      });
+      }
       
-      await Promise.all(savePromises);
-      
-      // Формируем сообщение о результате
+      // Show appropriate message based on results
       if (successCount === modifiedIds.length) {
         setOperationMessage({
           text: `All ${successCount} changes saved successfully`,
           type: MessageBarType.success
         });
-        // Очищаем список модифицированных записей
+        // Clear all modified records since they've been saved
         setModifiedRecords({});
       } else if (successCount > 0) {
         setOperationMessage({
           text: `Saved ${successCount} of ${modifiedIds.length} changes. Failed to save ${failedRecords.length} records.`,
           type: MessageBarType.warning
         });
-        // Очищаем успешно сохраненные записи
+        // Clear only the successfully saved records
         const newModifiedRecords = { ...modifiedRecords };
-        successCount > 0 && successCount < modifiedIds.length && modifiedIds.forEach((id) => {
+        modifiedIds.forEach((id) => {
           if (!failedRecords.includes(id)) {
             delete newModifiedRecords[id];
           }
@@ -238,6 +262,11 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
           text: `Failed to save any changes. Please try again.`,
           type: MessageBarType.error
         });
+      }
+      
+      // If we have a parent refresh function, call it to refresh the data
+      if (onRefreshData) {
+        onRefreshData();
       }
     } catch (error) {
       console.error('Error during save operation:', error);
@@ -255,11 +284,11 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     const hour = parseInt(hourStr, 10) || 0;
     const minute = parseInt(minuteStr, 10) || 0;
     
-    const result = new Date(baseDate);
+    // Create a new Date object to avoid modifying the original
+    const result = new Date(baseDate.getTime());
     result.setHours(hour, minute, 0, 0);
     return result;
   };
-
   
 // Преобразование данных расписания в формат для ScheduleTable
 const convertStaffRecordsToScheduleItems = useCallback((records: IStaffRecord[] | undefined): IScheduleItem[] => {
@@ -311,19 +340,6 @@ const convertStaffRecordsToScheduleItems = useCallback((records: IStaffRecord[] 
       contractNumber: record.Contract.toString(),
       deleted: record.Deleted === 1 // Добавляем флаг deleted
     };
-    
-    // Добавляем логи для диагностики проблемы с типами отпусков
-    console.log(`[DEBUG] Converting record ID ${record.ID}: TypeOfLeaveID=${typeOfLeaveValue} (type: ${typeof typeOfLeaveValue}) -> typeOfLeave=${scheduleItem.typeOfLeave} (type: ${typeof scheduleItem.typeOfLeave})`);
-    
-    // Дополнительные логи для конкретной записи 27565
-    if (record.ID === '27565' || parseInt(record.ID) === 27565) {
-      console.log(`[DEBUG] RECORD 27565 DETAILS:
-        - Full record: ${JSON.stringify(record)}
-        - TypeOfLeaveID direct: ${record.TypeOfLeaveID || 'undefined'} (type: ${typeof record.TypeOfLeaveID})
-        - TypeOfLeave object: ${record.TypeOfLeave ? JSON.stringify(record.TypeOfLeave) : 'undefined'}
-        - Final typeOfLeave value: ${typeOfLeaveValue} (type: ${typeof typeOfLeaveValue})
-      `);
-    }
     
     return scheduleItem;
   });
@@ -427,11 +443,14 @@ const convertStaffRecordsToScheduleItems = useCallback((records: IStaffRecord[] 
     setIsSaving(true);
     
     try {
+      // Create a new Date object to avoid modifying the original
+      const newDate = new Date(date.getTime());
+      
       // Создаем начальные данные для новой записи
       const createData: Partial<IStaffRecord> = {
-        Date: date,
-        ShiftDate1: new Date(date.setHours(9, 0, 0, 0)), // По умолчанию 9:00
-        ShiftDate2: new Date(date.setHours(17, 0, 0, 0)), // По умолчанию 17:00
+        Date: newDate,
+        ShiftDate1: new Date(new Date(newDate).setHours(9, 0, 0, 0)), // По умолчанию 9:00
+        ShiftDate2: new Date(new Date(newDate).setHours(17, 0, 0, 0)), // По умолчанию 17:00
         TimeForLunch: 60, // По умолчанию 1 час
         WeeklyTimeTableID: selectedContractId,
         Contract: 1
@@ -447,7 +466,9 @@ const convertStaffRecordsToScheduleItems = useCallback((records: IStaffRecord[] 
         });
         
         // Обновляем данные, чтобы отобразить новую запись
-        // Это должно быть реализовано в родительском компоненте
+        if (onRefreshData) {
+          onRefreshData();
+        }
       } else {
         setOperationMessage({
           text: 'Failed to add new shift. Please try again.',
@@ -494,6 +515,11 @@ const convertStaffRecordsToScheduleItems = useCallback((records: IStaffRecord[] 
           const newModifiedRecords = { ...modifiedRecords };
           delete newModifiedRecords[id];
           setModifiedRecords(newModifiedRecords);
+        }
+        
+        // Обновляем данные
+        if (onRefreshData) {
+          onRefreshData();
         }
       } else {
         setOperationMessage({
@@ -600,25 +626,36 @@ const convertStaffRecordsToScheduleItems = useCallback((records: IStaffRecord[] 
                     onItemChange={handleItemChange}
                     onAddShift={handleAddShift}
                     onDeleteItem={handleDeleteItem}
-                    saveChangesButton={
-                      Object.keys(modifiedRecords).length > 0 ? (
-                        <DefaultButton
-                          text={`Save Changes (${Object.keys(modifiedRecords).length})`}
-                          onClick={saveAllChanges}
-                          disabled={isSaving}
-                          styles={{
-                            root: {
-                              backgroundColor: '#0078d4',
-                              color: 'white'
-                            },
-                            rootHovered: {
-                              backgroundColor: '#106ebe',
-                              color: 'white'
-                            }
-                          }}
-                        />
-                      ) : undefined
-                    }
+                  saveChangesButton={
+  Object.keys(modifiedRecords).length > 0 ? (
+    <DefaultButton
+      text={`Save Changes (${Object.keys(modifiedRecords).length})`}
+      onClick={() => {
+        console.log("Save Changes button clicked");
+        try {
+          saveAllChanges();
+        } catch (error) {
+          console.error("Error in saveAllChanges:", error);
+          setOperationMessage({
+            text: `Error saving changes: ${error instanceof Error ? error.message : String(error)}`,
+            type: MessageBarType.error
+          });
+        }
+      }}
+      disabled={isSaving}
+      styles={{
+        root: {
+          backgroundColor: '#0078d4',
+          color: 'white'
+        },
+        rootHovered: {
+          backgroundColor: '#106ebe',
+          color: 'white'
+        }
+      }}
+    />
+  ) : undefined
+}
                   />
                 </div>
               )}

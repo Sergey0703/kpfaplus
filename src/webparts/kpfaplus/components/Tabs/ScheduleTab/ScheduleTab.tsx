@@ -164,7 +164,7 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
       
       // ИСПРАВЛЕНО: Используем dateToUse вместо state.selectedDate
       // Получаем первый и последний день месяца
-      const date = dateToUse;
+      const date = new Date(dateToUse.getTime()); // Create a new date object to avoid modifying the original
       const firstDayOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
       const lastDayOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0);
       
@@ -404,6 +404,99 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
     updateState.error(undefined);
     updateState.errorStaffRecords(undefined);
   };
+
+  // Обработчик обновления записи расписания
+  const handleUpdateStaffRecord = async (recordId: string, updateData: Partial<IStaffRecord>): Promise<boolean> => {
+    console.log(`[ScheduleTab] handleUpdateStaffRecord called for record ID: ${recordId}`, updateData);
+    
+    if (!context || !staffRecordsService) {
+      console.error('[ScheduleTab] Cannot update record: missing context or service');
+      return false;
+    }
+    
+    try {
+      // Call the service method to update the record
+      const success = await staffRecordsService.updateStaffRecord(recordId, updateData);
+      
+      console.log(`[ScheduleTab] Record update result: ${success ? 'success' : 'failed'}`);
+      
+      // After successful update, refresh the data
+      if (success) {
+        setTimeout(() => {
+          loadStaffRecords(state.selectedDate);
+        }, 1000);
+      }
+      
+      return success;
+    } catch (error) {
+      console.error(`[ScheduleTab] Error updating record:`, error);
+      return false;
+    }
+  };
+
+  // Обработчик создания новой записи расписания
+  const handleCreateStaffRecord = async (createData: Partial<IStaffRecord>): Promise<string | undefined> => {
+    console.log(`[ScheduleTab] handleCreateStaffRecord called`, createData);
+    
+    if (!context || !staffRecordsService) {
+      console.error('[ScheduleTab] Cannot create record: missing context or service');
+      return undefined;
+    }
+    
+    try {
+      // Call the service method to create the record
+      const newRecordId = await staffRecordsService.createStaffRecord(createData);
+      
+      console.log(`[ScheduleTab] Record creation result: ${newRecordId ? 'success' : 'failed'}`);
+      
+      // After successful creation, refresh the data
+      if (newRecordId) {
+        setTimeout(() => {
+          loadStaffRecords(state.selectedDate);
+        }, 1000);
+      }
+      
+      return newRecordId;
+    } catch (error) {
+      console.error(`[ScheduleTab] Error creating record:`, error);
+      return undefined;
+    }
+  };
+
+  // Обработчик удаления записи расписания
+  const handleDeleteStaffRecord = async (recordId: string): Promise<boolean> => {
+    console.log(`[ScheduleTab] handleDeleteStaffRecord called for record ID: ${recordId}`);
+    
+    if (!context || !staffRecordsService) {
+      console.error('[ScheduleTab] Cannot delete record: missing context or service');
+      return false;
+    }
+    
+    try {
+      // Call the service method to delete the record
+      const success = await staffRecordsService.markRecordAsDeleted(recordId);
+      
+      console.log(`[ScheduleTab] Record deletion result: ${success ? 'success' : 'failed'}`);
+      
+      // After successful deletion, refresh the data
+      if (success) {
+        setTimeout(() => {
+          loadStaffRecords(state.selectedDate);
+        }, 1000);
+      }
+      
+      return success;
+    } catch (error) {
+      console.error(`[ScheduleTab] Error deleting record:`, error);
+      return false;
+    }
+  };
+
+  // Обработчик обновления данных
+  const handleRefreshData = (): void => {
+    console.log(`[ScheduleTab] handleRefreshData called`);
+    loadStaffRecords(state.selectedDate);
+  };
   
   // Загружаем контракты при монтировании компонента или изменении сотрудника
   useEffect(() => {
@@ -474,6 +567,10 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
         onContractChange={handleContractChange}
         onErrorDismiss={handleErrorDismiss}
         staffRecords={state.staffRecords}
+        onUpdateStaffRecord={handleUpdateStaffRecord}
+        onCreateStaffRecord={handleCreateStaffRecord}
+        onDeleteStaffRecord={handleDeleteStaffRecord}
+        onRefreshData={handleRefreshData}
       />
     </div>
   );
