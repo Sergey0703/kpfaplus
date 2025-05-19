@@ -61,10 +61,11 @@ export interface IScheduleTabContentProps {
   onContractChange: (event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption) => void;
   onErrorDismiss: () => void;
   staffRecords?: IStaffRecord[];
-  // Новые свойства для обновления данных
+  // Свойства для обновления данных
   onUpdateStaffRecord?: (recordId: string, updateData: Partial<IStaffRecord>) => Promise<boolean>;
   onCreateStaffRecord?: (createData: Partial<IStaffRecord>) => Promise<string | undefined>;
   onDeleteStaffRecord?: (recordId: string) => Promise<boolean>;
+  onRestoreStaffRecord?: (recordId: string) => Promise<boolean>; // Новый проп для восстановления записей
   onRefreshData?: () => void;
 }
 
@@ -94,6 +95,7 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     onUpdateStaffRecord,
     onCreateStaffRecord,
     onDeleteStaffRecord,
+    onRestoreStaffRecord,
     onRefreshData
   } = props;
   
@@ -542,6 +544,58 @@ const convertStaffRecordsToScheduleItems = useCallback((records: IStaffRecord[] 
       setIsSaving(false);
     }
   };
+
+  // Добавляем обработчик восстановления записи
+  const handleRestoreItem = async (id: string): Promise<void> => {
+    if (!onRestoreStaffRecord) {
+      console.error('Restore staff record function is not provided');
+      setOperationMessage({
+        text: 'Unable to restore record: Restore function not available',
+        type: MessageBarType.error
+      });
+      return;
+    }
+    
+    console.log(`Restoring item with ID: ${id}`);
+    
+    setIsSaving(true);
+    
+    try {
+      const success = await onRestoreStaffRecord(id);
+      
+      if (success) {
+        setOperationMessage({
+          text: 'Record restored successfully',
+          type: MessageBarType.success
+        });
+        
+        // Если запись была в списке модифицированных, удаляем её оттуда
+        if (modifiedRecords[id]) {
+          const newModifiedRecords = { ...modifiedRecords };
+          delete newModifiedRecords[id];
+          setModifiedRecords(newModifiedRecords);
+        }
+        
+        // Обновляем данные
+        if (onRefreshData) {
+          onRefreshData();
+        }
+      } else {
+        setOperationMessage({
+          text: 'Failed to restore record. Please try again.',
+          type: MessageBarType.error
+        });
+      }
+    } catch (error) {
+      console.error('Error restoring record:', error);
+      setOperationMessage({
+        text: `Error restoring record: ${error instanceof Error ? error.message : String(error)}`,
+        type: MessageBarType.error
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
   
   return (
     <div className={styles.scheduleTab}>
@@ -618,7 +672,7 @@ const convertStaffRecordsToScheduleItems = useCallback((records: IStaffRecord[] 
                 </div>
               ) : (
                 <div style={{ padding: '10px' }}>
-                  {/* Таблица расписания - использует обновленный компонент и передаем данные с учетом модификаций */}
+                  {/* Таблица расписания - используем обновленный компонент и передаем данные с учетом модификаций */}
                   <ScheduleTable
                     items={getScheduleItemsWithModifications()}
                     options={scheduleOptions}
@@ -630,6 +684,7 @@ const convertStaffRecordsToScheduleItems = useCallback((records: IStaffRecord[] 
                     onItemChange={handleItemChange}
                     onAddShift={handleAddShift}
                     onDeleteItem={handleDeleteItem}
+                    onRestoreItem={handleRestoreItem}
                     saveChangesButton={
                       Object.keys(modifiedRecords).length > 0 ? (
                         <DefaultButton
@@ -667,13 +722,13 @@ const convertStaffRecordsToScheduleItems = useCallback((records: IStaffRecord[] 
                 <p>Please select a contract to view the schedule</p>
               ) : (
                 <p>No active contracts available for this staff member</p>
-              )}
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
+             )}
+           </div>
+         )}
+       </>
+     )}
+   </div>
+ );
 };
 
 export default ScheduleTabContent;

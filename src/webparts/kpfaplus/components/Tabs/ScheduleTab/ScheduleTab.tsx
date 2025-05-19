@@ -492,6 +492,35 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
     }
   };
 
+  // Добавляем обработчик для восстановления удаленной записи
+  const handleRestoreStaffRecord = async (recordId: string): Promise<boolean> => {
+    console.log(`[ScheduleTab] handleRestoreStaffRecord called for record ID: ${recordId}`);
+    
+    if (!context || !staffRecordsService) {
+      console.error('[ScheduleTab] Cannot restore record: missing context or service');
+      return false;
+    }
+    
+    try {
+      // Call the service method to restore the record
+      const success = await staffRecordsService.restoreDeletedRecord(recordId);
+      
+      console.log(`[ScheduleTab] Record restore result: ${success ? 'success' : 'failed'}`);
+      
+      // After successful restoration, refresh the data
+      if (success) {
+        setTimeout(() => {
+          loadStaffRecords(state.selectedDate);
+        }, 1000);
+      }
+      
+      return success;
+    } catch (error) {
+      console.error(`[ScheduleTab] Error restoring record:`, error);
+      return false;
+    }
+  };
+
   // Обработчик обновления данных
   const handleRefreshData = (): void => {
     console.log(`[ScheduleTab] handleRefreshData called`);
@@ -570,6 +599,7 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
         onUpdateStaffRecord={handleUpdateStaffRecord}
         onCreateStaffRecord={handleCreateStaffRecord}
         onDeleteStaffRecord={handleDeleteStaffRecord}
+        onRestoreStaffRecord={handleRestoreStaffRecord}
         onRefreshData={handleRefreshData}
       />
     </div>
