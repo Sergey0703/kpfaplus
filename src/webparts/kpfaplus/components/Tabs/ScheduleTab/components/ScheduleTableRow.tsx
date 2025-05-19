@@ -5,7 +5,9 @@ import {
   IconButton, 
   PrimaryButton, 
   Text, 
-  TooltipHost 
+  TooltipHost,
+  IDropdownStyles
+ // IStyleFunctionOrObject
 } from '@fluentui/react';
 import styles from '../ScheduleTab.module.scss';
 import { IScheduleItem, IScheduleOptions } from './ScheduleTable';
@@ -64,7 +66,7 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
   }
 
   // Стили для dropdown при удаленных записях
-  const getDropdownStyles = (isError = false) => ({
+  const getDropdownStyles = (isError = false): Partial<IDropdownStyles> => ({
     root: { 
       width: 60, 
       margin: '0 4px',
@@ -88,7 +90,7 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
     }
   });
 
-  const getLunchDropdownStyles = () => ({
+  const getLunchDropdownStyles = (): Partial<IDropdownStyles> => ({
     root: { 
       width: 80,
       ...(isDeleted && {
@@ -110,7 +112,7 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
     }
   });
 
-  const getLeaveDropdownStyles = () => ({
+  const getLeaveDropdownStyles = (): Partial<IDropdownStyles> => ({
     root: { 
       width: 150,
       ...(isDeleted && {
@@ -132,7 +134,7 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
     }
   });
 
-  const getContractDropdownStyles = () => ({
+  const getContractDropdownStyles = (): Partial<IDropdownStyles> => ({
     root: { 
       width: 50,
       ...(isDeleted && {
@@ -162,7 +164,7 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
   ];
 
   // Определяем содержимое ячейки с датой в зависимости от позиции строки
-  const renderDateCell = () => {
+  const renderDateCell = (): JSX.Element => {
     // Если это первая строка даты, отображаем дату и день недели
     if (rowPositionInDate === 0) {
       return (
