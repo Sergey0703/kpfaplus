@@ -1,4 +1,4 @@
-// src/webparts/kpfaplus/components/Tabs/ScheduleTab/ScheduleTabContent.tsx
+// src/webparts/kpfaplus/components/Tabs/ScheduleTab/components/ScheduleTabContent.tsx
 import * as React from 'react';
 import { useState, useEffect, useCallback } from 'react';
 import { 
@@ -68,6 +68,17 @@ export interface IScheduleTabContentProps {
   onRestoreStaffRecord?: (recordId: string) => Promise<boolean>; // Новый проп для восстановления записей
   onRefreshData?: () => void;
 }
+
+// Вспомогательная функция для создания Date из часов и минут
+const createTimeFromScheduleItem = (baseDate: Date, hourStr: string, minuteStr: string): Date => {
+  const hour = parseInt(hourStr, 10) || 0;
+  const minute = parseInt(minuteStr, 10) || 0;
+  
+  // Create a new Date object to avoid modifying the original
+  const result = new Date(baseDate.getTime());
+  result.setHours(hour, minute, 0, 0);
+  return result;
+};
 
 /**
  * Основной компонент содержимого вкладки Schedule
@@ -290,17 +301,6 @@ useEffect(() => {
     } finally {
       setIsSaving(false);
     }
-  };
-  
-  // Вспомогательная функция для создания Date из часов и минут
-  const createTimeFromScheduleItem = (baseDate: Date, hourStr: string, minuteStr: string): Date => {
-    const hour = parseInt(hourStr, 10) || 0;
-    const minute = parseInt(minuteStr, 10) || 0;
-    
-    // Create a new Date object to avoid modifying the original
-    const result = new Date(baseDate.getTime());
-    result.setHours(hour, minute, 0, 0);
-    return result;
   };
   
 // Преобразование данных расписания в формат для ScheduleTable
@@ -716,19 +716,19 @@ const convertStaffRecordsToScheduleItems = useCallback((records: IStaffRecord[] 
               minHeight: '200px', 
               backgroundColor: '#f9f9f9',
               borderRadius: '4px',
-              padding: '20px'
-            }}>
-              {contracts.length > 0 ? (
-                <p>Please select a contract to view the schedule</p>
-              ) : (
-                <p>No active contracts available for this staff member</p>
-             )}
-           </div>
-         )}
-       </>
-     )}
-   </div>
- );
+             padding: '20px'
+           }}>
+             {contracts.length > 0 ? (
+               <p>Please select a contract to view the schedule</p>
+             ) : (
+               <p>No active contracts available for this staff member</p>
+            )}
+          </div>
+        )}
+      </>
+    )}
+  </div>
+);
 };
 
 export default ScheduleTabContent;
