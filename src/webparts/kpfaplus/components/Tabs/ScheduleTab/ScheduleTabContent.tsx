@@ -417,9 +417,6 @@ const convertStaffRecordsToScheduleItems = useCallback((records: IStaffRecord[] 
         [field]: value
       }
     }));
-    
-    // НЕ устанавливаем operationMessage для сообщения о необходимости сохранения изменений
-    // Это сообщение теперь отображается напрямую в JSX
   };
   
   // Обработчик добавления новой смены
@@ -551,18 +548,6 @@ const convertStaffRecordsToScheduleItems = useCallback((records: IStaffRecord[] 
         </MessageBar>
       )}
       
-      {/* Показываем информационное сообщение о необходимости сохранения изменений */}
-      {Object.keys(modifiedRecords).length > 0 && (
-        <MessageBar
-          messageBarType={MessageBarType.info}
-          isMultiline={false}
-          onDismiss={() => {}}
-          dismissButtonAriaLabel="Close"
-        >
-          Changes detected. Click "Save Changes" when finished editing.
-        </MessageBar>
-      )}
-      
       {/* Отображаем операционное сообщение, если есть */}
       {operationMessage && (
         <MessageBar
@@ -677,5 +662,6 @@ const convertStaffRecordsToScheduleItems = useCallback((records: IStaffRecord[] 
     </div>
   );
 };
+
 
 export default ScheduleTabContent;
