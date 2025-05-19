@@ -120,6 +120,17 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     setModifiedRecords({});
   }, [selectedDate, selectedContractId]);
   
+  // Эффект для отслеживания изменений в modifiedRecords и установки соответствующего сообщения
+  // Эффект для отслеживания изменений только в modifiedRecords
+useEffect(() => {
+  // Если есть модифицированные записи, устанавливаем сообщение о необходимости сохранения
+  if (Object.keys(modifiedRecords).length > 0) {
+    setOperationMessage({
+      text: 'Changes detected. Click "Save Changes" when finished editing.',
+      type: MessageBarType.warning
+    });
+  }
+}, [modifiedRecords]); // Только modifiedRecords в зависимостях
   // Логирование информации для отладки
   useEffect(() => {
     // Создаем группу в консоли для более организованного вывода
@@ -417,6 +428,8 @@ const convertStaffRecordsToScheduleItems = useCallback((records: IStaffRecord[] 
         [field]: value
       }
     }));
+    
+    // Не устанавливаем здесь operationMessage, это делается в useEffect
   };
   
   // Обработчик добавления новой смены
@@ -548,7 +561,7 @@ const convertStaffRecordsToScheduleItems = useCallback((records: IStaffRecord[] 
         </MessageBar>
       )}
       
-      {/* Отображаем операционное сообщение, если есть */}
+      {/* Отображаем операционное сообщение (включая сообщение о необходимости сохранения), если есть */}
       {operationMessage && (
         <MessageBar
           messageBarType={operationMessage.type}
@@ -662,6 +675,5 @@ const convertStaffRecordsToScheduleItems = useCallback((records: IStaffRecord[] 
     </div>
   );
 };
-
 
 export default ScheduleTabContent;

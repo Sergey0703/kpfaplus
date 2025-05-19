@@ -87,7 +87,7 @@ export const DayInfo: React.FC<IDayInfoProps> = ({
               </span>
             </div>
             <div>
-              <strong>Период: </strong>
+              <strong>Period:</strong>
               {leaveInfo.startDate.toLocaleDateString()} - 
               {leaveInfo.endDate ? leaveInfo.endDate.toLocaleDateString() : <span style={{ color: '#d13438', fontStyle: 'italic' }}>открыт</span>}
             </div>
