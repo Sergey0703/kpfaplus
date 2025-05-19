@@ -1,6 +1,6 @@
 // src/webparts/kpfaplus/components/Tabs/ScheduleTab/components/ScheduleTable.tsx
 import * as React from 'react';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Dropdown,
   IDropdownOption,
@@ -21,6 +21,7 @@ import {
   isStartEndTimeSame,
   isZeroTime
 } from '../../../../utils/TimeCalculationUtils';
+import { ConfirmDialog } from '../../../ConfirmDialog/ConfirmDialog';
 
 // Интерфейс для записи о расписании
 export interface IScheduleItem {
@@ -61,8 +62,9 @@ export interface IScheduleTableProps {
   onToggleShowDeleted: (checked: boolean) => void;
   onItemChange: (item: IScheduleItem, field: string, value: string | number) => void;
   onAddShift: (date: Date) => void;
-  onDeleteItem: (id: string) => void;
-  // Новый проп для кнопки "Save Changes"
+  onDeleteItem: (id: string) => Promise<void>;
+  onRestoreItem?: (id: string) => Promise<void>; // Добавлен обработчик восстановления записи
+  // Кнопка "Save Changes"
   saveChangesButton?: React.ReactNode;
 }
 
@@ -85,8 +87,8 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
     onItemChange,
     onAddShift,
     onDeleteItem,
-    saveChangesButton // Новый проп для кнопки "Save Changes"
-  //  selectedDate
+    onRestoreItem,
+    saveChangesButton
   } = props;
 
   // Используем предоставленные опции или дефолтные
@@ -104,6 +106,20 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
 
   // Состояние для локальных расчетов рабочего времени (для мгновенного отображения)
   const [calculatedWorkTimes, setCalculatedWorkTimes] = useState<Record<string, string>>({});
+
+  // Добавляем состояние для диалога подтверждения
+  const [confirmDialogProps, setConfirmDialogProps] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmButtonText: '',
+    cancelButtonText: 'Cancel',
+    onConfirm: () => {},
+    confirmButtonColor: ''
+  });
+
+  // Используем useRef для ID записи в ожидании действия
+  const pendingActionItemIdRef = useRef<string | undefined>(undefined);
 
   // Эффект для инициализации рассчитанных рабочих времен
   useEffect(() => {
@@ -211,12 +227,8 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
   // Обработчик для удаления всех выбранных строк
   const handleDeleteSelected = (): void => {
     selectedRows.forEach(id => {
-      onDeleteItem(id);
+      showDeleteConfirmDialog(id);
     });
-    
-    // Сбрасываем выбор
-    setSelectedRows(new Set());
-    setSelectAllRows(false);
   };
 
   // Функция для получения отображаемого рабочего времени
@@ -244,6 +256,82 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
     // Проверяем, совпадают ли даты и не равны ли они обе 00:00
     return isStartEndTimeSame(startDate, finishDate) && 
            !(isZeroTime(startDate) && isZeroTime(finishDate));
+  };
+
+  // Добавляем обработчики для диалогов подтверждения удаления и восстановления
+  const showDeleteConfirmDialog = (itemId: string): void => {
+    console.log(`Setting up delete for item ID: ${itemId}`);
+    
+    // Сохраняем ID элемента в ref
+    pendingActionItemIdRef.current = itemId;
+    
+    setConfirmDialogProps({
+      isOpen: true,
+      title: 'Confirm Deletion',
+      message: 'Are you sure you want to delete this schedule item? It will be marked as deleted but can be restored later.',
+      confirmButtonText: 'Delete',
+      cancelButtonText: 'Cancel',
+      onConfirm: () => {
+        // Получаем текущее значение itemId из ref
+        const itemId = pendingActionItemIdRef.current;
+        if (itemId) {
+          // Вызываем функцию удаления из props
+          onDeleteItem(itemId)
+            .then(() => {
+              console.log(`Item ${itemId} deleted successfully`);
+              setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
+              pendingActionItemIdRef.current = undefined;
+            })
+            .catch(err => {
+              console.error(`Error deleting item ${itemId}:`, err);
+              setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
+              pendingActionItemIdRef.current = undefined;
+            });
+        }
+      },
+      confirmButtonColor: '#d83b01' // красный цвет для удаления
+    });
+  };
+  
+  // Обработчик для показа диалога подтверждения восстановления
+  const showRestoreConfirmDialog = (itemId: string): void => {
+    console.log(`Setting up restore for item ID: ${itemId}`);
+    
+    // Проверяем наличие обработчика восстановления
+    if (!onRestoreItem) {
+      console.error('Restore handler is not available');
+      return;
+    }
+    
+    // Сохраняем ID элемента в ref
+    pendingActionItemIdRef.current = itemId;
+    
+    setConfirmDialogProps({
+      isOpen: true,
+      title: 'Confirm Restore',
+      message: 'Are you sure you want to restore this deleted schedule item?',
+      confirmButtonText: 'Restore',
+      cancelButtonText: 'Cancel',
+      onConfirm: () => {
+        // Получаем текущее значение itemId из ref
+        const itemId = pendingActionItemIdRef.current;
+        if (itemId && onRestoreItem) {
+          // Вызываем функцию восстановления из props
+          onRestoreItem(itemId)
+            .then(() => {
+              console.log(`Item ${itemId} restored successfully`);
+              setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
+              pendingActionItemIdRef.current = undefined;
+            })
+            .catch(err => {
+              console.error(`Error restoring item ${itemId}:`, err);
+              setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
+              pendingActionItemIdRef.current = undefined;
+            });
+        }
+      },
+      confirmButtonColor: '#107c10' // зеленый цвет для восстановления
+    });
   };
 
   // Разделители для Stack
@@ -478,18 +566,40 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
                       />
                     </td>
                     
-                    {/* Иконка удаления */}
+                    {/* Иконка удаления или восстановления в зависимости от статуса */}
                     <td style={{ textAlign: 'center', padding: '0' }}>
-                      <IconButton
-                        iconProps={{ iconName: 'Delete' }}
-                        title="Delete"
-                        ariaLabel="Delete"
-                        onClick={(): void => onDeleteItem(item.id)}
-                        styles={{ 
-                          root: { color: '#e81123' },
-                          rootHovered: { color: '#a80000' }
-                        }}
-                      />
+                      {item.deleted ? (
+                        // Кнопка восстановления для удаленных записей
+                        <IconButton
+                          iconProps={{ iconName: 'Refresh' }}
+                          title="Restore"
+                          ariaLabel="Restore"
+                          onClick={(): void => {
+                            if (onRestoreItem) {
+                              showRestoreConfirmDialog(item.id);
+                            } else {
+                              console.error('Restore handler is not available');
+                            }
+                          }}
+                          styles={{
+                            root: { color: '#107c10' }, // Зеленый цвет для восстановления
+                            rootHovered: { color: '#0b5a0b' }
+                          }}
+                          disabled={!onRestoreItem}
+                        />
+                      ) : (
+                        // Кнопка удаления для активных записей
+                        <IconButton
+                          iconProps={{ iconName: 'Delete' }}
+                          title="Delete"
+                          ariaLabel="Delete"
+                          onClick={(): void => showDeleteConfirmDialog(item.id)}
+                          styles={{ 
+                            root: { color: '#e81123' },
+                            rootHovered: { color: '#a80000' }
+                          }}
+                        />
+                      )}
                     </td>
                     
                     {/* Текстовое поле для ID */}
@@ -503,6 +613,18 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
           </tbody>
         </table>
       </div>
+
+      {/* Диалог подтверждения */}
+      <ConfirmDialog
+        isOpen={confirmDialogProps.isOpen}
+        title={confirmDialogProps.title}
+        message={confirmDialogProps.message}
+        confirmButtonText={confirmDialogProps.confirmButtonText}
+        cancelButtonText={confirmDialogProps.cancelButtonText}
+        onConfirm={confirmDialogProps.onConfirm}
+        onDismiss={() => setConfirmDialogProps(prev => ({ ...prev, isOpen: false }))}
+        confirmButtonColor={confirmDialogProps.confirmButtonColor}
+      />
     </div>
   );
 };

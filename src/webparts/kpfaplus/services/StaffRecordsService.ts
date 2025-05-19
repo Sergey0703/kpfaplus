@@ -284,10 +284,10 @@ public async updateStaffRecord(
     // Handle lookup fields
     if (updateData.TypeOfLeaveID) {
       // For TypeOfLeave, we need to use the lookup field format
-      fields.TypeOfLeave = parseInt(updateData.TypeOfLeaveID, 10);
+      fields.TypeOfLeaveLookupId = parseInt(updateData.TypeOfLeaveID, 10);
     } else if (updateData.TypeOfLeaveID === '') {
       // If explicitly set to empty string, clear the lookup
-      fields.TypeOfLeave = null;
+       fields.TypeOfLeaveLookupId = null;
     }
     
     if (updateData.WeeklyTimeTableID) {
