@@ -315,104 +315,156 @@ public async updateStaffRecord(
     throw error;
   }
 }
-  /**
-   * Создает новую запись расписания
-   * 
-   * @param createParams Параметры для создания записи
-   * @returns Promise с ID созданной записи или undefined при ошибке
-   */
-  public async createStaffRecord(
-    createParams: Partial<IStaffRecord>
-  ): Promise<string | undefined> {
-    try {
-      this.logInfo(`[DEBUG] Creating new staff record`);
-      
-      // Convert the createParams to the format expected by the SharePoint API
-      const fields: Record<string, unknown> = {};
-      
-      // Set default title if not provided
-      fields.Title = createParams.Title || `Record ${new Date().toISOString()}`;
-      
-      // Process Date fields
-      if (createParams.Date) {
-        fields.Date = createParams.Date.toISOString();
-      } else {
-        // Default to current date if not provided
-        fields.Date = new Date().toISOString();
-      }
-      
-      // Process shift times
-      if (createParams.ShiftDate1) {
-        fields.ShiftDate1 = createParams.ShiftDate1.toISOString();
-      }
-      if (createParams.ShiftDate2) {
-        fields.ShiftDate2 = createParams.ShiftDate2.toISOString();
-      }
-      if (createParams.ShiftDate3) {
-        fields.ShiftDate3 = createParams.ShiftDate3?.toISOString();
-      }
-      if (createParams.ShiftDate4) {
-        fields.ShiftDate4 = createParams.ShiftDate4?.toISOString();
-      }
-      
-      // Process numeric fields
-      fields.TimeForLunch = createParams.TimeForLunch !== undefined ? createParams.TimeForLunch : 30;
-      fields.Contract = createParams.Contract !== undefined ? createParams.Contract : 1;
-      fields.Holiday = createParams.Holiday !== undefined ? createParams.Holiday : 0;
-      fields.Deleted = createParams.Deleted !== undefined ? createParams.Deleted : 0;
-      fields.Checked = createParams.Checked !== undefined ? createParams.Checked : 0;
-      
-      // Process lookup fields
-      if (createParams.TypeOfLeaveID) {
-        fields.TypeOfLeave = parseInt(createParams.TypeOfLeaveID, 10);
-      }
-      
-      if (createParams.WeeklyTimeTableID) {
-        fields.WeeklyTimeTable = parseInt(createParams.WeeklyTimeTableID, 10);
-      }
-      
-      // Add required references if not provided
-      if (!fields.StaffMember && createParams.WeeklyTimeTableID) {
-        // Try to extract staff member from WeeklyTimeTable
-        try {
-          // This method doesn't exist, so we need to implement an alternative approach
-          // or remove this code until the method is available
-          
-          // Commented out since getListItem doesn't exist on RemoteSiteService
-          /*
-          const weeklyTimeTable = await this._remoteSiteService.getListItem(
-            'WeeklyTimeTables',
-            createParams.WeeklyTimeTableID,
-            true
-          );
-          
-          if (weeklyTimeTable?.fields?.StaffMember) {
-            fields.StaffMember = weeklyTimeTable.fields.StaffMember;
-          }
-          */
-        } catch (error) {
-          this.logError(`[DEBUG] Error getting WeeklyTimeTable info: ${error}`);
-          // Continue without StaffMember if retrieval fails
-        }
-      }
-      
-      this.logInfo(`[DEBUG] Prepared fields for creation: ${JSON.stringify(fields)}`);
-      
-      // Use the RemoteSiteService to create the item
-      const result = await this._remoteSiteService.createListItem(this._listName, fields);
-      
-      if (result && result.id) {
-        this.logInfo(`[DEBUG] Successfully created staff record with ID: ${result.id}`);
-        return result.id;
-      } else {
-        this.logError(`[DEBUG] Failed to create staff record, no ID returned`);
-        return undefined;
-      }
-    } catch (error) {
-      this.logError(`[ERROR] Error creating staff record: ${error instanceof Error ? error.message : String(error)}`);
-      throw error;
+
+/**
+ * Creates a new staff record
+ * 
+ * @param createParams Parameters for the staff record creation
+ * @param currentUserID ID of the current user (Manager)
+ * @param staffGroupID ID of the staff group
+ * @param staffMemberID ID of the staff member (Employee)
+ * @returns Promise with the ID of the created record or undefined on error
+ */
+public async createStaffRecord(
+  createParams: Partial<IStaffRecord>,
+  currentUserID?: string | number,
+  staffGroupID?: string | number,
+  staffMemberID?: string | number
+): Promise<string | undefined> {
+  try {
+    this.logInfo(`[DEBUG] Creating new staff record`);
+    
+    // Convert the createParams to the format expected by the SharePoint API
+    const fields: Record<string, unknown> = {};
+    
+    // Set default title if not provided
+    fields.Title = createParams.Title || `Record ${new Date().toISOString()}`;
+    
+    // Process Date fields
+    if (createParams.Date) {
+      fields.Date = createParams.Date.toISOString();
+    } else {
+      // Default to current date if not provided
+      fields.Date = new Date().toISOString();
     }
+    
+    // Process shift times
+    if (createParams.ShiftDate1) {
+      fields.ShiftDate1 = createParams.ShiftDate1.toISOString();
+    }
+    if (createParams.ShiftDate2) {
+      fields.ShiftDate2 = createParams.ShiftDate2.toISOString();
+    }
+    if (createParams.ShiftDate3) {
+      fields.ShiftDate3 = createParams.ShiftDate3?.toISOString();
+    }
+    if (createParams.ShiftDate4) {
+      fields.ShiftDate4 = createParams.ShiftDate4?.toISOString();
+    }
+    
+    // Process numeric fields
+    fields.TimeForLunch = createParams.TimeForLunch !== undefined ? createParams.TimeForLunch : 30;
+    fields.Contract = createParams.Contract !== undefined ? createParams.Contract : 1;
+    fields.Holiday = createParams.Holiday !== undefined ? createParams.Holiday : 0;
+    fields.Deleted = createParams.Deleted !== undefined ? createParams.Deleted : 0;
+    fields.Checked = createParams.Checked !== undefined ? createParams.Checked : 0;
+    
+    // Process string fields
+    if (createParams.ExportResult) {
+      fields.ExportResult = createParams.ExportResult;
+    }
+    
+    // Process lookup fields with correct LookupId suffix
+    // Type of Leave
+    if (createParams.TypeOfLeaveID && createParams.TypeOfLeaveID !== '') {
+      try {
+        const typeOfLeaveId = parseInt(createParams.TypeOfLeaveID, 10);
+        if (!isNaN(typeOfLeaveId)) {
+          fields.TypeOfLeaveLookupId = typeOfLeaveId;
+          this.logInfo(`[DEBUG] Setting TypeOfLeaveLookupId to ${typeOfLeaveId}`);
+        }
+      } catch (parseError) {
+        this.logError(`[ERROR] Error parsing TypeOfLeaveID: ${parseError}`);
+      }
+    }
+    
+    // Weekly Time Table
+    if (createParams.WeeklyTimeTableID && createParams.WeeklyTimeTableID !== '') {
+      try {
+        const weeklyTimeTableId = parseInt(String(createParams.WeeklyTimeTableID), 10);
+        if (!isNaN(weeklyTimeTableId)) {
+          fields.WeeklyTimeTableLookupId = weeklyTimeTableId;
+          this.logInfo(`[DEBUG] Setting WeeklyTimeTableLookupId to ${weeklyTimeTableId}`);
+        }
+      } catch (parseError) {
+        this.logError(`[ERROR] Error parsing WeeklyTimeTableID: ${parseError}`);
+      }
+    }
+    
+    // Staff Member (Employee)
+    const effectiveStaffMemberId = staffMemberID //|//| createParams.s;
+    if (effectiveStaffMemberId && String(effectiveStaffMemberId) !== '') {
+      try {
+        const staffMemberId = parseInt(String(effectiveStaffMemberId), 10);
+        if (!isNaN(staffMemberId)) {
+          fields.StaffMemberLookupId = staffMemberId;
+          this.logInfo(`[DEBUG] Setting StaffMemberLookupId to ${staffMemberId}`);
+        }
+      } catch (parseError) {
+        this.logError(`[ERROR] Error parsing StaffMemberID: ${parseError}`);
+      }
+    } else {
+      this.logInfo(`[DEBUG] No StaffMemberID provided. Record will be created without staff member reference.`);
+    }
+    
+    // Manager (Current User)
+    if (currentUserID && String(currentUserID) !== '') {
+      try {
+        const managerId = parseInt(String(currentUserID), 10);
+        if (!isNaN(managerId)) {
+          fields.ManagerLookupId = managerId;
+          this.logInfo(`[DEBUG] Setting ManagerLookupId to ${managerId}`);
+        }
+      } catch (parseError) {
+        this.logError(`[ERROR] Error parsing ManagerID: ${parseError}`);
+      }
+    } else {
+      this.logInfo(`[DEBUG] No ManagerID provided. Record will be created without manager reference.`);
+    }
+    
+    // Staff Group
+    if (staffGroupID && String(staffGroupID) !== '') {
+      try {
+        const staffGroupId = parseInt(String(staffGroupID), 10);
+        if (!isNaN(staffGroupId)) {
+          fields.StaffGroupLookupId = staffGroupId;
+          this.logInfo(`[DEBUG] Setting StaffGroupLookupId to ${staffGroupId}`);
+        }
+      } catch (parseError) {
+        this.logError(`[ERROR] Error parsing StaffGroupID: ${parseError}`);
+      }
+    } else {
+      this.logInfo(`[DEBUG] No StaffGroupID provided. Record will be created without staff group reference.`);
+    }
+    
+    // Log the complete field set for debugging
+    this.logInfo(`[DEBUG] Prepared fields for creation: ${JSON.stringify(fields)}`);
+    
+    // Use the RemoteSiteService to create the item
+    const result = await this._remoteSiteService.createListItem(this._listName, fields);
+    
+    if (result && result.id) {
+      this.logInfo(`[DEBUG] Successfully created staff record with ID: ${result.id}`);
+      return result.id;
+    } else {
+      this.logError(`[DEBUG] Failed to create staff record, no ID returned`);
+      return undefined;
+    }
+  } catch (error) {
+    this.logError(`[ERROR] Error creating staff record: ${error instanceof Error ? error.message : String(error)}`);
+    throw error;
   }
+}
 
   /**
    * Помечает запись как удаленную (soft delete)
