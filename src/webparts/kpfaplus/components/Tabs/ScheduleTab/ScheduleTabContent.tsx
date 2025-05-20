@@ -196,7 +196,7 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     const hasExistingRecords = currentItems.length > 0;
     
     // Функция, которая будет вызвана при подтверждении
-    const onConfirmFill = () => {
+    const onConfirmFill = (): void => {
       // Закрываем диалог
       setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
       
@@ -322,7 +322,7 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
         <MessageBar
           messageBarType={operationMessage.type}
           isMultiline={false}
-          onDismiss={() => setOperationMessage(undefined)}
+          onDismiss={(): void => setOperationMessage(undefined)}
           dismissButtonAriaLabel="Close"
         >
           {operationMessage.text}
@@ -384,13 +384,13 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
                     showDeleted={showDeleted}
                     onToggleShowDeleted={handleToggleShowDeleted}
                     onItemChange={handleItemChange}
-                    onAddShift={(date, shiftData) => 
+                    onAddShift={(date, shiftData): void => 
                       handleAddShift(date, shiftData, onAddShift, actionHandlerParams)
                     }
-                    onDeleteItem={(id) => 
+                    onDeleteItem={(id): Promise<void> => 
                       handleDeleteItem(id, modifiedRecords, onDeleteStaffRecord!, actionHandlerParams)
                     }
-                    onRestoreItem={(id) => 
+                    onRestoreItem={(id): Promise<void> => 
                       handleRestoreItem(id, modifiedRecords, onRestoreStaffRecord!, actionHandlerParams)
                     }
                     saveChangesButton={
