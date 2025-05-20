@@ -1,6 +1,7 @@
 // src/webparts/kpfaplus/components/Tabs/ScheduleTab/ScheduleTabContent.tsx
 import * as React from 'react';
 import { useState, useCallback } from 'react';
+import { WebPartContext } from '@microsoft/sp-webpart-base'; // Добавляем импорт
 import { 
   MessageBar,
   MessageBarType,
@@ -85,6 +86,7 @@ export interface IScheduleTabContentProps {
   dayOfStartWeek?: number;
   currentUserId?: string;
   managingGroupId?: string;
+  context?: WebPartContext; // Добавляем context
 }
 
 /**
@@ -118,7 +120,8 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     onAddShift,
     dayOfStartWeek,
     currentUserId,
-    managingGroupId
+    managingGroupId,
+    context
   } = props;
   
   // Находим выбранный контракт
@@ -231,7 +234,8 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
           leaves,
           currentUserId,
           managingGroupId,
-          dayOfStartWeek
+          dayOfStartWeek,
+          context
         },
         {
           createStaffRecord: onCreateStaffRecord,

@@ -696,6 +696,7 @@ const handleAddShift = async (date: Date, shiftData?: INewShiftData): Promise<vo
         onRestoreStaffRecord={handleRestoreStaffRecord}
         onRefreshData={handleRefreshData}
         onAddShift={handleAddShift}
+         context={context} 
       />
     </div>
   );
