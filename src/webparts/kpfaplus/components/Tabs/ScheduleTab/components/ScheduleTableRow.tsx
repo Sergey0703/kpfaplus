@@ -7,7 +7,6 @@ import {
   Text, 
   TooltipHost,
   IDropdownStyles
- // IStyleFunctionOrObject
 } from '@fluentui/react';
 import styles from '../ScheduleTab.module.scss';
 import { IScheduleItem, IScheduleOptions } from './ScheduleTable';
@@ -23,12 +22,13 @@ export interface IScheduleTableRowProps {
   displayWorkTime: string;
   isTimesEqual: boolean;
   showDeleteConfirmDialog: (id: string) => void;
+  showAddShiftConfirmDialog: (date: Date) => void;
   showRestoreConfirmDialog: (id: string) => void;
   onRestoreItem?: (id: string) => Promise<void>;
   onItemChange: (item: IScheduleItem, field: string, value: string) => void;
   onContractNumberChange: (item: IScheduleItem, value: string) => void;
   onLunchTimeChange: (item: IScheduleItem, value: string) => void;
-  onAddShift: (date: Date) => void;
+  // Removed onAddShift as it's not being used anymore
 }
 
 export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
@@ -42,12 +42,13 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
     displayWorkTime, 
     isTimesEqual,
     showDeleteConfirmDialog,
+    showAddShiftConfirmDialog,
     showRestoreConfirmDialog,
     onRestoreItem,
     onItemChange,
     onContractNumberChange,
-    onLunchTimeChange,
-    onAddShift
+    onLunchTimeChange
+    // Removed onAddShift
   } = props;
 
   // Определяем, удалена ли запись
@@ -205,6 +206,12 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
     }
   };
 
+  // Обработчик клика по кнопке "+Shift" с подтверждением
+  const handleAddShiftClick = (): void => {
+    // Вызываем диалог подтверждения вместо прямого действия
+    showAddShiftConfirmDialog(item.date);
+  };
+
   return (
     <tr 
       style={{ 
@@ -328,7 +335,7 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
               })
             } 
           }}
-          onClick={(): void => onAddShift(item.date)}
+          onClick={handleAddShiftClick} // Используем новый обработчик с подтверждением
           disabled={isDeleted}
         />
       </td>

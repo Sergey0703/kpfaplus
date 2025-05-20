@@ -59,8 +59,6 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
     items,
     options,
     isLoading,
- //   selectedDate,
- //   selectedContract,
     showDeleted,
     onToggleShowDeleted,
     onItemChange,
@@ -92,6 +90,9 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
 
   // Используем useRef для ID записи в ожидании действия
   const pendingActionItemIdRef = useRef<string | undefined>(undefined);
+  
+  // Используем useRef для даты в ожидании добавления смены
+  const pendingShiftDateRef = useRef<Date | undefined>(undefined);
 
   // Эффект для инициализации рассчитанных рабочих времен
   useEffect(() => {
@@ -149,6 +150,34 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
         }
       },
       confirmButtonColor: '#d83b01' // красный цвет для удаления
+    });
+  };
+  
+  // Обработчик для показа диалога подтверждения добавления смены
+  const showAddShiftConfirmDialog = (date: Date): void => {
+    console.log(`Setting up add shift for date: ${date.toLocaleDateString()}`);
+    
+    // Сохраняем дату в ref
+    pendingShiftDateRef.current = date;
+    
+    setConfirmDialogProps({
+      isOpen: true,
+      title: 'Confirm Add Shift',
+      message: `Are you sure you want to add a new shift on ${date.toLocaleDateString()}?`,
+      confirmButtonText: 'Add Shift',
+      cancelButtonText: 'Cancel',
+      onConfirm: () => {
+        // Получаем текущее значение даты из ref
+        const shiftDate = pendingShiftDateRef.current;
+        if (shiftDate) {
+          // Вызываем функцию добавления смены из props
+          onAddShift(shiftDate);
+          // Сбрасываем диалог
+          setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
+          pendingShiftDateRef.current = undefined;
+        }
+      },
+      confirmButtonColor: '#107c10' // зеленый цвет для добавления
     });
   };
   
@@ -214,6 +243,7 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
   const handleDismissDialog = (): void => {
     setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
     pendingActionItemIdRef.current = undefined;
+    pendingShiftDateRef.current = undefined;
   };
 
   // Обработчик изменения времени
@@ -297,6 +327,7 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
         options={options}
         isLoading={isLoading}
         showDeleteConfirmDialog={showDeleteConfirmDialog}
+        showAddShiftConfirmDialog={showAddShiftConfirmDialog}
         showRestoreConfirmDialog={showRestoreConfirmDialog}
         onRestoreItem={onRestoreItem}
         getDisplayWorkTime={getDisplayWorkTime}

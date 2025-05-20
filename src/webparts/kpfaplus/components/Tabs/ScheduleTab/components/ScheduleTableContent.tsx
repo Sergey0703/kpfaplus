@@ -11,6 +11,7 @@ export interface IScheduleTableContentProps {
   options: IScheduleOptions;
   isLoading: boolean;
   showDeleteConfirmDialog: (id: string) => void;
+  showAddShiftConfirmDialog: (date: Date) => void;
   showRestoreConfirmDialog: (id: string) => void;
   onRestoreItem?: (id: string) => Promise<void>;
   getDisplayWorkTime: (item: IScheduleItem) => string;
@@ -26,13 +27,14 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
     options,
     isLoading,
     showDeleteConfirmDialog,
+    showAddShiftConfirmDialog,
     showRestoreConfirmDialog,
     onRestoreItem,
     getDisplayWorkTime,
     onItemChange,
     onContractNumberChange,
-    onLunchTimeChange,
-    onAddShift
+    onLunchTimeChange
+    // We still need to receive onAddShift in props, but we won't pass it to ScheduleTableRow
   } = props;
 
   // Функция для проверки, нужно ли добавлять разделительную линию перед строкой
@@ -205,12 +207,13 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
                   displayWorkTime={getDisplayWorkTime(item)}
                   isTimesEqual={checkStartEndTimeSame(item)}
                   showDeleteConfirmDialog={showDeleteConfirmDialog}
+                  showAddShiftConfirmDialog={showAddShiftConfirmDialog}
                   showRestoreConfirmDialog={showRestoreConfirmDialog}
                   onRestoreItem={onRestoreItem}
                   onItemChange={onItemChange}
                   onContractNumberChange={onContractNumberChange}
                   onLunchTimeChange={onLunchTimeChange}
-                  onAddShift={onAddShift}
+                  // Remove the onAddShift prop
                 />
               </React.Fragment>
             ))
