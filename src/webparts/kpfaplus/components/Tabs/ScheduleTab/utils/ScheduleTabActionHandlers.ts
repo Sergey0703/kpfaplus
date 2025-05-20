@@ -9,7 +9,7 @@ import { formatItemForUpdate } from './ScheduleTabDataUtils';
  */
 export interface IActionHandlerParams {
   setIsSaving: (isSaving: boolean) => void;
-  setOperationMessage: (message: { text: string; type: MessageBarType } | null) => void;
+  setOperationMessage: (message: { text: string; type: MessageBarType; } | undefined) => void;
   setModifiedRecords: React.Dispatch<React.SetStateAction<Record<string, IScheduleItem>>>;
   onRefreshData?: () => void;
 }
@@ -173,7 +173,7 @@ export const handleAddShift = (
     
     // Clear the message after a delay
     setTimeout(() => {
-      setOperationMessage(null);
+      setOperationMessage(undefined); // Изменено: используем undefined вместо null
     }, 3000);
   } catch (error) {
     console.error('Error adding new shift:', error);

@@ -26,7 +26,7 @@ export interface IFillOperationParams {
  */
 export interface IFillOperationHandlers {
   createStaffRecord: (createData: Partial<IStaffRecord>, currentUserId?: string, staffGroupId?: string, staffMemberId?: string) => Promise<string | undefined>;
-  setOperationMessage: (message: { text: string; type: MessageBarType } | null) => void;
+  setOperationMessage: (message: { text: string; type: MessageBarType } | undefined) => void;
   setIsSaving: (isSaving: boolean) => void;
   onRefreshData?: () => void;
 }

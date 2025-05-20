@@ -128,10 +128,11 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
   const [showDeleted, setShowDeleted] = useState<boolean>(false);
   const [modifiedRecords, setModifiedRecords] = useState<Record<string, IScheduleItem>>({});
   const [isSaving, setIsSaving] = useState<boolean>(false);
+  // Изменено: используем undefined вместо null
   const [operationMessage, setOperationMessage] = useState<{
     text: string;
     type: MessageBarType;
-  } | null>(null);
+  } | undefined>(undefined);
   const [confirmDialogProps, setConfirmDialogProps] = useState({
     isOpen: false,
     title: '',
@@ -316,12 +317,12 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
         </MessageBar>
       )}
       
-      {/* Отображаем операционное сообщение, если есть */}
+      {/* Отображаем операционное сообщение, если есть - Изменено: проверка на undefined */}
       {operationMessage && (
         <MessageBar
           messageBarType={operationMessage.type}
           isMultiline={false}
-          onDismiss={() => setOperationMessage(null)}
+          onDismiss={() => setOperationMessage(undefined)}
           dismissButtonAriaLabel="Close"
         >
           {operationMessage.text}
@@ -386,10 +387,10 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
                     onAddShift={(date, shiftData) => 
                       handleAddShift(date, shiftData, onAddShift, actionHandlerParams)
                     }
-                    onDeleteItem={id => 
+                    onDeleteItem={(id) => 
                       handleDeleteItem(id, modifiedRecords, onDeleteStaffRecord!, actionHandlerParams)
                     }
-                    onRestoreItem={id => 
+                    onRestoreItem={(id) => 
                       handleRestoreItem(id, modifiedRecords, onRestoreStaffRecord!, actionHandlerParams)
                     }
                     saveChangesButton={
