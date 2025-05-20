@@ -22,13 +22,12 @@ export interface IScheduleTableRowProps {
   displayWorkTime: string;
   isTimesEqual: boolean;
   showDeleteConfirmDialog: (id: string) => void;
-  showAddShiftConfirmDialog: (date: Date) => void;
+  showAddShiftConfirmDialog: (item: IScheduleItem) => void; // Changed to pass the entire item
   showRestoreConfirmDialog: (id: string) => void;
   onRestoreItem?: (id: string) => Promise<void>;
   onItemChange: (item: IScheduleItem, field: string, value: string) => void;
   onContractNumberChange: (item: IScheduleItem, value: string) => void;
   onLunchTimeChange: (item: IScheduleItem, value: string) => void;
-  // Removed onAddShift as it's not being used anymore
 }
 
 export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
@@ -48,7 +47,6 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
     onItemChange,
     onContractNumberChange,
     onLunchTimeChange
-    // Removed onAddShift
   } = props;
 
   // Определяем, удалена ли запись
@@ -208,8 +206,8 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
 
   // Обработчик клика по кнопке "+Shift" с подтверждением
   const handleAddShiftClick = (): void => {
-    // Вызываем диалог подтверждения вместо прямого действия
-    showAddShiftConfirmDialog(item.date);
+    // Вызываем диалог подтверждения вместо прямого действия, передавая всю запись
+    showAddShiftConfirmDialog(item);
   };
 
   return (

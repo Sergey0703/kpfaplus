@@ -2,7 +2,7 @@
 import * as React from 'react';
 import { Spinner } from '@fluentui/react';
 import styles from '../ScheduleTab.module.scss';
-import { IScheduleItem, IScheduleOptions } from './ScheduleTable';
+import { IScheduleItem, IScheduleOptions, INewShiftData } from './ScheduleTable';
 import { checkStartEndTimeSame } from './ScheduleTableUtils';
 import { ScheduleTableRow } from './ScheduleTableRow';
 
@@ -10,15 +10,16 @@ export interface IScheduleTableContentProps {
   items: IScheduleItem[];
   options: IScheduleOptions;
   isLoading: boolean;
+  selectedContract?: { id: string; name: string }; // Add selectedContract prop
   showDeleteConfirmDialog: (id: string) => void;
-  showAddShiftConfirmDialog: (date: Date) => void;
+  showAddShiftConfirmDialog: (item: IScheduleItem) => void; // Changed to accept full item
   showRestoreConfirmDialog: (id: string) => void;
   onRestoreItem?: (id: string) => Promise<void>;
   getDisplayWorkTime: (item: IScheduleItem) => string;
   onItemChange: (item: IScheduleItem, field: string, value: string) => void;
   onContractNumberChange: (item: IScheduleItem, value: string) => void;
   onLunchTimeChange: (item: IScheduleItem, value: string) => void;
-  onAddShift: (date: Date) => void;
+  onAddShift: (date: Date, shiftData?: INewShiftData) => void; // Updated to accept shift data
 }
 
 export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props) => {
@@ -26,6 +27,7 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
     items,
     options,
     isLoading,
+    selectedContract,
     showDeleteConfirmDialog,
     showAddShiftConfirmDialog,
     showRestoreConfirmDialog,
@@ -140,6 +142,11 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
     }).length;
   };
 
+  // Log selected contract for debugging
+  if (selectedContract) {
+    console.log(`[ScheduleTableContent] Selected contract: ${selectedContract.name} (ID: ${selectedContract.id})`);
+  }
+
   return (
     <div className={styles.tableContainer} style={{ width: '100%' }}>
       <table style={{ borderSpacing: '0', borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed' }}>
@@ -213,7 +220,6 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
                   onItemChange={onItemChange}
                   onContractNumberChange={onContractNumberChange}
                   onLunchTimeChange={onLunchTimeChange}
-                  // Remove the onAddShift prop
                 />
               </React.Fragment>
             ))

@@ -1,6 +1,6 @@
-// src/webparts/kpfaplus/components/Tabs/ScheduleTab/components/ScheduleTabContent.tsx
+// src/webparts/kpfaplus/components/Tabs/ScheduleTab/ScheduleTabContent.tsx
 import * as React from 'react';
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { 
   MessageBar,
   MessageBarType,
@@ -15,6 +15,7 @@ import { IHoliday } from '../../../services/HolidaysService';
 import { ILeaveDay } from '../../../services/DaysOfLeavesService';
 import { ITypeOfLeave } from '../../../services/TypeOfLeaveService';
 import { IStaffRecord } from '../../../services/StaffRecordsService';
+import { INewShiftData } from './components/ScheduleTable';
 // Корректный путь к файлу стилей
 import styles from './ScheduleTab.module.scss';
 
@@ -67,6 +68,7 @@ export interface IScheduleTabContentProps {
   onDeleteStaffRecord?: (recordId: string) => Promise<boolean>;
   onRestoreStaffRecord?: (recordId: string) => Promise<boolean>; // Новый проп для восстановления записей
   onRefreshData?: () => void;
+  onAddShift: (date: Date, shiftData?: INewShiftData) => void; // Updated to accept shift data
 }
 
 // Вспомогательная функция для создания Date из часов и минут
@@ -104,10 +106,11 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     onErrorDismiss,
     staffRecords,
     onUpdateStaffRecord,
-    onCreateStaffRecord,
+    //onCreateStaffRecord,
     onDeleteStaffRecord,
     onRestoreStaffRecord,
-    onRefreshData
+    onRefreshData,
+    onAddShift
   } = props;
   
   // Находим выбранный контракт
@@ -129,23 +132,24 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
   } | null>(null);
 
   // Эффект для очистки модифицированных записей при изменении выбранного контракта или даты
-  useEffect(() => {
+  React.useEffect(() => {
     setModifiedRecords({});
   }, [selectedDate, selectedContractId]);
   
   // Эффект для отслеживания изменений в modifiedRecords и установки соответствующего сообщения
   // Эффект для отслеживания изменений только в modifiedRecords
-useEffect(() => {
-  // Если есть модифицированные записи, устанавливаем сообщение о необходимости сохранения
-  if (Object.keys(modifiedRecords).length > 0) {
-    setOperationMessage({
-      text: 'Changes detected. Click "Save Changes" when finished editing.',
-      type: MessageBarType.warning
-    });
-  }
-}, [modifiedRecords]); // Только modifiedRecords в зависимостях
+  React.useEffect(() => {
+    // Если есть модифицированные записи, устанавливаем сообщение о необходимости сохранения
+    if (Object.keys(modifiedRecords).length > 0) {
+      setOperationMessage({
+        text: 'Changes detected. Click "Save Changes" when finished editing.',
+        type: MessageBarType.warning
+      });
+    }
+  }, [modifiedRecords]); // Только modifiedRecords в зависимостях
+  
   // Логирование информации для отладки
-  useEffect(() => {
+  React.useEffect(() => {
     // Создаем группу в консоли для более организованного вывода
     console.group("Schedule Tab Data");
     
@@ -304,7 +308,7 @@ useEffect(() => {
   };
   
 // Преобразование данных расписания в формат для ScheduleTable
-const convertStaffRecordsToScheduleItems = useCallback((records: IStaffRecord[] | undefined): IScheduleItem[] => {
+const convertStaffRecordsToScheduleItems = React.useCallback((records: IStaffRecord[] | undefined): IScheduleItem[] => {
   if (!records || records.length === 0) {
     return [];
   }
@@ -360,7 +364,7 @@ const convertStaffRecordsToScheduleItems = useCallback((records: IStaffRecord[] 
 
   
   // Получаем список элементов для таблицы, включая локальные изменения
-  const getScheduleItemsWithModifications = useCallback((): IScheduleItem[] => {
+  const getScheduleItemsWithModifications = React.useCallback((): IScheduleItem[] => {
     const baseItems = convertStaffRecordsToScheduleItems(staffRecords);
     
     // Применяем локальные изменения
@@ -435,11 +439,11 @@ const convertStaffRecordsToScheduleItems = useCallback((records: IStaffRecord[] 
   };
   
   // Обработчик добавления новой смены
-  const handleAddShift = async (date: Date): Promise<void> => {
-    if (!onCreateStaffRecord || !selectedStaff || !selectedContractId) {
-      console.error('Cannot add shift: Missing required properties');
+  const handleAddShift = (date: Date, shiftData?: INewShiftData): void => {
+    if (!onAddShift) {
+      console.error('Add shift function is not provided');
       setOperationMessage({
-        text: 'Unable to add new shift: Missing required information',
+        text: 'Unable to add new shift: Function not available',
         type: MessageBarType.error
       });
       return;
@@ -450,38 +454,18 @@ const convertStaffRecordsToScheduleItems = useCallback((records: IStaffRecord[] 
     setIsSaving(true);
     
     try {
-      // Create a new Date object to avoid modifying the original
-      const newDate = new Date(date.getTime());
+      // Call the onAddShift function with the date and shift data
+      onAddShift(date, shiftData);
       
-      // Создаем начальные данные для новой записи
-      const createData: Partial<IStaffRecord> = {
-        Date: newDate,
-        ShiftDate1: new Date(new Date(newDate).setHours(9, 0, 0, 0)), // По умолчанию 9:00
-        ShiftDate2: new Date(new Date(newDate).setHours(17, 0, 0, 0)), // По умолчанию 17:00
-        TimeForLunch: 60, // По умолчанию 1 час
-        WeeklyTimeTableID: selectedContractId,
-        Contract: 1
-      };
+      setOperationMessage({
+        text: `New shift added for ${date.toLocaleDateString()}`,
+        type: MessageBarType.success
+      });
       
-      // Вызываем метод создания новой записи
-      const newRecordId = await onCreateStaffRecord(createData);
-      
-      if (newRecordId) {
-        setOperationMessage({
-          text: `New shift added successfully for ${date.toLocaleDateString()}`,
-          type: MessageBarType.success
-        });
-        
-        // Обновляем данные, чтобы отобразить новую запись
-        if (onRefreshData) {
-          onRefreshData();
-        }
-      } else {
-        setOperationMessage({
-          text: 'Failed to add new shift. Please try again.',
-          type: MessageBarType.error
-        });
-      }
+      // Clear the message after a delay
+      setTimeout(() => {
+        setOperationMessage(null);
+      }, 3000);
     } catch (error) {
       console.error('Error adding new shift:', error);
       setOperationMessage({

@@ -17,6 +17,7 @@ import {
 } from './ScheduleTabApi';
 import { ScheduleTabContent } from './ScheduleTabContent';
 import styles from './ScheduleTab.module.scss';
+import { INewShiftData } from './components/ScheduleTable'; // Import the new interface
 
 // Интерфейс для состояния компонента ScheduleTab
 export interface IScheduleTabState {
@@ -399,6 +400,81 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
     updateState.errorStaffRecords(undefined);
   };
 
+  // Updated handleAddShift to accept additional shift data
+  const handleAddShift = async (date: Date, shiftData?: INewShiftData): Promise<void> => {
+    console.log(`[ScheduleTab] handleAddShift called for date: ${date.toLocaleDateString()}`);
+    
+    if (!context || !staffRecordsService) {
+      console.error('[ScheduleTab] Cannot add shift: missing context or service');
+      return;
+    }
+    
+    if (!selectedStaff?.employeeId) {
+      console.error('[ScheduleTab] Cannot add shift: missing selected staff or employeeId');
+      return;
+    }
+    
+    try {
+      updateState.isLoading(true);
+      
+      // Create a new date with time set to midnight
+      const newDate = new Date(date);
+      newDate.setHours(0, 0, 0, 0);
+      
+      // Set up default shift times (9:00 AM to 5:00 PM)
+      const shiftDate1 = new Date(newDate);
+      shiftDate1.setHours(9, 0, 0, 0);
+      
+      const shiftDate2 = new Date(newDate);
+      shiftDate2.setHours(17, 0, 0, 0);
+      
+      // Prepare data for the new record with correct property names based on IStaffRecord interface
+      const createData: Partial<IStaffRecord> = {
+        // Basic date and time fields
+        Date: newDate,
+        ShiftDate1: shiftDate1,
+        ShiftDate2: shiftDate2,
+        
+        // Use lunch time from the row or default to 60 minutes
+        TimeForLunch: shiftData ? parseInt(shiftData.timeForLunch, 10) || 60 : 60,
+        
+        // Use contract number from the row or default to 1
+        Contract: shiftData?.contractNumber ? parseInt(shiftData.contractNumber, 10) : 1,
+        
+        // Use selected contract ID (from dropdown)
+        WeeklyTimeTableID: state.selectedContractId,
+        
+        // Include type of leave if available in shiftData
+        TypeOfLeaveID: shiftData?.typeOfLeave || '',
+        
+        // Title field is often required
+        Title: `Shift on ${date.toLocaleDateString()}`,
+        
+        // Holiday flag can be set from shiftData or default to 0 (not holiday)
+        Holiday: shiftData?.holiday || 0
+      };
+
+      // Log the exact structure being created
+      console.log('[ScheduleTab] Creating new shift with data:', JSON.stringify(createData, null, 2));
+      
+      // Call the service to create the record
+      const newRecordId = await staffRecordsService.createStaffRecord(createData);
+      
+      if (newRecordId) {
+        console.log(`[ScheduleTab] Successfully created new shift with ID: ${newRecordId}`);
+        
+        // Reload the staff records to include the new one
+        void loadStaffRecords(state.selectedDate);
+      } else {
+        console.error('[ScheduleTab] Failed to create new shift, no ID returned');
+      }
+    } catch (error) {
+      console.error('[ScheduleTab] Error creating new shift:', error);
+    } finally {
+      updateState.isLoading(false);
+    }
+  };
+
   // Обработчик обновления записи расписания
   const handleUpdateStaffRecord = async (recordId: string, updateData: Partial<IStaffRecord>): Promise<boolean> => {
     console.log(`[ScheduleTab] handleUpdateStaffRecord called for record ID: ${recordId}`, updateData);
@@ -595,6 +671,7 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
         onDeleteStaffRecord={handleDeleteStaffRecord}
         onRestoreStaffRecord={handleRestoreStaffRecord}
         onRefreshData={handleRefreshData}
+        onAddShift={handleAddShift}
       />
     </div>
   );
