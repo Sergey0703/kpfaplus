@@ -1,7 +1,7 @@
 // src/webparts/kpfaplus/components/Tabs/ScheduleTab/utils/ScheduleTabFillOperations.ts
 
 import { MessageBarType } from '@fluentui/react';
-import { WebPartContext } from '@microsoft/sp-webpart-base';  // Добавляем импорт WebPartContext
+import { WebPartContext } from '@microsoft/sp-webpart-base';
 import { IStaffRecord } from '../../../../services/StaffRecordsService';
 import { IContract } from '../../../../models/IContract';
 import { IHoliday } from '../../../../services/HolidaysService';
@@ -312,18 +312,23 @@ export const fillScheduleFromTemplate = async (
       // Сохраняем записи последовательно
       for (const record of generatedRecords) {
         try {
-          // Вызываем метод создания записи
+          // Логирование передаваемых ID для отладки
+          console.log(`[ScheduleTabFillOperations] Creating record with IDs: staffMemberId=${employeeId}, currentUserId=${currentUserId}, staffGroupId=${managingGroupId}`);
+          
+          // Вызываем метод создания записи с явной передачей всех IDs
           const newRecordId = await createStaffRecord(
             record,
-            currentUserId,
-            managingGroupId,
-            employeeId
+            currentUserId,      // ID текущего пользователя (Manager)
+            managingGroupId,    // ID группы сотрудников (StaffGroup)
+            employeeId          // ID сотрудника (StaffMember/Employee)
           );
           
           if (newRecordId) {
             successCount++;
+            console.log(`[ScheduleTabFillOperations] Successfully created record with ID: ${newRecordId}`);
           } else {
             failedRecords.push(record.Title || 'Unknown');
+            console.error(`[ScheduleTabFillOperations] Failed to create record: ${record.Title}`);
           }
         } catch (error) {
           console.error(`[ScheduleTabFillOperations] Error creating record:`, error);
