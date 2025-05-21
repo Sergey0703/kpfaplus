@@ -6,7 +6,7 @@ import { IStaffRecord } from '../../../../services/StaffRecordsService';
 import { IContract } from '../../../../models/IContract';
 import { IHoliday } from '../../../../services/HolidaysService';
 import { ILeaveDay } from '../../../../services/DaysOfLeavesService';
-import { IDayHours, WeeklyTimeTableUtils } from '../../../../models/IWeeklyTimeTable';
+import { IDayHours, WeeklyTimeTableUtils, IDayHoursComplete } from '../../../../models/IWeeklyTimeTable';
 import { WeeklyTimeTableService } from '../../../../services/WeeklyTimeTableService';
 
 /**
@@ -104,8 +104,33 @@ export const fillScheduleFromTemplate = async (
     
     console.log(`[ScheduleTabFillOperations] Adjusted period: ${firstDay.toISOString()} - ${lastDay.toISOString()}`);
     
-    // Prepare collection for generated records
-    const generatedRecords: Partial<IStaffRecord>[] = [];
+    // *** ОПТИМИЗАЦИЯ 1: Предварительная подготовка кэша праздников ***
+    // Создаем Map для быстрого поиска праздников по дате
+    const holidayMap = new Map<string, IHoliday>();
+    
+    // Заполняем Map ключами в формате "YYYY-MM-DD" для быстрого поиска
+    holidays.forEach(holiday => {
+      const holidayDate = new Date(holiday.date);
+      const key = `${holidayDate.getFullYear()}-${holidayDate.getMonth() + 1}-${holidayDate.getDate()}`;
+      holidayMap.set(key, holiday);
+    });
+    
+    console.log(`[ScheduleTabFillOperations] Создан кэш праздников: ${holidayMap.size} записей`);
+    
+    // *** ОПТИМИЗАЦИЯ 2: Предварительная подготовка кэша отпусков ***
+    // Создаем массив периодов отпусков для быстрой проверки
+    const leavePeriods = leaves.map(leave => {
+      const startDate = new Date(leave.startDate);
+      const endDate = leave.endDate ? new Date(leave.endDate) : new Date(2099, 11, 31); // Далекое будущее для открытых отпусков
+      return {
+        startDate,
+        endDate,
+        typeOfLeave: leave.typeOfLeave.toString(),
+        title: leave.title
+      };
+    });
+    
+    console.log(`[ScheduleTabFillOperations] Подготовлен кэш отпусков: ${leavePeriods.length} записей`);
     
     // Fetch weekly schedule templates
     try {
@@ -155,8 +180,52 @@ export const fillScheduleFromTemplate = async (
         return;
       }
       
+      // *** ОПТИМИЗАЦИЯ 3: Группировка шаблонов по номеру недели и дню недели ***
+      const templatesByWeekAndDay = new Map<string, Array<any>>();
+      
+      activeTemplates.forEach(template => {
+        const weekNumber = template.NumberOfWeek || template.numberOfWeek || 1;
+        
+        // Для каждого дня недели проверяем, есть ли расписание
+        const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+        
+        for (let i = 0; i < days.length; i++) {
+          const day = days[i];
+          // Проверяем и приводим к типу IDayHoursComplete
+          const dayInfo = template[day];
+          
+          // Добавляем дополнительные проверки для свойств объекта dayInfo
+          if (dayInfo && 
+              typeof dayInfo === 'object' && 
+              'start' in dayInfo && 
+              'end' in dayInfo && 
+              dayInfo.start && 
+              dayInfo.end) {
+            
+            // Используем явное приведение типа для TypeScript
+            const dayHours = dayInfo as IDayHoursComplete;
+            
+            const key = `${weekNumber}-${i + 1}`; // Формат "номер_недели-номер_дня"
+            
+            if (!templatesByWeekAndDay.has(key)) {
+              templatesByWeekAndDay.set(key, []);
+            }
+            
+            templatesByWeekAndDay.get(key)?.push({
+              ...template,
+              dayOfWeek: i + 1, // 1 = Monday, ..., 7 = Sunday
+              start: dayHours.start,
+              end: dayHours.end,
+              lunch: template.lunch || '30'
+            });
+          }
+        }
+      });
+      
+      console.log(`[ScheduleTabFillOperations] Сгруппированы шаблоны по неделям и дням: ${templatesByWeekAndDay.size} комбинаций`);
+      
       // Determine number of distinct weekly templates
-      const distinctWeeks = new Set(activeTemplates.map(template => template.NumberOfWeek || 1));
+      const distinctWeeks = new Set(activeTemplates.map(template => template.NumberOfWeek || template.numberOfWeek || 1));
       const numberOfWeekTemplates = distinctWeeks.size || 1;
       
       console.log(`[ScheduleTabFillOperations] Number of week templates: ${numberOfWeekTemplates}`);
@@ -165,6 +234,9 @@ export const fillScheduleFromTemplate = async (
       const dayCount = Math.ceil((lastDay.getTime() - firstDay.getTime()) / (1000 * 60 * 60 * 24)) + 1;
       console.log(`[ScheduleTabFillOperations] Processing ${dayCount} days`);
       
+      // Prepare collection for generated records
+      const generatedRecords: Partial<IStaffRecord>[] = [];
+      
       for (let i = 0; i < dayCount; i++) {
         // Current day
         const currentDate = new Date(firstDay);
@@ -172,7 +244,8 @@ export const fillScheduleFromTemplate = async (
         
         // Determine day of week (0-6, where 0 is Sunday)
         const dayIndex = currentDate.getDay();
-        const dayOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayIndex];
+        // Convert to 1-7 format where 1 is Monday, 7 is Sunday
+        const adjustedDayIndex = dayIndex === 0 ? 7 : dayIndex;
         
         // Calculate week number for template determination
         const dayOfMonth = currentDate.getDate();
@@ -198,71 +271,29 @@ export const fillScheduleFromTemplate = async (
             appliedWeekNumber = 1;
         }
         
-        console.log(`[ScheduleTabFillOperations] Day ${i+1}: ${currentDate.toISOString()}, Week ${calculatedWeekNumber}, Applied week ${appliedWeekNumber}`);
+        // *** ОПТИМИЗАЦИЯ 4: Быстрая проверка праздников и отпусков из кэша ***
+        // Проверка на праздник
+        const dateKey = `${currentDate.getFullYear()}-${currentDate.getMonth() + 1}-${currentDate.getDate()}`;
+        const isHoliday = holidayMap.has(dateKey);
         
-        // Filter templates for current day and applied week
-        const dayTemplates = activeTemplates.filter(template => 
-          (template.NumberOfWeek === appliedWeekNumber || template.numberOfWeek === appliedWeekNumber)
+        // Проверка на отпуск
+        const leaveForDay = leavePeriods.find(leave => 
+          currentDate >= leave.startDate && currentDate <= leave.endDate
         );
         
-        // Check if day is a holiday
-        const isHoliday = holidays.some(holiday => {
-          const holidayDate = new Date(holiday.date);
-          return holidayDate.getDate() === currentDate.getDate() && 
-                 holidayDate.getMonth() === currentDate.getMonth() && 
-                 holidayDate.getFullYear() === currentDate.getFullYear();
-        });
+        // Получаем шаблоны для этого дня и недели
+        const key = `${appliedWeekNumber}-${adjustedDayIndex}`;
+        const templatesForDay = templatesByWeekAndDay.get(key) || [];
         
-        // Check if employee is on leave for this day
-        const leaveForDay = leaves.find(leave => {
-          const leaveStartDate = new Date(leave.startDate);
-          const leaveEndDate = leave.endDate ? new Date(leave.endDate) : new Date(2099, 11, 31); // Far future date for open leaves
-          
-          return currentDate >= leaveStartDate && currentDate <= leaveEndDate;
-        });
+        if (templatesForDay.length > 0) {
+          console.log(`[ScheduleTabFillOperations] День ${i+1}: ${currentDate.toISOString()}, ключ ${key}, найдено ${templatesForDay.length} шаблонов`);
+        }
         
         // For each template on this day, create a record
-        for (const template of dayTemplates) {
-          // Get start and end times for current day of week
-          let startTime: IDayHours | undefined;
-          let endTime: IDayHours | undefined;
-          
-          // Determine start and end times based on day of week
-          switch (dayOfWeek) {
-            case 'Monday':
-              startTime = template.monday?.start;
-              endTime = template.monday?.end;
-              break;
-            case 'Tuesday':
-              startTime = template.tuesday?.start;
-              endTime = template.tuesday?.end;
-              break;
-            case 'Wednesday':
-              startTime = template.wednesday?.start;
-              endTime = template.wednesday?.end;
-              break;
-            case 'Thursday':
-              startTime = template.thursday?.start;
-              endTime = template.thursday?.end;
-              break;
-            case 'Friday':
-              startTime = template.friday?.start;
-              endTime = template.friday?.end;
-              break;
-            case 'Saturday':
-              startTime = template.saturday?.start;
-              endTime = template.saturday?.end;
-              break;
-            case 'Sunday':
-              startTime = template.sunday?.start;
-              endTime = template.sunday?.end;
-              break;
-          }
-          
-          // If no schedule for current day of week, skip
-          if (!startTime || !endTime) {
-            continue;
-          }
+        for (const template of templatesForDay) {
+          // Get start and end times, убедимся что это объекты IDayHours
+          const startTime = template.start as IDayHours;
+          const endTime = template.end as IDayHours;
           
           // Convert times to Date objects
           const shiftDate1 = createDateWithTime(currentDate, startTime);
@@ -278,16 +309,12 @@ export const fillScheduleFromTemplate = async (
             Contract: parseInt(template.total || '1', 10),
             Holiday: isHoliday ? 1 : 0,
             WeeklyTimeTableID: selectedContractId,
-            WeeklyTimeTableTitle: selectedContract.template || '',
-            // Add these fields
-  //StaffMemberID: employeeId,          // ID for the Staff Member
-  //ManagerID: currentUserId,           // ID for the Manager
- // StaffGroupID: managingGroupId       // ID for the Staff Group
+            WeeklyTimeTableTitle: selectedContract.template || ''
           };
           
           // If employee is on leave, add leave type
           if (leaveForDay) {
-            recordData.TypeOfLeaveID = leaveForDay.typeOfLeave.toString();
+            recordData.TypeOfLeaveID = leaveForDay.typeOfLeave;
           }
           
           // Add record to collection
@@ -337,9 +364,9 @@ export const fillScheduleFromTemplate = async (
           // Call create method with explicit ID passing
           const newRecordId = await createStaffRecord(
             record,
-            "1", //currentUserId,      // Manager ID
-            "54",//managingGroupId,    // Staff Group ID
-            "1" //employeeId          // Employee ID
+            currentUserId,      // Manager ID
+            managingGroupId,    // Staff Group ID
+            employeeId          // Employee ID
           );
           
           if (newRecordId) {
