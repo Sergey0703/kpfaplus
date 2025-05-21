@@ -529,33 +529,48 @@ const handleAddShift = async (date: Date, shiftData?: INewShiftData): Promise<vo
   };
 
   // Обработчик создания новой записи расписания
-  const handleCreateStaffRecord = async (createData: Partial<IStaffRecord>): Promise<string | undefined> => {
-    console.log(`[ScheduleTab] handleCreateStaffRecord called`, createData);
+ // Исправленная версия handleCreateStaffRecord в ScheduleTab.tsx
+const handleCreateStaffRecord = async (
+  createData: Partial<IStaffRecord>,
+  currentUserId?: string,
+  staffGroupId?: string,
+  staffMemberId?: string
+): Promise<string | undefined> => {
+  console.log(`[ScheduleTab] handleCreateStaffRecord called with IDs:
+    staffMemberId=${staffMemberId || 'N/A'}
+    currentUserId=${currentUserId || 'N/A'}
+    staffGroupId=${staffGroupId || 'N/A'}`
+  );
+  
+  if (!context || !staffRecordsService) {
+    console.error('[ScheduleTab] Cannot create record: missing context or service');
+    return undefined;
+  }
+  
+  try {
+    // Call the service method to create the record with all parameters
+    const newRecordId = await staffRecordsService.createStaffRecord(
+      createData,
+      currentUserId,     // Manager ID
+      staffGroupId,      // Staff Group ID
+      staffMemberId      // Employee ID
+    );
     
-    if (!context || !staffRecordsService) {
-      console.error('[ScheduleTab] Cannot create record: missing context or service');
-      return undefined;
+    console.log(`[ScheduleTab] Record creation result: ${newRecordId ? 'success' : 'failed'}`);
+    
+    // After successful creation, refresh the data
+    if (newRecordId) {
+      setTimeout(() => {
+        void loadStaffRecords(state.selectedDate);
+      }, 1000);
     }
     
-    try {
-      // Call the service method to create the record
-      const newRecordId = await staffRecordsService.createStaffRecord(createData);
-      
-      console.log(`[ScheduleTab] Record creation result: ${newRecordId ? 'success' : 'failed'}`);
-      
-      // After successful creation, refresh the data
-      if (newRecordId) {
-        setTimeout(() => {
-          void loadStaffRecords(state.selectedDate);
-        }, 1000);
-      }
-      
-      return newRecordId;
-    } catch (error) {
-      console.error(`[ScheduleTab] Error creating record:`, error);
-      return undefined;
-    }
-  };
+    return newRecordId;
+  } catch (error) {
+    console.error(`[ScheduleTab] Error creating record:`, error);
+    return undefined;
+  }
+}
 
   // Обработчик удаления записи расписания
   const handleDeleteStaffRecord = async (recordId: string): Promise<boolean> => {

@@ -337,9 +337,9 @@ export const fillScheduleFromTemplate = async (
           // Call create method with explicit ID passing
           const newRecordId = await createStaffRecord(
             record,
-            currentUserId,      // Manager ID
-            managingGroupId,    // Staff Group ID
-            employeeId          // Employee ID
+            "1", //currentUserId,      // Manager ID
+            "54",//managingGroupId,    // Staff Group ID
+            "1" //employeeId          // Employee ID
           );
           
           if (newRecordId) {
