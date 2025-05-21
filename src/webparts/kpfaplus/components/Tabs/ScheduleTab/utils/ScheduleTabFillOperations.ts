@@ -37,6 +37,39 @@ export interface IFillOperationHandlers {
 }
 
 /**
+ * Вспомогательная функция для определения применяемого номера недели
+ */
+function getAppliedWeekNumber(calculatedWeekNumber: number, numberOfWeekTemplates: number): number {
+  switch (numberOfWeekTemplates) {
+    case 1:
+      return 1;
+    case 2:
+      return ((calculatedWeekNumber - 1) % 2) + 1;
+    case 3:
+      return calculatedWeekNumber <= 3 ? calculatedWeekNumber : 1;
+    case 4:
+      return calculatedWeekNumber <= 4 ? calculatedWeekNumber : calculatedWeekNumber % 4 || 4;
+    default:
+      return 1;
+  }
+}
+
+/**
+ * Интерфейс для данных дня месяца
+ */
+interface IDayData {
+  date: Date;
+  isHoliday: boolean;
+  holidayInfo?: IHoliday;
+  isLeave: boolean;
+  leaveInfo?: { typeOfLeave: string; title: string };
+  templates: any[];
+  dayOfWeek: number; // 1-7, где 1 - понедельник, 7 - воскресенье
+  weekNumber: number; // Номер недели в месяце (1-5)
+  appliedWeekNumber: number; // Применяемый номер недели для шаблона
+}
+
+/**
  * Main function for filling schedule based on templates
  * @param params Parameters for the operation
  * @param handlers Handlers and callbacks for the operation
@@ -230,99 +263,108 @@ export const fillScheduleFromTemplate = async (
       
       console.log(`[ScheduleTabFillOperations] Number of week templates: ${numberOfWeekTemplates}`);
       
-      // Process all days in selected period
-      const dayCount = Math.ceil((lastDay.getTime() - firstDay.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-      console.log(`[ScheduleTabFillOperations] Processing ${dayCount} days`);
+      // *** НОВАЯ ОПТИМИЗАЦИЯ: Предварительная подготовка данных для всех дней периода ***
+      console.log(`[ScheduleTabFillOperations] Начинаем подготовку данных для всех дней периода...`);
       
-      // Prepare collection for generated records
-      const generatedRecords: Partial<IStaffRecord>[] = [];
+      // Количество дней в периоде
+      const dayCount = Math.ceil((lastDay.getTime() - firstDay.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      
+      // Создаем и заполняем структуру данных для каждого дня в периоде
+      const daysData = new Map<string, IDayData>();
       
       for (let i = 0; i < dayCount; i++) {
-        // Current day
+        // Текущий день
         const currentDate = new Date(firstDay);
         currentDate.setDate(firstDay.getDate() + i);
         
-        // Determine day of week (0-6, where 0 is Sunday)
+        // Формируем ключ для даты в формате "YYYY-MM-DD"
+        const dateKey = `${currentDate.getFullYear()}-${currentDate.getMonth() + 1}-${currentDate.getDate()}`;
+        
+        // Определяем день недели (1-7, где 1 - понедельник, 7 - воскресенье)
         const dayIndex = currentDate.getDay();
-        // Convert to 1-7 format where 1 is Monday, 7 is Sunday
         const adjustedDayIndex = dayIndex === 0 ? 7 : dayIndex;
         
-        // Calculate week number for template determination
+        // Определяем номер недели в месяце
         const dayOfMonth = currentDate.getDate();
-        const calculatedWeekNumber = Math.floor((dayOfMonth - 1) / 7) + 1;
+        const weekNumber = Math.floor((dayOfMonth - 1) / 7) + 1;
         
-        // Determine applied week number based on number of templates
-        let appliedWeekNumber: number;
+        // Определяем применяемый номер недели на основе количества шаблонов
+        const appliedWeekNumber = getAppliedWeekNumber(weekNumber, numberOfWeekTemplates);
         
-        switch (numberOfWeekTemplates) {
-          case 1:
-            appliedWeekNumber = 1;
-            break;
-          case 2:
-            appliedWeekNumber = ((calculatedWeekNumber - 1) % 2) + 1;
-            break;
-          case 3:
-            appliedWeekNumber = calculatedWeekNumber <= 3 ? calculatedWeekNumber : 1;
-            break;
-          case 4:
-            appliedWeekNumber = calculatedWeekNumber <= 4 ? calculatedWeekNumber : calculatedWeekNumber % 4 || 4;
-            break;
-          default:
-            appliedWeekNumber = 1;
-        }
-        
-        // *** ОПТИМИЗАЦИЯ 4: Быстрая проверка праздников и отпусков из кэша ***
-        // Проверка на праздник
-        const dateKey = `${currentDate.getFullYear()}-${currentDate.getMonth() + 1}-${currentDate.getDate()}`;
+        // Проверяем, является ли день праздником
         const isHoliday = holidayMap.has(dateKey);
+        const holidayInfo = isHoliday ? holidayMap.get(dateKey) : undefined;
         
-        // Проверка на отпуск
+        // Проверяем, находится ли сотрудник в отпуске в этот день
         const leaveForDay = leavePeriods.find(leave => 
           currentDate >= leave.startDate && currentDate <= leave.endDate
         );
         
-        // Получаем шаблоны для этого дня и недели
+        const isLeave = !!leaveForDay;
+        
+        // Получаем шаблоны для этого дня недели и недели
         const key = `${appliedWeekNumber}-${adjustedDayIndex}`;
         const templatesForDay = templatesByWeekAndDay.get(key) || [];
         
-        if (templatesForDay.length > 0) {
-          console.log(`[ScheduleTabFillOperations] День ${i+1}: ${currentDate.toISOString()}, ключ ${key}, найдено ${templatesForDay.length} шаблонов`);
-        }
-        
-        // For each template on this day, create a record
-        for (const template of templatesForDay) {
-          // Get start and end times, убедимся что это объекты IDayHours
-          const startTime = template.start as IDayHours;
-          const endTime = template.end as IDayHours;
-          
-          // Convert times to Date objects
-          const shiftDate1 = createDateWithTime(currentDate, startTime);
-          const shiftDate2 = createDateWithTime(currentDate, endTime);
-          
-          // Create record object
-          const recordData: Partial<IStaffRecord> = {
-            Title: `Template=${selectedContractId} Week=${appliedWeekNumber} Shift=${template.NumberOfShift || template.shiftNumber || 1}`,
-            Date: new Date(currentDate),
-            ShiftDate1: shiftDate1,
-            ShiftDate2: shiftDate2,
-            TimeForLunch: parseInt(template.lunch || '30', 10),
-            Contract: parseInt(template.total || '1', 10),
-            Holiday: isHoliday ? 1 : 0,
-            WeeklyTimeTableID: selectedContractId,
-            WeeklyTimeTableTitle: selectedContract.template || ''
-          };
-          
-          // If employee is on leave, add leave type
-          if (leaveForDay) {
-            recordData.TypeOfLeaveID = leaveForDay.typeOfLeave;
-          }
-          
-          // Add record to collection
-          generatedRecords.push(recordData);
-        }
+        // Сохраняем всю информацию для этого дня
+        daysData.set(dateKey, {
+          date: new Date(currentDate),
+          isHoliday,
+          holidayInfo,
+          isLeave,
+          leaveInfo: leaveForDay ? {
+            typeOfLeave: leaveForDay.typeOfLeave,
+            title: leaveForDay.title
+          } : undefined,
+          templates: templatesForDay,
+          dayOfWeek: adjustedDayIndex,
+          weekNumber,
+          appliedWeekNumber
+        });
       }
       
-      console.log(`[ScheduleTabFillOperations] Generated ${generatedRecords.length} records`);
+      console.log(`[ScheduleTabFillOperations] Подготовлены данные для ${daysData.size} дней`);
+      
+      // Генерируем записи расписания на основе подготовленных данных
+      const generatedRecords: Partial<IStaffRecord>[] = [];
+      
+      // Перебираем все дни в нашей структуре данных
+      daysData.forEach((dayData, dateKey) => {
+        // Если для этого дня есть шаблоны, создаем записи
+        if (dayData.templates.length > 0) {
+          console.log(`[ScheduleTabFillOperations] День ${dayData.date.toLocaleDateString()}: найдено ${dayData.templates.length} шаблонов`);
+          
+          // Для каждого шаблона создаем запись расписания
+          dayData.templates.forEach(template => {
+            // Преобразуем время начала и конца в объекты Date
+            const shiftDate1 = createDateWithTime(dayData.date, template.start);
+            const shiftDate2 = createDateWithTime(dayData.date, template.end);
+            
+            // Создаем объект записи
+            const recordData: Partial<IStaffRecord> = {
+              Title: `Template=${selectedContractId} Week=${dayData.appliedWeekNumber} Shift=${template.NumberOfShift || template.shiftNumber || 1}`,
+              Date: new Date(dayData.date),
+              ShiftDate1: shiftDate1,
+              ShiftDate2: shiftDate2,
+              TimeForLunch: parseInt(template.lunch || '30', 10),
+              Contract: parseInt(template.total || '1', 10),
+              Holiday: dayData.isHoliday ? 1 : 0,
+              WeeklyTimeTableID: selectedContractId,
+              WeeklyTimeTableTitle: selectedContract.template || ''
+            };
+            
+            // Если сотрудник в отпуске в этот день, добавляем тип отпуска
+            if (dayData.isLeave && dayData.leaveInfo) {
+              recordData.TypeOfLeaveID = dayData.leaveInfo.typeOfLeave;
+            }
+            
+            // Добавляем запись в коллекцию
+            generatedRecords.push(recordData);
+          });
+        }
+      });
+      
+      console.log(`[ScheduleTabFillOperations] Сгенерировано ${generatedRecords.length} записей`);
       
       // If no records generated, show error
       if (generatedRecords.length === 0) {
