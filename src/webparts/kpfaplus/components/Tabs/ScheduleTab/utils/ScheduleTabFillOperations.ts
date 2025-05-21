@@ -10,11 +10,10 @@ import { IDayHours, WeeklyTimeTableUtils } from '../../../../models/IWeeklyTimeT
 import { WeeklyTimeTableService } from '../../../../services/WeeklyTimeTableService';
 
 /**
- * Интерфейс для параметров операции заполнения расписания
+ * Interface for fill operation parameters
  */
 export interface IFillOperationParams {
   selectedDate: Date;
-  // Этот параметр используется только для логов, и мы можем его удалить, если он не нужен
   selectedStaffId?: string;
   employeeId: string;
   selectedContract: IContract | undefined;
@@ -24,11 +23,11 @@ export interface IFillOperationParams {
   currentUserId?: string;
   managingGroupId?: string;
   dayOfStartWeek?: number;
-  context?: WebPartContext; // Добавим context как параметр
+  context?: WebPartContext;
 }
 
 /**
- * Интерфейс для обработчиков и функций, необходимых для операции заполнения
+ * Interface for operation handlers and callbacks
  */
 export interface IFillOperationHandlers {
   createStaffRecord: (createData: Partial<IStaffRecord>, currentUserId?: string, staffGroupId?: string, staffMemberId?: string) => Promise<string | undefined>;
@@ -38,9 +37,9 @@ export interface IFillOperationHandlers {
 }
 
 /**
- * Основная функция для заполнения расписания на основе шаблонов
- * @param params Параметры операции заполнения
- * @param handlers Обработчики и функции для операции
+ * Main function for filling schedule based on templates
+ * @param params Parameters for the operation
+ * @param handlers Handlers and callbacks for the operation
  */
 export const fillScheduleFromTemplate = async (
   params: IFillOperationParams,
@@ -50,12 +49,12 @@ export const fillScheduleFromTemplate = async (
     selectedDate, employeeId, 
     selectedContract, selectedContractId, 
     holidays, leaves, currentUserId, managingGroupId, dayOfStartWeek = 7,
-    context // Получаем context из параметров
+    context
   } = params;
   
   const { createStaffRecord, setOperationMessage, setIsSaving, onRefreshData } = handlers;
 
-  // Предварительная проверка данных
+  // Preliminary data validation
   if (!selectedContract || !selectedContractId) {
     setOperationMessage({
       text: 'Cannot fill schedule: No contract selected',
@@ -80,21 +79,21 @@ export const fillScheduleFromTemplate = async (
     return;
   }
 
-  // Устанавливаем состояние загрузки
+  // Set loading state
   setIsSaving(true);
 
   try {
-    // Определение начала и конца месяца для выбранной даты
+    // Define month start and end for selected date
     const startOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
     const endOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0);
     
     console.log(`[ScheduleTabFillOperations] Month period: ${startOfMonth.toISOString()} - ${endOfMonth.toISOString()}`);
     
-    // Корректировка дат с учетом дат контракта
+    // Adjust dates based on contract dates
     const contractStartDate = selectedContract.startDate;
     const contractFinishDate = selectedContract.finishDate;
     
-    // Определяем фактические даты начала и конца периода генерации
+    // Determine actual start and end dates for generation
     const firstDay = contractStartDate && contractStartDate > startOfMonth 
       ? new Date(contractStartDate) 
       : new Date(startOfMonth);
@@ -105,15 +104,14 @@ export const fillScheduleFromTemplate = async (
     
     console.log(`[ScheduleTabFillOperations] Adjusted period: ${firstDay.toISOString()} - ${lastDay.toISOString()}`);
     
-    // Подготовка коллекции для сгенерированных записей
+    // Prepare collection for generated records
     const generatedRecords: Partial<IStaffRecord>[] = [];
     
-    // Получаем шаблоны недельного расписания из WeeklyTimeTables
+    // Fetch weekly schedule templates
     try {
-      // Используем context из параметров
       const weeklyTimeService = new WeeklyTimeTableService(context);
       
-      // Запрашиваем шаблоны из сервиса
+      // Request templates from service
       const weeklyTimeItems = await weeklyTimeService.getWeeklyTimeTableByContractId(selectedContractId);
       
       if (!weeklyTimeItems || weeklyTimeItems.length === 0) {
@@ -127,7 +125,7 @@ export const fillScheduleFromTemplate = async (
       
       console.log(`[ScheduleTabFillOperations] Retrieved ${weeklyTimeItems.length} weekly time templates`);
       
-      // Преобразуем сырые данные в формат для использования
+      // Format raw data for use
       const formattedTemplates = WeeklyTimeTableUtils.formatWeeklyTimeTableData(weeklyTimeItems, dayOfStartWeek);
       
       if (!formattedTemplates || formattedTemplates.length === 0) {
@@ -141,7 +139,7 @@ export const fillScheduleFromTemplate = async (
       
       console.log(`[ScheduleTabFillOperations] Formatted ${formattedTemplates.length} templates`);
       
-      // Отфильтровываем удаленные шаблоны
+      // Filter deleted templates
       const activeTemplates = formattedTemplates.filter(template => 
         template.deleted !== 1 && template.Deleted !== 1
       );
@@ -157,30 +155,30 @@ export const fillScheduleFromTemplate = async (
         return;
       }
       
-      // Определяем количество уникальных недельных шаблонов
+      // Determine number of distinct weekly templates
       const distinctWeeks = new Set(activeTemplates.map(template => template.NumberOfWeek || 1));
       const numberOfWeekTemplates = distinctWeeks.size || 1;
       
       console.log(`[ScheduleTabFillOperations] Number of week templates: ${numberOfWeekTemplates}`);
       
-      // Цикл по всем дням в выбранном периоде
+      // Process all days in selected period
       const dayCount = Math.ceil((lastDay.getTime() - firstDay.getTime()) / (1000 * 60 * 60 * 24)) + 1;
       console.log(`[ScheduleTabFillOperations] Processing ${dayCount} days`);
       
       for (let i = 0; i < dayCount; i++) {
-        // Текущий день
+        // Current day
         const currentDate = new Date(firstDay);
         currentDate.setDate(firstDay.getDate() + i);
         
-        // Определение дня недели (0-6, где 0 - воскресенье)
+        // Determine day of week (0-6, where 0 is Sunday)
         const dayIndex = currentDate.getDay();
         const dayOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayIndex];
         
-        // Расчет номера недели для определения шаблона
+        // Calculate week number for template determination
         const dayOfMonth = currentDate.getDate();
         const calculatedWeekNumber = Math.floor((dayOfMonth - 1) / 7) + 1;
         
-        // Определение применяемого номера недели в зависимости от количества шаблонов
+        // Determine applied week number based on number of templates
         let appliedWeekNumber: number;
         
         switch (numberOfWeekTemplates) {
@@ -202,12 +200,12 @@ export const fillScheduleFromTemplate = async (
         
         console.log(`[ScheduleTabFillOperations] Day ${i+1}: ${currentDate.toISOString()}, Week ${calculatedWeekNumber}, Applied week ${appliedWeekNumber}`);
         
-        // Фильтрация шаблонов для текущего дня и применяемой недели
+        // Filter templates for current day and applied week
         const dayTemplates = activeTemplates.filter(template => 
           (template.NumberOfWeek === appliedWeekNumber || template.numberOfWeek === appliedWeekNumber)
         );
         
-        // Проверка, является ли день праздником
+        // Check if day is a holiday
         const isHoliday = holidays.some(holiday => {
           const holidayDate = new Date(holiday.date);
           return holidayDate.getDate() === currentDate.getDate() && 
@@ -215,21 +213,21 @@ export const fillScheduleFromTemplate = async (
                  holidayDate.getFullYear() === currentDate.getFullYear();
         });
         
-        // Проверка, находится ли сотрудник в отпуске в этот день
+        // Check if employee is on leave for this day
         const leaveForDay = leaves.find(leave => {
           const leaveStartDate = new Date(leave.startDate);
-          const leaveEndDate = leave.endDate ? new Date(leave.endDate) : new Date(2099, 11, 31); // Далекая дата для открытых отпусков
+          const leaveEndDate = leave.endDate ? new Date(leave.endDate) : new Date(2099, 11, 31); // Far future date for open leaves
           
           return currentDate >= leaveStartDate && currentDate <= leaveEndDate;
         });
         
-        // Для каждого шаблона на этот день создаем запись
+        // For each template on this day, create a record
         for (const template of dayTemplates) {
-          // Получение времени начала и окончания работы для текущего дня недели
+          // Get start and end times for current day of week
           let startTime: IDayHours | undefined;
           let endTime: IDayHours | undefined;
           
-          // Определение времени начала и окончания в зависимости от дня недели
+          // Determine start and end times based on day of week
           switch (dayOfWeek) {
             case 'Monday':
               startTime = template.monday?.start;
@@ -261,41 +259,45 @@ export const fillScheduleFromTemplate = async (
               break;
           }
           
-          // Если для текущего дня недели нет расписания, пропускаем
+          // If no schedule for current day of week, skip
           if (!startTime || !endTime) {
             continue;
           }
           
-          // Преобразование времени в объекты Date
+          // Convert times to Date objects
           const shiftDate1 = createDateWithTime(currentDate, startTime);
           const shiftDate2 = createDateWithTime(currentDate, endTime);
           
-          // Создание объекта записи
+          // Create record object
           const recordData: Partial<IStaffRecord> = {
             Title: `Template=${selectedContractId} Week=${appliedWeekNumber} Shift=${template.NumberOfShift || template.shiftNumber || 1}`,
             Date: new Date(currentDate),
             ShiftDate1: shiftDate1,
             ShiftDate2: shiftDate2,
-            TimeForLunch: parseInt(template.lunch || '30'),
-            Contract: parseInt(template.total || '1'),
+            TimeForLunch: parseInt(template.lunch || '30', 10),
+            Contract: parseInt(template.total || '1', 10),
             Holiday: isHoliday ? 1 : 0,
             WeeklyTimeTableID: selectedContractId,
             WeeklyTimeTableTitle: selectedContract.template || '',
+            // Add these fields
+  //StaffMemberID: employeeId,          // ID for the Staff Member
+  //ManagerID: currentUserId,           // ID for the Manager
+ // StaffGroupID: managingGroupId       // ID for the Staff Group
           };
           
-          // Если сотрудник в отпуске, добавляем тип отпуска
+          // If employee is on leave, add leave type
           if (leaveForDay) {
             recordData.TypeOfLeaveID = leaveForDay.typeOfLeave.toString();
           }
           
-          // Добавляем запись в коллекцию
+          // Add record to collection
           generatedRecords.push(recordData);
         }
       }
       
       console.log(`[ScheduleTabFillOperations] Generated ${generatedRecords.length} records`);
       
-      // Если не сгенерировано ни одной записи, показываем ошибку
+      // If no records generated, show error
       if (generatedRecords.length === 0) {
         setOperationMessage({
           text: 'No records generated. Please check the contract and weekly templates.',
@@ -305,22 +307,39 @@ export const fillScheduleFromTemplate = async (
         return;
       }
       
-      // Сохранение сгенерированных записей
+      // Data validation for IDs before proceeding
+      if (!employeeId || employeeId === '0' || employeeId === '') {
+        console.error(`[ScheduleTabFillOperations] Missing or invalid employeeId: ${employeeId}`);
+      }
+      
+      if (!currentUserId || currentUserId === '0' || currentUserId === '') {
+        console.error(`[ScheduleTabFillOperations] Missing or invalid currentUserId: ${currentUserId}`);
+      }
+      
+      if (!managingGroupId || managingGroupId === '0' || managingGroupId === '') {
+        console.error(`[ScheduleTabFillOperations] Missing or invalid managingGroupId: ${managingGroupId}`);
+      }
+      
+      // Log the IDs being passed before creation
+      console.log(`[ScheduleTabFillOperations] Will create records with these IDs:
+        staffMemberId=${employeeId} (${typeof employeeId})
+        currentUserId=${currentUserId || 'N/A'} (${typeof currentUserId})
+        staffGroupId=${managingGroupId || 'N/A'} (${typeof managingGroupId})
+      `);
+      
+      // Save generated records
       let successCount = 0;
       const failedRecords: string[] = [];
       
-      // Сохраняем записи последовательно
+      // Save records sequentially
       for (const record of generatedRecords) {
         try {
-          // Логирование передаваемых ID для отладки
-          console.log(`[ScheduleTabFillOperations] Creating record with IDs: staffMemberId=${employeeId}, currentUserId=${currentUserId}, staffGroupId=${managingGroupId}`);
-          
-          // Вызываем метод создания записи с явной передачей всех IDs
+          // Call create method with explicit ID passing
           const newRecordId = await createStaffRecord(
             record,
-            currentUserId,      // ID текущего пользователя (Manager)
-            managingGroupId,    // ID группы сотрудников (StaffGroup)
-            employeeId          // ID сотрудника (StaffMember/Employee)
+            currentUserId,      // Manager ID
+            managingGroupId,    // Staff Group ID
+            employeeId          // Employee ID
           );
           
           if (newRecordId) {
@@ -336,7 +355,7 @@ export const fillScheduleFromTemplate = async (
         }
       }
       
-      // Показываем сообщение о результатах
+      // Show result message
       if (successCount === generatedRecords.length) {
         setOperationMessage({
           text: `Successfully generated ${successCount} schedule records from template`,
@@ -354,7 +373,7 @@ export const fillScheduleFromTemplate = async (
         });
       }
       
-      // Обновляем данные в интерфейсе
+      // Refresh data in UI
       if (onRefreshData) {
         onRefreshData();
       }
@@ -377,7 +396,7 @@ export const fillScheduleFromTemplate = async (
 };
 
 /**
- * Функция для создания диалога подтверждения заполнения расписания
+ * Function to create confirmation dialog for schedule fill
  */
 export const createFillConfirmationDialog = (
   hasExistingRecords: boolean,
@@ -392,7 +411,7 @@ export const createFillConfirmationDialog = (
   confirmButtonColor: string;
 } => {
   if (hasExistingRecords) {
-    // Если есть существующие записи, показываем предупреждение
+    // If there are existing records, show warning
     return {
       isOpen: true,
       title: 'Confirm Fill Operation',
@@ -400,10 +419,10 @@ export const createFillConfirmationDialog = (
       confirmButtonText: 'Continue',
       cancelButtonText: 'Cancel',
       onConfirm,
-      confirmButtonColor: '#d83b01' // Оранжевый цвет для предупреждения
+      confirmButtonColor: '#d83b01' // Orange color for warning
     };
   } else {
-    // Если записей нет, показываем простой диалог подтверждения
+    // If no records, show simple confirmation
     return {
       isOpen: true,
       title: 'Fill Schedule',
@@ -411,35 +430,35 @@ export const createFillConfirmationDialog = (
       confirmButtonText: 'Fill',
       cancelButtonText: 'Cancel',
       onConfirm,
-      confirmButtonColor: '#107c10' // Зеленый цвет для подтверждения
+      confirmButtonColor: '#107c10' // Green color for confirmation
     };
   }
 };
 
 /**
- * Вспомогательная функция для создания объекта Date с установленным временем
- * @param baseDate Базовая дата
- * @param time Объект с часами и минутами
- * @returns Объект Date с установленным временем
+ * Helper function to create Date object with specified time
+ * @param baseDate Base date
+ * @param time Object with hours and minutes
+ * @returns Date object with set time
  */
 function createDateWithTime(baseDate: Date, time: IDayHours): Date {
   const result = new Date(baseDate);
   
   try {
-    // Получаем часы и минуты
+    // Get hours and minutes
     const hours = parseInt(time.hours, 10);
     const minutes = parseInt(time.minutes, 10);
     
     if (isNaN(hours) || isNaN(minutes)) {
-      // Если не удалось распарсить, устанавливаем 00:00
+      // If parsing failed, set 00:00
       result.setHours(0, 0, 0, 0);
     } else {
-      // Устанавливаем указанное время
+      // Set specified time
       result.setHours(hours, minutes, 0, 0);
     }
   } catch (error) {
     console.error(`[ScheduleTabFillOperations] Error parsing time:`, error);
-    // В случае ошибки устанавливаем 00:00
+    // In case of error, set 00:00
     result.setHours(0, 0, 0, 0);
   }
   

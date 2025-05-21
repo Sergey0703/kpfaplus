@@ -87,6 +87,7 @@ export interface IScheduleTabContentProps {
   currentUserId?: string;
   managingGroupId?: string;
   context?: WebPartContext; // Добавляем context
+
 }
 
 /**
@@ -119,9 +120,9 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     onRefreshData,
     onAddShift,
     dayOfStartWeek,
-    currentUserId,
+        context,
+        currentUserId,
     managingGroupId,
-    context
   } = props;
   
   // Находим выбранный контракт
@@ -190,66 +191,76 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
   };
 
-  // Обработчик для кнопки Fill
-  const handleFillButtonClick = async (): Promise<void> => {
-    console.log('Fill button clicked');
-    
-    // Получаем текущие элементы расписания для проверки
-    const currentItems = getScheduleItemsWithModifications();
-    const hasExistingRecords = currentItems.length > 0;
-    
-    // Функция, которая будет вызвана при подтверждении
-    const onConfirmFill = (): void => {
-      // Закрываем диалог
-      setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-      
-      // Если нет функции создания записей, показываем ошибку
-      if (!onCreateStaffRecord) {
-        setOperationMessage({
-          text: 'Cannot fill schedule: Create function not available',
-          type: MessageBarType.error
-        });
-        return;
-      }
+  // src/webparts/kpfaplus/components/Tabs/ScheduleTab/ScheduleTab.tsx
+// Only showing the relevant function to fix
 
-      // Получаем employeeId из выбранного сотрудника
-      const employeeId = selectedStaff?.employeeId;
-      if (!employeeId) {
-        setOperationMessage({
-          text: 'Cannot fill schedule: No employee selected',
-          type: MessageBarType.error
-        });
-        return;
-      }
-
-      // Вызываем функцию заполнения расписания
-      void fillScheduleFromTemplate(
-        {
-          selectedDate,
-          selectedStaffId: selectedStaff.id,
-          employeeId,
-          selectedContract,
-          selectedContractId,
-          holidays,
-          leaves,
-          currentUserId,
-          managingGroupId,
-          dayOfStartWeek,
-          context
-        },
-        {
-          createStaffRecord: onCreateStaffRecord,
-          setOperationMessage,
-          setIsSaving,
-          onRefreshData
-        }
-      );
-    };
+// Handle Fill button click
+const handleFillButtonClick = async (): Promise<void> => {
+  console.log('Fill button clicked');
+  
+  // Get current schedule items to check
+  const currentItems = getScheduleItemsWithModifications();
+  const hasExistingRecords = currentItems.length > 0;
+  
+  // Function called when Fill action is confirmed
+  const onConfirmFill = (): void => {
+    // Close dialog
+    setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
     
-    // Настраиваем и показываем диалог подтверждения
-    const dialogConfig = createFillConfirmationDialog(hasExistingRecords, onConfirmFill);
-    setConfirmDialogProps(dialogConfig);
+    // Check if create function is available
+    if (!onCreateStaffRecord) {
+      setOperationMessage({
+        text: 'Cannot fill schedule: Create function not available',
+        type: MessageBarType.error
+      });
+      return;
+    }
+
+    // Get employeeId from selected staff
+    const employeeId = selectedStaff?.employeeId;
+    if (!employeeId) {
+      setOperationMessage({
+        text: 'Cannot fill schedule: No employee selected',
+        type: MessageBarType.error
+      });
+      return;
+    }
+
+    // Log the IDs we're about to use - using the props directly
+    console.log(`[ScheduleTab] Filling schedule with IDs: 
+      employeeId=${employeeId} (${typeof employeeId})
+      currentUserId=${currentUserId} (${typeof currentUserId})
+      managingGroupId=${managingGroupId} (${typeof managingGroupId})
+    `);
+
+    // Call function to fill schedule with explicit ID parameters
+    void fillScheduleFromTemplate(
+      {
+        selectedDate,
+        selectedStaffId: selectedStaff.id,
+        employeeId,
+        selectedContract,
+        selectedContractId,
+        holidays,
+        leaves,
+        currentUserId: currentUserId,     // Use props directly
+        managingGroupId: managingGroupId, // Use props directly
+        dayOfStartWeek,
+        context
+      },
+      {
+        createStaffRecord: onCreateStaffRecord,
+        setOperationMessage,
+        setIsSaving,
+        onRefreshData
+      }
+    );
   };
+  
+  // Set up and show confirmation dialog
+  const dialogConfig = createFillConfirmationDialog(hasExistingRecords, onConfirmFill);
+  setConfirmDialogProps(dialogConfig);
+};
   
   // Обработчик для сохранения всех изменений
   const saveAllChanges = async (): Promise<void> => {

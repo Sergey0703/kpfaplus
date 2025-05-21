@@ -332,7 +332,11 @@ public async createStaffRecord(
   staffMemberID?: string | number
 ): Promise<string | undefined> {
   try {
-    this.logInfo(`[DEBUG] Creating new staff record`);
+    this.logInfo(`[DEBUG] Creating new staff record with IDs:
+      staffMemberID=${staffMemberID} (${typeof staffMemberID})
+      currentUserID=${currentUserID} (${typeof currentUserID})
+      staffGroupID=${staffGroupID} (${typeof staffGroupID})
+    `);
     
     // Convert the createParams to the format expected by the SharePoint API
     const fields: Record<string, unknown> = {};
@@ -402,49 +406,54 @@ public async createStaffRecord(
     }
     
     // Staff Member (Employee)
-    const effectiveStaffMemberId = staffMemberID //|//| createParams.s;
-    if (effectiveStaffMemberId && String(effectiveStaffMemberId) !== '') {
+    if (staffMemberID && String(staffMemberID).trim() !== '') {
       try {
-        const staffMemberId = parseInt(String(effectiveStaffMemberId), 10);
+        const staffMemberId = parseInt(String(staffMemberID), 10);
         if (!isNaN(staffMemberId)) {
           fields.StaffMemberLookupId = staffMemberId;
           this.logInfo(`[DEBUG] Setting StaffMemberLookupId to ${staffMemberId}`);
+        } else {
+          this.logError(`[ERROR] Invalid staffMemberID format: ${staffMemberID}`);
         }
       } catch (parseError) {
         this.logError(`[ERROR] Error parsing StaffMemberID: ${parseError}`);
       }
     } else {
-      this.logInfo(`[DEBUG] No StaffMemberID provided. Record will be created without staff member reference.`);
+      this.logInfo(`[DEBUG] No StaffMemberID provided or empty string. Record will be created without staff member reference.`);
     }
     
     // Manager (Current User)
-    if (currentUserID && String(currentUserID) !== '') {
+    if (currentUserID && String(currentUserID).trim() !== '') {
       try {
         const managerId = parseInt(String(currentUserID), 10);
         if (!isNaN(managerId)) {
           fields.ManagerLookupId = managerId;
           this.logInfo(`[DEBUG] Setting ManagerLookupId to ${managerId}`);
+        } else {
+          this.logError(`[ERROR] Invalid currentUserID format: ${currentUserID}`);
         }
       } catch (parseError) {
         this.logError(`[ERROR] Error parsing ManagerID: ${parseError}`);
       }
     } else {
-      this.logInfo(`[DEBUG] No ManagerID provided. Record will be created without manager reference.`);
+      this.logInfo(`[DEBUG] No ManagerID provided or empty string. Record will be created without manager reference.`);
     }
     
     // Staff Group
-    if (staffGroupID && String(staffGroupID) !== '') {
+    if (staffGroupID && String(staffGroupID).trim() !== '') {
       try {
         const staffGroupId = parseInt(String(staffGroupID), 10);
         if (!isNaN(staffGroupId)) {
           fields.StaffGroupLookupId = staffGroupId;
           this.logInfo(`[DEBUG] Setting StaffGroupLookupId to ${staffGroupId}`);
+        } else {
+          this.logError(`[ERROR] Invalid staffGroupID format: ${staffGroupID}`);
         }
       } catch (parseError) {
         this.logError(`[ERROR] Error parsing StaffGroupID: ${parseError}`);
       }
     } else {
-      this.logInfo(`[DEBUG] No StaffGroupID provided. Record will be created without staff group reference.`);
+      this.logInfo(`[DEBUG] No StaffGroupID provided or empty string. Record will be created without staff group reference.`);
     }
     
     // Log the complete field set for debugging
@@ -465,7 +474,6 @@ public async createStaffRecord(
     throw error;
   }
 }
-
   /**
    * Помечает запись как удаленную (soft delete)
    * 

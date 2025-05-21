@@ -697,6 +697,8 @@ const handleAddShift = async (date: Date, shiftData?: INewShiftData): Promise<vo
         onRefreshData={handleRefreshData}
         onAddShift={handleAddShift}
          context={context} 
+         currentUserId={props.currentUserId}        // Add this
+         managingGroupId={props.managingGroupId}    // Add this
       />
     </div>
   );
