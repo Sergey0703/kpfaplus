@@ -163,7 +163,27 @@ export const fillScheduleFromTemplate = async (
       };
     });
     
-    console.log(`[ScheduleTabFillOperations] Подготовлен кэш отпусков: ${leavePeriods.length} записей`);
+    // НОВЫЙ КОД: Расширенное логирование для кэша отпусков
+    console.log(`[ScheduleTabFillOperations] Подготовлен кэш отпусков: ${leavePeriods.length} записей. Примеры:`);
+    leavePeriods.slice(0, 3).forEach((leave, index) => {
+      console.log(`[ScheduleTabFillOperations] Отпуск #${index + 1}: 
+        - Период: ${leave.startDate.toLocaleDateString()} - ${leave.endDate.toLocaleDateString()} 
+        - Тип отпуска ID: ${leave.typeOfLeave} (тип: ${typeof leave.typeOfLeave})
+        - Название: ${leave.title}`);
+    });
+    
+    // НОВЫЙ КОД: Детальный анализ структуры отпусков для отладки
+    leaves.slice(0, 2).forEach((leave, index) => {
+      console.log(`[ScheduleTabFillOperations] [DEBUG] Исходная структура отпуска из leaves #${index}:
+        id: ${leave.id}
+        title: ${leave.title}
+        typeOfLeave: ${leave.typeOfLeave} (тип: ${typeof leave.typeOfLeave})
+        startDate: ${leave.startDate.toISOString()}
+        endDate: ${leave.endDate ? leave.endDate.toISOString() : 'отсутствует'}
+        staffMemberId: ${leave.staffMemberId}
+        deleted: ${leave.deleted}
+      `);
+    });
     
     // Fetch weekly schedule templates
     try {
@@ -300,6 +320,14 @@ export const fillScheduleFromTemplate = async (
           currentDate >= leave.startDate && currentDate <= leave.endDate
         );
         
+        // НОВЫЙ КОД: Детальное логирование информации об отпуске для этого дня
+        if (leaveForDay) {
+          console.log(`[ScheduleTabFillOperations] ${currentDate.toLocaleDateString()}: Найден отпуск! 
+            Тип: ${leaveForDay.typeOfLeave} (тип данных: ${typeof leaveForDay.typeOfLeave}), 
+            Название: ${leaveForDay.title},
+            Период: ${leaveForDay.startDate.toLocaleDateString()} - ${leaveForDay.endDate.toLocaleDateString()}`);
+        }
+        
         const isLeave = !!leaveForDay;
         
         // Получаем шаблоны для этого дня недели и недели
@@ -334,6 +362,17 @@ export const fillScheduleFromTemplate = async (
         if (dayData.templates.length > 0) {
           console.log(`[ScheduleTabFillOperations] День ${dayData.date.toLocaleDateString()}: найдено ${dayData.templates.length} шаблонов`);
           
+          // НОВЫЙ КОД: Логирование информации об отпуске для текущего дня
+          if (dayData.isLeave) {
+            console.log(`[ScheduleTabFillOperations] [DEBUG] День ${dayData.date.toLocaleDateString()} отмечен как отпуск:`);
+            if (dayData.leaveInfo) {
+              console.log(`  - Тип отпуска: ${dayData.leaveInfo.typeOfLeave} (${typeof dayData.leaveInfo.typeOfLeave})`);
+              console.log(`  - Название отпуска: ${dayData.leaveInfo.title}`);
+            } else {
+              console.log(`  - ВНИМАНИЕ: dayData.isLeave = true, но dayData.leaveInfo отсутствует!`);
+            }
+          }
+          
           // Для каждого шаблона создаем запись расписания
           dayData.templates.forEach(template => {
             // Преобразуем время начала и конца в объекты Date
@@ -355,8 +394,30 @@ export const fillScheduleFromTemplate = async (
             
             // Если сотрудник в отпуске в этот день, добавляем тип отпуска
             if (dayData.isLeave && dayData.leaveInfo) {
-              recordData.TypeOfLeaveID = dayData.leaveInfo.typeOfLeave;
+              // НОВЫЙ КОД: Улучшенная обработка типа отпуска с дополнительной проверкой
+              const typeOfLeave = dayData.leaveInfo.typeOfLeave;
+              
+              // Проверяем, что тип отпуска не пустой и не ноль
+              if (!typeOfLeave || typeOfLeave === '0' || Number(typeOfLeave) === 0) {
+                console.log(`[ScheduleTabFillOperations] ВНИМАНИЕ: Тип отпуска для ${dayData.date.toLocaleDateString()} пустой или равен нулю: "${typeOfLeave}"`);
+              } else {
+                // Преобразуем в строку, если это число
+                recordData.TypeOfLeaveID = String(typeOfLeave);
+                console.log(`[ScheduleTabFillOperations] Установлен тип отпуска для ${dayData.date.toLocaleDateString()}: ${recordData.TypeOfLeaveID} (${dayData.leaveInfo.title})`);
+              }
+            } else if (dayData.isLeave) {
+              console.log(`[ScheduleTabFillOperations] ВНИМАНИЕ: День ${dayData.date.toLocaleDateString()} отмечен как отпуск, но информация о типе отпуска отсутствует!`);
             }
+            
+            // НОВЫЙ КОД: Логирование создаваемой записи
+            console.log(`[ScheduleTabFillOperations] Подготовлена запись для ${dayData.date.toLocaleDateString()}:
+              - Начало смены: ${recordData.ShiftDate1?.toLocaleTimeString() || 'не указано'}
+              - Конец смены: ${recordData.ShiftDate2?.toLocaleTimeString() || 'не указано'}
+              - Время на обед: ${recordData.TimeForLunch} мин.
+              - Праздник: ${recordData.Holiday === 1 ? 'Да' : 'Нет'}
+              - ID типа отпуска: ${recordData.TypeOfLeaveID || 'не установлен'}
+              - ID шаблона: ${recordData.WeeklyTimeTableID}
+            `);
             
             // Добавляем запись в коллекцию
             generatedRecords.push(recordData);
@@ -403,6 +464,14 @@ export const fillScheduleFromTemplate = async (
       // Save records sequentially
       for (const record of generatedRecords) {
         try {
+          // НОВЫЙ КОД: Добавляем логирование непосредственно перед созданием записи
+          console.log(`[ScheduleTabFillOperations] Создание записи для ${record.Date?.toLocaleDateString()}:
+            - TypeOfLeaveID: ${record.TypeOfLeaveID || 'не установлен'} (тип: ${typeof record.TypeOfLeaveID})
+            - Holiday: ${record.Holiday}
+            - Contract: ${record.Contract}
+            - TimeForLunch: ${record.TimeForLunch}
+          `);
+          
           // Call create method with explicit ID passing
           const newRecordId = await createStaffRecord(
             record,
@@ -413,13 +482,18 @@ export const fillScheduleFromTemplate = async (
           
           if (newRecordId) {
             successCount++;
-            console.log(`[ScheduleTabFillOperations] Successfully created record with ID: ${newRecordId}`);
+            // НОВЫЙ КОД: Улучшенное логирование успешного создания записи
+            if (record.TypeOfLeaveID) {
+              console.log(`[ScheduleTabFillOperations] УСПЕХ: Создана запись ID=${newRecordId} для ${record.Date?.toLocaleDateString()} с типом отпуска: ${record.TypeOfLeaveID}`);
+            } else {
+              console.log(`[ScheduleTabFillOperations] УСПЕХ: Создана запись ID=${newRecordId} для ${record.Date?.toLocaleDateString()} (без типа отпуска)`);
+            }
           } else {
             failedRecords.push(record.Title || 'Unknown');
-            console.error(`[ScheduleTabFillOperations] Failed to create record: ${record.Title}`);
+            console.error(`[ScheduleTabFillOperations] НЕУДАЧА: Не удалось создать запись для ${record.Date?.toLocaleDateString()}: ${record.Title}`);
           }
         } catch (error) {
-          console.error(`[ScheduleTabFillOperations] Error creating record:`, error);
+          console.error(`[ScheduleTabFillOperations] ОШИБКА при создании записи для ${record.Date?.toLocaleDateString()}:`, error);
           failedRecords.push(record.Title || 'Unknown');
         }
       }

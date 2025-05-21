@@ -33,7 +33,9 @@ interface IRawLeaveDayItem {
     StaffGroup?: { Id?: number; Title?: string; [key: string]: unknown };
     StaffGroupLookup?: { Id?: number; Title?: string; [key: string]: unknown };
     StaffGroupLookupId?: number;
-    TypeOfLeave?: number;
+    TypeOfLeave?: { Id?: number; Title?: string; [key: string]: unknown } | number | string;
+    TypeOfLeaveLookup?: { Id?: number; Title?: string; [key: string]: unknown };
+    TypeOfLeaveLookupId?: number;
     Created?: string;
     CreatedBy?: string;
     "Created By"?: string;
@@ -109,6 +111,17 @@ export class DaysOfLeavesService {
         if (sampleItems.length > 0) {
           const sampleItem = sampleItems[0];
           this.logInfo(`Sample item structure: ${JSON.stringify(sampleItem, null, 2)}`);
+          
+          // Новый код: Анализ структуры TypeOfLeave поля
+          if (sampleItem.fields && sampleItem.fields.TypeOfLeave) {
+            this.logInfo(`[DEBUG] TypeOfLeave field structure in sample: ${JSON.stringify(sampleItem.fields.TypeOfLeave, null, 2)}`);
+            this.logInfo(`[DEBUG] TypeOfLeave field type: ${typeof sampleItem.fields.TypeOfLeave}`);
+          }
+          
+          // Проверяем наличие TypeOfLeaveLookupId
+          if (sampleItem.fields && sampleItem.fields.TypeOfLeaveLookupId !== undefined) {
+            this.logInfo(`[DEBUG] TypeOfLeaveLookupId found in sample: ${sampleItem.fields.TypeOfLeaveLookupId}`);
+          }
         }
       } catch (sampleError) {
         this.logError(`Error getting sample items: ${sampleError}`);
@@ -160,8 +173,30 @@ export class DaysOfLeavesService {
       
       this.logInfo(`Retrieved ${items.length} leave days with server-side filtering`);
       
+      // Логируем структуру полученных отпусков для диагностики проблемы с TypeOfLeave
+      if (items.length > 0) {
+        const sampleItem = items[0] as IRawLeaveDayItem;
+        if (sampleItem.fields) {
+          this.logInfo(`[DEBUG] First leave item ID: ${sampleItem.id}`);
+          this.logInfo(`[DEBUG] TypeOfLeave field: ${JSON.stringify(sampleItem.fields.TypeOfLeave, null, 2)}`);
+          this.logInfo(`[DEBUG] TypeOfLeave field type: ${typeof sampleItem.fields.TypeOfLeave}`);
+          
+          if (sampleItem.fields.TypeOfLeaveLookupId !== undefined) {
+            this.logInfo(`[DEBUG] TypeOfLeaveLookupId field: ${sampleItem.fields.TypeOfLeaveLookupId}`);
+          }
+        }
+      }
+      
       // Преобразуем данные из SharePoint в формат ILeaveDay
       const leaveDays = this.mapToLeaveDays(items);
+      
+      // Логируем результаты преобразования
+      this.logInfo(`[DEBUG] Mapped ${leaveDays.length} leave days`);
+      if (leaveDays.length > 0) {
+        leaveDays.forEach((leaveDay, index) => {
+          this.logInfo(`[DEBUG] Mapped leave #${index + 1} (ID: ${leaveDay.id}): typeOfLeave=${leaveDay.typeOfLeave}, title=${leaveDay.title}`);
+        });
+      }
       
       return leaveDays;
     } catch (error) {
@@ -227,7 +262,7 @@ export class DaysOfLeavesService {
   private mapToLeaveDays(items: unknown[]): ILeaveDay[] {
     // Используем промежуточный массив, который может содержать null
     const mappedItems = items
-      .map((item): ILeaveDay | null => {
+      .map((item, index): ILeaveDay | null => {
         try {
           const typedItem = item as IRawLeaveDayItem;
           const fields = typedItem.fields || {};
@@ -276,6 +311,66 @@ export class DaysOfLeavesService {
                               this.getLookupId(fields.StaffGroupLookup) || 
                               fields.StaffGroupLookupId || 0;
           
+          // ИСПРАВЛЕНО: Правильное извлечение типа отпуска (TypeOfLeave)
+          let typeOfLeave = 0;
+          
+          // Логируем все возможные поля TypeOfLeave для диагностики
+          this.logInfo(`[DEBUG] Item ${typedItem.id} TypeOfLeave analysis:`);
+          
+          if (fields.TypeOfLeaveLookupId !== undefined) {
+            this.logInfo(`[DEBUG] - TypeOfLeaveLookupId: ${fields.TypeOfLeaveLookupId}`);
+            typeOfLeave = Number(fields.TypeOfLeaveLookupId);
+          }
+          
+          if (fields.TypeOfLeave !== undefined) {
+            this.logInfo(`[DEBUG] - TypeOfLeave: ${JSON.stringify(fields.TypeOfLeave)} (${typeof fields.TypeOfLeave})`);
+            
+            // Обработка в зависимости от типа поля TypeOfLeave
+            if (typeof fields.TypeOfLeave === 'object' && fields.TypeOfLeave !== null) {
+              // Если это объект lookup, извлекаем Id
+              const typeObj = fields.TypeOfLeave as { Id?: number | string, LookupId?: number | string };
+              if (typeObj.Id !== undefined) {
+                this.logInfo(`[DEBUG] - TypeOfLeave объект с Id: ${typeObj.Id}`);
+                typeOfLeave = Number(typeObj.Id);
+              } else if (typeObj.LookupId !== undefined) {
+                this.logInfo(`[DEBUG] - TypeOfLeave объект с LookupId: ${typeObj.LookupId}`);
+                typeOfLeave = Number(typeObj.LookupId);
+              }
+            } else if (typeof fields.TypeOfLeave === 'number') {
+              // Если это прямое числовое значение
+              this.logInfo(`[DEBUG] - TypeOfLeave число: ${fields.TypeOfLeave}`);
+              typeOfLeave = fields.TypeOfLeave;
+            } else if (typeof fields.TypeOfLeave === 'string') {
+              // Если это строка, пробуем преобразовать в число
+              this.logInfo(`[DEBUG] - TypeOfLeave строка: ${fields.TypeOfLeave}`);
+              const parsed = parseInt(fields.TypeOfLeave, 10);
+              if (!isNaN(parsed)) {
+                typeOfLeave = parsed;
+              }
+            }
+          }
+          
+          // Проверяем также TypeOfLeave.Id если TypeOfLeave - объект
+          if (fields.TypeOfLeave && typeof fields.TypeOfLeave === 'object' && 'Id' in fields.TypeOfLeave) {
+            const typeIdValue = (fields.TypeOfLeave as any).Id;
+            this.logInfo(`[DEBUG] - TypeOfLeave.Id: ${typeIdValue}`);
+            
+            if (typeIdValue !== undefined && typeIdValue !== null) {
+              typeOfLeave = Number(typeIdValue);
+            }
+          }
+          
+          // Если TypeOfLeaveLookup присутствует, тоже используем его
+          if (fields.TypeOfLeaveLookup) {
+            this.logInfo(`[DEBUG] - TypeOfLeaveLookup: ${JSON.stringify(fields.TypeOfLeaveLookup)}`);
+            const lookupId = this.getLookupId(fields.TypeOfLeaveLookup);
+            if (lookupId !== undefined) {
+              typeOfLeave = lookupId;
+            }
+          }
+          
+          this.logInfo(`[DEBUG] - Final typeOfLeave value: ${typeOfLeave}`);
+          
           // Создаем объект ILeaveDay
           return {
             id: String(typedItem.id),
@@ -285,7 +380,7 @@ export class DaysOfLeavesService {
             staffMemberId: Number(staffMemberId),
             managerId: Number(managerId),
             staffGroupId: Number(staffGroupId),
-            typeOfLeave: Number(fields.TypeOfLeave || 0),
+            typeOfLeave: typeOfLeave,
             created: fields.Created ? new Date(fields.Created) : new Date(),
             createdBy: String(fields.CreatedBy || fields['Created By'] || ''),
             deleted: Boolean(fields.Deleted === 1 || fields.Deleted === true)
