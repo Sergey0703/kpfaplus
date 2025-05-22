@@ -164,8 +164,30 @@ export const fillScheduleFromTemplate = async (
     
     console.log(`[ScheduleTabFillService] Retrieved ${weeklyTimeItems.length} weekly time templates`);
     
+    // *** ИСПРАВЛЕНИЕ: Фильтруем удаленные записи ПЕРЕД форматированием ***
+    const activeWeeklyTimeItems = weeklyTimeItems.filter(item => {
+      // Проверяем поле Deleted в различных возможных местах структуры данных
+      const isDeleted = 
+        item.fields?.Deleted === 1 || 
+        item.Deleted === 1 ||
+        item.fields?.deleted === 1 ||
+        item.deleted === 1;
+      
+      return !isDeleted;
+    });
+    
+    console.log(`[ScheduleTabFillService] Filtered out deleted templates: ${weeklyTimeItems.length} -> ${activeWeeklyTimeItems.length} active templates`);
+    
+    if (activeWeeklyTimeItems.length === 0) {
+      setOperationMessage({
+        text: 'No active weekly templates found for the selected contract (all templates are deleted)',
+        type: MessageBarType.warning
+      });
+      return;
+    }
+    
     // Форматируем и фильтруем шаблоны
-    const formattedTemplates = WeeklyTimeTableUtils.formatWeeklyTimeTableData(weeklyTimeItems, dayOfStartWeek);
+    const formattedTemplates = WeeklyTimeTableUtils.formatWeeklyTimeTableData(activeWeeklyTimeItems, dayOfStartWeek);
     
     if (!formattedTemplates || formattedTemplates.length === 0) {
       setOperationMessage({
@@ -177,16 +199,16 @@ export const fillScheduleFromTemplate = async (
     
     console.log(`[ScheduleTabFillService] Formatted ${formattedTemplates.length} templates`);
     
-    // Фильтруем удаленные шаблоны
+    // Дополнительная фильтрация удаленных шаблонов после форматирования (на всякий случай)
     const activeTemplates = formattedTemplates.filter(template => 
       template.deleted !== 1 && template.Deleted !== 1
     );
     
-    console.log(`[ScheduleTabFillService] Active templates: ${activeTemplates.length}`);
+    console.log(`[ScheduleTabFillService] Final active templates after additional filtering: ${activeTemplates.length}`);
     
     if (activeTemplates.length === 0) {
       setOperationMessage({
-        text: 'No active weekly templates found for the selected contract',
+        text: 'No active weekly templates found for the selected contract after formatting',
         type: MessageBarType.warning
       });
       return;
