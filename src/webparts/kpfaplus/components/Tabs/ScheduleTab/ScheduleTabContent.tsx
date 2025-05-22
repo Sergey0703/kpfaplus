@@ -37,7 +37,7 @@ import {
 } from './utils/ScheduleTabActionHandlers';
 import { 
   fillScheduleFromTemplate
-} from './utils/ScheduleTabFillOperations';
+} from './utils/ScheduleTabFillService';
 
 // Интерфейсы для типизации сервисов
 interface IHolidaysService {
@@ -92,6 +92,26 @@ export interface IScheduleTabContentProps {
   markRecordsAsDeleted?: (recordIds: string[]) => Promise<boolean>;
 }
 
+// Тип диалога подтверждения
+enum DialogType {
+  None = 'none',
+  EmptySchedule = 'empty',
+  ProcessedRecordsBlock = 'processed_block',
+  UnprocessedRecordsReplace = 'unprocessed_replace'
+}
+
+// Интерфейс для конфигурации диалога
+interface IDialogConfig {
+  type: DialogType;
+  isOpen: boolean;
+  title: string;
+  message: string;
+  confirmButtonText: string;
+  cancelButtonText: string;
+  confirmButtonColor: string;
+  onConfirm: () => void;
+}
+
 /**
  * Основной компонент содержимого вкладки Schedule
  */
@@ -141,14 +161,17 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     text: string;
     type: MessageBarType;
   } | undefined>(undefined);
-  const [confirmDialogProps, setConfirmDialogProps] = useState({
+  
+  // НОВОЕ: Состояние для управления диалогом подтверждения Fill
+  const [fillDialogConfig, setFillDialogConfig] = useState<IDialogConfig>({
+    type: DialogType.None,
     isOpen: false,
     title: '',
     message: '',
     confirmButtonText: '',
     cancelButtonText: 'Cancel',
-    onConfirm: () => {},
-    confirmButtonColor: ''
+    confirmButtonColor: '',
+    onConfirm: () => {}
   });
 
   // Эффект для очистки модифицированных записей при изменении выбранного контракта или даты
@@ -190,12 +213,191 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     onRefreshData
   };
 
-  // Обработчик для закрытия диалога
-  const handleDismissDialog = (): void => {
-    setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
+  // НОВАЯ ФУНКЦИЯ: Определение типа диалога на основе существующих записей
+  const determineDialogType = async (): Promise<IDialogConfig> => {
+    console.log('[ScheduleTabContent] determineDialogType called');
+    
+    // Проверяем наличие необходимых данных
+    if (!selectedStaff?.employeeId || !selectedContract || !selectedContractId) {
+      console.error('[ScheduleTabContent] Missing required data for dialog determination');
+      return {
+        type: DialogType.None,
+        isOpen: false,
+        title: '',
+        message: 'Cannot fill schedule: Missing staff or contract information',
+        confirmButtonText: '',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '',
+        onConfirm: () => {}
+      };
+    }
+
+    // Если нет функции проверки существующих записей, показываем простой диалог
+    if (!getExistingRecordsWithStatus) {
+      console.log('[ScheduleTabContent] No existing records check available - showing simple fill dialog');
+      return {
+        type: DialogType.EmptySchedule,
+        isOpen: true,
+        title: 'Fill Schedule',
+        message: 'Do you want to fill the schedule based on template data?',
+        confirmButtonText: 'Fill',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#107c10', // Green
+        onConfirm: () => {
+          setFillDialogConfig(prev => ({ ...prev, isOpen: false }));
+          void performFillOperation();
+        }
+      };
+    }
+
+    try {
+      // Определяем период для проверки
+      const startOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+      const endOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0);
+      
+      const contractStartDate = selectedContract.startDate;
+      const contractFinishDate = selectedContract.finishDate;
+      
+      const firstDay = contractStartDate && contractStartDate > startOfMonth 
+        ? new Date(contractStartDate) 
+        : new Date(startOfMonth);
+      
+      const lastDay = contractFinishDate && contractFinishDate < endOfMonth 
+        ? new Date(contractFinishDate) 
+        : new Date(endOfMonth);
+
+      console.log('[ScheduleTabContent] Checking for existing records in period:', {
+        firstDay: firstDay.toISOString(),
+        lastDay: lastDay.toISOString(),
+        employeeId: selectedStaff.employeeId,
+        currentUserId,
+        managingGroupId
+      });
+
+      // Получаем существующие записи
+      const existingRecords = await getExistingRecordsWithStatus(
+        firstDay,
+        lastDay,
+        selectedStaff.employeeId,
+        currentUserId,
+        managingGroupId
+      );
+
+      console.log(`[ScheduleTabContent] Found ${existingRecords.length} existing records`);
+
+      // СЦЕНАРИЙ 1: Нет существующих записей
+      if (existingRecords.length === 0) {
+        console.log('[ScheduleTabContent] No existing records - showing empty schedule dialog');
+        return {
+          type: DialogType.EmptySchedule,
+          isOpen: true,
+          title: 'Fill Schedule',
+          message: 'Do you want to fill the schedule based on template data?',
+          confirmButtonText: 'Fill',
+          cancelButtonText: 'Cancel',
+          confirmButtonColor: '#107c10', // Green
+          onConfirm: () => {
+            setFillDialogConfig(prev => ({ ...prev, isOpen: false }));
+            void performFillOperation();
+          }
+        };
+      }
+
+      // Анализируем статус обработки существующих записей
+      const { checkRecordsProcessingStatus, createProcessingBlockMessage } = await import('./utils/ScheduleTabFillHelpers');
+      const processingStatus = checkRecordsProcessingStatus(existingRecords);
+
+      console.log('[ScheduleTabContent] Processing status:', {
+        totalRecords: processingStatus.totalCount,
+        processedRecords: processingStatus.processedCount,
+        hasProcessedRecords: processingStatus.hasProcessedRecords
+      });
+
+      // СЦЕНАРИЙ 2: Есть обработанные записи - БЛОКИРОВКА
+      if (processingStatus.hasProcessedRecords) {
+        console.log(`[ScheduleTabContent] BLOCKING: Found ${processingStatus.processedCount} processed records`);
+        
+        const blockMessage = createProcessingBlockMessage(processingStatus);
+        return {
+          type: DialogType.ProcessedRecordsBlock,
+          isOpen: true,
+          title: 'Cannot Replace Records',
+          message: blockMessage.text,
+          confirmButtonText: 'OK',
+          cancelButtonText: '',
+          confirmButtonColor: '#d83b01', // Red
+          onConfirm: () => {
+            setFillDialogConfig(prev => ({ ...prev, isOpen: false }));
+            // Показываем сообщение об ошибке
+            setOperationMessage(blockMessage);
+          }
+        };
+      }
+
+      // СЦЕНАРИЙ 3: Все записи не обработаны - ЗАМЕНА
+      console.log(`[ScheduleTabContent] All ${existingRecords.length} records are unprocessed - showing replacement dialog`);
+      
+      return {
+        type: DialogType.UnprocessedRecordsReplace,
+        isOpen: true,
+        title: 'Replace Schedule Records',
+        message: `Found ${existingRecords.length} existing unprocessed records for this period. Replace them with new records from template?`,
+        confirmButtonText: 'Replace',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#d83b01', // Orange/Red for warning
+        onConfirm: () => {
+          console.log('[ScheduleTabContent] User confirmed replacement - proceeding with fill');
+          setFillDialogConfig(prev => ({ ...prev, isOpen: false }));
+          void performFillOperation();
+        }
+      };
+
+    } catch (error) {
+      console.error('[ScheduleTabContent] Error during dialog type determination:', error);
+      return {
+        type: DialogType.None,
+        isOpen: true,
+        title: 'Error',
+        message: `Error checking existing records: ${error instanceof Error ? error.message : String(error)}`,
+        confirmButtonText: 'OK',
+        cancelButtonText: '',
+        confirmButtonColor: '#d83b01', // Red
+        onConfirm: () => {
+          setFillDialogConfig(prev => ({ ...prev, isOpen: false }));
+          setOperationMessage({
+            text: `Error checking existing records: ${error instanceof Error ? error.message : String(error)}`,
+            type: MessageBarType.error
+          });
+        }
+      };
+    }
   };
 
-  // *** ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ для выполнения заполнения ***
+  // НОВАЯ ФУНКЦИЯ: Обработчик кнопки Fill с правильной логикой диалогов
+  const handleFillButtonClick = async (): Promise<void> => {
+    console.log('[ScheduleTabContent] Fill button clicked - starting dialog determination');
+    
+    try {
+      setIsSaving(true);
+      
+      // Определяем тип диалога
+      const dialogConfig = await determineDialogType();
+      
+      // Устанавливаем конфигурацию диалога
+      setFillDialogConfig(dialogConfig);
+      
+    } catch (error) {
+      console.error('[ScheduleTabContent] Error in handleFillButtonClick:', error);
+      setOperationMessage({
+        text: `Error preparing fill operation: ${error instanceof Error ? error.message : String(error)}`,
+        type: MessageBarType.error
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ для выполнения заполнения
   const performFillOperation = async (): Promise<void> => {
     console.log('[ScheduleTabContent] performFillOperation called');
 
@@ -233,125 +435,9 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     await fillScheduleFromTemplate(fillParams, fillHandlers);
   };
 
-  // *** ГЛАВНЫЙ Handle Fill button click с полной логикой проверки ***
-  const handleFillButtonClick = async (): Promise<void> => {
-    console.log('[ScheduleTabContent] Fill button clicked - starting comprehensive check');
-    
-    // Проверяем наличие необходимых данных
-    if (!selectedStaff?.employeeId || !selectedContract || !selectedContractId) {
-      setOperationMessage({
-        text: 'Cannot fill schedule: Missing staff or contract information',
-        type: MessageBarType.error
-      });
-      return;
-    }
-
-    // Проверяем наличие обработчиков
-    if (!onCreateStaffRecord) {
-      setOperationMessage({
-        text: 'Cannot fill schedule: Create function not available',
-        type: MessageBarType.error
-      });
-      return;
-    }
-
-    if (!getExistingRecordsWithStatus) {
-      console.warn('[ScheduleTabContent] getExistingRecordsWithStatus not available - proceeding without existing records check');
-      await performFillOperation();
-      return;
-    }
-
-    try {
-      setIsSaving(true);
-      
-      // *** ШАГ 1: Определяем период для проверки ***
-      const startOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
-      const endOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0);
-      
-      const contractStartDate = selectedContract.startDate;
-      const contractFinishDate = selectedContract.finishDate;
-      
-      const firstDay = contractStartDate && contractStartDate > startOfMonth 
-        ? new Date(contractStartDate) 
-        : new Date(startOfMonth);
-      
-      const lastDay = contractFinishDate && contractFinishDate < endOfMonth 
-        ? new Date(contractFinishDate) 
-        : new Date(endOfMonth);
-
-      console.log('[ScheduleTabContent] Checking for existing records in period:', {
-        firstDay: firstDay.toISOString(),
-        lastDay: lastDay.toISOString(),
-        employeeId: selectedStaff.employeeId,
-        currentUserId,
-        managingGroupId
-      });
-
-      // *** ШАГ 2: Получаем существующие записи ***
-      const existingRecords = await getExistingRecordsWithStatus(
-        firstDay,
-        lastDay,
-        selectedStaff.employeeId,
-        currentUserId,
-        managingGroupId
-      );
-
-      console.log(`[ScheduleTabContent] Found ${existingRecords.length} existing records`);
-
-      // *** ШАГ 3: Анализируем ситуацию ***
-      if (existingRecords.length === 0) {
-        // Нет записей - сразу заполняем
-        console.log('[ScheduleTabContent] No existing records - proceeding with fill');
-        setIsSaving(false); // Снимаем флаг, так как performFillOperation установит свой
-        await performFillOperation();
-        return;
-      }
-
-      // Есть записи - импортируем функции проверки
-      const { checkRecordsProcessingStatus, createProcessingBlockMessage } = await import('./utils/ScheduleTabFillHelpers');
-      const processingStatus = checkRecordsProcessingStatus(existingRecords);
-
-      console.log('[ScheduleTabContent] Processing status:', {
-        totalRecords: processingStatus.totalCount,
-        processedRecords: processingStatus.processedCount,
-        hasProcessedRecords: processingStatus.hasProcessedRecords
-      });
-
-      if (processingStatus.hasProcessedRecords) {
-        // *** ШАГ 4А: БЛОКИРОВКА - есть обработанные записи ***
-        console.log(`[ScheduleTabContent] BLOCKING: Found ${processingStatus.processedCount} processed records`);
-        
-        const blockMessage = createProcessingBlockMessage(processingStatus);
-        setOperationMessage(blockMessage);
-        return;
-      }
-
-      // *** ШАГ 4Б: Все записи не обработаны - показываем диалог подтверждения ***
-      console.log(`[ScheduleTabContent] All ${existingRecords.length} records are unprocessed - showing confirmation dialog`);
-      
-      setConfirmDialogProps({
-        isOpen: true,
-        title: 'Replace Schedule Records',
-        message: `Found ${existingRecords.length} existing unprocessed records for this period. Replace them with new records from template?`,
-        confirmButtonText: 'Replace',
-        cancelButtonText: 'Cancel',
-        onConfirm: async () => {
-          console.log('[ScheduleTabContent] User confirmed replacement - proceeding with fill');
-          setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-          await performFillOperation(); // Выполняем заполнение после подтверждения
-        },
-        confirmButtonColor: '#d83b01'
-      });
-
-    } catch (error) {
-      console.error('[ScheduleTabContent] Error during fill check:', error);
-      setOperationMessage({
-        text: `Error checking existing records: ${error instanceof Error ? error.message : String(error)}`,
-        type: MessageBarType.error
-      });
-    } finally {
-      setIsSaving(false);
-    }
+  // Обработчик для закрытия диалога Fill
+  const handleDismissFillDialog = (): void => {
+    setFillDialogConfig(prev => ({ ...prev, isOpen: false }));
   };
   
   // Обработчик для сохранения всех изменений
@@ -543,18 +629,18 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
         </>
       )}
       
-      {/* Диалог подтверждения */}
+      {/* НОВЫЙ ДИАЛОГ ПОДТВЕРЖДЕНИЯ FILL */}
       <ScheduleTableDialogs 
         confirmDialogProps={{
-          isOpen: confirmDialogProps.isOpen,
-          title: confirmDialogProps.title,
-          message: confirmDialogProps.message,
-          confirmButtonText: confirmDialogProps.confirmButtonText,
-          cancelButtonText: confirmDialogProps.cancelButtonText,
-          onConfirm: confirmDialogProps.onConfirm,
-          confirmButtonColor: confirmDialogProps.confirmButtonColor
+          isOpen: fillDialogConfig.isOpen,
+          title: fillDialogConfig.title,
+          message: fillDialogConfig.message,
+          confirmButtonText: fillDialogConfig.confirmButtonText,
+          cancelButtonText: fillDialogConfig.cancelButtonText,
+          onConfirm: fillDialogConfig.onConfirm,
+          confirmButtonColor: fillDialogConfig.confirmButtonColor
         }}
-        onDismiss={handleDismissDialog}
+        onDismiss={handleDismissFillDialog}
       />
     </div>
   );
