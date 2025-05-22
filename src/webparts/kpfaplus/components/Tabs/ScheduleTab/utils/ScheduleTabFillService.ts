@@ -4,6 +4,7 @@ import { MessageBarType } from '@fluentui/react';
 import { IStaffRecord } from '../../../../services/StaffRecordsService';
 import { WeeklyTimeTableService } from '../../../../services/WeeklyTimeTableService';
 import { WeeklyTimeTableUtils } from '../../../../models/IWeeklyTimeTable';
+import { IContract } from '../../../../models/IContract';
 import { 
   IFillOperationParams, 
   IFillOperationHandlers,
@@ -167,7 +168,7 @@ export const fillScheduleFromTemplate = async (
  */
 function generateScheduleRecords(
   daysData: Map<string, IDayData>,
-  selectedContract: any,
+  selectedContract: IContract,  // ИСПРАВЛЕНО: заменил any на IContract
   selectedContractId: string
 ): Partial<IStaffRecord>[] {
   const generatedRecords: Partial<IStaffRecord>[] = [];
