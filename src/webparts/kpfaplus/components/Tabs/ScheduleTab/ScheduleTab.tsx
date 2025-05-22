@@ -226,17 +226,20 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
     }
   };
 
-  // ИСПРАВЛЕНО: Добавлен параметр overrideDate для явной передачи даты
-  const loadStaffRecords = async (overrideDate?: Date): Promise<void> => {
+  // ✅ ИСПРАВЛЕНО: Добавлен параметр contractId для явной передачи ID контракта
+  const loadStaffRecords = async (overrideDate?: Date, contractId?: string): Promise<void> => {
     // Используем переданную дату или дату из состояния
     const dateToUse = overrideDate || state.selectedDate;
+    // Используем переданный contractId или contractId из состояния
+    const contractIdToUse = contractId !== undefined ? contractId : state.selectedContractId;
     
     console.log('[ScheduleTab] [DEBUG] loadStaffRecords вызван с параметрами:', {
       date: dateToUse.toISOString(),
       employeeId: selectedStaff?.employeeId,
       currentUserId: props.currentUserId,
       managingGroupId: props.managingGroupId,
-      selectedContractId: state.selectedContractId
+      selectedContractId: contractIdToUse,
+      contractIdSource: contractId !== undefined ? 'parameter' : 'state'
     });
     
     // Проверяем наличие необходимых данных
@@ -262,7 +265,7 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
       updateState.isLoadingStaffRecords(true);
       updateState.errorStaffRecords(undefined);
       
-      // ИСПРАВЛЕНО: Используем dateToUse вместо state.selectedDate
+      // Используем dateToUse вместо state.selectedDate
       // Получаем первый и последний день месяца
       const date = new Date(dateToUse.getTime()); // Create a new date object to avoid modifying the original
       const firstDayOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
@@ -276,9 +279,9 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
       const employeeId = selectedStaff.employeeId;
       console.log(`[ScheduleTab] [DEBUG] ID сотрудника: ${employeeId}`);
       
-      // ID временной таблицы (если выбран контракт)
-      const timeTableId = state.selectedContractId;
-      console.log(`[ScheduleTab] [DEBUG] ID временной таблицы: ${timeTableId || 'не выбрана'}`);
+      // ✅ ИСПРАВЛЕНО: Используем contractIdToUse вместо state.selectedContractId
+      const timeTableId = contractIdToUse;
+      console.log(`[ScheduleTab] [DEBUG] ID временной таблицы: ${timeTableId || 'не выбрана'} (источник: ${contractId !== undefined ? 'parameter' : 'state'})`);
       
       // Получаем ID текущего пользователя и группы
       const currentUserID = props.currentUserId ? props.currentUserId : '0';
@@ -326,7 +329,7 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
         );
         
         // Обновляем состояние
-        console.log(`[ScheduleTab] [DEBUG] Загружено ${records.length} записей расписания`);
+        console.log(`[ScheduleTab] [DEBUG] Загружено ${records.length} записей расписания с contractId: ${timeTableId || 'не указан'}`);
         updateState.staffRecords(records);
         
         // Логируем первый элемент (если есть)
@@ -365,7 +368,7 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
     }
   };
   
-  // ИСПРАВЛЕНО: Изменен метод loadDataForDate для передачи даты в loadStaffRecords
+  // Изменен метод loadDataForDate для передачи даты в loadStaffRecords
   const loadDataForDate = (date: Date): void => {
     console.log('[ScheduleTab] loadDataForDate called for:', date.toISOString());
     
@@ -397,7 +400,7 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
       );
     }
     
-    // ИСПРАВЛЕНО: Явно передаем дату в loadStaffRecords
+    // Явно передаем дату в loadStaffRecords
     console.log('[ScheduleTab] Calling loadStaffRecords from loadDataForDate');
     void loadStaffRecords(date);
   };
@@ -445,7 +448,7 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
     );
   };
   
-  // ИСПРАВЛЕНО: Обновлен метод handleDateChange для явной передачи даты
+  // Обновлен метод handleDateChange для явной передачи даты
   const handleDateChange = (date: Date | undefined): void => {
     console.log('[ScheduleTab] handleDateChange called with date:', date?.toISOString());
     
@@ -463,12 +466,12 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
     if (shouldRefreshDataOnDateChange(currentDate, date)) {
       console.log('[ScheduleTab] Month or year changed, reloading all data');
       // Загружаем праздники и отпуска для нового месяца
-      // ИСПРАВЛЕНО: Явно передаем новую дату
+      // Явно передаем новую дату
       loadDataForDate(date);
     } else {
       console.log('[ScheduleTab] Only day changed, reloading staff records');
       // Даже если месяц не изменился, перезагружаем расписание для нового дня
-      // ИСПРАВЛЕНО: Явно передаем новую дату
+      // Явно передаем новую дату
       void loadStaffRecords(date);
     }
     
@@ -476,20 +479,20 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
     loadContracts(date);
   };
   
-  // Обработчик изменения контракта
+  // ✅ ФИНАЛЬНОЕ ИСПРАВЛЕНИЕ: Обработчик изменения контракта без setTimeout
   const handleContractChange = (event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
     console.log('[ScheduleTab] handleContractChange called with option:', option);
     
     if (option) {
-      // Обновляем ID выбранного контракта
-      updateState.selectedContractId(option.key.toString());
+      const newContractId = option.key.toString();
+      console.log(`[ScheduleTab] Contract changing from ${state.selectedContractId} to: ${newContractId}`);
       
-      // При изменении контракта перезагружаем расписание
-      console.log('[ScheduleTab] Contract changed, will reload staff records');
-      setTimeout(() => {
-        // ИСПРАВЛЕНО: Добавлена обработка Promise через void
-        void loadStaffRecords(state.selectedDate);
-      }, 0);
+      // Обновляем ID выбранного контракта
+      updateState.selectedContractId(newContractId);
+      
+      // ✅ ФИНАЛЬНОЕ ИСПРАВЛЕНИЕ: Вызываем напрямую без setTimeout для избежания React batching проблем
+      console.log('[ScheduleTab] Contract changed, will reload staff records with new contractId IMMEDIATELY');
+      void loadStaffRecords(state.selectedDate, newContractId);
     }
   };
   
@@ -746,7 +749,7 @@ const handleCreateStaffRecord = async (
     if (selectedStaff?.id && context) {
       console.log('[ScheduleTab] Loading contracts and staff records for staff:', selectedStaff.name);
       void loadContracts(state.selectedDate);
-      // ИСПРАВЛЕНО: Явно передаем текущую выбранную дату
+      // Явно передаем текущую выбранную дату
       void loadStaffRecords(state.selectedDate); // Загружаем расписание при изменении сотрудника
     } else {
       console.log('[ScheduleTab] Clearing contracts and staff records');
