@@ -1,5 +1,6 @@
 // src/webparts/kpfaplus/components/Tabs/ScheduleTab/utils/ScheduleTabFillHelpers.ts
 
+import { MessageBarType } from '@fluentui/react';
 import { IDayHours } from '../../../../models/IWeeklyTimeTable';
 import { IHoliday } from '../../../../services/HolidaysService';
 import { ILeaveDay } from '../../../../services/DaysOfLeavesService';
@@ -8,8 +9,59 @@ import {
   IDayData, 
   ILeavePeriod, 
   HolidayCache, 
-  TemplateCache
+  TemplateCache,
+  IExistingRecordCheck,
+  IRecordsProcessingStatus
 } from './ScheduleTabFillInterfaces';
+
+/**
+ * Анализирует статус обработки существующих записей
+ */
+export function checkRecordsProcessingStatus(records: IExistingRecordCheck[]): IRecordsProcessingStatus {
+  console.log(`[ScheduleTabFillHelpers] Analyzing ${records.length} existing records for processing status`);
+  
+  const processedRecords = records.filter(record => {
+    const isProcessed = record.checked > 0 || (record.exportResult && record.exportResult.trim() !== '' && record.exportResult !== '0');
+    
+    if (isProcessed) {
+      console.log(`[ScheduleTabFillHelpers] Record ${record.id} is processed: Checked=${record.checked}, ExportResult="${record.exportResult}"`);
+    }
+    
+    return isProcessed;
+  });
+  
+  const unprocessedRecords = records.filter(record => {
+    const isUnprocessed = record.checked === 0 && (!record.exportResult || record.exportResult.trim() === '' || record.exportResult === '0');
+    return isUnprocessed;
+  });
+  
+  const result: IRecordsProcessingStatus = {
+    hasProcessedRecords: processedRecords.length > 0,
+    processedCount: processedRecords.length,
+    totalCount: records.length,
+    processedRecords,
+    unprocessedRecords
+  };
+  
+  console.log(`[ScheduleTabFillHelpers] Processing status analysis result:`, {
+    total: result.totalCount,
+    processed: result.processedCount,
+    unprocessed: result.unprocessedRecords.length,
+    hasProcessed: result.hasProcessedRecords
+  });
+  
+  return result;
+}
+
+/**
+ * Создает сообщение о блокировке операции из-за обработанных записей
+ */
+export function createProcessingBlockMessage(status: IRecordsProcessingStatus): { text: string; type: MessageBarType } {
+  return {
+    text: `Cannot replace records: ${status.processedCount} of ${status.totalCount} records have been processed (checked or exported). Manual review required.`,
+    type: MessageBarType.error
+  };
+}
 
 /**
  * Вспомогательная функция для определения применяемого номера недели
@@ -196,10 +248,10 @@ export function prepareDaysData(
 }
 
 /**
- * Function to create confirmation dialog for schedule fill
+ * Function to create confirmation dialog for schedule fill with processing status check
  */
 export const createFillConfirmationDialog = (
-  hasExistingRecords: boolean,
+  existingRecords: IExistingRecordCheck[],
   onConfirm: () => void
 ): {
   isOpen: boolean;
@@ -210,25 +262,27 @@ export const createFillConfirmationDialog = (
   onConfirm: () => void;
   confirmButtonColor: string;
 } => {
-  if (hasExistingRecords) {
+  if (existingRecords.length === 0) {
+    // Нет существующих записей - не показываем диалог
     return {
-      isOpen: true,
-      title: 'Confirm Fill Operation',
-      message: 'There are existing records in the schedule. Filling the schedule will add new records based on templates. Do you want to continue?',
-      confirmButtonText: 'Continue',
-      cancelButtonText: 'Cancel',
-      onConfirm,
-      confirmButtonColor: '#d83b01'
-    };
-  } else {
-    return {
-      isOpen: true,
-      title: 'Fill Schedule',
-      message: 'Do you want to fill the schedule based on template data?',
-      confirmButtonText: 'Fill',
-      cancelButtonText: 'Cancel',
-      onConfirm,
-      confirmButtonColor: '#107c10'
+      isOpen: false,
+      title: '',
+      message: '',
+      confirmButtonText: '',
+      cancelButtonText: '',
+      onConfirm: () => {},
+      confirmButtonColor: ''
     };
   }
+
+  // Есть записи - показываем диалог замены
+  return {
+    isOpen: true,
+    title: 'Replace Schedule Records',
+    message: `Found ${existingRecords.length} existing unprocessed records for this period. Replace them with new records from template?`,
+    confirmButtonText: 'Replace',
+    cancelButtonText: 'Cancel',
+    onConfirm,
+    confirmButtonColor: '#d83b01' // Orange color for replacement warning
+  };
 };

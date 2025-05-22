@@ -1,7 +1,7 @@
 // src/webparts/kpfaplus/components/Tabs/ScheduleTab/ScheduleTabContent.tsx
 import * as React from 'react';
 import { useState, useCallback } from 'react';
-import { WebPartContext } from '@microsoft/sp-webpart-base'; // Добавляем импорт
+import { WebPartContext } from '@microsoft/sp-webpart-base';
 import { 
   MessageBar,
   MessageBarType,
@@ -17,6 +17,7 @@ import { ILeaveDay } from '../../../services/DaysOfLeavesService';
 import { ITypeOfLeave } from '../../../services/TypeOfLeaveService';
 import { IStaffRecord } from '../../../services/StaffRecordsService';
 import { INewShiftData } from './components/ScheduleTable';
+import { IExistingRecordCheck } from './utils/ScheduleTabFillInterfaces';
 import styles from './ScheduleTab.module.scss';
 
 // Импорт компонентов
@@ -35,11 +36,10 @@ import {
   IActionHandlerParams
 } from './utils/ScheduleTabActionHandlers';
 import { 
-  createFillConfirmationDialog, 
-  fillScheduleFromTemplate 
+  fillScheduleFromTemplate
 } from './utils/ScheduleTabFillOperations';
 
-// Интерфейс для типизации сервисов
+// Интерфейсы для типизации сервисов
 interface IHolidaysService {
   isHoliday: (date: Date, holidays: IHoliday[]) => boolean;
   getHolidayInfo: (date: Date, holidays: IHoliday[]) => IHoliday | undefined;
@@ -50,7 +50,6 @@ interface IDaysOfLeavesService {
   getLeaveForDate: (date: Date, leaves: ILeaveDay[]) => ILeaveDay | undefined;
 }
 
-// Интерфейс для TypeOfLeaveService, используется в пропсах
 interface ITypeOfLeaveService {
   getAllTypesOfLeave: (forceRefresh?: boolean) => Promise<ITypeOfLeave[]>;
   getTypeOfLeaveById: (id: string | number) => Promise<ITypeOfLeave | undefined>;
@@ -86,8 +85,11 @@ export interface IScheduleTabContentProps {
   dayOfStartWeek?: number;
   currentUserId?: string;
   managingGroupId?: string;
-  context?: WebPartContext; // Добавляем context
-
+  context?: WebPartContext;
+  
+  // Новые пропсы для поддержки новой логики Fill
+  getExistingRecordsWithStatus?: (startDate: Date, endDate: Date, employeeId: string, currentUserId?: string, staffGroupId?: string) => Promise<IExistingRecordCheck[]>;
+  markRecordsAsDeleted?: (recordIds: string[]) => Promise<boolean>;
 }
 
 /**
@@ -120,9 +122,12 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     onRefreshData,
     onAddShift,
     dayOfStartWeek,
-        context,
-        currentUserId,
+    context,
+    currentUserId,
     managingGroupId,
+    // Новые пропсы
+    getExistingRecordsWithStatus,
+    markRecordsAsDeleted
   } = props;
   
   // Находим выбранный контракт
@@ -132,7 +137,6 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
   const [showDeleted, setShowDeleted] = useState<boolean>(false);
   const [modifiedRecords, setModifiedRecords] = useState<Record<string, IScheduleItem>>({});
   const [isSaving, setIsSaving] = useState<boolean>(false);
-  // Изменено: используем undefined вместо null
   const [operationMessage, setOperationMessage] = useState<{
     text: string;
     type: MessageBarType;
@@ -191,23 +195,58 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
   };
 
-  // src/webparts/kpfaplus/components/Tabs/ScheduleTab/ScheduleTab.tsx
-// Only showing the relevant function to fix
+  // *** ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ для выполнения заполнения ***
+  const performFillOperation = async (): Promise<void> => {
+    console.log('[ScheduleTabContent] performFillOperation called');
 
-// Handle Fill button click
-const handleFillButtonClick = async (): Promise<void> => {
-  console.log('Fill button clicked');
-  
-  // Get current schedule items to check
-  const currentItems = getScheduleItemsWithModifications();
-  const hasExistingRecords = currentItems.length > 0;
-  
-  // Function called when Fill action is confirmed
-  const onConfirmFill = (): void => {
-    // Close dialog
-    setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
+    if (!selectedStaff?.employeeId || !selectedContract || !selectedContractId || !onCreateStaffRecord) {
+      console.error('[ScheduleTabContent] Missing required data for fill operation');
+      return;
+    }
+
+    const fillParams = {
+      selectedDate,
+      selectedStaffId: selectedStaff.id,
+      employeeId: selectedStaff.employeeId,
+      selectedContract,
+      selectedContractId,
+      holidays,
+      leaves,
+      currentUserId,
+      managingGroupId,
+      dayOfStartWeek,
+      context
+    };
+
+    const fillHandlers = {
+      createStaffRecord: onCreateStaffRecord,
+      setOperationMessage,
+      setIsSaving,
+      onRefreshData,
+      getExistingRecordsWithStatus,
+      markRecordsAsDeleted
+    };
+
+    console.log('[ScheduleTabContent] Calling fillScheduleFromTemplate');
     
-    // Check if create function is available
+    // Вызываем заполнение
+    await fillScheduleFromTemplate(fillParams, fillHandlers);
+  };
+
+  // *** ГЛАВНЫЙ Handle Fill button click с полной логикой проверки ***
+  const handleFillButtonClick = async (): Promise<void> => {
+    console.log('[ScheduleTabContent] Fill button clicked - starting comprehensive check');
+    
+    // Проверяем наличие необходимых данных
+    if (!selectedStaff?.employeeId || !selectedContract || !selectedContractId) {
+      setOperationMessage({
+        text: 'Cannot fill schedule: Missing staff or contract information',
+        type: MessageBarType.error
+      });
+      return;
+    }
+
+    // Проверяем наличие обработчиков
     if (!onCreateStaffRecord) {
       setOperationMessage({
         text: 'Cannot fill schedule: Create function not available',
@@ -216,51 +255,104 @@ const handleFillButtonClick = async (): Promise<void> => {
       return;
     }
 
-    // Get employeeId from selected staff
-    const employeeId = selectedStaff?.employeeId;
-    if (!employeeId) {
-      setOperationMessage({
-        text: 'Cannot fill schedule: No employee selected',
-        type: MessageBarType.error
-      });
+    if (!getExistingRecordsWithStatus) {
+      console.warn('[ScheduleTabContent] getExistingRecordsWithStatus not available - proceeding without existing records check');
+      await performFillOperation();
       return;
     }
 
-    // Log the IDs we're about to use - using the props directly
-    console.log(`[ScheduleTab] Filling schedule with IDs: 
-      employeeId=${employeeId} (${typeof employeeId})
-      currentUserId=${currentUserId} (${typeof currentUserId})
-      managingGroupId=${managingGroupId} (${typeof managingGroupId})
-    `);
+    try {
+      setIsSaving(true);
+      
+      // *** ШАГ 1: Определяем период для проверки ***
+      const startOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+      const endOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0);
+      
+      const contractStartDate = selectedContract.startDate;
+      const contractFinishDate = selectedContract.finishDate;
+      
+      const firstDay = contractStartDate && contractStartDate > startOfMonth 
+        ? new Date(contractStartDate) 
+        : new Date(startOfMonth);
+      
+      const lastDay = contractFinishDate && contractFinishDate < endOfMonth 
+        ? new Date(contractFinishDate) 
+        : new Date(endOfMonth);
 
-    // Call function to fill schedule with explicit ID parameters
-    void fillScheduleFromTemplate(
-      {
-        selectedDate,
-        selectedStaffId: selectedStaff.id,
-        employeeId,
-        selectedContract,
-        selectedContractId,
-        holidays,
-        leaves,
-        currentUserId: currentUserId,     // Use props directly
-        managingGroupId: managingGroupId, // Use props directly
-        dayOfStartWeek,
-        context
-      },
-      {
-        createStaffRecord: onCreateStaffRecord,
-        setOperationMessage,
-        setIsSaving,
-        onRefreshData
+      console.log('[ScheduleTabContent] Checking for existing records in period:', {
+        firstDay: firstDay.toISOString(),
+        lastDay: lastDay.toISOString(),
+        employeeId: selectedStaff.employeeId,
+        currentUserId,
+        managingGroupId
+      });
+
+      // *** ШАГ 2: Получаем существующие записи ***
+      const existingRecords = await getExistingRecordsWithStatus(
+        firstDay,
+        lastDay,
+        selectedStaff.employeeId,
+        currentUserId,
+        managingGroupId
+      );
+
+      console.log(`[ScheduleTabContent] Found ${existingRecords.length} existing records`);
+
+      // *** ШАГ 3: Анализируем ситуацию ***
+      if (existingRecords.length === 0) {
+        // Нет записей - сразу заполняем
+        console.log('[ScheduleTabContent] No existing records - proceeding with fill');
+        setIsSaving(false); // Снимаем флаг, так как performFillOperation установит свой
+        await performFillOperation();
+        return;
       }
-    );
+
+      // Есть записи - импортируем функции проверки
+      const { checkRecordsProcessingStatus, createProcessingBlockMessage } = await import('./utils/ScheduleTabFillHelpers');
+      const processingStatus = checkRecordsProcessingStatus(existingRecords);
+
+      console.log('[ScheduleTabContent] Processing status:', {
+        totalRecords: processingStatus.totalCount,
+        processedRecords: processingStatus.processedCount,
+        hasProcessedRecords: processingStatus.hasProcessedRecords
+      });
+
+      if (processingStatus.hasProcessedRecords) {
+        // *** ШАГ 4А: БЛОКИРОВКА - есть обработанные записи ***
+        console.log(`[ScheduleTabContent] BLOCKING: Found ${processingStatus.processedCount} processed records`);
+        
+        const blockMessage = createProcessingBlockMessage(processingStatus);
+        setOperationMessage(blockMessage);
+        return;
+      }
+
+      // *** ШАГ 4Б: Все записи не обработаны - показываем диалог подтверждения ***
+      console.log(`[ScheduleTabContent] All ${existingRecords.length} records are unprocessed - showing confirmation dialog`);
+      
+      setConfirmDialogProps({
+        isOpen: true,
+        title: 'Replace Schedule Records',
+        message: `Found ${existingRecords.length} existing unprocessed records for this period. Replace them with new records from template?`,
+        confirmButtonText: 'Replace',
+        cancelButtonText: 'Cancel',
+        onConfirm: async () => {
+          console.log('[ScheduleTabContent] User confirmed replacement - proceeding with fill');
+          setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
+          await performFillOperation(); // Выполняем заполнение после подтверждения
+        },
+        confirmButtonColor: '#d83b01'
+      });
+
+    } catch (error) {
+      console.error('[ScheduleTabContent] Error during fill check:', error);
+      setOperationMessage({
+        text: `Error checking existing records: ${error instanceof Error ? error.message : String(error)}`,
+        type: MessageBarType.error
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
-  
-  // Set up and show confirmation dialog
-  const dialogConfig = createFillConfirmationDialog(hasExistingRecords, onConfirmFill);
-  setConfirmDialogProps(dialogConfig);
-};
   
   // Обработчик для сохранения всех изменений
   const saveAllChanges = async (): Promise<void> => {
@@ -332,7 +424,7 @@ const handleFillButtonClick = async (): Promise<void> => {
         </MessageBar>
       )}
       
-      {/* Отображаем операционное сообщение, если есть - Изменено: проверка на undefined */}
+      {/* Отображаем операционное сообщение, если есть */}
       {operationMessage && (
         <MessageBar
           messageBarType={operationMessage.type}
@@ -358,7 +450,7 @@ const handleFillButtonClick = async (): Promise<void> => {
       {/* Показываем спиннер при загрузке */}
       {isLoading || isSaving ? (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '40px 0' }}>
-          <Spinner size={SpinnerSize.large} label={isSaving ? "Saving changes..." : "Loading schedule data..."} />
+          <Spinner size={SpinnerSize.large} label={isSaving ? "Processing fill operation..." : "Loading schedule data..."} />
         </div>
       ) : (
         <>

@@ -8,6 +8,7 @@ import { DaysOfLeavesService, ILeaveDay } from '../../../services/DaysOfLeavesSe
 import { TypeOfLeaveService, ITypeOfLeave } from '../../../services/TypeOfLeaveService';
 import { StaffRecordsService, IStaffRecord } from '../../../services/StaffRecordsService';
 import { IContract } from '../../../models/IContract';
+import { IExistingRecordCheck } from './utils/ScheduleTabFillInterfaces'; // Новый импорт
 import { 
   fetchHolidaysForMonthAndYear, 
   fetchLeavesForMonthAndYear, 
@@ -17,7 +18,7 @@ import {
 } from './ScheduleTabApi';
 import { ScheduleTabContent } from './ScheduleTabContent';
 import styles from './ScheduleTab.module.scss';
-import { INewShiftData } from './components/ScheduleTable'; // Import the new interface
+import { INewShiftData } from './components/ScheduleTable';
 
 // Интерфейс для состояния компонента ScheduleTab
 export interface IScheduleTabState {
@@ -124,6 +125,104 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
     },
     errorStaffRecords: (errorStaffRecords?: string) => {
       setState(prevState => ({ ...prevState, errorStaffRecords }));
+    }
+  };
+
+  // *** НОВЫЙ МЕТОД: Получение существующих записей с информацией о статусе обработки ***
+  const getExistingRecordsWithStatus = async (
+    startDate: Date,
+    endDate: Date,
+    employeeId: string,
+    currentUserId?: string,
+    staffGroupId?: string
+  ): Promise<IExistingRecordCheck[]> => {
+    console.log('[ScheduleTab] getExistingRecordsWithStatus called with:', {
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      employeeId,
+      currentUserId,
+      staffGroupId
+    });
+
+    if (!context || !staffRecordsService || !selectedStaff?.employeeId) {
+      console.log('[ScheduleTab] Cannot get existing records: missing dependencies');
+      return [];
+    }
+
+    try {
+      // Используем существующий метод getStaffRecords
+      const records = await staffRecordsService.getStaffRecords(
+        startDate,
+        endDate,
+        currentUserId || '0',
+        staffGroupId || '0',
+        employeeId
+      );
+
+      console.log(`[ScheduleTab] Retrieved ${records.length} existing records`);
+
+      // Преобразуем в формат IExistingRecordCheck
+      const existingRecordsCheck: IExistingRecordCheck[] = records.map(record => ({
+        id: record.ID,
+        checked: record.Checked || 0,
+        exportResult: record.ExportResult || '0', // Приводим к строке для совместимости
+        date: record.Date,
+        title: record.Title
+      }));
+
+      // Логируем примеры записей для отладки
+      if (existingRecordsCheck.length > 0) {
+        console.log('[ScheduleTab] Sample existing records:', existingRecordsCheck.slice(0, 3));
+      }
+
+      return existingRecordsCheck;
+    } catch (error) {
+      console.error('[ScheduleTab] Error getting existing records:', error);
+      return [];
+    }
+  };
+
+  // *** НОВЫЙ МЕТОД: Массовая пометка записей как удаленных ***
+  const markRecordsAsDeleted = async (recordIds: string[]): Promise<boolean> => {
+    console.log(`[ScheduleTab] markRecordsAsDeleted called for ${recordIds.length} records:`, recordIds);
+
+    if (!staffRecordsService || recordIds.length === 0) {
+      console.log('[ScheduleTab] Cannot mark records as deleted: missing service or empty ID list');
+      return false;
+    }
+
+    try {
+      let successCount = 0;
+      const failedIds: string[] = [];
+
+      // Помечаем записи как удаленные по одной (можно оптимизировать в будущем)
+      for (const recordId of recordIds) {
+        try {
+          const success = await staffRecordsService.markRecordAsDeleted(recordId);
+          if (success) {
+            successCount++;
+            console.log(`[ScheduleTab] Successfully marked record ${recordId} as deleted`);
+          } else {
+            failedIds.push(recordId);
+            console.error(`[ScheduleTab] Failed to mark record ${recordId} as deleted`);
+          }
+        } catch (error) {
+          failedIds.push(recordId);
+          console.error(`[ScheduleTab] Error marking record ${recordId} as deleted:`, error);
+        }
+      }
+
+      const allSuccess = failedIds.length === 0;
+      console.log(`[ScheduleTab] Mark as deleted result: ${successCount}/${recordIds.length} successful, ${failedIds.length} failed`);
+
+      if (failedIds.length > 0) {
+        console.error('[ScheduleTab] Failed to mark records as deleted:', failedIds);
+      }
+
+      return allSuccess;
+    } catch (error) {
+      console.error('[ScheduleTab] Error in markRecordsAsDeleted:', error);
+      return false;
     }
   };
 
@@ -711,9 +810,12 @@ const handleCreateStaffRecord = async (
         onRestoreStaffRecord={handleRestoreStaffRecord}
         onRefreshData={handleRefreshData}
         onAddShift={handleAddShift}
-         context={context} 
-         currentUserId={props.currentUserId}        // Add this
-         managingGroupId={props.managingGroupId}    // Add this
+        context={context} 
+        currentUserId={props.currentUserId}
+        managingGroupId={props.managingGroupId}
+        // *** НОВЫЕ ПРОПСЫ для поддержки новой логики Fill ***
+        getExistingRecordsWithStatus={getExistingRecordsWithStatus}
+        markRecordsAsDeleted={markRecordsAsDeleted}
       />
     </div>
   );

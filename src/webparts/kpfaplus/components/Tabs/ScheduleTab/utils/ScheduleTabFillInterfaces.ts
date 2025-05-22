@@ -9,6 +9,28 @@ import { ILeaveDay } from '../../../../services/DaysOfLeavesService';
 import { IDayHours } from '../../../../models/IWeeklyTimeTable';
 
 /**
+ * Interface for existing record status check
+ */
+export interface IExistingRecordCheck {
+  id: string;
+  checked: number;
+  exportResult: string;
+  date: Date;
+  title?: string;
+}
+
+/**
+ * Interface for records processing status analysis  
+ */
+export interface IRecordsProcessingStatus {
+  hasProcessedRecords: boolean;
+  processedCount: number;
+  totalCount: number;
+  processedRecords: IExistingRecordCheck[];
+  unprocessedRecords: IExistingRecordCheck[];
+}
+
+/**
  * Interface for fill operation parameters
  */
 export interface IFillOperationParams {
@@ -33,6 +55,9 @@ export interface IFillOperationHandlers {
   setOperationMessage: (message: { text: string; type: MessageBarType } | undefined) => void;
   setIsSaving: (isSaving: boolean) => void;
   onRefreshData?: () => void;
+  // Новые методы для работы с существующими записями
+  getExistingRecordsWithStatus?: (startDate: Date, endDate: Date, employeeId: string, currentUserId?: string, staffGroupId?: string) => Promise<IExistingRecordCheck[]>;
+  markRecordsAsDeleted?: (recordIds: string[]) => Promise<boolean>;
 }
 
 /**
@@ -87,14 +112,3 @@ export type HolidayCache = Map<string, IHoliday>;
  * Интерфейс для кэша шаблонов
  */
 export type TemplateCache = Map<string, IScheduleTemplate[]>;
-
-/**
- * Интерфейс результата подготовки данных
- */
-export interface IPreparedFillData {
-  daysData: Map<string, IDayData>;
-  templatesByWeekAndDay: TemplateCache;
-  numberOfWeekTemplates: number;
-  holidayCache: HolidayCache;
-  leavePeriods: ILeavePeriod[];
-}
