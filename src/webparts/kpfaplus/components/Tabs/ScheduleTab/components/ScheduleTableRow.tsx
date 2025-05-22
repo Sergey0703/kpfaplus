@@ -61,7 +61,7 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
   let rowClassName = '';
   
   // Определяем цвета для праздничных ячеек (inline-стили)
-  const getHolidayCellStyle = (isFirstTwoCells: boolean = false) => {
+  const getHolidayCellStyle = (isFirstTwoCells: boolean = false): React.CSSProperties => {
     if (isHoliday && !isDeleted && isFirstTwoCells) {
       return {
         backgroundColor: '#ffe6f0', // Светло-розовый для праздничных дней

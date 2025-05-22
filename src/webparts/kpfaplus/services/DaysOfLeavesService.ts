@@ -352,7 +352,8 @@ export class DaysOfLeavesService {
           
           // Проверяем также TypeOfLeave.Id если TypeOfLeave - объект
           if (fields.TypeOfLeave && typeof fields.TypeOfLeave === 'object' && 'Id' in fields.TypeOfLeave) {
-            const typeIdValue = (fields.TypeOfLeave as any).Id;
+            const typeOfLeaveObject = fields.TypeOfLeave as { Id?: number | string };
+            const typeIdValue = typeOfLeaveObject.Id;
             this.logInfo(`[DEBUG] - TypeOfLeave.Id: ${typeIdValue}`);
             
             if (typeIdValue !== undefined && typeIdValue !== null) {
