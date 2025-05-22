@@ -52,15 +52,28 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
   // Определяем, удалена ли запись
   const isDeleted = item.deleted === true;
   
-  // Определяем цвет фона для строки
+  // Определяем, является ли день праздником
+  const isHoliday = item.Holiday === 1;
+  
+  // Определяем цвет фона для строки и классы
   const isEvenRow = rowIndex % 2 === 0;
   let backgroundColor = isEvenRow ? '#f9f9f9' : '#ffffff';
+  let rowClassName = '';
+  
+  // Определяем цвета для праздничных ячеек (inline-стили)
+  const getHolidayCellStyle = (isFirstTwoCells: boolean = false) => {
+    if (isHoliday && !isDeleted && isFirstTwoCells) {
+      return {
+        backgroundColor: '#ffe6f0', // Светло-розовый для праздничных дней
+      };
+    }
+    return {};
+  };
   
   if (isDeleted) {
     backgroundColor = '#f5f5f5';
-  }
-  
-  if (isTimesEqual) {
+    rowClassName = styles.deletedRow;
+  } else if (isTimesEqual) {
     backgroundColor = '#ffeded';
   }
 
@@ -173,6 +186,11 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
           </div>
           <div style={{ fontWeight: 'normal', fontSize: '12px' }} className={isDeleted ? styles.deletedText : ''}>
             {item.dayOfWeek}
+            {isHoliday && !isDeleted && (
+              <div style={{ color: '#e81123', fontSize: '10px', fontWeight: 'bold', marginTop: '2px' }}>
+                Holiday
+              </div>
+            )}
             {isDeleted && <span style={{ color: '#d83b01', marginLeft: '5px', textDecoration: 'none' }}>(Deleted)</span>}
           </div>
         </>
@@ -199,6 +217,11 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
       return (
         <div>
           {isDeleted && <span style={{ color: '#d83b01', fontSize: '10px', textDecoration: 'none' }}>(Deleted)</span>}
+          {isHoliday && !isDeleted && (
+            <div style={{ color: '#e81123', fontSize: '10px', fontWeight: 'bold' }}>
+              Holiday
+            </div>
+          )}
         </div>
       );
     }
@@ -213,16 +236,19 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
   return (
     <tr 
       style={{ 
-        backgroundColor,
+        backgroundColor: backgroundColor || undefined,
         border: '1px solid #edebe9',
         marginBottom: '4px',
         borderRadius: '2px',
         ...(isDeleted && { color: '#888' })
       }}
-      className={isDeleted ? styles.deletedRow : ''}
+      className={rowClassName}
     >
       {/* Ячейка с датой */}
-      <td style={{ padding: '8px 0 8px 8px' }}>
+      <td style={{ 
+        padding: '8px 0 8px 8px',
+        ...getHolidayCellStyle(true) // Применяем розовый фон для праздничных дней
+      }}>
         {renderDateCell()}
       </td>
       
@@ -231,7 +257,8 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
         textAlign: 'center',
         fontWeight: 'bold',
         whiteSpace: 'nowrap',
-        color: isTimesEqual ? '#a4262c' : (displayWorkTime === '0.00' ? '#666' : 'inherit')
+        color: isTimesEqual ? '#a4262c' : (displayWorkTime === '0.00' ? '#666' : 'inherit'),
+        ...getHolidayCellStyle(true) // Применяем розовый фон для праздничных дней
       }}
       className={isDeleted ? styles.deletedText : ''}>
         {isTimesEqual ? (

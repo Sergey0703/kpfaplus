@@ -168,6 +168,20 @@
  border: 1px solid #ffcc00;
 }
 
+/* НОВЫЙ КЛАСС для праздничных дней */
+.holidayRow {
+  background-color: #ffe6f0 !important; /* Светло-розовый цвет */
+  
+  &:hover {
+    background-color: #ffd6e7 !important; /* Чуть темнее розовый при наведении */
+  }
+  
+  /* Стили для ячеек внутри праздничных строк */
+  td {
+    position: relative;
+  }
+}
+
 /* Стили для кнопок действий */
 .actionButtons {
  display: flex;

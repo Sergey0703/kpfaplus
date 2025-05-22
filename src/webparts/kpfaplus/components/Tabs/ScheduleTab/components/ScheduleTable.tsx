@@ -24,6 +24,7 @@ export interface IScheduleItem {
   contractId: string;
   contractNumber?: string;
   deleted?: boolean;
+  Holiday?: number; 
 }
 
 // Интерфейс для данных, необходимых для создания новой смены

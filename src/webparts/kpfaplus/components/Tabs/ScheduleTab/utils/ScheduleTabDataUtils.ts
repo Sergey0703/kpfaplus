@@ -69,7 +69,8 @@ export const convertStaffRecordsToScheduleItems = (
       contract: record.WeeklyTimeTableTitle || selectedContract?.template || '',
       contractId: record.WeeklyTimeTableID || selectedContract?.id || '',
       contractNumber: record.Contract.toString(),
-      deleted: record.Deleted === 1 // Добавляем флаг deleted
+      deleted: record.Deleted === 1, // Добавляем флаг deleted
+      Holiday: record.Holiday // Добавляем поле Holiday для определения праздничных дней
     };
     
     return scheduleItem;
@@ -90,6 +91,8 @@ export const formatItemForUpdate = (recordId: string, scheduleItem: IScheduleIte
     // TypeOfLeave could be a string ID or empty
     TypeOfLeaveID: scheduleItem.typeOfLeave || '',
     // Work time as calculated
-    WorkTime: scheduleItem.workingHours
+    WorkTime: scheduleItem.workingHours,
+    // Holiday status
+    Holiday: scheduleItem.Holiday // Сохраняем статус праздника при обновлении
   };
 };
