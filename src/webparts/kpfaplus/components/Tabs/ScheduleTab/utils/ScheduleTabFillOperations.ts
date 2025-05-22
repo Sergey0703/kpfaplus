@@ -55,6 +55,24 @@ function getAppliedWeekNumber(calculatedWeekNumber: number, numberOfWeekTemplate
 }
 
 /**
+ * Интерфейс для шаблона расписания
+ */
+interface IScheduleTemplate {
+  NumberOfWeek?: number;
+  numberOfWeek?: number;
+  NumberOfShift?: number;
+  shiftNumber?: number;
+  dayOfWeek?: number;
+  start?: IDayHours;
+  end?: IDayHours;
+  lunch?: string;
+  total?: string;
+  deleted?: number;
+  Deleted?: number;
+  [key: string]: unknown;
+}
+
+/**
  * Интерфейс для данных дня месяца
  */
 interface IDayData {
@@ -63,7 +81,7 @@ interface IDayData {
   holidayInfo?: IHoliday;
   isLeave: boolean;
   leaveInfo?: { typeOfLeave: string; title: string };
-  templates: any[];
+  templates: IScheduleTemplate[];
   dayOfWeek: number; // 1-7, где 1 - понедельник, 7 - воскресенье
   weekNumber: number; // Номер недели в месяце (1-5)
   appliedWeekNumber: number; // Применяемый номер недели для шаблона
@@ -234,7 +252,7 @@ export const fillScheduleFromTemplate = async (
       }
       
       // *** ОПТИМИЗАЦИЯ 3: Группировка шаблонов по номеру недели и дню недели ***
-      const templatesByWeekAndDay = new Map<string, Array<any>>();
+      const templatesByWeekAndDay = new Map<string, IScheduleTemplate[]>();
       
       activeTemplates.forEach(template => {
         const weekNumber = template.NumberOfWeek || template.numberOfWeek || 1;
@@ -375,6 +393,12 @@ export const fillScheduleFromTemplate = async (
           
           // Для каждого шаблона создаем запись расписания
           dayData.templates.forEach(template => {
+            // Проверяем наличие времени начала и окончания в шаблоне
+            if (!template.start || !template.end) {
+              console.log(`[ScheduleTabFillOperations] Пропуск шаблона без времени начала/окончания для ${dayData.date.toLocaleDateString()}`);
+              return; // Пропускаем этот шаблон
+            }
+            
             // Преобразуем время начала и конца в объекты Date
             const shiftDate1 = createDateWithTime(dayData.date, template.start);
             const shiftDate2 = createDateWithTime(dayData.date, template.end);
@@ -581,16 +605,22 @@ export const createFillConfirmationDialog = (
 /**
  * Helper function to create Date object with specified time
  * @param baseDate Base date
- * @param time Object with hours and minutes
+ * @param time Object with hours and minutes (может быть undefined)
  * @returns Date object with set time
  */
-function createDateWithTime(baseDate: Date, time: IDayHours): Date {
+function createDateWithTime(baseDate: Date, time?: IDayHours): Date {
   const result = new Date(baseDate);
+  
+  // Если time не определен, устанавливаем 00:00
+  if (!time) {
+    result.setHours(0, 0, 0, 0);
+    return result;
+  }
   
   try {
     // Get hours and minutes
-    const hours = parseInt(time.hours, 10);
-    const minutes = parseInt(time.minutes, 10);
+    const hours = parseInt(time.hours || '0', 10);
+    const minutes = parseInt(time.minutes || '0', 10);
     
     if (isNaN(hours) || isNaN(minutes)) {
       // If parsing failed, set 00:00
