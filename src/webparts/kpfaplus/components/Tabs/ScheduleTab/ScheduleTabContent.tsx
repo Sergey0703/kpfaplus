@@ -213,6 +213,44 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     onRefreshData
   };
 
+  // ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ для выполнения заполнения
+  const performFillOperation = async (): Promise<void> => {
+    console.log('[ScheduleTabContent] performFillOperation called');
+
+    if (!selectedStaff?.employeeId || !selectedContract || !selectedContractId || !onCreateStaffRecord) {
+      console.error('[ScheduleTabContent] Missing required data for fill operation');
+      return;
+    }
+
+    const fillParams = {
+      selectedDate,
+      selectedStaffId: selectedStaff.id,
+      employeeId: selectedStaff.employeeId,
+      selectedContract,
+      selectedContractId,
+      holidays,
+      leaves,
+      currentUserId,
+      managingGroupId,
+      dayOfStartWeek,
+      context
+    };
+
+    const fillHandlers = {
+      createStaffRecord: onCreateStaffRecord,
+      setOperationMessage,
+      setIsSaving,
+      onRefreshData,
+      getExistingRecordsWithStatus,
+      markRecordsAsDeleted
+    };
+
+    console.log('[ScheduleTabContent] Calling fillScheduleFromTemplate');
+    
+    // Вызываем заполнение
+    await fillScheduleFromTemplate(fillParams, fillHandlers);
+  };
+
   // НОВАЯ ФУНКЦИЯ: Определение типа диалога на основе существующих записей
   const determineDialogType = async (): Promise<IDialogConfig> => {
     console.log('[ScheduleTabContent] determineDialogType called');
@@ -304,7 +342,7 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
       }
 
       // Анализируем статус обработки существующих записей
-      const { checkRecordsProcessingStatus, createProcessingBlockMessage } = await import('./utils/ScheduleTabFillHelpers');
+      const { checkRecordsProcessingStatus, createProcessingBlockMessage } = await import(/* webpackChunkName: 'schedule-fill-helpers' */ './utils/ScheduleTabFillHelpers');
       const processingStatus = checkRecordsProcessingStatus(existingRecords);
 
       console.log('[ScheduleTabContent] Processing status:', {
@@ -395,44 +433,6 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     } finally {
       setIsSaving(false);
     }
-  };
-
-  // ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ для выполнения заполнения
-  const performFillOperation = async (): Promise<void> => {
-    console.log('[ScheduleTabContent] performFillOperation called');
-
-    if (!selectedStaff?.employeeId || !selectedContract || !selectedContractId || !onCreateStaffRecord) {
-      console.error('[ScheduleTabContent] Missing required data for fill operation');
-      return;
-    }
-
-    const fillParams = {
-      selectedDate,
-      selectedStaffId: selectedStaff.id,
-      employeeId: selectedStaff.employeeId,
-      selectedContract,
-      selectedContractId,
-      holidays,
-      leaves,
-      currentUserId,
-      managingGroupId,
-      dayOfStartWeek,
-      context
-    };
-
-    const fillHandlers = {
-      createStaffRecord: onCreateStaffRecord,
-      setOperationMessage,
-      setIsSaving,
-      onRefreshData,
-      getExistingRecordsWithStatus,
-      markRecordsAsDeleted
-    };
-
-    console.log('[ScheduleTabContent] Calling fillScheduleFromTemplate');
-    
-    // Вызываем заполнение
-    await fillScheduleFromTemplate(fillParams, fillHandlers);
   };
 
   // Обработчик для закрытия диалога Fill

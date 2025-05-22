@@ -267,11 +267,11 @@ export const fillScheduleFromTemplate = async (
 export const checkExistingRecordsStatus = async (
   params: IFillOperationParams,
   getExistingRecordsWithStatus: (startDate: Date, endDate: Date, employeeId: string, currentUserId?: string, staffGroupId?: string) => Promise<IExistingRecordCheck[]>
-): Promise<IRecordsProcessingStatus | null> => {
+): Promise<IRecordsProcessingStatus | undefined> => {
   const { selectedDate, employeeId, selectedContract, currentUserId, managingGroupId } = params;
   
   if (!selectedContract || !employeeId) {
-    return null;
+    return undefined;
   }
   
   try {
@@ -316,7 +316,7 @@ export const checkExistingRecordsStatus = async (
     
   } catch (error) {
     console.error('[ScheduleTabFillService] Error checking existing records:', error);
-    return null;
+    return undefined;
   }
 };
 
