@@ -6,7 +6,7 @@ import { IStaffRecord } from '../../../../services/StaffRecordsService';
 import { IContract } from '../../../../models/IContract';
 import { IHoliday } from '../../../../services/HolidaysService';
 import { ILeaveDay } from '../../../../services/DaysOfLeavesService';
-import { IDayHours, WeeklyTimeTableUtils, IDayHoursComplete } from '../../../../models/IWeeklyTimeTable';
+import { IDayHours, WeeklyTimeTableUtils } from '../../../../models/IWeeklyTimeTable';
 import { WeeklyTimeTableService } from '../../../../services/WeeklyTimeTableService';
 
 /**
@@ -34,24 +34,6 @@ export interface IFillOperationHandlers {
   setOperationMessage: (message: { text: string; type: MessageBarType } | undefined) => void;
   setIsSaving: (isSaving: boolean) => void;
   onRefreshData?: () => void;
-}
-
-/**
- * Вспомогательная функция для определения применяемого номера недели
- */
-function getAppliedWeekNumber(calculatedWeekNumber: number, numberOfWeekTemplates: number): number {
-  switch (numberOfWeekTemplates) {
-    case 1:
-      return 1;
-    case 2:
-      return ((calculatedWeekNumber - 1) % 2) + 1;
-    case 3:
-      return calculatedWeekNumber <= 3 ? calculatedWeekNumber : 1;
-    case 4:
-      return calculatedWeekNumber <= 4 ? calculatedWeekNumber : calculatedWeekNumber % 4 || 4;
-    default:
-      return 1;
-  }
 }
 
 /**
@@ -85,6 +67,60 @@ interface IDayData {
   dayOfWeek: number; // 1-7, где 1 - понедельник, 7 - воскресенье
   weekNumber: number; // Номер недели в месяце (1-5)
   appliedWeekNumber: number; // Применяемый номер недели для шаблона
+}
+
+/**
+ * Вспомогательная функция для определения применяемого номера недели
+ */
+function getAppliedWeekNumber(calculatedWeekNumber: number, numberOfWeekTemplates: number): number {
+  switch (numberOfWeekTemplates) {
+    case 1:
+      return 1;
+    case 2:
+      return ((calculatedWeekNumber - 1) % 2) + 1;
+    case 3:
+      return calculatedWeekNumber <= 3 ? calculatedWeekNumber : 1;
+    case 4:
+      return calculatedWeekNumber <= 4 ? calculatedWeekNumber : calculatedWeekNumber % 4 || 4;
+    default:
+      return 1;
+  }
+}
+
+/**
+ * Helper function to create Date object with specified time
+ * @param baseDate Base date
+ * @param time Object with hours and minutes (может быть undefined)
+ * @returns Date object with set time
+ */
+function createDateWithTime(baseDate: Date, time?: IDayHours): Date {
+  const result = new Date(baseDate);
+  
+  // Если time не определен, устанавливаем 00:00
+  if (!time) {
+    result.setHours(0, 0, 0, 0);
+    return result;
+  }
+  
+  try {
+    // Get hours and minutes
+    const hours = parseInt(time.hours || '0', 10);
+    const minutes = parseInt(time.minutes || '0', 10);
+    
+    if (isNaN(hours) || isNaN(minutes)) {
+      // If parsing failed, set 00:00
+      result.setHours(0, 0, 0, 0);
+    } else {
+      // Set specified time
+      result.setHours(hours, minutes, 0, 0);
+    }
+  } catch (error) {
+    console.error(`[ScheduleTabFillOperations] Error parsing time:`, error);
+    // In case of error, set 00:00
+    result.setHours(0, 0, 0, 0);
+  }
+  
+  return result;
 }
 
 /**
@@ -181,27 +217,7 @@ export const fillScheduleFromTemplate = async (
       };
     });
     
-    // НОВЫЙ КОД: Расширенное логирование для кэша отпусков
-    console.log(`[ScheduleTabFillOperations] Подготовлен кэш отпусков: ${leavePeriods.length} записей. Примеры:`);
-    leavePeriods.slice(0, 3).forEach((leave, index) => {
-      console.log(`[ScheduleTabFillOperations] Отпуск #${index + 1}: 
-        - Период: ${leave.startDate.toLocaleDateString()} - ${leave.endDate.toLocaleDateString()} 
-        - Тип отпуска ID: ${leave.typeOfLeave} (тип: ${typeof leave.typeOfLeave})
-        - Название: ${leave.title}`);
-    });
-    
-    // НОВЫЙ КОД: Детальный анализ структуры отпусков для отладки
-    leaves.slice(0, 2).forEach((leave, index) => {
-      console.log(`[ScheduleTabFillOperations] [DEBUG] Исходная структура отпуска из leaves #${index}:
-        id: ${leave.id}
-        title: ${leave.title}
-        typeOfLeave: ${leave.typeOfLeave} (тип: ${typeof leave.typeOfLeave})
-        startDate: ${leave.startDate.toISOString()}
-        endDate: ${leave.endDate ? leave.endDate.toISOString() : 'отсутствует'}
-        staffMemberId: ${leave.staffMemberId}
-        deleted: ${leave.deleted}
-      `);
-    });
+    console.log(`[ScheduleTabFillOperations] Подготовлен кэш отпусков: ${leavePeriods.length} записей`);
     
     // Fetch weekly schedule templates
     try {
@@ -273,9 +289,6 @@ export const fillScheduleFromTemplate = async (
               dayInfo.start && 
               dayInfo.end) {
             
-            // Используем явное приведение типа для TypeScript
-            const dayHours = dayInfo as IDayHoursComplete;
-            
             const key = `${weekNumber}-${i + 1}`; // Формат "номер_недели-номер_дня"
             
             if (!templatesByWeekAndDay.has(key)) {
@@ -285,8 +298,8 @@ export const fillScheduleFromTemplate = async (
             templatesByWeekAndDay.get(key)?.push({
               ...template,
               dayOfWeek: i + 1, // 1 = Monday, ..., 7 = Sunday
-              start: dayHours.start,
-              end: dayHours.end,
+              start: dayInfo.start as IDayHours,
+              end: dayInfo.end as IDayHours,
               lunch: template.lunch || '30'
             });
           }
@@ -338,14 +351,6 @@ export const fillScheduleFromTemplate = async (
           currentDate >= leave.startDate && currentDate <= leave.endDate
         );
         
-        // НОВЫЙ КОД: Детальное логирование информации об отпуске для этого дня
-        if (leaveForDay) {
-          console.log(`[ScheduleTabFillOperations] ${currentDate.toLocaleDateString()}: Найден отпуск! 
-            Тип: ${leaveForDay.typeOfLeave} (тип данных: ${typeof leaveForDay.typeOfLeave}), 
-            Название: ${leaveForDay.title},
-            Период: ${leaveForDay.startDate.toLocaleDateString()} - ${leaveForDay.endDate.toLocaleDateString()}`);
-        }
-        
         const isLeave = !!leaveForDay;
         
         // Получаем шаблоны для этого дня недели и недели
@@ -380,17 +385,6 @@ export const fillScheduleFromTemplate = async (
         if (dayData.templates.length > 0) {
           console.log(`[ScheduleTabFillOperations] День ${dayData.date.toLocaleDateString()}: найдено ${dayData.templates.length} шаблонов`);
           
-          // НОВЫЙ КОД: Логирование информации об отпуске для текущего дня
-          if (dayData.isLeave) {
-            console.log(`[ScheduleTabFillOperations] [DEBUG] День ${dayData.date.toLocaleDateString()} отмечен как отпуск:`);
-            if (dayData.leaveInfo) {
-              console.log(`  - Тип отпуска: ${dayData.leaveInfo.typeOfLeave} (${typeof dayData.leaveInfo.typeOfLeave})`);
-              console.log(`  - Название отпуска: ${dayData.leaveInfo.title}`);
-            } else {
-              console.log(`  - ВНИМАНИЕ: dayData.isLeave = true, но dayData.leaveInfo отсутствует!`);
-            }
-          }
-          
           // Для каждого шаблона создаем запись расписания
           dayData.templates.forEach(template => {
             // Проверяем наличие времени начала и окончания в шаблоне
@@ -418,7 +412,6 @@ export const fillScheduleFromTemplate = async (
             
             // Если сотрудник в отпуске в этот день, добавляем тип отпуска
             if (dayData.isLeave && dayData.leaveInfo) {
-              // НОВЫЙ КОД: Улучшенная обработка типа отпуска с дополнительной проверкой
               const typeOfLeave = dayData.leaveInfo.typeOfLeave;
               
               // Проверяем, что тип отпуска не пустой и не ноль
@@ -433,7 +426,6 @@ export const fillScheduleFromTemplate = async (
               console.log(`[ScheduleTabFillOperations] ВНИМАНИЕ: День ${dayData.date.toLocaleDateString()} отмечен как отпуск, но информация о типе отпуска отсутствует!`);
             }
             
-            // НОВЫЙ КОД: Логирование создаваемой записи
             console.log(`[ScheduleTabFillOperations] Подготовлена запись для ${dayData.date.toLocaleDateString()}:
               - Начало смены: ${recordData.ShiftDate1?.toLocaleTimeString() || 'не указано'}
               - Конец смены: ${recordData.ShiftDate2?.toLocaleTimeString() || 'не указано'}
@@ -488,7 +480,6 @@ export const fillScheduleFromTemplate = async (
       // Save records sequentially
       for (const record of generatedRecords) {
         try {
-          // НОВЫЙ КОД: Добавляем логирование непосредственно перед созданием записи
           console.log(`[ScheduleTabFillOperations] Создание записи для ${record.Date?.toLocaleDateString()}:
             - TypeOfLeaveID: ${record.TypeOfLeaveID || 'не установлен'} (тип: ${typeof record.TypeOfLeaveID})
             - Holiday: ${record.Holiday}
@@ -506,7 +497,6 @@ export const fillScheduleFromTemplate = async (
           
           if (newRecordId) {
             successCount++;
-            // НОВЫЙ КОД: Улучшенное логирование успешного создания записи
             if (record.TypeOfLeaveID) {
               console.log(`[ScheduleTabFillOperations] УСПЕХ: Создана запись ID=${newRecordId} для ${record.Date?.toLocaleDateString()} с типом отпуска: ${record.TypeOfLeaveID}`);
             } else {
@@ -601,39 +591,3 @@ export const createFillConfirmationDialog = (
     };
   }
 };
-
-/**
- * Helper function to create Date object with specified time
- * @param baseDate Base date
- * @param time Object with hours and minutes (может быть undefined)
- * @returns Date object with set time
- */
-function createDateWithTime(baseDate: Date, time?: IDayHours): Date {
-  const result = new Date(baseDate);
-  
-  // Если time не определен, устанавливаем 00:00
-  if (!time) {
-    result.setHours(0, 0, 0, 0);
-    return result;
-  }
-  
-  try {
-    // Get hours and minutes
-    const hours = parseInt(time.hours || '0', 10);
-    const minutes = parseInt(time.minutes || '0', 10);
-    
-    if (isNaN(hours) || isNaN(minutes)) {
-      // If parsing failed, set 00:00
-      result.setHours(0, 0, 0, 0);
-    } else {
-      // Set specified time
-      result.setHours(hours, minutes, 0, 0);
-    }
-  } catch (error) {
-    console.error(`[ScheduleTabFillOperations] Error parsing time:`, error);
-    // In case of error, set 00:00
-    result.setHours(0, 0, 0, 0);
-  }
-  
-  return result;
-}
