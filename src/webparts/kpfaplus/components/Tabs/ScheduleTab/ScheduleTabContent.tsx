@@ -307,14 +307,15 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
         managingGroupId
       });
 
-     existingRecords = await getExistingRecordsWithStatus(
-  firstDay || selectedDate,
-  lastDay || selectedDate,
-  selectedStaff.employeeId,
-  currentUserId,
-  managingGroupId,
-  selectedContractId // <-- ДОБАВИТЬ
-);
+      // ИСПРАВЛЕНО: Добавлен selectedContractId как timeTableID
+      existingRecords = await getExistingRecordsWithStatus(
+        firstDay || selectedDate,
+        lastDay || selectedDate,
+        selectedStaff.employeeId,
+        currentUserId,
+        managingGroupId,
+        selectedContractId // <-- ДОБАВЛЕН selectedContractId
+      );
 
       console.log(`[ScheduleTabContent] Found ${existingRecords.length} existing records`);
 
@@ -474,15 +475,24 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
 
         const currentLocalItem = prev[item.id] || baseIScheduleItem;
 
-        let updatedValue: any = value;
+        // ИСПРАВЛЕНО: Заменил any на конкретный union тип
+        let updatedValue: string | number | Date = value;
+        
         if (field === 'typeOfLeave') {
              updatedValue = String(value);
         } else if (field === 'contractNumber') {
              updatedValue = String(value);
         } else if (field === 'date') {
-    if (Object.prototype.toString.call(value) === '[object Date]') updatedValue = value;
-     else console.warn(`[ScheduleTabContent] Unexpected value type for date field: ${typeof value}`);
-}
+            // Проверяем, является ли value объектом Date
+            if (typeof value === 'object' && value !== null && Object.prototype.toString.call(value) === '[object Date]') {
+                updatedValue = value as unknown as Date;
+            } else {
+                console.warn(`[ScheduleTabContent] Unexpected value type for date field: ${typeof value}`);
+                // Если это не Date, оставляем как есть (string | number)
+                updatedValue = value;
+            }
+        }
+        
        const updatedItem = {
          ...currentLocalItem,
          [field]: updatedValue,
