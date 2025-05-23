@@ -24,7 +24,6 @@ export interface IScheduleTabState {
   typesOfLeave: ITypeOfLeave[];
   isLoadingTypesOfLeave: boolean;
 
-  // --- ИЗМЕНЕНО ДЛЯ ПАГИНАЦИИ ---
   staffRecords: IStaffRecord[]; // Записи ТОЛЬКО для текущей страницы
   isLoadingStaffRecords: boolean;
   errorStaffRecords?: string; // Specific error for staff records
@@ -32,7 +31,10 @@ export interface IScheduleTabState {
   currentPage: number;      // Текущая страница (начинается с 1)
   itemsPerPage: number;     // Количество записей на странице
   totalItemCount: number;   // Общее количество записей, соответствующих фильтрам (получено от сервиса)
-  // -------------------------------
+  
+  // --- ИСПРАВЛЕНИЕ: ДОБАВЛЕНО ПОЛЕ showDeleted ---
+  showDeleted: boolean;     // Флаг для отображения удаленных записей
+  // -------------------------------------------
 }
 
 // Определяем возвращаемый тип хука состояния
@@ -43,7 +45,7 @@ interface UseScheduleTabStateReturn {
 
 // Custom hook to manage the main state
 export const useScheduleTabState = (): UseScheduleTabStateReturn => {
-  // Инициализируем состояние, включая новые поля пагинации
+  // Инициализируем состояние, включая новые поля пагинации и showDeleted
   const [state, setState] = useState<IScheduleTabState>({
     selectedDate: new Date(),
     contracts: [],
@@ -60,18 +62,18 @@ export const useScheduleTabState = (): UseScheduleTabStateReturn => {
     typesOfLeave: [],
     isLoadingTypesOfLeave: false,
 
-    // --- ИНИЦИАЛИЗАЦИЯ ДЛЯ ПАГИНАЦИИ ---
     staffRecords: [],
     isLoadingStaffRecords: false,
     errorStaffRecords: undefined,
 
     currentPage: 1,       // Начинаем с первой страницы
     itemsPerPage: 20,     // Устанавливаем количество элементов на странице по умолчанию
-    totalItemCount: 0     // Изначально общее количество записей равно 0
-    // -----------------------------------
+    totalItemCount: 0,    // Изначально общее количество записей равно 0
+    
+    // --- ИСПРАВЛЕНИЕ: ИНИЦИАЛИЗАЦИЯ showDeleted ---
+    showDeleted: false,   // По умолчанию удаленные записи не показываем
+    // -------------------------------------------
   });
-
-  // console.log('[useScheduleTabState] State hook initialized'); // Логируем меньше в утилитарных хуках
 
   return {
     state,

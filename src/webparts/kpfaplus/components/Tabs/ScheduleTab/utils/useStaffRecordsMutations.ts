@@ -6,7 +6,7 @@ import { StaffRecordsService, IStaffRecord } from '../../../../services/StaffRec
 // Corrected import path - types is up 4 levels from utils
 import { IStaffMember } from '../../../../models/types';
 // Corrected import path - components is sibling to utils, ScheduleTable is inside components
-import { INewShiftData, IScheduleItem } from '../components/ScheduleTable'; // Import IScheduleItem if needed
+import { INewShiftData} from '../components/ScheduleTable'; // Import IScheduleItem if needed
 // Импортируем IScheduleTabState для типизации prevState
 import { IScheduleTabState } from './useScheduleTabState'; // <-- ИМПОРТ IScheduleTabState
 import { useCallback, useMemo } from 'react'; // Import useMemo

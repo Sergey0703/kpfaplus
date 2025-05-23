@@ -4,34 +4,32 @@ import * as React from 'react';
 import { useEffect, useCallback, useMemo } from 'react';
 import { IDropdownOption } from '@fluentui/react';
 // Corrected import paths - need to go up 4 levels from utils - IMPORT ITabProps here
-import { ITabProps } from '../../../../models/types'; // <-- Corrected path
+import { ITabProps } from '../../../../models/types';
 // Corrected import path - ScheduleTabApi is sibling to utils
-import { shouldRefreshDataOnDateChange } from '../ScheduleTabApi'; // <-- Corrected path
+import { shouldRefreshDataOnDateChange } from '../ScheduleTabApi';
 // Import state hook from same utils folder
-import { IScheduleTabState, useScheduleTabState } from './useScheduleTabState'; // <-- Corrected path
+import { IScheduleTabState, useScheduleTabState } from './useScheduleTabState';
 // Import services hook from same utils folder
-// Убираем импорт IScheduleTabServices, так как он не используется напрямую
-import { useScheduleTabServices } from './useScheduleTabServices'; // <-- Corrected path
+import { useScheduleTabServices } from './useScheduleTabServices';
 // Import data hooks from same utils folder
-import { useHolidaysAndLeaves } from './useHolidaysAndLeaves'; // <-- Corrected path
-import { useContracts } from './useContracts'; // <-- Corrected path
-import { useTypesOfLeave } from './useTypesOfLeave'; // <-- Corrected path
-import { useStaffRecordsData } from './useStaffRecordsData'; // <-- Corrected path
-import { useStaffRecordsMutations } from './useStaffRecordsMutations'; // <-- Corrected path
+import { useHolidaysAndLeaves } from './useHolidaysAndLeaves';
+import { useContracts } from './useContracts';
+import { useTypesOfLeave } from './useTypesOfLeave';
+import { useStaffRecordsData } from './useStaffRecordsData';
+import { useStaffRecordsMutations } from './useStaffRecordsMutations';
 
-// Define the return type of the main orchestrator hook
-// ДОБАВЛЯЕМ обработчики пагинации в возвращаемый тип
-interface UseScheduleTabLogicReturn extends IScheduleTabState {
+
+// --- ИСПРАВЛЕНИЕ: Добавлено ключевое слово 'export' ---
+export interface UseScheduleTabLogicReturn extends IScheduleTabState {
   // Handlers from orchestrator
   onDateChange: (date: Date | undefined) => void;
   onContractChange: (event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption) => void;
   onErrorDismiss: () => void;
   onRefreshData: () => void;
 
-  // ДОБАВЛЯЕМ обработчики пагинации
+  // Обработчики пагинации
   onPageChange: (page: number) => void;
   onItemsPerPageChange: (itemsPerPage: number) => void;
-
 
   // Pass down handlers/getters from specific hooks using their final names
   getExistingRecordsWithStatus: ReturnType<typeof useStaffRecordsData>['getExistingRecordsWithStatus'];
@@ -42,11 +40,9 @@ interface UseScheduleTabLogicReturn extends IScheduleTabState {
   onDeleteStaffRecord: ReturnType<typeof useStaffRecordsMutations>['handleDeleteStaffRecord'];
   onRestoreStaffRecord: ReturnType<typeof useStaffRecordsMutations>['handleRestoreStaffRecord'];
 
-  // Сервисы передаются в ScheduleTabContent напрямую из props, а не из хука
-  // holidaysService?: HolidaysService; // Не возвращаем сервисы из этого хука
-  // daysOfLeavesService?: DaysOfLeavesService;
-  // typeOfLeaveService?: TypeOfLeaveService;
-  // staffRecordsService?: StaffRecordsService;
+  // Добавлены showDeleted и onToggleShowDeleted, как часть возвращаемого значения оркестратора
+  showDeleted: boolean; // <-- showDeleted state from orchestrator
+  onToggleShowDeleted: (checked: boolean) => void; // <-- onToggleShowDeleted handler from orchestrator
 }
 
 export const useScheduleTabLogic = (props: ITabProps): UseScheduleTabLogicReturn => {
@@ -54,16 +50,14 @@ export const useScheduleTabLogic = (props: ITabProps): UseScheduleTabLogicReturn
 
   console.log('[useScheduleTabLogic] Orchestrator hook initialized');
 
-  // Управление основным состоянием, включая пагинацию
-  const { state, setState } = useScheduleTabState(); // state теперь включает currentPage, itemsPerPage, totalItemCount
+  // Управление основным состоянием, включая пагинацию и showDeleted
+  const { state, setState } = useScheduleTabState(); // state теперь включает currentPage, itemsPerPage, totalItemCount, showDeleted
 
   // Инициализация сервисов
   const services = useScheduleTabServices(context);
-  // TS6133: 'IScheduleTabServices' is declared but its value is never read.
-  // Это предупреждение для импорта IScheduleTabServices, который мы убрали выше.
 
 
-  // --- ХУКИ ЗАГРУЗКИ ДАННЫХ (теперь принимают currentPage и itemsPerPage) ---
+  // --- ХУКИ ЗАГРУЗКИ ДАННЫХ (теперь принимают currentPage, itemsPerPage, showDeleted) ---
   const { loadHolidaysAndLeaves } = useHolidaysAndLeaves({
     context,
     selectedDate: state.selectedDate,
@@ -91,7 +85,7 @@ export const useScheduleTabLogic = (props: ITabProps): UseScheduleTabLogicReturn
   });
 
   const {
-    loadStaffRecords, // Этот метод теперь использует state.currentPage и state.itemsPerPage
+    loadStaffRecords, // Этот метод теперь использует state.currentPage, state.itemsPerPage, state.showDeleted
     getExistingRecordsWithStatus,
     markRecordsAsDeleted
   } = useStaffRecordsData({
@@ -105,6 +99,7 @@ export const useScheduleTabLogic = (props: ITabProps): UseScheduleTabLogicReturn
     setState, // Передаем setState для обновления общего состояния
     currentPage: state.currentPage, // Передаем текущую страницу в хук данных
     itemsPerPage: state.itemsPerPage, // Передаем количество элементов на странице в хук данных
+    showDeleted: state.showDeleted // <-- Передаем showDeleted в хук данных
   });
 
   const {
@@ -125,7 +120,7 @@ export const useScheduleTabLogic = (props: ITabProps): UseScheduleTabLogicReturn
     setState // Передаем setState для обновления общего состояния (loading/error)
   });
 
-  // --- ОБРАБОТЧИКИ ИЗМЕНЕНИЯ СОСТОЯНИЯ (включая пагинацию) ---
+  // --- ОБРАБОТЧИКИ ИЗМЕНЕНИЯ СОСТОЯНИЯ (включая пагинацию и showDeleted) ---
 
   const handleDateChange = useCallback((date: Date | undefined): void => {
     console.log('[useScheduleTabLogic] handleDateChange called with date:', date?.toISOString());
@@ -215,6 +210,13 @@ export const useScheduleTabLogic = (props: ITabProps): UseScheduleTabLogicReturn
       setState(prevState => ({ ...prevState, itemsPerPage: itemsPerPage, currentPage: 1 }));
   }, [state.itemsPerPage, setState]); // Зависимости для useCallback
 
+  // --- НОВЫЙ ОБРАБОТЧИК ДЛЯ TOGGLE SHOW DELETED ---
+  const handleToggleShowDeleted = useCallback((checked: boolean): void => {
+      console.log('[useScheduleTabLogic] handleToggleShowDeleted called with:', checked);
+      // Обновляем состояние showDeleted. loadStaffRecords будет вызван эффектом.
+      setState(prevState => ({ ...prevState, showDeleted: checked }));
+  }, [setState]); // Зависит от setState
+
 
   // --- ОСНОВНЫЕ ЭФФЕКТЫ (реагируют на смену сотрудника/контекста) ---
   // Эффекты загрузки данных, зависящие от даты/контракта/пагинации, находятся внутри useStaffRecordsData и других хуков.
@@ -261,6 +263,8 @@ export const useScheduleTabLogic = (props: ITabProps): UseScheduleTabLogicReturn
         currentPage: 1,
         totalItemCount: 0,
         // itemsPerPage остается как есть по умолчанию
+        // showDeleted тоже сбрасывается к начальному значению (false)
+        showDeleted: false, // <-- Сброс showDeleted
       }));
     }
   }, [selectedStaff?.id, context, setState, loadContracts, loadTypesOfLeave, loadHolidaysAndLeaves]); // Зависимости useEffect
@@ -269,7 +273,7 @@ export const useScheduleTabLogic = (props: ITabProps): UseScheduleTabLogicReturn
   // --- ОБЪЕДИНЯЕМ И ВОЗВРАЩАЕМ ---
 
   const hookReturn: UseScheduleTabLogicReturn = useMemo(() => ({
-    ...state, // Распространяем все свойства состояния из useScheduleTabState (включая пагинацию)
+    ...state, // Распространяем все свойства состояния из useScheduleTabState (включая пагинацию и showDeleted)
     // Передаем основные обработчики
     onDateChange: handleDateChange,
     onContractChange: handleContractChange,
@@ -280,6 +284,8 @@ export const useScheduleTabLogic = (props: ITabProps): UseScheduleTabLogicReturn
     onPageChange: handlePageChange,
     onItemsPerPageChange: handleItemsPerPageChange,
 
+    // Передаем обработчик showDeleted
+    onToggleShowDeleted: handleToggleShowDeleted, // <-- Включен в возвращаемый объект
 
     // Передаем обработчики/геттеры из специализированных хуков
     getExistingRecordsWithStatus: getExistingRecordsWithStatus,
@@ -288,19 +294,16 @@ export const useScheduleTabLogic = (props: ITabProps): UseScheduleTabLogicReturn
     onUpdateStaffRecord: handleUpdateStaffRecord,
     onCreateStaffRecord: handleCreateStaffRecord,
     onDeleteStaffRecord: handleDeleteStaffRecord,
-    onRestoreStaffRecord: handleRestoreStaffRecord,
-
-    // Сервисы НЕ ВОЗВРАЩАЮТСЯ из этого хука, они используются внутри.
-    // ScheduleTabContent получит их как props от основного компонента ScheduleTab.
-
+    onRestoreStaffRecord: handleRestoreStaffRecord
   }), [
     state, // Зависит от всех свойств состояния
     handleDateChange,
     handleContractChange,
     handleErrorDismiss,
     handleRefreshData,
-    handlePageChange, // Включаем в зависимости useMemo
-    handleItemsPerPageChange, // Включаем в зависимости useMemo
+    handlePageChange,
+    handleItemsPerPageChange,
+    handleToggleShowDeleted, // <-- Включен в зависимости useMemo
     getExistingRecordsWithStatus,
     markRecordsAsDeleted,
     handleAddShift,
