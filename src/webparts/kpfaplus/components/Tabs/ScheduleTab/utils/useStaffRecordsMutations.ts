@@ -11,9 +11,6 @@ import { INewShiftData} from '../components/ScheduleTable'; // Import IScheduleI
 import { IScheduleTabState } from './useScheduleTabState'; // <-- ИМПОРТ IScheduleTabState
 import { useCallback, useMemo } from 'react'; // Import useMemo
 
-// Удаляем тип ReturnType, он не нужен здесь
-// type UseScheduleTabMutationsReturn = ReturnType<typeof useStaffRecordsMutations>;
-
 interface UseStaffRecordsMutationsProps {
   context?: WebPartContext;
   selectedDate: Date;
@@ -29,12 +26,25 @@ interface UseStaffRecordsMutationsProps {
   setState: React.Dispatch<React.SetStateAction<IScheduleTabState>>; // <-- ИСПРАВЛЕНО
 }
 
-// Определяем возвращаемый тип хука здесь или в оркестраторе
-// export interface UseScheduleTabMutationsReturn { ... }
+// ДОБАВЛЕН интерфейс для возвращаемого типа хука
+export interface UseStaffRecordsMutationsReturn {
+  handleAddShift: (date: Date, shiftData?: INewShiftData) => Promise<void>;
+  handleUpdateStaffRecord: (recordId: string, updateData: Partial<IStaffRecord>) => Promise<boolean>;
+  handleCreateStaffRecord: (
+    createData: Partial<IStaffRecord>,
+    currentUserIdParam?: string,
+    staffGroupIdParam?: string,
+    staffMemberIdParam?: string
+  ) => Promise<string | undefined>;
+  handleDeleteStaffRecord: (recordId: string) => Promise<boolean>;
+  handleRestoreStaffRecord: (recordId: string) => Promise<boolean>;
+}
 
 // Custom hook for staff records mutation actions
-// Убираем ReturnType из объявления функции
-export const useStaffRecordsMutations = (props: UseStaffRecordsMutationsProps) => { // No explicit return type here
+// ИСПРАВЛЕНО: Добавлен явный тип возврата
+export const useStaffRecordsMutations = (
+  props: UseStaffRecordsMutationsProps
+): UseStaffRecordsMutationsReturn => {
   const {
     context,
     selectedDate,
@@ -241,9 +251,8 @@ export const useStaffRecordsMutations = (props: UseStaffRecordsMutationsProps) =
   }, [staffRecordsService, handleMutation, setError]); // Зависит от restoreDeletedRecord
 
 
-  // Возвращаем useMemo, чтобы возвращаемый объект был стабильным
-  // Удаляем ReturnType из объявления функции useStaffRecordsMutations
-  return useMemo(() => ({
+  // ИСПРАВЛЕНО: Возвращаем useMemo с явным типом возврата
+  return useMemo((): UseStaffRecordsMutationsReturn => ({
     handleAddShift,
     handleUpdateStaffRecord,
     handleCreateStaffRecord,
