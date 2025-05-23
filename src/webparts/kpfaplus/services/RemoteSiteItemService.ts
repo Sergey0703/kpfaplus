@@ -177,150 +177,128 @@ export class RemoteSiteItemService {
   }
 
 
-  /**
-   * Получает ОДНУ страницу элементов списка с поддержкой пагинации и общего количества.
-   * Этот метод предназначен специально для серверной пагинации UI.
-   *
-   * @param graphClient Graph клиент
-   * @param listTitle Название списка
-   * @param options Опции запроса, включая skip, top, filter и orderBy
-   * @returns Promise с объектом, содержащим элементы для страницы и общее количество
-   */
-  public async getPaginatedListItems(
-    graphClient: MSGraphClientV3,
-    listTitle: string,
-    options: IGetPaginatedListItemsOptions
-  ): Promise<IRemotePaginatedItemsResponse> {
-    try {
-      const startTime = Date.now();
-      this.logInfo(`[PERF] Начало выполнения getPaginatedListItems для "${listTitle}" в ${new Date().toISOString()}`);
+public async getPaginatedListItems(
+  graphClient: MSGraphClientV3,
+  listTitle: string,
+  options: IGetPaginatedListItemsOptions
+): Promise<IRemotePaginatedItemsResponse> {
+  try {
+    const startTime = Date.now();
+    this.logInfo(`[PERF] Начало выполнения getPaginatedListItems для "${listTitle}" в ${new Date().toISOString()}`);
 
-      // Получаем ID списка
-      const listId = await this._listService.getListId(graphClient, listTitle);
+    // Получаем ID списка
+    const listId = await this._listService.getListId(graphClient, listTitle);
 
-      this.logInfo(`Getting paginated items from list "${listTitle}" with ID: ${listId}...`);
+    this.logInfo(`Getting paginated items from list "${listTitle}" with ID: ${listId}...`);
 
-      const {
-        expandFields = true, // По умолчанию расширяем поля
-        filter,
-        orderBy,
-        skip, // Количество элементов для пропуска
-        top,  // Количество элементов для получения (размер страницы)
-      } = options;
+    const {
+      expandFields = true, // По умолчанию расширяем поля
+      filter,
+      orderBy,
+      skip = 0, // Устанавливаем значение по умолчанию для skip
+      top = 20,  // Устанавливаем значение по умолчанию для top
+      nextLink, // Ссылка на следующую страницу
+    } = options;
 
-       // Проверяем, что skip и top указаны и являются числами
-      if (typeof skip !== 'number' || typeof top !== 'number' || skip < 0 || top <= 0) {
-           const errorMsg = `[ОШИБКА] Некорректные параметры пагинации: skip=${skip}, top=${top}`;
-           this.logError(errorMsg);
-           throw new Error(errorMsg);
-       }
+    let request;
 
-
-      // Формируем базовый запрос
-      let request = graphClient
+    // Если передан nextLink, используем его напрямую
+    if (nextLink) {
+      this.logInfo(`Using provided nextLink for pagination`);
+      request = graphClient.api(nextLink);
+    } else {
+      // Если nextLink не передан, формируем новый запрос
+      request = graphClient
         .api(`/sites/${this._siteId}/lists/${listId}/items`)
-        // Добавляем заголовки для поддержки $count=true и консистентности
+        // Добавляем заголовки для поддержки консистентности
         .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly')
-        .header('ConsistencyLevel', 'eventual')
-        .count(true); // <--- Запрашиваем общее количество элементов
+        .header('ConsistencyLevel', 'eventual');
 
       // Применяем $select и $expand
-       if (expandFields) {
-          if (listTitle === 'StaffRecords') {
-             // Для StaffRecords выбираем только нужные поля и расширяем поле fields
-            request = request.select('id,fields/ID,fields/Title,fields/Date,fields/ShiftDate1,fields/ShiftDate2,fields/ShiftDate3,fields/ShiftDate4,fields/TimeForLunch,fields/Contract,fields/Holiday,fields/TypeOfLeave,fields/WeeklyTimeTable,fields/Deleted,fields/Checked,fields/ExportResult,fields/StaffMemberLookupId,fields/ManagerLookupId,fields/StaffGroupLookupId,fields/WeeklyTimeTableLookupId');
-            request = request.expand('fields'); // Expand the fields property
-            this.logInfo(`[DEBUG] Applying specific select/expand for StaffRecords`);
-           } else {
-             request = request.expand('fields');
-             this.logInfo(`[DEBUG] Applying general expand fields`);
-           }
-        } else {
-            // Если expandFields === false, запрашиваем только основные поля или те, что нужны для фильтра/сортировки
-            // Note: Graph API for list items requires at least 'id'
-            request = request.select('id');
-             this.logInfo(`[DEBUG] Applying minimal select 'id' as expandFields is false`);
-        }
-
+      if (expandFields) {
+        request = request.select('id,fields');
+        request = request.expand('fields');
+        this.logInfo(`[DEBUG] Applying simple select/expand for list items`);
+      } else {
+        request = request.select('id');
+        this.logInfo(`[DEBUG] Applying minimal select 'id' as expandFields is false`);
+      }
 
       // Обрабатываем фильтр
       if (filter) {
-        const modifiedFilter = filter.startsWith('fields/') ? filter : `fields/${filter}`;
-        this.logInfo(`Applying filter: ${modifiedFilter}`);
-        request = request.filter(modifiedFilter);
+        this.logInfo(`Applying filter: ${filter}`);
+        request = request.filter(filter);
       }
 
       // Обрабатываем сортировку
       if (orderBy) {
-        const fieldWithPrefix = orderBy.field.startsWith('fields/') ?
-          orderBy.field : `fields/${orderBy.field}`;
-        const orderByString = `${fieldWithPrefix} ${orderBy.ascending ? 'asc' : 'desc'}`;
+        const orderByString = `${orderBy.field} ${orderBy.ascending ? 'asc' : 'desc'}`;
         this.logInfo(`Applying orderby: ${orderByString}`);
         request = request.orderby(orderByString);
       }
 
-      // --- Применяем параметры пагинации ---
-      request = request.skip(skip);
+      // Устанавливаем размер страницы (только top)
       request = request.top(top);
-      this.logInfo(`Applying pagination: skip=${skip}, top=${top}`);
-      // -----------------------------------
-
-      this.logInfo(`[PERF] Executing paginated request for list "${listTitle}"`);
-      const requestStartTime = Date.now();
-
-      let response;
-      try {
-        response = await request.get();
-      } catch (requestError) {
-        this.logError(`Error getting paginated items from list "${listTitle}": ${JSON.stringify(requestError, null, 2)}`);
-         if (filter) {
-           this.logError(`Original filter was: "${filter}"`);
-         }
-         if (orderBy) {
-            this.logError(`Original orderby was: "${orderBy.field} ${orderBy.ascending ? 'asc' : 'desc'}"`);
-         }
-        throw requestError; // Пробрасываем ошибку
-      }
-
-      const requestDuration = Date.now() - requestStartTime;
-      this.logInfo(`[PERF] Paginated request completed in ${requestDuration}ms`);
-
-      // Извлекаем элементы и общее количество из ответа Graph API
-      const items = response?.value || [];
-      // '@odata.count' должен быть на том же уровне, что и 'value' в ответе
-      const totalCount = DataTypeAdapter.toNumber(response['@odata.count'], 0); // Используем адаптер для безопасности
-
-      this.logInfo(`Retrieved ${items.length} items for page, total count: ${totalCount}`);
-
-      // Преобразуем полученные элементы в нужный формат IRemoteListItemResponse
-      const paginatedItems: IRemoteListItemResponse[] = items.map((item: Record<string, unknown>) => {
-         // Исправляем предупреждение TS6133: создаем и сразу возвращаем объект
-         return {
-           id: DataTypeAdapter.toString(item.id),
-           // Assuming fields are always returned under the 'fields' property when expanded=true
-           // Use type assertion if the exact response structure isn't strictly typed
-           fields: (item as any).fields || {}, // Adjust type assertion if you have a more specific one
-           // Copying other top-level properties that might be useful (e.g., @odata.etag)
-           '@odata.etag': (item as any)['@odata.etag'], // Example of copying other properties
-           // ... copy other standard properties like createdDateTime, lastModifiedDateTime if needed
-         };
-      });
-
-      const totalDuration = Date.now() - startTime;
-      this.logInfo(`[PERF] Total getPaginatedListItems completed in ${totalDuration}ms.`);
-
-      // Возвращаем объект с элементами для страницы и общим количеством
-      return {
-        items: paginatedItems,
-        totalCount: totalCount,
-      };
-
-    } catch (error) {
-      this.logError(`Failed to get paginated items from list "${listTitle}": ${error instanceof Error ? error.message : String(error)}`);
-      throw error; // Пробрасываем ошибку дальше
+      this.logInfo(`Applying page size: top=${top}`);
     }
-  }
 
+    this.logInfo(`[PERF] Executing paginated request for list "${listTitle}"`);
+    let response;
+    try {
+      response = await request.get();
+    } catch (requestError) {
+      this.logError(`Error getting paginated items from list "${listTitle}": ${JSON.stringify(requestError, null, 2)}`);
+      if (filter) {
+        this.logError(`Original filter was: "${filter}"`);
+      }
+      if (orderBy) {
+        this.logError(`Original orderby was: "${orderBy.field} ${orderBy.ascending ? 'asc' : 'desc'}"`);
+      }
+      throw requestError; // Пробрасываем ошибку
+    }
+
+    // Извлекаем элементы из ответа Graph API
+    const items = response?.value || [];
+    const responseNextLink = response['@odata.nextLink']; // Получаем ссылку на следующую страницу
+    
+    // Оцениваем общее количество элементов
+    // Если есть nextLink, то общее количество больше, чем текущий count
+    // Если нет nextLink, то это последняя страница
+    let totalCount;
+    if (!nextLink) {
+      // Если это первая страница
+      totalCount = responseNextLink ? (items.length * 2) : items.length; // Грубая оценка
+    } else {
+      // Если это не первая страница, учитываем skip
+      totalCount = responseNextLink ? (skip + items.length * 2) : (skip + items.length);
+    }
+
+    this.logInfo(`Retrieved ${items.length} items, has next page: ${!!responseNextLink}, estimated total: ${totalCount}`);
+
+    // Преобразуем полученные элементы в нужный формат IRemoteListItemResponse
+    const paginatedItems: IRemoteListItemResponse[] = items.map((item: Record<string, unknown>) => {
+      return {
+        id: DataTypeAdapter.toString(item.id),
+        fields: (item as any).fields || {},
+        '@odata.etag': (item as any)['@odata.etag'],
+      };
+    });
+
+    const totalDuration = Date.now() - startTime;
+    this.logInfo(`[PERF] Total getPaginatedListItems completed in ${totalDuration}ms.`);
+
+    // Возвращаем объект с элементами для страницы, оценочным общим количеством и ссылкой на следующую страницу
+    return {
+      items: paginatedItems,
+      totalCount: totalCount,
+      nextLink: responseNextLink
+    };
+
+  } catch (error) {
+    this.logError(`Failed to get paginated items from list "${listTitle}": ${error instanceof Error ? error.message : String(error)}`);
+    throw error; // Пробрасываем ошибку дальше
+  }
+}
 
   /**
    * Создает новый элемент списка

@@ -2,17 +2,14 @@
 import { RemoteSiteService } from "./RemoteSiteService";
 import {
   IStaffRecordsQueryParams,
-  IRawStaffRecord, // Используем интерфейс для сырых записей
-  // УДАЛЯЕМ импорт IStaffRecordsResult отсюда <-- ИСПРАВЛЕНО
+  IRawStaffRecord,
 } from "./StaffRecordsInterfaces";
 
-// Импортируем IRemotePaginatedItemsResponse ИЗ RemoteSiteInterfaces.ts
-import { IRemotePaginatedItemsResponse } from "./RemoteSiteInterfaces"; // <-- ИМПОРТ ИЗ ПРАВИЛЬНОГО ФАЙЛА
-
+// Импортируем IRemotePaginatedItemsResponse из RemoteSiteInterfaces.ts
+import { IRemotePaginatedItemsResponse } from "./RemoteSiteInterfaces";
 
 // Определяем возвращаемый тип fetchStaffRecords как IRemotePaginatedItemsResponse
 type IFetchStaffRecordsResult = IRemotePaginatedItemsResponse;
-
 
 /**
  * Сервис для получения записей сотрудников из SharePoint
@@ -82,12 +79,6 @@ export class StaffRecordsFetchService {
         return { items: [], totalCount: 0 };
       }
 
-      // Проверка авторизации и инициализации сервисов RemoteSiteService
-      // Вызов ensureServices или getGraphClient в RemoteSiteService
-      // происходит внутри публичных методов RemoteSiteService, на которые мы делегируем вызов.
-      // Нет необходимости вызывать ensureAuthorization здесь явно.
-
-
       // Проверка имени списка
       if (!this._listName) {
         const errorMsg = "Имя списка не определено";
@@ -104,11 +95,10 @@ export class StaffRecordsFetchService {
 
       // Проверка валидности дат после форматирования
       if (startDateStr === '' || endDateStr === '') {
-           const errorMsg = "Некорректные даты начала/окончания периода";
-           this.logError(`[ОШИБКА] ${errorMsg}`);
-           throw new Error(errorMsg);
+        const errorMsg = "Некорректные даты начала/окончания периода";
+        this.logError(`[ОШИБКА] ${errorMsg}`);
+        throw new Error(errorMsg);
       }
-
 
       // Строим фильтр для запроса к SharePoint
       const filter = this.buildFilterExpression(
@@ -122,7 +112,7 @@ export class StaffRecordsFetchService {
       this.logInfo(`[DEBUG] ИТОГОВЫЙ ФИЛЬТР: ${filter}`);
 
       // Определяем параметры сортировки по умолчанию (по дате)
-      const orderBy = { field: "Date", ascending: true };
+      const orderBy = { field: "fields/Date", ascending: true };
 
       // --- ИСПОЛЬЗУЕМ ПУБЛИЧНЫЙ МЕТОД RemoteSiteService.getPaginatedItemsFromList ---
       this.logInfo(`[DEBUG] НАЧИНАЕМ запрос к списку ${this._listName} с пагинацией через RemoteSiteService...`);
@@ -130,16 +120,18 @@ export class StaffRecordsFetchService {
       let fetchResult: IRemotePaginatedItemsResponse; // Используем импортированный тип
       try {
         // Вызываем новый публичный метод RemoteSiteService.getPaginatedItemsFromList
+        // Удаляем свойство select, так как оно не существует в интерфейсе IGetPaginatedListItemsOptions
         fetchResult = await this._remoteSiteService.getPaginatedItemsFromList(
-             this._listName,
-             { // Передаем опции в формате IGetPaginatedListItemsOptions
-                expandFields: true, // Расширять поля для маппинга в StaffRecordsService
-                filter: filter,
-                orderBy: orderBy,
-                skip: skip || 0, // Передаем skip (по умолчанию 0 если не указан)
-                top: top || 100, // Передаем top (по умолчанию 100 если не указан, или ваш размер страницы)
-             }
-         );
+          this._listName,
+          { // Передаем опции в формате IGetPaginatedListItemsOptions
+            expandFields: true, // Расширять поля для маппинга в StaffRecordsService
+            filter: filter,
+            orderBy: orderBy,
+            skip: skip || 0, // Передаем skip (по умолчанию 0 если не указан)
+            top: top || 100, // Передаем top (по умолчанию 100 если не указан, или ваш размер страницы)
+            // Удаляем select: "id,fields", так как это свойство не существует в интерфейсе
+          }
+        );
 
         this.logInfo(
           `[DEBUG] ПОЛУЧЕН ответ от RemoteSiteService.getPaginatedItemsFromList: ${fetchResult.items.length} элементов на странице, ОБЩЕЕ количество: ${fetchResult.totalCount}`
@@ -167,8 +159,8 @@ export class StaffRecordsFetchService {
       // Возвращаем объект с сырыми записями для страницы и общим количеством.
       // StaffRecordsService будет ответственен за маппинг IRawStaffRecord в IStaffRecord.
       return {
-          items: fetchResult.items,
-          totalCount: fetchResult.totalCount
+        items: fetchResult.items,
+        totalCount: fetchResult.totalCount
       };
 
     } catch (error) {
@@ -198,16 +190,16 @@ export class StaffRecordsFetchService {
 
       // Проверка наличия RemoteSiteService
       if (!this._remoteSiteService) {
-           this.logError("[ОШИБКА] RemoteSiteService не инициализирован");
-           return undefined;
+        this.logError("[ОШИБКА] RemoteSiteService не инициализирован");
+        return undefined;
       }
 
       // --- ИСПОЛЬЗУЕМ ПУБЛИЧНЫЙ МЕТОД RemoteSiteService.getListItem ---
-       const rawItem = await this._remoteSiteService.getListItem(
-           this._listName,
-           recordId,
-           true // expandFields = true для получения всех полей
-       );
+      const rawItem = await this._remoteSiteService.getListItem(
+        this._listName,
+        recordId,
+        true // expandFields = true для получения всех полей
+      );
 
       if (!rawItem || !rawItem.id) {
         this.logInfo(`[DEBUG] Запись с ID: ${recordId} не найдена или получена некорректно.`);
@@ -221,23 +213,23 @@ export class StaffRecordsFetchService {
       // Или изменяем маппер, чтобы он работал с rawItem.fields.
       // Предполагаем, что маппер ожидает плоскую структуру IRawStaffRecord.
       // Тогда нужно скопировать поля:
-       const flatRawItem: IRawStaffRecord = {
-           ID: rawItem.id,
-           ...rawItem.fields, // Копируем поля из fields на верхний уровень
-           // Если есть другие топ-уровневые свойства, кроме id и fields, их тоже нужно скопировать
-           // например: '@odata.etag': (rawItem as any)['@odata.etag'],
-       };
-       return flatRawItem;
+      const flatRawItem: IRawStaffRecord = {
+        ID: rawItem.id,
+        ...rawItem.fields, // Копируем поля из fields на верхний уровень
+        // Если есть другие топ-уровневые свойства, кроме id и fields, их тоже нужно скопировать
+        // например: '@odata.etag': (rawItem as any)['@odata.etag'],
+      };
+      return flatRawItem;
 
 
     } catch (error) {
       this.logError(`[ОШИБКА] Не удалось получить запись по ID: ${recordId}: ${error}`);
-       // В случае ошибки возвращаем undefined
+      // В случае ошибки возвращаем undefined
       return undefined;
     }
   }
 
-   /**
+  /**
    * Подсчитывает количество записей, соответствующих параметрам запроса
    * Этот метод МОЖЕТ быть оставлен для других целей, но для пагинации таблицы не нужен.
    *
@@ -247,7 +239,7 @@ export class StaffRecordsFetchService {
   public async countStaffRecords(
     queryParams: Omit<IStaffRecordsQueryParams, 'skip' | 'top'> // Убеждаемся, что пагинация не передается
   ): Promise<number> {
-     // Этот метод остается без изменений, он использует RemoteSiteService.getListItemsCount
+    // Этот метод остается без изменений, он использует RemoteSiteService.getListItemsCount
     try {
       const { startDate, endDate, currentUserID, staffGroupID, employeeID, timeTableID } = queryParams;
 
@@ -262,8 +254,8 @@ export class StaffRecordsFetchService {
 
       // --- ИСПОЛЬЗУЕМ ПУБЛИЧНЫЙ МЕТОД RemoteSiteService.getListItemsCount ---
       const count = await this._remoteSiteService.getListItemsCount(
-          this._listName,
-          filter
+        this._listName,
+        filter
       );
 
       this.logInfo(`[DEBUG] Количество элементов (через RemoteSiteService.getListItemsCount): ${count}`);
@@ -275,64 +267,51 @@ export class StaffRecordsFetchService {
   }
 
 
-  /**
-   * Строит выражение фильтра для запроса к SharePoint
-   *
-   * @param startDateStr Отформатированная строка даты начала
-   * @param endDateStr Отформатированная строка даты окончания
-   * @param employeeID ID сотрудника
-   * @param staffGroupID ID группы
-   * @param currentUserID ID текущего пользователя
-   * @param timeTableID ID недельного расписания (опционально)
-   * @returns Строка фильтра для запроса
-   */
   private buildFilterExpression(
-    startDateStr: string,
-    endDateStr: string,
-    employeeID: string | number,
-    staffGroupID: string | number,
-    currentUserID: string | number,
-    timeTableID?: string | number
-  ): string {
-    // Базовое условие: период
-    let filter = `fields/Date ge '${startDateStr}' and fields/Date le '${endDateStr}'`;
+  startDateStr: string,
+  endDateStr: string,
+  employeeID: string | number,
+  staffGroupID: string | number,
+  currentUserID: string | number,
+  timeTableID?: string | number
+): string {
+  // Базовое условие: период С префиксом fields/
+  let filter = `fields/Date ge '${startDateStr}' and fields/Date le '${endDateStr}'`;
 
-    // Добавляем условие по сотруднику, если указано
-    if (employeeID && employeeID !== '0') {
-      filter += ` and fields/StaffMemberLookupId eq ${employeeID}`;
-      this.logInfo(`[DEBUG] Добавлено условие по ID сотрудника: ${employeeID}`);
-    } else {
-      this.logInfo(`[DEBUG] ID сотрудника не указан или некорректен: ${employeeID}. Фильтрация по сотруднику не применяется.`);
-    }
-
-    // Добавляем условие по группе, если указано
-     if (staffGroupID && staffGroupID !== '0') {
-      filter += ` and fields/StaffGroupLookupId eq ${staffGroupID}`;
-      this.logInfo(`[DEBUG] Добавлено условие по ID группы: ${staffGroupID}`);
-    } else {
-      this.logInfo(`[DEBUG] ID группы не указан или некорректен: ${staffGroupID}. Фильтрация по группе не применяется.`);
-    }
-
-    // Добавляем условие по менеджеру (текущему пользователю), если указано
-    if (currentUserID && currentUserID !== '0') {
-      filter += ` and fields/ManagerLookupId eq ${currentUserID}`;
-      this.logInfo(`[DEBUG] Добавлено условие по ID менеджера: ${currentUserID}`);
-    } else {
-      this.logInfo(`[DEBUG] ID менеджера не указан или некорректен: ${currentUserID}. Фильтрация по менеджеру не применяется.`);
-    }
-
-
-    // Добавляем условие по недельному расписанию, если указано
-    if (timeTableID && timeTableID !== '0' && timeTableID !== '') {
-      filter += ` and fields/WeeklyTimeTableLookupId eq ${timeTableID}`;
-      this.logInfo(`[DEBUG] Добавлено условие по ID недельного расписания: ${timeTableID}`);
-    } else {
-        this.logInfo(`[DEBUG] ID недельного расписания не указан или некорректен: ${timeTableID}. Фильтрация по расписанию не применяется.`);
-    }
-
-
-    return filter;
+  // Добавляем условие по сотруднику, если указано - с префиксом fields/
+  if (employeeID && employeeID !== '0') {
+    filter += ` and fields/StaffMemberLookupId eq ${employeeID}`;
+    this.logInfo(`[DEBUG] Добавлено условие по ID сотрудника: ${employeeID}`);
+  } else {
+    this.logInfo(`[DEBUG] ID сотрудника не указан или некорректен: ${employeeID}. Фильтрация по сотруднику не применяется.`);
   }
+
+  // Добавляем условие по группе, если указано - с префиксом fields/
+  if (staffGroupID && staffGroupID !== '0') {
+    filter += ` and fields/StaffGroupLookupId eq ${staffGroupID}`;
+    this.logInfo(`[DEBUG] Добавлено условие по ID группы: ${staffGroupID}`);
+  } else {
+    this.logInfo(`[DEBUG] ID группы не указан или некорректен: ${staffGroupID}. Фильтрация по группе не применяется.`);
+  }
+
+  // Добавляем условие по менеджеру (текущему пользователю), если указано - с префиксом fields/
+  if (currentUserID && currentUserID !== '0') {
+    filter += ` and fields/ManagerLookupId eq ${currentUserID}`;
+    this.logInfo(`[DEBUG] Добавлено условие по ID менеджера: ${currentUserID}`);
+  } else {
+    this.logInfo(`[DEBUG] ID менеджера не указан или некорректен: ${currentUserID}. Фильтрация по менеджеру не применяется.`);
+  }
+
+  // Добавляем условие по недельному расписанию, если указано - с префиксом fields/
+  if (timeTableID && timeTableID !== '0' && timeTableID !== '') {
+    filter += ` and fields/WeeklyTimeTableLookupId eq ${timeTableID}`;
+    this.logInfo(`[DEBUG] Добавлено условие по ID недельного расписания: ${timeTableID}`);
+  } else {
+    this.logInfo(`[DEBUG] ID недельного расписания не указан или некорректен: ${timeTableID}. Фильтрация по расписанию не применяется.`);
+  }
+
+  return filter;
+}
 
   /**
    * Форматирует дату для использования в фильтре запроса
@@ -341,10 +320,10 @@ export class StaffRecordsFetchService {
    */
   private formatDateForFilter(date: Date): string {
     if (!date || isNaN(date.getTime())) {
-        this.logError('[ОШИБКА] formatDateForFilter: Получена недействительная дата.');
-        const fallbackDate = new Date();
-        this.logError(`[ОШИБКА] formatDateForFilter: Используется запасная дата ${fallbackDate.toISOString()}`);
-        return fallbackDate.toISOString().split('T')[0] + 'T00:00:00Z';
+      this.logError('[ОШИБКА] formatDateForFilter: Получена недействительная дата.');
+      const fallbackDate = new Date();
+      this.logError(`[ОШИБКА] formatDateForFilter: Используется запасная дата ${fallbackDate.toISOString()}`);
+      return fallbackDate.toISOString().split('T')[0] + 'T00:00:00Z';
     }
     try {
       // Формат ISO для SharePoint: YYYY-MM-DDT00:00:00Z
@@ -354,9 +333,9 @@ export class StaffRecordsFetchService {
       return formattedDate;
     } catch (error) {
       this.logError(`[ОШИБКА] Ошибка форматирования даты ${date}: ${error instanceof Error ? error.message : String(error)}`);
-       const fallbackDate = new Date();
-       this.logError(`[ОШИБКА] formatDateForFilter: Используется запасная дата ${fallbackDate.toISOString()}`);
-       return fallbackDate.toISOString().split('T')[0] + 'T00:00:00Z';
+      const fallbackDate = new Date();
+      this.logError(`[ОШИБКА] formatDateForFilter: Используется запасная дата ${fallbackDate.toISOString()}`);
+      return fallbackDate.toISOString().split('T')[0] + 'T00:00:00Z';
     }
   }
 
@@ -370,21 +349,21 @@ export class StaffRecordsFetchService {
 
     // Проверка наличия полей (используя оператор ?)
     if (item) {
-       const fields = item; // В этом сервисе мы работаем с полями напрямую как IRawStaffRecord
-       this.logInfo(`[DEBUG] Поля первого элемента: ${Object.keys(fields).join(', ')}`);
+      const fields = item; // В этом сервисе мы работаем с полями напрямую как IRawStaffRecord
+      this.logInfo(`[DEBUG] Поля первого элемента: ${Object.keys(fields).join(', ')}`);
 
-       // Проверка полей Lookup
-       const lookupFields = Object.keys(fields).filter(key => key.endsWith('LookupId') || key.includes('Lookup'));
-       this.logInfo(`[DEBUG] Поля LookupId/Lookup: ${lookupFields.join(', ')}`);
+      // Проверка полей Lookup
+      const lookupFields = Object.keys(fields).filter(key => key.endsWith('LookupId') || key.includes('Lookup'));
+      this.logInfo(`[DEBUG] Поля LookupId/Lookup: ${lookupFields.join(', ')}`);
 
-       // Проверка важных полей
-       ['ID', 'Title', 'Date', 'ShiftDate1', 'ShiftDate2', 'TimeForLunch', 'Deleted', 'TypeOfLeave', 'WeeklyTimeTable'].forEach(field => {
-         const hasField = fields[field] !== undefined; // Проверяем наличие поля
-         this.logInfo(`[DEBUG] Поле ${field}: ${hasField ? 'присутствует' : 'отсутствует'}`);
-         if (hasField) {
-           this.logInfo(`[DEBUG] Значение ${field}: ${JSON.stringify(fields[field])}`);
-         }
-       });
+      // Проверка важных полей
+      ['ID', 'Title', 'Date', 'ShiftDate1', 'ShiftDate2', 'TimeForLunch', 'Deleted', 'TypeOfLeave', 'WeeklyTimeTable'].forEach(field => {
+        const hasField = fields[field] !== undefined; // Проверяем наличие поля
+        this.logInfo(`[DEBUG] Поле ${field}: ${hasField ? 'присутствует' : 'отсутствует'}`);
+        if (hasField) {
+          this.logInfo(`[DEBUG] Значение ${field}: ${JSON.stringify(fields[field])}`);
+        }
+      });
     } else {
       this.logInfo(`[DEBUG] ВНИМАНИЕ: Первый элемент пустой или не имеет полей`);
     }

@@ -14,7 +14,7 @@ export interface IScheduleTableContentProps {
   showDeleteConfirmDialog: (id: string) => void;
   showAddShiftConfirmDialog: (item: IScheduleItem) => void; // Changed to accept full item
   showRestoreConfirmDialog: (id: string) => void;
-  onRestoreItem?: (id: string) => Promise<void>;
+  onRestoreItem?: (id: string) => Promise<boolean>;
   getDisplayWorkTime: (item: IScheduleItem) => string;
   onItemChange: (item: IScheduleItem, field: string, value: string) => void;
   onContractNumberChange: (item: IScheduleItem, value: string) => void;

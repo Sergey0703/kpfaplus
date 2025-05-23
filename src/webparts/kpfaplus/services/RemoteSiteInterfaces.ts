@@ -73,13 +73,12 @@ export interface IGetListItemsOptions {
 // --- НОВЫЙ ИНТЕРФЕЙС ДЛЯ ПАГИНАЦИИ ---
 // Интерфейс для параметров запроса ОДНОЙ страницы элементов списка с пагинацией
 export interface IGetPaginatedListItemsOptions {
-  expandFields?: boolean; // Расширять поля (expand=fields)
-  filter?: string;      // Фильтр в формате OData
-  orderBy?: { field: string, ascending: boolean }; // Сортировка в формате OData
-  skip: number;         // Количество элементов для пропуска ($skip)
-  top: number;          // Количество элементов для возврата ($top)
-  // NOTE: В отличие от IGetListItemsOptions, maxItems и pageSize здесь не нужны,
-  // потому что мы запрашиваем конкретный срез данных.
+  expandFields?: boolean;
+  filter?: string;
+  orderBy?: { field: string; ascending: boolean };
+  skip?: number;
+  top?: number;
+  nextLink?: string; // Ссылка на следующую страницу для продолжения пагинации
 }
 // ----------------------------------
 
@@ -105,6 +104,7 @@ export interface IOperationResult<T> {
 // Это тот же тип, который мы определили локально в RemoteSiteItemService,
 // но теперь экспортируем его для использования в других сервисах
 export interface IRemotePaginatedItemsResponse {
-  items: IRemoteListItemResponse[]; // Элементы для текущей страницы
-  totalCount: number;               // Общее количество элементов, соответствующих фильтру (из @odata.count)
+  items: IRemoteListItemResponse[];
+  totalCount: number;
+  nextLink?: string; // Ссылка на следующую страницу
 }

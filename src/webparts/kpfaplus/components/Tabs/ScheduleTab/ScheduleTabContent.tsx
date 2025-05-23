@@ -118,7 +118,7 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     typesOfLeave,
     holidaysService,
     daysOfLeavesService,
-    typeOfLeaveService, // <-- Используется для DayInfo
+    //typeOfLeaveService, // <-- Используется для DayInfo
     onDateChange,
     onContractChange,
     onErrorDismiss,
@@ -479,10 +479,9 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
         } else if (field === 'contractNumber') {
              updatedValue = String(value);
         } else if (field === 'date') {
-             if (value instanceof Date) updatedValue = value;
-             else console.warn(`[ScheduleTabContent] Unexpected value type for date field: ${typeof value}`);
-        }
-
+    if (Object.prototype.toString.call(value) === '[object Date]') updatedValue = value;
+     else console.warn(`[ScheduleTabContent] Unexpected value type for date field: ${typeof value}`);
+}
        const updatedItem = {
          ...currentLocalItem,
          [field]: updatedValue,
@@ -584,7 +583,7 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
                    typesOfLeave={typesOfLeave}
                    holidaysService={holidaysService}
                    daysOfLeavesService={daysOfLeavesService}
-                   typeOfLeaveService={typeOfLeaveService} // <-- Передаем typeOfLeaveService сюда
+                  // typeOfLeaveService={typeOfLeaveService} // <-- Передаем typeOfLeaveService сюда
                  />
 
                 <div style={{ padding: '10px' }}>
