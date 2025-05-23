@@ -80,6 +80,7 @@ export interface IRawStaffRecord {
 
 /**
  * Интерфейс для параметров запроса к API StaffRecords
+ * ДОБАВЛЕНЫ поля для пагинации: skip и top
  */
 export interface IStaffRecordsQueryParams {
   startDate: Date;               // Дата начала периода
@@ -88,6 +89,21 @@ export interface IStaffRecordsQueryParams {
   staffGroupID: string | number; // ID группы сотрудников
   employeeID: string | number;   // ID сотрудника
   timeTableID?: string | number; // ID недельного расписания (опционально)
+  
+  // --- ДОБАВЛЕНО ДЛЯ ПАГИНАЦИИ ---
+  skip?: number;                 // Количество записей для пропуска (для пагинации)
+  top?: number;                  // Максимальное количество записей для возврата (для пагинации)
+  // -------------------------------
+}
+
+/**
+ * Интерфейс для результатов обработки данных StaffRecords
+ * ПОЛЕ totalCount УЖЕ ПРИСУТСТВУЕТ, что отлично!
+ */
+export interface IStaffRecordsResult {
+  records: IStaffRecord[];       // Массив обработанных записей (теперь это данные для текущей страницы)
+  totalCount: number;            // Общее количество записей, соответствующих фильтру (для расчета общего числа страниц)
+  error?: string;                // Ошибка (если есть)
 }
 
 /**
@@ -99,15 +115,6 @@ export interface IWorkTimeCalculationResult {
   workMinutes: number;           // Общее количество рабочих минут
   lunchMinutes: number;          // Время обеда в минутах
   netWorkMinutes: number;        // Чистое рабочее время (без обеда) в минутах
-}
-
-/**
- * Интерфейс для результатов обработки данных StaffRecords
- */
-export interface IStaffRecordsResult {
-  records: IStaffRecord[];       // Массив обработанных записей
-  totalCount: number;            // Общее количество записей
-  error?: string;                // Ошибка (если есть)
 }
 
 /**

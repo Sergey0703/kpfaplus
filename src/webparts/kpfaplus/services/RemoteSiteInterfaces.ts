@@ -15,10 +15,10 @@ export interface IRemoteSiteInfo {
     serverRelativeUrl?: string;
     webTemplate?: string;
     [key: string]: unknown; // Индексная сигнатура для дополнительных полей
-  }
-  
-  // Интерфейс для информации о списке
-  export interface IRemoteListInfo {
+}
+
+// Интерфейс для информации о списке
+export interface IRemoteListInfo {
     id: string;
     title: string;
     itemCount: number;
@@ -26,29 +26,29 @@ export interface IRemoteSiteInfo {
     defaultViewUrl?: string;
     lastModifiedDateTime?: string;
     [key: string]: unknown; // Индексная сигнатура для дополнительных полей
-  }
-  
-  // Интерфейс для полей Lookup
-  export interface ILookupField {
+}
+
+// Интерфейс для полей Lookup
+export interface ILookupField {
     Id: number;
     Title: string;
     [key: string]: unknown;
-  }
-  
-  // Интерфейс для элементов списка с типизированными полями
-  export interface IRemoteListItemField {
+}
+
+// Интерфейс для элементов списка с типизированными полями
+export interface IRemoteListItemField {
     [key: string]: unknown;
-  }
-  
-  // Интерфейс для элементов списка
-  export interface IRemoteListItemResponse {
+}
+
+// Интерфейс для элементов списка
+export interface IRemoteListItemResponse {
     id: string;
     fields?: IRemoteListItemField;
     [key: string]: unknown;
-  }
-  
-  // Интерфейс для полей списка
-  export interface IRemoteListFieldInfo {
+}
+
+// Интерфейс для полей списка
+export interface IRemoteListFieldInfo {
     id: string;
     name: string;
     displayName: string;
@@ -59,30 +59,52 @@ export interface IRemoteSiteInfo {
     required?: boolean;
     readOnly?: boolean;
     [key: string]: unknown;
-  }
-  
-  // Интерфейс для параметров запроса элементов списка
-  export interface IGetListItemsOptions {
+}
+
+// Интерфейс для параметров запроса элементов списка (для сбора всех страниц) - ОСТАВЛЯЕМ ДЛЯ СУЩЕСТВУЮЩЕГО getListItems
+export interface IGetListItemsOptions {
     expandFields?: boolean;
     filter?: string;
     orderBy?: { field: string, ascending: boolean };
     maxItems?: number;
     pageSize?: number;
-  }
-  
-  // Интерфейс для опций создания элемента списка
-  export interface ICreateListItemOptions {
+}
+
+// --- НОВЫЙ ИНТЕРФЕЙС ДЛЯ ПАГИНАЦИИ ---
+// Интерфейс для параметров запроса ОДНОЙ страницы элементов списка с пагинацией
+export interface IGetPaginatedListItemsOptions {
+  expandFields?: boolean; // Расширять поля (expand=fields)
+  filter?: string;      // Фильтр в формате OData
+  orderBy?: { field: string, ascending: boolean }; // Сортировка в формате OData
+  skip: number;         // Количество элементов для пропуска ($skip)
+  top: number;          // Количество элементов для возврата ($top)
+  // NOTE: В отличие от IGetListItemsOptions, maxItems и pageSize здесь не нужны,
+  // потому что мы запрашиваем конкретный срез данных.
+}
+// ----------------------------------
+
+
+// Интерфейс для опций создания элемента списка
+export interface ICreateListItemOptions {
     fields: Record<string, unknown>;
-  }
-  
-  // Интерфейс для опций обновления элемента списка
-  export interface IUpdateListItemOptions {
+}
+
+// Интерфейс для опций обновления элемента списка
+export interface IUpdateListItemOptions {
     fields: Record<string, unknown>;
-  }
-  
-  // Интерфейс для результатов операций с ошибками
-  export interface IOperationResult<T> {
+}
+
+// Интерфейс для результатов операций с ошибками
+export interface IOperationResult<T> {
     success: boolean;
     data?: T;
     error?: string;
-  }
+}
+
+// Интерфейс для результатов пагинированного запроса
+// Это тот же тип, который мы определили локально в RemoteSiteItemService,
+// но теперь экспортируем его для использования в других сервисах
+export interface IRemotePaginatedItemsResponse {
+  items: IRemoteListItemResponse[]; // Элементы для текущей страницы
+  totalCount: number;               // Общее количество элементов, соответствующих фильтру (из @odata.count)
+}
