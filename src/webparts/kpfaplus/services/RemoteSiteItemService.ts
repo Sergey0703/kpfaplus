@@ -288,12 +288,12 @@ public async getPaginatedListItems(
 
     this.logInfo(`Retrieved ${items.length} items, range: ${rangeStart}-${rangeEnd}, total estimate: ${totalCount}`);
 
-    // Преобразуем полученные элементы в нужный формат IRemoteListItemResponse
+    // ИСПРАВЛЕНО: Преобразуем полученные элементы в нужный формат IRemoteListItemResponse
     const paginatedItems: IRemoteListItemResponse[] = items.map((item: Record<string, unknown>) => {
       return {
         id: DataTypeAdapter.toString(item.id),
-        fields: (item as any).fields || {},
-        '@odata.etag': (item as any)['@odata.etag'],
+        fields: (item as Record<string, unknown>).fields as IRemoteListItemField || {},
+        '@odata.etag': (item as Record<string, unknown>)['@odata.etag'] as string,
       };
     });
 
@@ -340,10 +340,10 @@ public async getPaginatedListItems(
 
           this.logInfo(`Successfully created item in list "${listTitle}" with ID: ${response?.id}`);
 
-           // Assuming the response includes the created item's id and fields
+           // ИСПРАВЛЕНО: Assuming the response includes the created item's id and fields
           return {
             id: DataTypeAdapter.toString(response.id),
-            fields: (response as any).fields || {} // Access fields if present
+            fields: (response as Record<string, unknown>).fields as IRemoteListItemField || {} // Access fields if present
           };
 
         } catch (error) {
@@ -444,10 +444,10 @@ public async getPaginatedListItems(
 
             this.logInfo(`Successfully retrieved item ID: ${itemId} from list "${listTitle}"`);
 
-            // Assuming the response includes the item's id and fields
+            // ИСПРАВЛЕНО: Assuming the response includes the item's id and fields
             return {
               id: DataTypeAdapter.toString(response.id),
-              fields: (response as any).fields || {} // Access fields if present
+              fields: (response as Record<string, unknown>).fields as IRemoteListItemField || {} // Access fields if present
             };
           } catch (error) {
             this.logError(`Error getting item ID: ${itemId} from list "${listTitle}": ${error}`);
