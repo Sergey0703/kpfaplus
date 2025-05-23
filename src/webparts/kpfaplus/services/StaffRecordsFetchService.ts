@@ -76,7 +76,12 @@ export class StaffRecordsFetchService {
       if (!this._remoteSiteService) {
         this.logError("[ОШИБКА] RemoteSiteService не инициализирован");
         // Возвращаем пустой результат в случае ошибки сервиса
-        return { items: [], totalCount: 0 };
+        return { 
+          items: [], 
+          totalCount: 0,
+          rangeStart: 0, // Добавляем новые свойства
+          rangeEnd: 0    // Добавляем новые свойства
+        };
       }
 
       // Проверка имени списка
@@ -120,7 +125,6 @@ export class StaffRecordsFetchService {
       let fetchResult: IRemotePaginatedItemsResponse; // Используем импортированный тип
       try {
         // Вызываем новый публичный метод RemoteSiteService.getPaginatedItemsFromList
-        // Удаляем свойство select, так как оно не существует в интерфейсе IGetPaginatedListItemsOptions
         fetchResult = await this._remoteSiteService.getPaginatedItemsFromList(
           this._listName,
           { // Передаем опции в формате IGetPaginatedListItemsOptions
@@ -128,8 +132,8 @@ export class StaffRecordsFetchService {
             filter: filter,
             orderBy: orderBy,
             skip: skip || 0, // Передаем skip (по умолчанию 0 если не указан)
-            top: top || 100, // Передаем top (по умолчанию 100 если не указан, или ваш размер страницы)
-            // Удаляем select: "id,fields", так как это свойство не существует в интерфейсе
+            top: top || 60, // Передаем top (по умолчанию 60 если не указан, или размер страницы по умолчанию)
+            nextLink: queryParams.nextLink // Передаем nextLink, если он есть
           }
         );
 
@@ -160,7 +164,10 @@ export class StaffRecordsFetchService {
       // StaffRecordsService будет ответственен за маппинг IRawStaffRecord в IStaffRecord.
       return {
         items: fetchResult.items,
-        totalCount: fetchResult.totalCount
+        totalCount: fetchResult.totalCount,
+        nextLink: fetchResult.nextLink,
+        rangeStart: fetchResult.rangeStart || (skip || 0) + 1, // Используем значения из fetchResult или вычисляем
+        rangeEnd: fetchResult.rangeEnd || (skip || 0) + fetchResult.items.length // Используем значения из fetchResult или вычисляем
       };
 
     } catch (error) {
@@ -267,51 +274,62 @@ export class StaffRecordsFetchService {
   }
 
 
+  /**
+   * Строит выражение фильтра для запроса к SharePoint
+   *
+   * @param startDateStr Отформатированная строка даты начала
+   * @param endDateStr Отформатированная строка даты окончания
+   * @param employeeID ID сотрудника
+   * @param staffGroupID ID группы
+   * @param currentUserID ID текущего пользователя
+   * @param timeTableID ID недельного расписания (опционально)
+   * @returns Строка фильтра для запроса
+   */
   private buildFilterExpression(
-  startDateStr: string,
-  endDateStr: string,
-  employeeID: string | number,
-  staffGroupID: string | number,
-  currentUserID: string | number,
-  timeTableID?: string | number
-): string {
-  // Базовое условие: период С префиксом fields/
-  let filter = `fields/Date ge '${startDateStr}' and fields/Date le '${endDateStr}'`;
+    startDateStr: string,
+    endDateStr: string,
+    employeeID: string | number,
+    staffGroupID: string | number,
+    currentUserID: string | number,
+    timeTableID?: string | number
+  ): string {
+    // Базовое условие: период с префиксом fields/
+    let filter = `fields/Date ge '${startDateStr}' and fields/Date le '${endDateStr}'`;
 
-  // Добавляем условие по сотруднику, если указано - с префиксом fields/
-  if (employeeID && employeeID !== '0') {
-    filter += ` and fields/StaffMemberLookupId eq ${employeeID}`;
-    this.logInfo(`[DEBUG] Добавлено условие по ID сотрудника: ${employeeID}`);
-  } else {
-    this.logInfo(`[DEBUG] ID сотрудника не указан или некорректен: ${employeeID}. Фильтрация по сотруднику не применяется.`);
+    // Добавляем условие по сотруднику, если указано - с префиксом fields/
+    if (employeeID && employeeID !== '0') {
+      filter += ` and fields/StaffMemberLookupId eq ${employeeID}`;
+      this.logInfo(`[DEBUG] Добавлено условие по ID сотрудника: ${employeeID}`);
+    } else {
+      this.logInfo(`[DEBUG] ID сотрудника не указан или некорректен: ${employeeID}. Фильтрация по сотруднику не применяется.`);
+    }
+
+    // Добавляем условие по группе, если указано - с префиксом fields/
+    if (staffGroupID && staffGroupID !== '0') {
+      filter += ` and fields/StaffGroupLookupId eq ${staffGroupID}`;
+      this.logInfo(`[DEBUG] Добавлено условие по ID группы: ${staffGroupID}`);
+    } else {
+      this.logInfo(`[DEBUG] ID группы не указан или некорректен: ${staffGroupID}. Фильтрация по группе не применяется.`);
+    }
+
+    // Добавляем условие по менеджеру (текущему пользователю), если указано - с префиксом fields/
+    if (currentUserID && currentUserID !== '0') {
+      filter += ` and fields/ManagerLookupId eq ${currentUserID}`;
+      this.logInfo(`[DEBUG] Добавлено условие по ID менеджера: ${currentUserID}`);
+    } else {
+      this.logInfo(`[DEBUG] ID менеджера не указан или некорректен: ${currentUserID}. Фильтрация по менеджеру не применяется.`);
+    }
+
+    // Добавляем условие по недельному расписанию, если указано - с префиксом fields/
+    if (timeTableID && timeTableID !== '0' && timeTableID !== '') {
+      filter += ` and fields/WeeklyTimeTableLookupId eq ${timeTableID}`;
+      this.logInfo(`[DEBUG] Добавлено условие по ID недельного расписания: ${timeTableID}`);
+    } else {
+      this.logInfo(`[DEBUG] ID недельного расписания не указан или некорректен: ${timeTableID}. Фильтрация по расписанию не применяется.`);
+    }
+
+    return filter;
   }
-
-  // Добавляем условие по группе, если указано - с префиксом fields/
-  if (staffGroupID && staffGroupID !== '0') {
-    filter += ` and fields/StaffGroupLookupId eq ${staffGroupID}`;
-    this.logInfo(`[DEBUG] Добавлено условие по ID группы: ${staffGroupID}`);
-  } else {
-    this.logInfo(`[DEBUG] ID группы не указан или некорректен: ${staffGroupID}. Фильтрация по группе не применяется.`);
-  }
-
-  // Добавляем условие по менеджеру (текущему пользователю), если указано - с префиксом fields/
-  if (currentUserID && currentUserID !== '0') {
-    filter += ` and fields/ManagerLookupId eq ${currentUserID}`;
-    this.logInfo(`[DEBUG] Добавлено условие по ID менеджера: ${currentUserID}`);
-  } else {
-    this.logInfo(`[DEBUG] ID менеджера не указан или некорректен: ${currentUserID}. Фильтрация по менеджеру не применяется.`);
-  }
-
-  // Добавляем условие по недельному расписанию, если указано - с префиксом fields/
-  if (timeTableID && timeTableID !== '0' && timeTableID !== '') {
-    filter += ` and fields/WeeklyTimeTableLookupId eq ${timeTableID}`;
-    this.logInfo(`[DEBUG] Добавлено условие по ID недельного расписания: ${timeTableID}`);
-  } else {
-    this.logInfo(`[DEBUG] ID недельного расписания не указан или некорректен: ${timeTableID}. Фильтрация по расписанию не применяется.`);
-  }
-
-  return filter;
-}
 
   /**
    * Форматирует дату для использования в фильтре запроса

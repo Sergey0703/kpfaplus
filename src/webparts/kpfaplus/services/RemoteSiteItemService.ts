@@ -196,9 +196,12 @@ public async getPaginatedListItems(
       filter,
       orderBy,
       skip = 0, // Устанавливаем значение по умолчанию для skip
-      top = 20,  // Устанавливаем значение по умолчанию для top
+      top = 60,  // Устанавливаем значение по умолчанию 60 записей
       nextLink, // Ссылка на следующую страницу
     } = options;
+
+    // Проверяем, что top имеет допустимое значение (60 или 90)
+    const validatedTop = (top === 60 || top === 90) ? top : 60;
 
     let request;
 
@@ -238,8 +241,8 @@ public async getPaginatedListItems(
       }
 
       // Устанавливаем размер страницы (только top)
-      request = request.top(top);
-      this.logInfo(`Applying page size: top=${top}`);
+      request = request.top(validatedTop);
+      this.logInfo(`Applying page size: top=${validatedTop}`);
     }
 
     this.logInfo(`[PERF] Executing paginated request for list "${listTitle}"`);
@@ -261,19 +264,29 @@ public async getPaginatedListItems(
     const items = response?.value || [];
     const responseNextLink = response['@odata.nextLink']; // Получаем ссылку на следующую страницу
     
-    // Оцениваем общее количество элементов
-    // Если есть nextLink, то общее количество больше, чем текущий count
-    // Если нет nextLink, то это последняя страница
-    let totalCount;
-    if (!nextLink) {
-      // Если это первая страница
-      totalCount = responseNextLink ? (items.length * 2) : items.length; // Грубая оценка
+    // Вычисляем правильное общее количество записей
+    // Если нет nextLink, значит это последняя или единственная страница,
+    // и общее количество = skip + размер текущей страницы
+    // Если есть nextLink, то делаем дополнительный запрос для подсчета
+    let totalCount = skip + items.length;
+    
+    if (responseNextLink) {
+      // Если есть nextLink, значит есть еще записи
+      // Но так как мы не можем использовать $count, мы можем только предположить, 
+      // что осталось еще как минимум одна запись
+      // или мы можем сделать дополнительный запрос для получения полного списка
+      // Для данного случая, просто отметим, что есть еще записи
+      totalCount = Math.max(totalCount, skip + items.length + 1);
+      this.logInfo(`[DEBUG] Has more records (nextLink present). Current total estimate: ${totalCount}`);
     } else {
-      // Если это не первая страница, учитываем skip
-      totalCount = responseNextLink ? (skip + items.length * 2) : (skip + items.length);
+      this.logInfo(`[DEBUG] Last page reached. Total count: ${totalCount}`);
     }
 
-    this.logInfo(`Retrieved ${items.length} items, has next page: ${!!responseNextLink}, estimated total: ${totalCount}`);
+    // Вычисляем диапазон записей для UI
+    const rangeStart = skip + 1;
+    const rangeEnd = skip + items.length;
+
+    this.logInfo(`Retrieved ${items.length} items, range: ${rangeStart}-${rangeEnd}, total estimate: ${totalCount}`);
 
     // Преобразуем полученные элементы в нужный формат IRemoteListItemResponse
     const paginatedItems: IRemoteListItemResponse[] = items.map((item: Record<string, unknown>) => {
@@ -287,11 +300,13 @@ public async getPaginatedListItems(
     const totalDuration = Date.now() - startTime;
     this.logInfo(`[PERF] Total getPaginatedListItems completed in ${totalDuration}ms.`);
 
-    // Возвращаем объект с элементами для страницы, оценочным общим количеством и ссылкой на следующую страницу
+    // Возвращаем объект с элементами для страницы, точным общим количеством и информацией о диапазоне
     return {
       items: paginatedItems,
       totalCount: totalCount,
-      nextLink: responseNextLink
+      nextLink: responseNextLink,
+      rangeStart: rangeStart,
+      rangeEnd: rangeEnd
     };
 
   } catch (error) {

@@ -10,8 +10,6 @@ import { calculateItemWorkTime } from './ScheduleTableUtils';
 import {
   IDropdownOption,
   Dropdown,
-  Stack,
-  IStackTokens,
   Text,
   DefaultButton,
 } from '@fluentui/react';
@@ -41,7 +39,7 @@ export interface INewShiftData {
   contract: string;
   contractNumber?: string;
   typeOfLeave?: string;
-  Holiday?: number; // Исправлено: Большая буква для консистентности с IScheduleItem
+  Holiday?: number;
 }
 
 export interface IScheduleOptions {
@@ -63,17 +61,21 @@ export interface IScheduleTableProps {
   onToggleShowDeleted: (checked: boolean) => void;
   onItemChange: (item: IScheduleItem, field: string, value: string | number) => void;
   onAddShift: (date: Date, shiftData?: INewShiftData) => void;
-  // --- ИСПРАВЛЕНИЕ: Возвращаемый тип изменен на Promise<boolean> ---
-  onDeleteItem: (id: string) => Promise<boolean>; // <-- ИСПРАВЛЕНО
-  onRestoreItem?: (id: string) => Promise<boolean>; // <-- ИСПРАВЛЕНО
-  // --------------------------------------------------------------
+  onDeleteItem: (id: string) => Promise<boolean>;
+  onRestoreItem?: (id: string) => Promise<boolean>;
   saveChangesButton?: React.ReactNode;
 
+  // --- НОВЫЕ СВОЙСТВА ДЛЯ ПАГИНАЦИИ ---
   currentPage: number;
   itemsPerPage: number;
   totalItemCount: number;
+  rangeStart?: number;        // Начало диапазона отображаемых записей
+  rangeEnd?: number;          // Конец диапазона отображаемых записей
+  hasNextPage?: boolean;      // Есть ли следующая страница
   onPageChange: (page: number) => void;
   onItemsPerPageChange: (itemsPerPage: number) => void;
+  onNextPage?: () => void;    // Обработчик для следующей страницы
+  onPreviousPage?: () => void; // Обработчик для предыдущей страницы
 }
 
 export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
@@ -90,11 +92,17 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
     onRestoreItem,
     saveChangesButton,
 
+    // Новые свойства пагинации
     currentPage,
     itemsPerPage,
     totalItemCount,
+    rangeStart,
+    rangeEnd,
+    hasNextPage,
     onPageChange,
     onItemsPerPageChange,
+    onNextPage,
+    onPreviousPage,
   } = props;
 
   const [selectAllRows, setSelectAllRows] = useState<boolean>(false);
@@ -184,7 +192,7 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
       contract: item.contract,
       contractNumber: item.contractNumber,
       typeOfLeave: item.typeOfLeave,
-      Holiday: item.Holiday // <-- ИСПРАВЛЕНО
+      Holiday: item.Holiday
     };
 
     setConfirmDialogProps({
@@ -208,7 +216,6 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
       confirmButtonColor: '#107c10'
     });
   }, [onAddShift]);
-
 
   const showRestoreConfirmDialog = useCallback((itemId: string): void => {
     console.log(`[ScheduleTable] Setting up restore for item ID: ${itemId}`);
@@ -304,7 +311,8 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
     onItemChange(updatedItem, 'workingHours', workTime);
   }, [calculatedWorkTimes, onItemChange]);
 
-
+  // --- ЗАКОММЕНТИРОВАННАЯ СТАРАЯ ПАГИНАЦИЯ ---
+  /*
   const totalPages = Math.max(1, Math.ceil(totalItemCount / itemsPerPage));
 
    const itemsPerPageOptions: IDropdownOption[] = [
@@ -314,14 +322,9 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
        { key: 100, text: '100' },
        { key: totalItemCount > 100 ? totalItemCount : 101, text: `All (${totalItemCount})` },
    ];
+  */
 
-  const stackTokens: IStackTokens = { childrenGap: 10 };
-
-  const handlePageChange = useCallback((page: number): void => {
-      console.log('[ScheduleTable] handlePageChange called with page:', page);
-      onPageChange(page);
-  }, [onPageChange]);
-
+  // --- НОВЫЕ ОБРАБОТЧИКИ ДЛЯ ПАГИНАЦИИ ---
   const handleItemsPerPageChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
       if (option) {
            const newItemsPerPage = Number(option.key);
@@ -330,6 +333,27 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
       }
   }, [onItemsPerPageChange]);
 
+  const handlePreviousPage = useCallback(() => {
+    if (onPreviousPage) {
+      onPreviousPage();
+    } else if (currentPage > 1) {
+      onPageChange(currentPage - 1);
+    }
+  }, [onPreviousPage, currentPage, onPageChange]);
+
+  const handleNextPage = useCallback(() => {
+    if (onNextPage) {
+      onNextPage();
+    } else {
+      onPageChange(currentPage + 1);
+    }
+  }, [onNextPage, currentPage, onPageChange]);
+
+  // Новые опции для выбора количества записей на страницу (только 60 и 90)
+  const newItemsPerPageOptions: IDropdownOption[] = [
+    { key: 60, text: '60' },
+    { key: 90, text: '90' },
+  ];
 
   return (
     <div className={styles.scheduleTab}>
@@ -359,6 +383,76 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
         onAddShift={onAddShift}
       />
 
+      {/* --- НОВАЯ ПАГИНАЦИЯ (60/90 записей) --- */}
+      {totalItemCount > 0 && (
+        <div className="pagination-container" style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '16px 0',
+          borderTop: '1px solid #e0e0e0',
+          marginTop: '16px'
+        }}>
+          {/* Информация о записях */}
+          <div className="records-info">
+            <Text variant="medium">
+              {totalItemCount > 0 && rangeStart && rangeEnd
+                ? `Records ${rangeStart}-${rangeEnd} of ${totalItemCount}` 
+                : totalItemCount > 0 
+                  ? `Total records: ${totalItemCount}`
+                  : "No records"}
+            </Text>
+          </div>
+          
+          {/* Выбор количества записей на страницу */}
+          <div className="items-per-page" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Text variant="medium">Items per page:</Text>
+            <Dropdown
+              selectedKey={itemsPerPage}
+              options={newItemsPerPageOptions}
+              onChange={handleItemsPerPageChange}
+              disabled={isLoading}
+              styles={{ 
+                root: { width: '80px' },
+                dropdown: { minWidth: '80px' }
+              }}
+            />
+          </div>
+          
+          {/* Навигация по страницам */}
+          <div className="navigation-buttons" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <DefaultButton
+              text="Previous"
+              onClick={handlePreviousPage}
+              disabled={currentPage <= 1 || isLoading}
+              styles={{ 
+                root: { 
+                  minWidth: '80px',
+                  backgroundColor: currentPage <= 1 ? '#f5f5f5' : '#fff'
+                }
+              }}
+            />
+            
+            <Text variant="medium" style={{ minWidth: '120px', textAlign: 'center' }}>
+              Page {currentPage}
+            </Text>
+            
+            <DefaultButton
+              text="Next"
+              onClick={handleNextPage}
+              disabled={!hasNextPage || isLoading}
+              styles={{ 
+                root: { 
+                  minWidth: '80px',
+                  backgroundColor: !hasNextPage ? '#f5f5f5' : '#fff'
+                }
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* --- ЗАКОММЕНТИРОВАННАЯ СТАРАЯ ПАГИНАЦИЯ ---
        {totalItemCount > 0 && (
            <Stack horizontal tokens={stackTokens} verticalAlign="center" horizontalAlign="space-between" style={{ marginTop: '16px' }}>
 
@@ -406,6 +500,7 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
                  )}
            </Stack>
        )}
+      */}
 
       <ScheduleTableDialogs
         confirmDialogProps={confirmDialogProps}

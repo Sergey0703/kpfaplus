@@ -82,7 +82,13 @@ export interface IGetPaginatedListItemsOptions {
 }
 // ----------------------------------
 
-
+export interface IRemotePaginatedItemsResponse {
+  items: IRemoteListItemResponse[];
+  totalCount: number;
+  nextLink?: string; // Ссылка на следующую страницу
+  rangeStart: number; // Начало диапазона отображаемых записей
+  rangeEnd: number;   // Конец диапазона отображаемых записей
+}
 // Интерфейс для опций создания элемента списка
 export interface ICreateListItemOptions {
     fields: Record<string, unknown>;
