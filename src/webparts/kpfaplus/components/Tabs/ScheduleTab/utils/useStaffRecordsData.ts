@@ -24,9 +24,17 @@ interface UseStaffRecordsDataProps {
   // -------------------------------------------
 }
 
+// ИСПРАВЛЕНО: Добавлен параметр timeTableID в getExistingRecordsWithStatus
 interface UseStaffRecordsDataReturn {
   loadStaffRecords: (overrideDate?: Date, contractId?: string) => void;
-  getExistingRecordsWithStatus: (startDate: Date, endDate: Date, employeeId: string, currentUserId?: string, staffGroupId?: string) => Promise<IExistingRecordCheck[]>;
+  getExistingRecordsWithStatus: (
+    startDate: Date, 
+    endDate: Date, 
+    employeeId: string, 
+    currentUserId?: string, 
+    staffGroupId?: string, 
+    timeTableID?: string // <-- ДОБАВЛЕН ПАРАМЕТР timeTableID
+  ) => Promise<IExistingRecordCheck[]>;
   markRecordsAsDeleted: (recordIds: string[]) => Promise<boolean>;
 }
 
@@ -174,15 +182,16 @@ export const useStaffRecordsData = (props: UseStaffRecordsDataProps): UseStaffRe
       setTotalItemCount,
   ]);
 
-
+  // ИСПРАВЛЕНО: Добавлен параметр timeTableIDParam
   const getExistingRecordsWithStatus = useCallback(async (
     startDate: Date,
     endDate: Date,
     employeeId: string,
     currentUserIdParam?: string,
-    staffGroupIdParam?: string
+    staffGroupIdParam?: string,
+    timeTableIDParam?: string // <-- ДОБАВЛЕН ПАРАМЕТР timeTableID
   ): Promise<IExistingRecordCheck[]> => {
-    console.log('[useStaffRecordsData] getExistingRecordsWithStatus called');
+    console.log('[useStaffRecordsData] getExistingRecordsWithStatus called with timeTableID:', timeTableIDParam);
     if (!context || !staffRecordsService) {
       console.log('[useStaffRecordsData] Cannot get existing records: missing dependencies');
       return [];
@@ -190,19 +199,28 @@ export const useStaffRecordsData = (props: UseStaffRecordsDataProps): UseStaffRe
 
     const currentUserID = currentUserIdParam || currentUserId || '0';
     const staffGroupID = staffGroupIdParam || managingGroupId || '0';
+    const timeTableID = timeTableIDParam || selectedContractId; // <-- ИСПОЛЬЗУЕМ ПЕРЕДАННЫЙ ИЛИ ИЗ СОСТОЯНИЯ
 
     try {
-      const records = await staffRecordsService.getStaffRecords(
-        startDate,
-        endDate,
-        currentUserID,
-        staffGroupID,
-        employeeId
-      );
+      // ИСПРАВЛЕНО: Используем getStaffRecordsWithOptions с полными параметрами вместо getStaffRecords
+      const queryParams: IStaffRecordsQueryParams = {
+        startDate: startDate,
+        endDate: endDate,
+        currentUserID: currentUserID,
+        staffGroupID: staffGroupID,
+        employeeID: employeeId,
+        timeTableID: timeTableID, // <-- ПЕРЕДАЕМ timeTableID
+        skip: 0, // Для проверки существующих записей берем все
+        top: 1000 // Достаточно большое число для получения всех записей периода
+      };
 
-      console.log(`[useStaffRecordsData] Retrieved ${records.length} existing records for status check`);
+      console.log('[useStaffRecordsData] getExistingRecordsWithStatus query params:', queryParams);
 
-      const existingRecordsCheck: IExistingRecordCheck[] = records.map((record: IStaffRecord) => ({
+      const result = await staffRecordsService.getStaffRecordsWithOptions(queryParams);
+
+      console.log(`[useStaffRecordsData] Retrieved ${result.records.length} existing records for status check (with timeTableID: ${timeTableID})`);
+
+      const existingRecordsCheck: IExistingRecordCheck[] = result.records.map((record: IStaffRecord) => ({
         id: record.ID,
         checked: record.Checked || 0,
         exportResult: record.ExportResult || '0',
@@ -215,7 +233,7 @@ export const useStaffRecordsData = (props: UseStaffRecordsDataProps): UseStaffRe
       console.error('[useStaffRecordsData] Error getting existing records:', error);
       return [];
     }
-  }, [context, staffRecordsService, currentUserId, managingGroupId]);
+  }, [context, staffRecordsService, currentUserId, managingGroupId, selectedContractId]); // <-- ДОБАВЛЕН selectedContractId в зависимости
 
   const markRecordsAsDeleted = useCallback(async (recordIds: string[]): Promise<boolean> => {
     console.log(`[useStaffRecordsData] markRecordsAsDeleted called for ${recordIds.length} records:`, recordIds);

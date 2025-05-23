@@ -307,13 +307,14 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
         managingGroupId
       });
 
-      existingRecords = await getExistingRecordsWithStatus(
-        firstDay || selectedDate,
-        lastDay || selectedDate,
-        selectedStaff.employeeId,
-        currentUserId,
-        managingGroupId
-      );
+     existingRecords = await getExistingRecordsWithStatus(
+  firstDay || selectedDate,
+  lastDay || selectedDate,
+  selectedStaff.employeeId,
+  currentUserId,
+  managingGroupId,
+  selectedContractId // <-- ДОБАВИТЬ
+);
 
       console.log(`[ScheduleTabContent] Found ${existingRecords.length} existing records`);
 
