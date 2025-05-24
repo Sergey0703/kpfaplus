@@ -307,7 +307,7 @@ public async getPaginatedListItems(
    console.log(`[DEBUG] Total items loaded from server: ${allItems.length}`);
 
    // *** ДОБАВЛЕНА КЛИЕНТСКАЯ ФИЛЬТРАЦИЯ ПО DELETED ***
-   let filteredItems = allItems;
+   const filteredItems = allItems;
 
    /*if (!showDeleted) {
      // Фильтруем - показываем только неудаленные записи (Deleted = 0, null, undefined, или false)
@@ -339,12 +339,12 @@ public async getPaginatedListItems(
    if (paginatedItems.length > 0) {
      console.log(`[DEBUG] First item on page - ID: ${paginatedItems[0].id}`);
      console.log(`[DEBUG] Last item on page - ID: ${paginatedItems[paginatedItems.length - 1].id}`);
-     console.log(`[DEBUG] First item date: ${(paginatedItems[0].fields as any)?.Date}`);
+     //console.log(`[DEBUG] First item date: ${(paginatedItems[0].fields as any)?.Date}`);
      if (paginatedItems.length > 1) {
-       console.log(`[DEBUG] Second item date: ${(paginatedItems[1].fields as any)?.Date}`);
+     //  console.log(`[DEBUG] Second item date: ${(paginatedItems[1].fields as any)?.Date}`);
      }
      if (paginatedItems.length > 2) {
-       console.log(`[DEBUG] Third item date: ${(paginatedItems[2].fields as any)?.Date}`);
+    //   console.log(`[DEBUG] Third item date: ${(paginatedItems[2].fields as any)?.Date}`);
      }
    }
 

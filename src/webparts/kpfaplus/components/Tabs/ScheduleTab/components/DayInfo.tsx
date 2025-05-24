@@ -150,7 +150,7 @@ export const DayInfo: React.FC<IDayInfoProps> = ({
                     </span>
                     {leave.title && (
                       <span style={{ fontStyle: 'italic', marginLeft: '8px', color: '#8A8886' }}>
-                        "{leave.title}"
+                        {`"${leave.title}"`}
                       </span>
                     )}
                   </div>
