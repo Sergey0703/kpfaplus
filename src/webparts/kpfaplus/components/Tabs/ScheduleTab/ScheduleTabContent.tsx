@@ -7,16 +7,12 @@ import {
   MessageBarType,
   Spinner,
   SpinnerSize,
-  // IDropdownOption, // <-- УДАЛЕНО: не используется напрямую
   DefaultButton
 } from '@fluentui/react';
 import { ITabProps } from '../../../models/types';
-// import { IContract } from '../../../models/IContract'; // <-- УДАЛЕНО: используется только в типах
 import { IHoliday } from '../../../services/HolidaysService';
 import { ILeaveDay } from '../../../services/DaysOfLeavesService';
 import { ITypeOfLeave } from '../../../services/TypeOfLeaveService';
-// import { IStaffRecord } from '../../../services/StaffRecordsService'; // <-- УДАЛЕНО: используется только в типах
-// import { INewShiftData } from './components/ScheduleTable'; // <-- УДАЛЕНО: используется только в типах
 import { IExistingRecordCheck } from './utils/ScheduleTabFillInterfaces';
 import styles from './ScheduleTab.module.scss';
 
@@ -34,6 +30,7 @@ import {
   fillScheduleFromTemplate
 } from './utils/ScheduleTabFillService';
 
+// Интерфейсы для сервисов
 interface IHolidaysService {
   isHoliday: (date: Date, holidays: IHoliday[]) => boolean;
   getHolidayInfo: (date: Date, holidays: IHoliday[]) => IHoliday | undefined;
@@ -44,16 +41,13 @@ interface IDaysOfLeavesService {
   getLeaveForDate: (date: Date, leaves: ILeaveDay[]) => ILeaveDay | undefined;
 }
 
-// --- ИСПРАВЛЕНИЕ: Экспортируем ITypeOfLeaveService ---
-export interface ITypeOfLeaveService { // <-- ДОБАВЛЕН export
+export interface ITypeOfLeaveService {
   getAllTypesOfLeave: (forceRefresh?: boolean) => Promise<ITypeOfLeave[]>;
   getTypeOfLeaveById: (id: string | number) => Promise<ITypeOfLeave | undefined>;
 }
-// ----------------------------------------------------
 
 import { IScheduleTabState } from './utils/useScheduleTabState';
 import { UseScheduleTabLogicReturn } from './utils/useScheduleTabLogic';
-
 
 export interface IScheduleTabContentProps extends IScheduleTabState {
   selectedStaff: ITabProps['selectedStaff'];
@@ -80,12 +74,11 @@ export interface IScheduleTabContentProps extends IScheduleTabState {
 
   holidaysService?: IHolidaysService;
   daysOfLeavesService?: IDaysOfLeavesService;
-  typeOfLeaveService?: ITypeOfLeaveService; // <-- Тип теперь экспортирован
+  typeOfLeaveService?: ITypeOfLeaveService;
 
   showDeleted: boolean;
   onToggleShowDeleted: UseScheduleTabLogicReturn['onToggleShowDeleted'];
 }
-
 
 enum DialogType {
   None = 'none',
@@ -116,9 +109,6 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     holidays,
     leaves,
     typesOfLeave,
-    holidaysService,
-    daysOfLeavesService,
-    //typeOfLeaveService, // <-- Используется для DayInfo
     onDateChange,
     onContractChange,
     onErrorDismiss,
@@ -148,6 +138,65 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
 
   const selectedContract = contracts.find(c => c.id === selectedContractId);
 
+  // ДОБАВЛЕНО: Создание сервисов для DayInfo, как в старой версии
+  const holidaysServiceInstance = useMemo(() => {
+    if (!context) return undefined;
+    
+    console.log('[ScheduleTabContent] Creating holidaysService instance');
+    return {
+      isHoliday: (date: Date, holidays: IHoliday[]) => {
+        const result = holidays.some(holiday => {
+          const holidayDate = new Date(holiday.date);
+          const isMatch = holidayDate.toDateString() === date.toDateString();
+          if (isMatch) {
+            console.log('[ScheduleTabContent] Holiday match found:', holiday.title, 'for date:', date.toDateString());
+          }
+          return isMatch;
+        });
+        console.log('[ScheduleTabContent] isHoliday check for', date.toDateString(), ':', result);
+        return result;
+      },
+      getHolidayInfo: (date: Date, holidays: IHoliday[]) => {
+        const holiday = holidays.find(holiday => {
+          const holidayDate = new Date(holiday.date);
+          return holidayDate.toDateString() === date.toDateString();
+        });
+        console.log('[ScheduleTabContent] getHolidayInfo for', date.toDateString(), ':', holiday?.title || 'none');
+        return holiday;
+      }
+    };
+  }, [context]);
+
+  const daysOfLeavesServiceInstance = useMemo(() => {
+    if (!context) return undefined;
+    
+    console.log('[ScheduleTabContent] Creating daysOfLeavesService instance');
+    return {
+      isDateOnLeave: (date: Date, leaves: ILeaveDay[]) => {
+        const result = leaves.some(leave => {
+          const startDate = new Date(leave.startDate);
+          const endDate = leave.endDate ? new Date(leave.endDate) : new Date();
+          const isInRange = date >= startDate && date <= endDate;
+          if (isInRange) {
+            console.log('[ScheduleTabContent] Leave match found:', leave.title, 'for date:', date.toDateString());
+          }
+          return isInRange;
+        });
+        console.log('[ScheduleTabContent] isDateOnLeave check for', date.toDateString(), ':', result, 'from', leaves.length, 'leaves');
+        return result;
+      },
+      getLeaveForDate: (date: Date, leaves: ILeaveDay[]) => {
+        const leave = leaves.find(leave => {
+          const startDate = new Date(leave.startDate);
+          const endDate = leave.endDate ? new Date(leave.endDate) : new Date();
+          return date >= startDate && date <= endDate;
+        });
+        console.log('[ScheduleTabContent] getLeaveForDate for', date.toDateString(), ':', leave?.title || 'none');
+        return leave;
+      }
+    };
+  }, [context]);
+
   const [modifiedRecords, setModifiedRecords] = useState<Record<string, IScheduleItem>>({});
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [operationMessage, setOperationMessage] = useState<{
@@ -172,7 +221,6 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     setOperationMessage(undefined);
   }, [selectedDate, selectedContractId, selectedStaff?.id]);
 
-
   const getScheduleItemsWithModifications = useCallback((): IScheduleItem[] => {
     const baseItems = convertStaffRecordsToScheduleItems(staffRecords || [], selectedContract);
 
@@ -187,7 +235,6 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     });
   }, [staffRecords, modifiedRecords, selectedContract]);
 
-
   const actionHandlerParams: IActionHandlerParams = useMemo(() => ({
     setIsSaving,
     setOperationMessage,
@@ -195,17 +242,15 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     onRefreshData
   }), [setIsSaving, setOperationMessage, setModifiedRecords, onRefreshData]);
 
-
   const performFillOperation = async (): Promise<void> => {
     console.log('[ScheduleTabContent] performFillOperation called');
 
-    // Проверяем наличие onCreateStaffRecord, getExistingRecordsWithStatus, markRecordsAsDeleted
     if (!selectedStaff?.employeeId || !selectedContract || !selectedContractId || !onCreateStaffRecord || !getExistingRecordsWithStatus || !markRecordsAsDeleted || !context) {
       console.error('[ScheduleTabContent] Missing required data/functions for fill operation');
-       setOperationMessage({
-         text: 'Fill operation failed: Missing staff, contract, context, or required functions.',
-         type: MessageBarType.error
-       });
+      setOperationMessage({
+        text: 'Fill operation failed: Missing staff, contract, context, or required functions.',
+        type: MessageBarType.error
+      });
       return;
     }
 
@@ -237,11 +282,11 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     try {
       await fillScheduleFromTemplate(fillParams, fillHandlers);
     } catch (error) {
-       console.error('[ScheduleTabContent] Error during fillScheduleFromTemplate:', error);
-       setOperationMessage({
-         text: `Fill operation failed: ${error instanceof Error ? error.message : String(error)}`,
-         type: MessageBarType.error
-       });
+      console.error('[ScheduleTabContent] Error during fillScheduleFromTemplate:', error);
+      setOperationMessage({
+        text: `Fill operation failed: ${error instanceof Error ? error.message : String(error)}`,
+        type: MessageBarType.error
+      });
     }
   };
 
@@ -275,29 +320,26 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
         ? contractFinishDate
         : endOfMonth;
 
-      // --- ИСПРАВЛЕНИЕ: Уточняем типы перед сравнением ---
-      if (firstDay && lastDay) { // Убедимся, что обе даты не null
-          if (firstDay.getTime() > lastDay.getTime()) {
-               console.log('[ScheduleTabContent] Contract period does not overlap with the month, or dates are invalid.');
-               return {
-                   type: DialogType.EmptySchedule,
-                   isOpen: true,
-                   title: 'Fill Schedule',
-                   message: 'No existing records found for this period (contract may not cover the month or has invalid dates). Do you want to fill based on template?',
-                   confirmButtonText: 'Fill',
-                   cancelButtonText: 'Cancel',
-                   confirmButtonColor: '#107c10',
-                   onConfirm: () => {
-                       setFillDialogConfig(prev => ({ ...prev, isOpen: false }));
-                       void performFillOperation();
-                   }
-               };
-          }
+      if (firstDay && lastDay) {
+        if (firstDay.getTime() > lastDay.getTime()) {
+          console.log('[ScheduleTabContent] Contract period does not overlap with the month, or dates are invalid.');
+          return {
+            type: DialogType.EmptySchedule,
+            isOpen: true,
+            title: 'Fill Schedule',
+            message: 'No existing records found for this period (contract may not cover the month or has invalid dates). Do you want to fill based on template?',
+            confirmButtonText: 'Fill',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#107c10',
+            onConfirm: () => {
+              setFillDialogConfig(prev => ({ ...prev, isOpen: false }));
+              void performFillOperation();
+            }
+          };
+        }
       } else {
-          // Если одна из дат null, это тоже может быть проблемой (но логика выше уже должна была бы это обработать)
-          console.warn('[ScheduleTabContent] One of the period boundary dates is null, which might indicate an issue.');
+        console.warn('[ScheduleTabContent] One of the period boundary dates is null, which might indicate an issue.');
       }
-
 
       console.log('[ScheduleTabContent] Checking for existing records in period:', {
         firstDay: firstDay?.toISOString(),
@@ -307,14 +349,13 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
         managingGroupId
       });
 
-      // ИСПРАВЛЕНО: Добавлен selectedContractId как timeTableID
       existingRecords = await getExistingRecordsWithStatus(
         firstDay || selectedDate,
         lastDay || selectedDate,
         selectedStaff.employeeId,
         currentUserId,
         managingGroupId,
-        selectedContractId // <-- ДОБАВЛЕН selectedContractId
+        selectedContractId
       );
 
       console.log(`[ScheduleTabContent] Found ${existingRecords.length} existing records`);
@@ -384,8 +425,8 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
 
     } catch (error) {
       console.error('[ScheduleTabContent] Error during dialog type determination:', error);
-       const errorMessage = error instanceof Error ? error.message : String(error);
-       const itemCount = existingRecords ? existingRecords.length : 0;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const itemCount = existingRecords ? existingRecords.length : 0;
 
       return {
         type: DialogType.None,
@@ -410,12 +451,12 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     console.log('[ScheduleTabContent] Fill button clicked - starting dialog determination');
 
     if (!onCreateStaffRecord || !getExistingRecordsWithStatus || !markRecordsAsDeleted) {
-         console.error('[ScheduleTabContent] Fill prerequisites missing.');
-         setOperationMessage({
-              text: 'Fill operation is not fully available (missing required functions).',
-              type: MessageBarType.error
-         });
-         return;
+      console.error('[ScheduleTabContent] Fill prerequisites missing.');
+      setOperationMessage({
+        text: 'Fill operation is not fully available (missing required functions).',
+        type: MessageBarType.error
+      });
+      return;
     }
 
     try {
@@ -434,10 +475,9 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
         type: MessageBarType.error
       });
     } finally {
-       setIsSaving(false);
+      setIsSaving(false);
     }
   };
-
 
   const handleDismissFillDialog = (): void => {
     setFillDialogConfig(prev => ({ ...prev, isOpen: false }));
@@ -452,61 +492,54 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
       });
       return;
     }
-     if (Object.keys(modifiedRecords).length === 0) {
-          console.log('[ScheduleTabContent] No modified records to save.');
-          setOperationMessage({
-              text: 'No changes to save.',
-              type: MessageBarType.info
-          });
-          return;
-     }
+    if (Object.keys(modifiedRecords).length === 0) {
+      console.log('[ScheduleTabContent] No modified records to save.');
+      setOperationMessage({
+        text: 'No changes to save.',
+        type: MessageBarType.info
+      });
+      return;
+    }
 
     void handleSaveAllChanges(modifiedRecords, onUpdateStaffRecord, actionHandlerParams);
   };
-
 
   const handleItemChange = useCallback((item: IScheduleItem, field: string, value: string | number): void => {
     console.log(`[ScheduleTabContent] handleItemChange called for item ${item.id}, field: ${field}, value: ${value}`);
 
     setModifiedRecords(prev => {
-        const originalRecord = staffRecords?.find(sr => sr.ID === item.id);
+      const originalRecord = staffRecords?.find(sr => sr.ID === item.id);
+      const baseIScheduleItem = originalRecord ? convertStaffRecordsToScheduleItems([originalRecord], selectedContract)[0] : item;
+      const currentLocalItem = prev[item.id] || baseIScheduleItem;
 
-        const baseIScheduleItem = originalRecord ? convertStaffRecordsToScheduleItems([originalRecord], selectedContract)[0] : item;
-
-        const currentLocalItem = prev[item.id] || baseIScheduleItem;
-
-        // ИСПРАВЛЕНО: Заменил any на конкретный union тип
-        let updatedValue: string | number | Date = value;
-        
-        if (field === 'typeOfLeave') {
-             updatedValue = String(value);
-        } else if (field === 'contractNumber') {
-             updatedValue = String(value);
-        } else if (field === 'date') {
-            // Проверяем, является ли value объектом Date
-            if (typeof value === 'object' && value !== null && Object.prototype.toString.call(value) === '[object Date]') {
-                updatedValue = value as unknown as Date;
-            } else {
-                console.warn(`[ScheduleTabContent] Unexpected value type for date field: ${typeof value}`);
-                // Если это не Date, оставляем как есть (string | number)
-                updatedValue = value;
-            }
+      let updatedValue: string | number | Date = value;
+      
+      if (field === 'typeOfLeave') {
+        updatedValue = String(value);
+      } else if (field === 'contractNumber') {
+        updatedValue = String(value);
+      } else if (field === 'date') {
+        if (typeof value === 'object' && value !== null && Object.prototype.toString.call(value) === '[object Date]') {
+          updatedValue = value as unknown as Date;
+        } else {
+          console.warn(`[ScheduleTabContent] Unexpected value type for date field: ${typeof value}`);
+          updatedValue = value;
         }
-        
-       const updatedItem = {
-         ...currentLocalItem,
-         [field]: updatedValue,
-       };
+      }
+      
+      const updatedItem = {
+        ...currentLocalItem,
+        [field]: updatedValue,
+      };
 
-       console.log('[ScheduleTabContent] Updating modifiedRecords state:', updatedItem);
+      console.log('[ScheduleTabContent] Updating modifiedRecords state:', updatedItem);
 
-       return {
-         ...prev,
-         [item.id]: updatedItem
-       };
+      return {
+        ...prev,
+        [item.id]: updatedItem
+      };
     });
   }, [staffRecords, selectedContract]);
-
 
   const scheduleOptions: IScheduleOptions = useMemo(() => ({
     hours: Array.from({ length: 24 }, (_, i) => ({
@@ -526,9 +559,17 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
     ]
   }), [typesOfLeave]);
 
+  const itemsForTable = getScheduleItemsWithModifications();
 
-   const itemsForTable = getScheduleItemsWithModifications();
-
+  console.log('[ScheduleTabContent] Rendering component with:', {
+    selectedStaffName: selectedStaff?.name,
+    selectedDate: selectedDate.toISOString(),
+    holidaysCount: holidays.length,
+    leavesCount: leaves.length,
+    staffRecordsCount: staffRecords?.length || 0,
+    hasHolidaysService: !!holidaysServiceInstance,
+    hasDaysOfLeavesService: !!daysOfLeavesServiceInstance
+  });
 
   return (
     <div className={styles.scheduleTab}>
@@ -580,59 +621,56 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
         <>
           {selectedContract ? (
             <div style={{
-                border: 'none',
-                padding: '0px',
-                borderRadius: '4px',
-                minHeight: '300px',
-                backgroundColor: 'white'
+              border: 'none',
+              padding: '0px',
+              borderRadius: '4px',
+              minHeight: '300px',
+              backgroundColor: 'white'
             }}>
-              {/* Показываем информацию о дне (праздники, отпуска) */}
-                 <DayInfo
-                   selectedDate={selectedDate}
-                   holidays={holidays}
-                   leaves={leaves}
-                   typesOfLeave={typesOfLeave}
-                   holidaysService={holidaysService}
-                   daysOfLeavesService={daysOfLeavesService}
-                  // typeOfLeaveService={typeOfLeaveService} // <-- Передаем typeOfLeaveService сюда
-                 />
+              {/* ИСПРАВЛЕНО: Показываем информацию о дне с созданными сервисами */}
+              <DayInfo
+                selectedDate={selectedDate}
+                holidays={holidays}
+                leaves={leaves}
+                typesOfLeave={typesOfLeave}
+                holidaysService={holidaysServiceInstance}
+                daysOfLeavesService={daysOfLeavesServiceInstance}
+              />
 
-                <div style={{ padding: '10px' }}>
-                  {/* Таблица расписания */}
-                  <ScheduleTable
-                    items={itemsForTable}
-                    options={scheduleOptions}
-                    selectedDate={selectedDate}
-                    selectedContract={selectedContract ? { id: selectedContract.id, name: selectedContract.template } : undefined}
-                    isLoading={false}
-                    showDeleted={showDeleted}
-                    onToggleShowDeleted={onToggleShowDeleted}
-                    onItemChange={handleItemChange}
-                    onAddShift={onAddShift}
-                    onDeleteItem={onDeleteStaffRecord!} // <-- ИСПРАВЛЕНА ОШИБКА: onDeleteStaffRecord!
-                    onRestoreItem={onRestoreStaffRecord!} // <-- ИСПРАВЛЕНА ОШИБКА: onRestoreStaffRecord!
-                    saveChangesButton={
-                      Object.keys(modifiedRecords).length > 0 ? (
-                        <DefaultButton
-                          text={`Save Changes (${Object.keys(modifiedRecords).length})`}
-                          onClick={saveAllChanges}
-                          disabled={isSaving}
-                          styles={{
-                            root: { backgroundColor: '#0078d4', color: 'white' },
-                            rootHovered: { backgroundColor: '#106ebe', color: 'white' }
-                          }}
-                        />
-                      ) : undefined
-                    }
-                    // --- ПЕРЕДАЕМ ПРОПСЫ ПАГИНАЦИИ ---
-                    currentPage={currentPage}
-                    itemsPerPage={itemsPerPage}
-                    totalItemCount={totalItemCount}
-                    onPageChange={onPageChange}
-                    onItemsPerPageChange={onItemsPerPageChange}
-                    // -----------------------------
-                  />
-                </div>
+              <div style={{ padding: '10px' }}>
+                {/* Таблица расписания */}
+                <ScheduleTable
+                  items={itemsForTable}
+                  options={scheduleOptions}
+                  selectedDate={selectedDate}
+                  selectedContract={selectedContract ? { id: selectedContract.id, name: selectedContract.template } : undefined}
+                  isLoading={false}
+                  showDeleted={showDeleted}
+                  onToggleShowDeleted={onToggleShowDeleted}
+                  onItemChange={handleItemChange}
+                  onAddShift={onAddShift}
+                  onDeleteItem={onDeleteStaffRecord!}
+                  onRestoreItem={onRestoreStaffRecord!}
+                  saveChangesButton={
+                    Object.keys(modifiedRecords).length > 0 ? (
+                      <DefaultButton
+                        text={`Save Changes (${Object.keys(modifiedRecords).length})`}
+                        onClick={saveAllChanges}
+                        disabled={isSaving}
+                        styles={{
+                          root: { backgroundColor: '#0078d4', color: 'white' },
+                          rootHovered: { backgroundColor: '#106ebe', color: 'white' }
+                        }}
+                      />
+                    ) : undefined
+                  }
+                  currentPage={currentPage}
+                  itemsPerPage={itemsPerPage}
+                  totalItemCount={totalItemCount}
+                  onPageChange={onPageChange}
+                  onItemsPerPageChange={onItemsPerPageChange}
+                />
+              </div>
             </div>
           ) : (
             <div style={{

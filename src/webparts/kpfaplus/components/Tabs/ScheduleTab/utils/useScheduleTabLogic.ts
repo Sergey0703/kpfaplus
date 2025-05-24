@@ -59,15 +59,15 @@ export const useScheduleTabLogic = (props: ITabProps): UseScheduleTabLogicReturn
 
   // --- ХУКИ ЗАГРУЗКИ ДАННЫХ (теперь принимают currentPage, itemsPerPage, showDeleted) ---
   const { loadHolidaysAndLeaves } = useHolidaysAndLeaves({
-    context,
-    selectedDate: state.selectedDate,
-    selectedStaff,
-    currentUserId,
-    managingGroupId,
-    holidaysService: services.holidaysService,
-    daysOfLeavesService: services.daysOfLeavesService,
-    setState // Передаем setState для обновления общего состояния
-  });
+  context,
+  selectedDate: state.selectedDate,
+  selectedStaff,
+  currentUserId,
+  managingGroupId,
+  // УБРАНО: holidaysService: services.holidaysService,
+  // УБРАНО: daysOfLeavesService: services.daysOfLeavesService,
+  setState // Передаем setState для обновления общего состояния
+});
 
   const { loadContracts } = useContracts({
     context,

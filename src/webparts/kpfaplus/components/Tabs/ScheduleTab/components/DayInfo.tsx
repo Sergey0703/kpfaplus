@@ -1,13 +1,10 @@
 // src/webparts/kpfaplus/components/Tabs/ScheduleTab/components/DayInfo.tsx
 import * as React from 'react';
-import { ILeaveDay } from '../../../../services/DaysOfLeavesService'; // <-- Убедитесь, что путь правильный
-import { IHoliday } from '../../../../services/HolidaysService'; // <-- Убедитесь, что путь правильный
-import { ITypeOfLeave } from '../../../../services/TypeOfLeaveService'; // <-- Убедитесь, что путь правильный
-import { getLeaveTypeInfo, getLeaveTypeText } from '../ScheduleTabApi'; // <-- Убедитесь, что путь правильный
+import { ILeaveDay } from '../../../../services/DaysOfLeavesService';
+import { IHoliday } from '../../../../services/HolidaysService';
+import { ITypeOfLeave } from '../../../../services/TypeOfLeaveService';
+import { getLeaveTypeInfo, getLeaveTypeText } from '../ScheduleTabApi';
 
-// Интерфейсы для сервисов, чтобы избежать использования any
-// Если эти интерфейсы нужны только здесь, они могут оставаться локальными.
-// Если они используются в других местах, их нужно вынести в общий файл.
 interface IHolidaysService {
   isHoliday: (date: Date, holidays: IHoliday[]) => boolean;
   getHolidayInfo: (date: Date, holidays: IHoliday[]) => IHoliday | undefined;
@@ -18,44 +15,62 @@ interface IDaysOfLeavesService {
   getLeaveForDate: (date: Date, leaves: ILeaveDay[]) => ILeaveDay | undefined;
 }
 
-// --- ИСПРАВЛЕНИЕ: Удален typeOfLeaveService из IDayInfoProps ---
 export interface IDayInfoProps {
   selectedDate: Date;
   holidays: IHoliday[];
   leaves: ILeaveDay[];
-  typesOfLeave: ITypeOfLeave[]; // Массив типов отпусков, который уже содержит нужную информацию
+  typesOfLeave: ITypeOfLeave[];
   holidaysService?: IHolidaysService;
   daysOfLeavesService?: IDaysOfLeavesService;
-  // typeOfLeaveService?: ITypeOfLeaveService; // <-- УДАЛЕНО
 }
 
 export const DayInfo: React.FC<IDayInfoProps> = ({
   selectedDate,
   holidays,
   leaves,
-  typesOfLeave, // Используем этот массив
+  typesOfLeave,
   holidaysService,
   daysOfLeavesService
-  // typeOfLeaveService // <-- Удален из деструктуризации
 }) => {
+  // Проверяем праздники для выбранной даты
   const isHoliday = holidaysService && holidays.length > 0 &&
     holidaysService.isHoliday(selectedDate, holidays);
 
   const holidayInfo = isHoliday && holidaysService ?
     holidaysService.getHolidayInfo(selectedDate, holidays) : undefined;
 
-  const isOnLeave = daysOfLeavesService && leaves.length > 0 &&
-    daysOfLeavesService.isDateOnLeave(selectedDate, leaves);
+  // Получаем все отпуска за месяц
+  const currentMonth = selectedDate.getMonth();
+  const currentYear = selectedDate.getFullYear();
+  
+  const monthStart = new Date(currentYear, currentMonth, 1);
+  const monthEnd = new Date(currentYear, currentMonth + 1, 0);
+  
+  const monthlyLeaves = leaves.filter(leave => {
+    const leaveStart = new Date(leave.startDate);
+    const leaveEnd = leave.endDate ? new Date(leave.endDate) : null;
+    
+    // Отпуск попадает в месяц если:
+    // 1. Начинается в этом месяце ИЛИ
+    // 2. Заканчивается в этом месяце ИЛИ  
+    // 3. Охватывает весь месяц ИЛИ
+    // 4. Начался в этом месяце и еще не закончился (нет даты окончания)
+    const startsInMonth = leaveStart >= monthStart && leaveStart <= monthEnd;
+    const endsInMonth = leaveEnd && leaveEnd >= monthStart && leaveEnd <= monthEnd;
+    const spansMonth = leaveEnd && leaveStart <= monthStart && leaveEnd >= monthEnd;
+    const startsAndOngoing = startsInMonth && !leaveEnd;
+    
+    return startsInMonth || endsInMonth || spansMonth || startsAndOngoing;
+  });
 
-  const leaveInfo = isOnLeave && daysOfLeavesService ?
-    daysOfLeavesService.getLeaveForDate(selectedDate, leaves) : undefined;
-
-  // getLeaveTypeInfo использует массив typesOfLeave, а не сервис
-  const leaveTypeInfo = leaveInfo ?
-    getLeaveTypeInfo(leaveInfo.typeOfLeave, typesOfLeave) : undefined;
+  // Сортируем отпуска по дате начала (по возрастанию)
+  const sortedLeaves = monthlyLeaves.sort((a, b) => {
+    return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
+  });
 
   return (
     <div style={{ marginBottom: '15px' }}>
+      {/* Праздники для выбранной даты */}
       {isHoliday && holidayInfo && (
         <div style={{
           backgroundColor: '#FFF4CE',
@@ -64,34 +79,85 @@ export const DayInfo: React.FC<IDayInfoProps> = ({
           borderRadius: '4px',
           borderLeft: '4px solid #FFB900'
         }}>
-          <strong>Holiday: </strong>
+          <strong>Holiday on {selectedDate.toLocaleDateString()}: </strong>
           {holidayInfo.title}
         </div>
       )}
 
-      {isOnLeave && leaveInfo && (
+      {/* Простой список всех отпусков за месяц */}
+      {sortedLeaves.length > 0 && (
         <div style={{
-          backgroundColor: '#E8F5FF',
+          backgroundColor: '#F3F2F1',
+          padding: '12px',
+          marginBottom: '10px',
+          borderRadius: '4px',
+          borderLeft: '4px solid #8A8886'
+        }}>
+          <strong>Leave days in {selectedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })} ({sortedLeaves.length} total):</strong>
+          
+          <div style={{ marginTop: '8px' }}>
+            {sortedLeaves.map((leave, index) => {
+              const typeInfo = getLeaveTypeInfo(leave.typeOfLeave, typesOfLeave);
+              const typeText = typeInfo?.title || getLeaveTypeText(leave.typeOfLeave) || `Type ${leave.typeOfLeave}`;
+              
+              return (
+                <div key={leave.id || index} style={{ 
+                  fontSize: '12px', 
+                  color: '#605E5C',
+                  marginBottom: '4px',
+                  paddingLeft: '8px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>
+                      <strong style={{ color: typeInfo?.color || '#323130' }}>{typeText}:</strong>{' '}
+                      {leave.startDate.toLocaleDateString()} - {' '}
+                      {leave.endDate ? 
+                        leave.endDate.toLocaleDateString() : 
+                        <span style={{ color: '#d13438', fontStyle: 'italic' }}>ongoing</span>
+                      }
+                    </span>
+                    {leave.title && (
+                      <span style={{ fontStyle: 'italic', marginLeft: '8px', color: '#8A8886' }}>
+                        "{leave.title}"
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Сообщение на сером фоне, если нет отпусков */}
+      {sortedLeaves.length === 0 && (
+        <div style={{
+          backgroundColor: '#F8F9FA',
           padding: '10px',
           marginBottom: '10px',
           borderRadius: '4px',
-          borderLeft: leaveTypeInfo?.color ? `4px solid ${leaveTypeInfo.color}` : '4px solid #0078D4'
+          borderLeft: '4px solid #DADCE0',
+          fontSize: '12px',
+          color: '#666',
+          fontStyle: 'italic'
         }}>
-          <strong>Leave: </strong>
-          {leaveInfo.title}
-          <div style={{ marginTop: '5px', fontSize: '12px', color: '#666' }}>
-            <div>
-              <strong>Type: </strong>
-              <span style={leaveTypeInfo?.color ? { color: leaveTypeInfo.color } : undefined}>
-                {leaveTypeInfo?.title || getLeaveTypeText(leaveInfo.typeOfLeave)}
-              </span>
-            </div>
-            <div>
-              <strong>Period:</strong>
-              {leaveInfo.startDate.toLocaleDateString()} -
-              {leaveInfo.endDate ? leaveInfo.endDate.toLocaleDateString() : <span style={{ color: '#d13438', fontStyle: 'italic' }}>open</span>}
-            </div>
-          </div>
+          No leave days found for this period.
+        </div>
+      )}
+
+      {/* Дополнительное сообщение, если вообще нет данных */}
+      {holidays.length === 0 && leaves.length === 0 && (
+        <div style={{
+          backgroundColor: '#F8F9FA',
+          padding: '10px',
+          marginBottom: '10px',
+          borderRadius: '4px',
+          borderLeft: '4px solid #DADCE0',
+          fontSize: '12px',
+          color: '#666',
+          fontStyle: 'italic'
+        }}>
+          No holidays or leave days found for this period.
         </div>
       )}
     </div>
