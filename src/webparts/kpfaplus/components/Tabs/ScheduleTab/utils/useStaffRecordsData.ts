@@ -137,21 +137,31 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
      );
    }
 
-   // ПРИНУДИТЕЛЬНОЕ ОБНОВЛЕНИЕ:
-   console.log('[useStaffRecordsData] *** FORCING STATE UPDATE ***');
-   setStaffRecords([]); // Сначала очищаем
-   setTotalItemCount(0);
+   // *** ИСПРАВЛЕНО: УБРАНО ПРИНУДИТЕЛЬНОЕ ОБНОВЛЕНИЕ СОСТОЯНИЯ ***
+   // УДАЛЕНО: Принудительное очищение состояния
+   // setStaffRecords([]); // ← УДАЛЕНО!
+   // setTotalItemCount(0); // ← УДАЛЕНО!
 
-   // Потом через микротаск устанавливаем новые данные:
-   Promise.resolve().then(() => {
-     console.log('[useStaffRecordsData] *** SETTING NEW RECORDS ***', result.records.length);
-     if (result.records.length > 0) {
-       console.log('[useStaffRecordsData] *** Setting first record ID:', result.records[0].ID);
-       console.log('[useStaffRecordsData] *** Setting last record ID:', result.records[result.records.length - 1].ID);
-     }
-     setStaffRecords(result.records);
-     setTotalItemCount(result.totalCount);
-   });
+   // УДАЛЕНО: Promise.resolve().then(() => {
+   //   console.log('[useStaffRecordsData] *** SETTING NEW RECORDS ***', result.records.length);
+   //   if (result.records.length > 0) {
+   //     console.log('[useStaffRecordsData] *** Setting first record ID:', result.records[0].ID);
+   //     console.log('[useStaffRecordsData] *** Setting last record ID:', result.records[result.records.length - 1].ID);
+   //   }
+   //   setStaffRecords(result.records);
+   //   setTotalItemCount(result.totalCount);
+   // });
+
+   // *** ИСПРАВЛЕНО: ПРОСТОЕ ОБНОВЛЕНИЕ СОСТОЯНИЯ БЕЗ ПРИНУДИТЕЛЬНОГО ОЧИЩЕНИЯ ***
+   console.log('[useStaffRecordsData] *** SETTING NEW RECORDS (SIMPLE UPDATE) ***', result.records.length);
+   if (result.records.length > 0) {
+     console.log('[useStaffRecordsData] *** Setting first record ID:', result.records[0].ID);
+     console.log('[useStaffRecordsData] *** Setting last record ID:', result.records[result.records.length - 1].ID);
+   }
+   
+   // Простое обновление состояния без принудительного очищения
+   setStaffRecords(result.records);
+   setTotalItemCount(result.totalCount);
 
    if (result.error) {
       setErrorStaffRecords(`Failed to load schedule records: ${result.error}`);

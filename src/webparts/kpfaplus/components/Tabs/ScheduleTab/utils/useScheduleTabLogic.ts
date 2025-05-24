@@ -188,24 +188,26 @@ export const useScheduleTabLogic = (props: ITabProps): UseScheduleTabLogicReturn
   }, [loadStaffRecords, loadHolidaysAndLeaves, loadContracts, loadTypesOfLeave]); // Зависимости для useCallback
 
 
-  // --- НОВЫЕ ОБРАБОТЧИКИ ПАГИНАЦИИ ---
-const handlePageChange = useCallback((page: number): void => {
+  // --- ИСПРАВЛЕННЫЕ ОБРАБОТЧИКИ ПАГИНАЦИИ (БЕЗ ПРИНУДИТЕЛЬНОЙ ПЕРЕЗАГРУЗКИ) ---
+  const handlePageChange = useCallback((page: number): void => {
     console.log('[useScheduleTabLogic] handlePageChange called with page:', page);
     if (page === state.currentPage) {
         console.log('[useScheduleTabLogic] Page is already', page, '. Skipping update.');
         return;
     }
     
-    // Обновляем только текущую страницу
+    console.log('[useScheduleTabLogic] Updating currentPage to:', page);
+    // ИСПРАВЛЕНО: Убрана принудительная перезагрузка через setTimeout
+    // Обновляем только текущую страницу - useEffect в useStaffRecordsData сработает автоматически
     setState(prevState => ({ ...prevState, currentPage: page }));
     
-    // ДОБАВЬТЕ ПРИНУДИТЕЛЬНУЮ ПЕРЕЗАГРУЗКУ:
-    console.log('[useScheduleTabLogic] *** FORCING DATA RELOAD FOR NEW PAGE ***');
-    setTimeout(() => {
-        loadStaffRecords(); // Принудительно вызываем загрузку
-    }, 50);
+    // УДАЛЕНО: Принудительная перезагрузка данных
+    // console.log('[useScheduleTabLogic] *** FORCING DATA RELOAD FOR NEW PAGE ***');
+    // setTimeout(() => {
+    //     loadStaffRecords(); // ← ЭТОТ ВЫЗОВ УДАЛЕН!
+    // }, 50);
     
-}, [state.currentPage, setState, loadStaffRecords]);
+}, [state.currentPage, setState]); // ИСПРАВЛЕНО: Убрана зависимость loadStaffRecords
 
   const handleItemsPerPageChange = useCallback((itemsPerPage: number): void => {
       console.log('[useScheduleTabLogic] handleItemsPerPageChange called with itemsPerPage:', itemsPerPage);
