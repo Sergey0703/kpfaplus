@@ -34,7 +34,7 @@ export interface IScheduleTabState {
   
   // --- ИСПРАВЛЕНИЕ: ДОБАВЛЕНО ПОЛЕ showDeleted ---
   showDeleted: boolean;     // Флаг для отображения удаленных записей
-  // -------------------------------------------
+  hasNextPage: boolean;
 }
 
 // Определяем возвращаемый тип хука состояния
@@ -67,12 +67,12 @@ export const useScheduleTabState = (): UseScheduleTabStateReturn => {
     errorStaffRecords: undefined,
 
     currentPage: 1,       // Начинаем с первой страницы
-    itemsPerPage: 20,     // Устанавливаем количество элементов на странице по умолчанию
+    itemsPerPage: 60,     // Устанавливаем количество элементов на странице по умолчанию
     totalItemCount: 0,    // Изначально общее количество записей равно 0
     
     // --- ИСПРАВЛЕНИЕ: ИНИЦИАЛИЗАЦИЯ showDeleted ---
     showDeleted: false,   // По умолчанию удаленные записи не показываем
-    // -------------------------------------------
+      hasNextPage: false,  
   });
 
   return {

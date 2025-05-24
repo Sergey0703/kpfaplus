@@ -178,142 +178,266 @@ export class RemoteSiteItemService {
 
 
 public async getPaginatedListItems(
-  graphClient: MSGraphClientV3,
-  listTitle: string,
-  options: IGetPaginatedListItemsOptions
+ graphClient: MSGraphClientV3,
+ listTitle: string,
+ options: IGetPaginatedListItemsOptions
 ): Promise<IRemotePaginatedItemsResponse> {
-  try {
-    const startTime = Date.now();
-    this.logInfo(`[PERF] Начало выполнения getPaginatedListItems для "${listTitle}" в ${new Date().toISOString()}`);
+ try {
+   const startTime = Date.now();
+   console.log(`[DEBUG] *** getPaginatedListItems CALLED for: ${listTitle} ***`);
+   console.log(`[DEBUG] *** Options:`, options);
 
-    // Получаем ID списка
-    const listId = await this._listService.getListId(graphClient, listTitle);
+   // Получаем ID списка
+   const listId = await this._listService.getListId(graphClient, listTitle);
+   console.log(`[DEBUG] List ID obtained: ${listId}`);
 
-    this.logInfo(`Getting paginated items from list "${listTitle}" with ID: ${listId}...`);
+   const {
+     expandFields = true,
+     filter,
+     orderBy,
+     skip = 0,
+     top = 60,
+     nextLink,
+   } = options;
 
-    const {
-      expandFields = true, // По умолчанию расширяем поля
-      filter,
-      orderBy,
-      skip = 0, // Устанавливаем значение по умолчанию для skip
-      top = 60,  // Устанавливаем значение по умолчанию 60 записей
-      nextLink, // Ссылка на следующую страницу
-    } = options;
+   console.log(`[DEBUG] Parsed options:`, {
+     expandFields,
+     filter,
+     orderBy,
+     skip,
+     top,
+     nextLink
+   });
 
-    // Проверяем, что top имеет допустимое значение (60 или 90)
-    const validatedTop = (top === 60 || top === 90) ? top : 60;
+   // Проверяем, что top имеет допустимое значение (60 или 90)
+   const validatedTop = (top === 60 || top === 90) ? top : 60;
 
-    let request;
+   let request;
 
-    // Если передан nextLink, используем его напрямую
-    if (nextLink) {
-      this.logInfo(`Using provided nextLink for pagination`);
-      request = graphClient.api(nextLink);
-    } else {
-      // Если nextLink не передан, формируем новый запрос
-      request = graphClient
-        .api(`/sites/${this._siteId}/lists/${listId}/items`)
-        // Добавляем заголовки для поддержки консистентности
-        .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly')
-        .header('ConsistencyLevel', 'eventual');
+   // Если передан nextLink, используем его напрямую
+   if (nextLink) {
+     console.log(`[DEBUG] Using provided nextLink for pagination`);
+     request = graphClient.api(nextLink);
+   } else {
+     // Если nextLink не передан, формируем новый запрос
+     request = graphClient
+       .api(`/sites/${this._siteId}/lists/${listId}/items`)
+       .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly')
+       .header('ConsistencyLevel', 'eventual');
 
-      // Применяем $select и $expand
-      if (expandFields) {
-        request = request.select('id,fields');
-        request = request.expand('fields');
-        this.logInfo(`[DEBUG] Applying simple select/expand for list items`);
-      } else {
-        request = request.select('id');
-        this.logInfo(`[DEBUG] Applying minimal select 'id' as expandFields is false`);
-      }
+     // Применяем $select и $expand
+     if (expandFields) {
+       request = request.select('id,fields');
+       request = request.expand('fields');
+       console.log(`[DEBUG] Applying simple select/expand for list items`);
+     } else {
+       request = request.select('id');
+       console.log(`[DEBUG] Applying minimal select 'id' as expandFields is false`);
+     }
 
-      // Обрабатываем фильтр
-      if (filter) {
-        this.logInfo(`Applying filter: ${filter}`);
-        request = request.filter(filter);
-      }
+     // Обрабатываем фильтр
+     if (filter) {
+       console.log(`[DEBUG] Applying filter: ${filter}`);
+       request = request.filter(filter);
+     }
 
-      // Обрабатываем сортировку
-      if (orderBy) {
-        const orderByString = `${orderBy.field} ${orderBy.ascending ? 'asc' : 'desc'}`;
-        this.logInfo(`Applying orderby: ${orderByString}`);
-        request = request.orderby(orderByString);
-      }
+     // Обрабатываем сортировку
+     if (orderBy) {
+       const orderByString = `${orderBy.field} ${orderBy.ascending ? 'asc' : 'desc'}`;
+       console.log(`[DEBUG] Applying orderby: ${orderByString}`);
+       request = request.orderby(orderByString);
+     }
 
-      // Устанавливаем размер страницы (только top)
-      request = request.top(validatedTop);
-      this.logInfo(`Applying page size: top=${validatedTop}`);
-    }
+     // Устанавливаем размер страницы (только top)
+     request = request.top(validatedTop);
+     console.log(`[DEBUG] Applying page size: top=${validatedTop}`);
+   }
 
-    this.logInfo(`[PERF] Executing paginated request for list "${listTitle}"`);
-    let response;
-    try {
-      response = await request.get();
-    } catch (requestError) {
-      this.logError(`Error getting paginated items from list "${listTitle}": ${JSON.stringify(requestError, null, 2)}`);
-      if (filter) {
-        this.logError(`Original filter was: "${filter}"`);
-      }
-      if (orderBy) {
-        this.logError(`Original orderby was: "${orderBy.field} ${orderBy.ascending ? 'asc' : 'desc'}"`);
-      }
-      throw requestError; // Пробрасываем ошибку
-    }
+   console.log(`[DEBUG] Making paginated request for list "${listTitle}"`);
+   let response;
+   try {
+     response = await request.get();
+     console.log(`[DEBUG] Graph API response received successfully`);
+   } catch (requestError) {
+     console.error(`[ERROR] Graph API request failed:`, requestError);
+     if (filter) {
+       console.error(`[ERROR] Filter was: "${filter}"`);
+     }
+     if (orderBy) {
+       console.error(`[ERROR] OrderBy was: "${orderBy.field} ${orderBy.ascending ? 'asc' : 'desc'}"`);
+     }
+     throw requestError;
+   }
 
-    // Извлекаем элементы из ответа Graph API
-    const items = response?.value || [];
-    const responseNextLink = response['@odata.nextLink']; // Получаем ссылку на следующую страницу
-    
-    // Вычисляем правильное общее количество записей
-    // Если нет nextLink, значит это последняя или единственная страница,
-    // и общее количество = skip + размер текущей страницы
-    // Если есть nextLink, то делаем дополнительный запрос для подсчета
-    let totalCount = skip + items.length;
-    
-    if (responseNextLink) {
-      // Если есть nextLink, значит есть еще записи
-      // Но так как мы не можем использовать $count, мы можем только предположить, 
-      // что осталось еще как минимум одна запись
-      // или мы можем сделать дополнительный запрос для получения полного списка
-      // Для данного случая, просто отметим, что есть еще записи
-      totalCount = Math.max(totalCount, skip + items.length + 1);
-      this.logInfo(`[DEBUG] Has more records (nextLink present). Current total estimate: ${totalCount}`);
-    } else {
-      this.logInfo(`[DEBUG] Last page reached. Total count: ${totalCount}`);
-    }
+   // Извлекаем элементы из ответа Graph API
+   const items = response?.value || [];
+   const responseNextLink = response['@odata.nextLink'];
+   
+   console.log(`[DEBUG] Response items: ${items.length}, hasNextLink: ${!!responseNextLink}`);
 
-    // Вычисляем диапазон записей для UI
-    const rangeStart = skip + 1;
-    const rangeEnd = skip + items.length;
-
-    this.logInfo(`Retrieved ${items.length} items, range: ${rangeStart}-${rangeEnd}, total estimate: ${totalCount}`);
-
-    // ИСПРАВЛЕНО: Преобразуем полученные элементы в нужный формат IRemoteListItemResponse
-    const paginatedItems: IRemoteListItemResponse[] = items.map((item: Record<string, unknown>) => {
-      return {
-        id: DataTypeAdapter.toString(item.id),
-        fields: (item as Record<string, unknown>).fields as IRemoteListItemField || {},
-        '@odata.etag': (item as Record<string, unknown>)['@odata.etag'] as string,
-      };
-    });
-
-    const totalDuration = Date.now() - startTime;
-    this.logInfo(`[PERF] Total getPaginatedListItems completed in ${totalDuration}ms.`);
-
-    // Возвращаем объект с элементами для страницы, точным общим количеством и информацией о диапазоне
-    return {
-      items: paginatedItems,
-      totalCount: totalCount,
-      nextLink: responseNextLink,
-      rangeStart: rangeStart,
-      rangeEnd: rangeEnd
-    };
-
-  } catch (error) {
-    this.logError(`Failed to get paginated items from list "${listTitle}": ${error instanceof Error ? error.message : String(error)}`);
-    throw error; // Пробрасываем ошибку дальше
-  }
+// ПРОСТЫЕ ЛОГИ без map:
+if (items.length > 0) {
+  console.log(`[DEBUG] First item ID: ${items[0].id}`);
+  console.log(`[DEBUG] Last item ID: ${items[items.length - 1].id}`);
+  console.log(`[DEBUG] First item date: ${(items[0].fields as any)?.Date}`);
+  console.log(`[DEBUG] Second item date: ${(items[1]?.fields as any)?.Date}`);
+  console.log(`[DEBUG] Third item date: ${(items[2]?.fields as any)?.Date}`);
 }
+   // Получаем точное количество записей с сервера
+   let totalCount = 0;
+
+   // ВСЕГДА делаем отдельный запрос для получения точного количества
+   try {
+     console.log(`[DEBUG] Getting exact total count with $count=true`);
+     
+     const countRequest = graphClient
+       .api(`/sites/${this._siteId}/lists/${listId}/items`)
+       .header('ConsistencyLevel', 'eventual')
+       .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly') // ← ДОБАВЛЕН HEADER!
+       .count(true)
+       .top(1); // Берем минимум записей, нас интересует только @odata.count
+
+     // Применяем ТОТ ЖЕ фильтр, что и в основном запросе
+     if (filter) {
+       countRequest.filter(filter);
+       console.log(`[DEBUG] Applied same filter to count request: ${filter}`);
+     }
+     
+     const countResponse = await countRequest.get();
+     totalCount = countResponse['@odata.count'];
+     
+     console.log(`[DEBUG] Count response:`, countResponse);
+     console.log(`[DEBUG] @odata.count value:`, countResponse['@odata.count']);
+     console.log(`[DEBUG] Exact total count from server: ${totalCount}`);
+     
+     if (totalCount === undefined || totalCount === null || isNaN(totalCount)) {
+       throw new Error('Server did not return valid @odata.count');
+     }
+     
+   } catch (countError) {
+     console.error(`[ERROR] $count=true failed:`, countError);
+     
+     // Fallback: делаем запрос всех ID для подсчета
+     try {
+       console.log(`[DEBUG] Fallback: counting all items with select id only`);
+       
+       const fallbackRequest = graphClient
+         .api(`/sites/${this._siteId}/lists/${listId}/items`)
+         .select('id')
+         .top(5000) // Увеличиваем лимит для подсчета
+         .header('ConsistencyLevel', 'eventual')
+         .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly'); // ← ДОБАВЛЕН HEADER!
+         
+       if (filter) {
+         fallbackRequest.filter(filter);
+         console.log(`[DEBUG] Applied same filter to fallback: ${filter}`);
+       }
+       
+       console.log(`[DEBUG] Making fallback count request with HonorNonIndexedQueries header...`);
+       const fallbackResponse = await fallbackRequest.get();
+       const fallbackItems = fallbackResponse.value || [];
+       const fallbackNextLink = fallbackResponse['@odata.nextLink'];
+       
+       console.log(`[DEBUG] Fallback response: ${fallbackItems.length} items, hasNextLink: ${!!fallbackNextLink}`);
+       
+       if (fallbackNextLink) {
+         // Если есть nextLink, значит записей больше 5000
+         console.log(`[WARNING] More than 5000 records found! Making additional requests to get exact count.`);
+         
+         // Рекурсивно получаем все страницы для точного подсчета
+         let allItemsCount = fallbackItems.length;
+         let currentNextLink = fallbackNextLink;
+         
+         while (currentNextLink && allItemsCount < 10000) { // Защита от бесконечного цикла
+           try {
+             const nextPageRequest = graphClient.api(currentNextLink);
+             const nextPageResponse = await nextPageRequest.get();
+             const nextPageItems = nextPageResponse.value || [];
+             
+             allItemsCount += nextPageItems.length;
+             currentNextLink = nextPageResponse['@odata.nextLink'];
+             
+             console.log(`[DEBUG] Additional page: ${nextPageItems.length} items, total so far: ${allItemsCount}`);
+             
+             if (!currentNextLink) {
+               break; // Достигнут конец
+             }
+           } catch (nextPageError) {
+             console.error(`[ERROR] Error getting next page for count:`, nextPageError);
+             break;
+           }
+         }
+         
+         totalCount = allItemsCount;
+         console.log(`[DEBUG] Final exact count from all pages: ${totalCount}`);
+         
+       } else {
+         // Нет nextLink - точное количество
+         totalCount = fallbackItems.length;
+         console.log(`[DEBUG] Exact fallback count: ${totalCount}`);
+       }
+       
+     } catch (fallbackError) {
+       console.error(`[ERROR] Fallback count also failed:`, fallbackError);
+       console.log(`[DEBUG] Fallback error details:`, JSON.stringify(fallbackError, null, 2));
+       
+       // В крайнем случае используем информацию о наличии nextLink
+       if (responseNextLink) {
+         console.log(`[DEBUG] Has nextLink, so records > ${items.length}. Using minimum estimate.`);
+         totalCount = items.length + 1; // Минимальная оценка
+       } else {
+         console.log(`[DEBUG] No nextLink, using current page size as totalCount.`);
+         totalCount = items.length;
+       }
+     }
+   }
+
+   console.log(`[DEBUG] Final totalCount: ${totalCount}`);
+
+   // Вычисляем диапазон записей для UI
+   const rangeStart = skip + 1;
+   const rangeEnd = skip + items.length;
+
+   console.log(`[DEBUG] Range: ${rangeStart}-${rangeEnd} of ${totalCount}`);
+
+   // Преобразуем полученные элементы в нужный формат IRemoteListItemResponse
+   const paginatedItems: IRemoteListItemResponse[] = items.map((item: Record<string, unknown>) => {
+     return {
+       id: DataTypeAdapter.toString(item.id),
+       fields: (item as Record<string, unknown>).fields as IRemoteListItemField || {},
+       '@odata.etag': (item as Record<string, unknown>)['@odata.etag'] as string,
+     };
+   });
+
+   const totalDuration = Date.now() - startTime;
+   console.log(`[DEBUG] getPaginatedListItems completed in ${totalDuration}ms`);
+
+   // Возвращаем объект с элементами для страницы, точным общим количеством и информацией о диапазоне
+   const result = {
+     items: paginatedItems,
+     totalCount: totalCount,
+     nextLink: responseNextLink,
+     rangeStart: rangeStart,
+     rangeEnd: rangeEnd
+   };
+
+   console.log(`[DEBUG] Final result:`, {
+     itemsCount: result.items.length,
+     totalCount: result.totalCount,
+     hasNextLink: !!result.nextLink,
+     rangeStart: result.rangeStart,
+     rangeEnd: result.rangeEnd
+   });
+
+   return result;
+
+ } catch (error) {
+   console.error(`[ERROR] getPaginatedListItems failed for "${listTitle}":`, error);
+   throw error;
+ }
+}
+
+
 
   /**
    * Создает новый элемент списка

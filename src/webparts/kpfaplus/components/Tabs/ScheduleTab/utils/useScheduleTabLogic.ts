@@ -265,6 +265,7 @@ export const useScheduleTabLogic = (props: ITabProps): UseScheduleTabLogicReturn
         // itemsPerPage остается как есть по умолчанию
         // showDeleted тоже сбрасывается к начальному значению (false)
         showDeleted: false, // <-- Сброс showDeleted
+         hasNextPage: false,
       }));
     }
   }, [selectedStaff?.id, context, setState, loadContracts, loadTypesOfLeave, loadHolidaysAndLeaves]); // Зависимости useEffect

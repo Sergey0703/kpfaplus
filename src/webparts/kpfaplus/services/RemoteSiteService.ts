@@ -234,17 +234,22 @@ export class RemoteSiteService {
    * @returns Promise с объектом, содержащим элементы для страницы и общее количество
    */
   public async getPaginatedItemsFromList(
-    listTitle: string,
-    options: IGetPaginatedListItemsOptions // Используем интерфейс опций пагинации
-  ): Promise<IRemotePaginatedItemsResponse> {
-    await this.ensureServices(); // Убеждаемся, что сервисы и авторизация готовы
-    if (!this._itemService) { throw new Error("Item service not initialized after ensureServices"); } // Дополнительная проверка
-
-    const graphClient = await this.getGraphClient();
-
-    // Делегируем вызов новому методу в RemoteSiteItemService
-    return this._itemService.getPaginatedListItems(graphClient, listTitle, options);
+  listTitle: string,
+  options: IGetPaginatedListItemsOptions
+): Promise<IRemotePaginatedItemsResponse> {
+  console.log(`[DEBUG] RemoteSiteService.getPaginatedItemsFromList called for: ${listTitle}`);
+  console.log(`[DEBUG] Options:`, options);
+  
+  await this.ensureServices();
+  if (!this._itemService) { 
+    throw new Error("Item service not initialized after ensureServices"); 
   }
+
+  const graphClient = await this.getGraphClient();
+  console.log(`[DEBUG] Calling itemService.getPaginatedListItems...`);
+
+  return this._itemService.getPaginatedListItems(graphClient, listTitle, options);
+}
 
 
   /**
