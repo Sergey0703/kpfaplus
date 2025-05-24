@@ -18,6 +18,7 @@ export const createTimeFromScheduleItem = (baseDate: Date, hourStr: string, minu
 
 /**
  * Преобразует данные записей расписания в формат для отображения в таблице
+ * ИСПРАВЛЕНО: Используется ТОЛЬКО данные из StaffRecords, без подмешивания данных из отпусков
  */
 export const convertStaffRecordsToScheduleItems = (
   records: IStaffRecord[] | undefined, 
@@ -26,6 +27,9 @@ export const convertStaffRecordsToScheduleItems = (
   if (!records || records.length === 0) {
     return [];
   }
+
+  console.log(`[ScheduleTabDataUtils] Converting ${records.length} staff records to schedule items`);
+  console.log(`[ScheduleTabDataUtils] Using ONLY data from StaffRecords - no mixing with leaves/holidays data`);
 
   return records.map(record => {
     // Форматирование дня недели
@@ -37,20 +41,20 @@ export const convertStaffRecordsToScheduleItems = (
     const finishHour = record.ShiftDate2 ? record.ShiftDate2.getHours().toString().padStart(2, '0') : '00';
     const finishMinute = record.ShiftDate2 ? record.ShiftDate2.getMinutes().toString().padStart(2, '0') : '00';
     
-    // Извлекаем значение TypeOfLeaveID, проверяя оба возможных формата данных
+    // ИСПРАВЛЕНО: Извлекаем значение TypeOfLeaveID ТОЛЬКО из записи расписания
     let typeOfLeaveValue = '';
     
-    // Проверяем, есть ли объект TypeOfLeave с Id внутри
+    // Проверяем оба возможных формата данных из StaffRecords
     if (record.TypeOfLeave && record.TypeOfLeave.Id) {
       typeOfLeaveValue = String(record.TypeOfLeave.Id);
-      console.log(`[DEBUG] Record ${record.ID}: Using TypeOfLeave.Id: ${typeOfLeaveValue}`);
+      console.log(`[ScheduleTabDataUtils] Record ${record.ID}: Using TypeOfLeave.Id from StaffRecord: ${typeOfLeaveValue}`);
     } 
     // Если нет объекта TypeOfLeave, проверяем прямое поле TypeOfLeaveID
     else if (record.TypeOfLeaveID) {
       typeOfLeaveValue = String(record.TypeOfLeaveID);
-      console.log(`[DEBUG] Record ${record.ID}: Using TypeOfLeaveID directly: ${typeOfLeaveValue}`);
+      console.log(`[ScheduleTabDataUtils] Record ${record.ID}: Using TypeOfLeaveID from StaffRecord: ${typeOfLeaveValue}`);
     } else {
-      console.log(`[DEBUG] Record ${record.ID}: No TypeOfLeave found, using empty string`);
+      console.log(`[ScheduleTabDataUtils] Record ${record.ID}: No TypeOfLeave found in StaffRecord, using empty string`);
     }
     
     // Формирование объекта IScheduleItem
@@ -64,13 +68,13 @@ export const convertStaffRecordsToScheduleItems = (
       finishHour,
       finishMinute,
       lunchTime: record.TimeForLunch.toString(),
-      typeOfLeave: typeOfLeaveValue, 
+      typeOfLeave: typeOfLeaveValue, // ИСПРАВЛЕНО: используется ТОЛЬКО значение из StaffRecords
       shift: 1, // По умолчанию 1
       contract: record.WeeklyTimeTableTitle || selectedContract?.template || '',
       contractId: record.WeeklyTimeTableID || selectedContract?.id || '',
       contractNumber: record.Contract.toString(),
       deleted: record.Deleted === 1, // Добавляем флаг deleted
-      Holiday: record.Holiday // Добавляем поле Holiday для определения праздничных дней
+      Holiday: record.Holiday // ИСПРАВЛЕНО: используется ТОЛЬКО значение из StaffRecords
     };
     
     return scheduleItem;

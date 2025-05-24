@@ -89,7 +89,8 @@ import {
       const shiftDate4 = this.parseOptionalDate(fields.ShiftDate4 as string, index, 'ShiftDate4');
       
       // Получаем информацию о типе отпуска
-      const { typeOfLeaveID, typeOfLeave } = this.extractTypeOfLeave(fields.TypeOfLeave, index);
+      // ПРАВИЛЬНО:
+const { typeOfLeaveID, typeOfLeave } = this.extractTypeOfLeave(fields.TypeOfLeaveLookupId, index);
       
       // Получаем информацию о недельном расписании
       const { weeklyTimeTableID, weeklyTimeTable, weeklyTimeTableTitle } = 
@@ -118,34 +119,26 @@ import {
       };
     }
   
-   /**
- * Extracts information about type of leave from raw data
- * @param typeOfLeaveRaw Raw data of type of leave
- * @param index Record index (for logs)
- * @returns Object with ID and structured type of leave object
- */
-private extractTypeOfLeave(typeOfLeaveRaw: unknown, index: number): {
+    private extractTypeOfLeave(typeOfLeaveRaw: unknown, index: number): {
   typeOfLeaveID: string;
   typeOfLeave: IStaffRecordTypeOfLeave | undefined;
 } {
   let typeOfLeave: IStaffRecordTypeOfLeave | undefined = undefined;
   let typeOfLeaveID = '';
   
+  // ИСПРАВЛЕНО: TypeOfLeaveLookupId приходит как строка или число
   if (typeOfLeaveRaw) {
-    this.logInfo(`[DEBUG] Record #${index} has TypeOfLeave field: ${JSON.stringify(typeOfLeaveRaw)}`);
-    
-    // Handle the case when TypeOfLeave is a direct string or number value
     if (typeof typeOfLeaveRaw === 'string' || typeof typeOfLeaveRaw === 'number') {
       typeOfLeaveID = String(typeOfLeaveRaw);
-      this.logInfo(`[DEBUG] TypeOfLeave is direct value: ${typeOfLeaveID}`);
+      this.logInfo(`[DEBUG] Extracted TypeOfLeaveID: ${typeOfLeaveID}`);
       
-      // Create minimal TypeOfLeave object with just ID
+      // Создаем минимальный объект TypeOfLeave с ID
       typeOfLeave = {
         Id: typeOfLeaveID,
-        Title: `Type ${typeOfLeaveID}` // Default title, will be replaced when full data is loaded
+        Title: `Type ${typeOfLeaveID}` // Название будет заменено при полной загрузке данных
       };
     }
-    // Handle the case when TypeOfLeave is an object (normal lookup field)
+    // Обрабатываем случай, если все-таки придет объект (для backward compatibility)
     else if (typeof typeOfLeaveRaw === 'object' && typeOfLeaveRaw !== null) {
       const typeData = typeOfLeaveRaw as { Id?: string | number; Title?: string };
       typeOfLeaveID = typeData.Id?.toString() || '';
