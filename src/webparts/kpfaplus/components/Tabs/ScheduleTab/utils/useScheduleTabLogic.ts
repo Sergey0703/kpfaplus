@@ -189,15 +189,23 @@ export const useScheduleTabLogic = (props: ITabProps): UseScheduleTabLogicReturn
 
 
   // --- НОВЫЕ ОБРАБОТЧИКИ ПАГИНАЦИИ ---
-  const handlePageChange = useCallback((page: number): void => {
-      console.log('[useScheduleTabLogic] handlePageChange called with page:', page);
-      if (page === state.currentPage) {
-          console.log('[useScheduleTabLogic] Page is already', page, '. Skipping update.');
-          return; // Не обновляем, если страница та же
-      }
-       // Обновляем только текущую страницу. loadStaffRecords будет вызван эффектом.
-      setState(prevState => ({ ...prevState, currentPage: page }));
-  }, [state.currentPage, setState]); // Зависимости для useCallback
+const handlePageChange = useCallback((page: number): void => {
+    console.log('[useScheduleTabLogic] handlePageChange called with page:', page);
+    if (page === state.currentPage) {
+        console.log('[useScheduleTabLogic] Page is already', page, '. Skipping update.');
+        return;
+    }
+    
+    // Обновляем только текущую страницу
+    setState(prevState => ({ ...prevState, currentPage: page }));
+    
+    // ДОБАВЬТЕ ПРИНУДИТЕЛЬНУЮ ПЕРЕЗАГРУЗКУ:
+    console.log('[useScheduleTabLogic] *** FORCING DATA RELOAD FOR NEW PAGE ***');
+    setTimeout(() => {
+        loadStaffRecords(); // Принудительно вызываем загрузку
+    }, 50);
+    
+}, [state.currentPage, setState, loadStaffRecords]);
 
   const handleItemsPerPageChange = useCallback((itemsPerPage: number): void => {
       console.log('[useScheduleTabLogic] handleItemsPerPageChange called with itemsPerPage:', itemsPerPage);

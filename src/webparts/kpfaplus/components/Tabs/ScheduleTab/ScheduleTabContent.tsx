@@ -136,6 +136,15 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
    onToggleShowDeleted,
  } = props;
 
+console.log('[ScheduleTabContent] *** COMPONENT RENDER ***');
+ console.log('[ScheduleTabContent] currentPage:', currentPage);
+ console.log('[ScheduleTabContent] staffRecords length:', staffRecords?.length || 0);
+ console.log('[ScheduleTabContent] totalItemCount:', totalItemCount);
+ if (staffRecords && staffRecords.length > 0) {
+   console.log('[ScheduleTabContent] First record ID:', staffRecords[0].ID);
+   console.log('[ScheduleTabContent] Last record ID:', staffRecords[staffRecords.length - 1].ID);
+ }
+ console.log('[ScheduleTabContent] isLoadingStaffRecords:', isLoadingStaffRecords);
  const selectedContract = contracts.find(c => c.id === selectedContractId);
 
  // ИСПРАВЛЕНО: Создание сервисов ТОЛЬКО для DayInfo (информационный блок)
@@ -225,6 +234,15 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
  // ИСПРАВЛЕНО: Функция конвертации использует ТОЛЬКО данные из StaffRecords
  // Никаких отпусков из DaysOfLeaves не передается и не используется
  const getScheduleItemsWithModifications = useCallback((): IScheduleItem[] => {
+  console.log('[ScheduleTabContent] *** CURRENT DATA STATE ***');
+  console.log('[ScheduleTabContent] staffRecords length:', staffRecords?.length);
+  console.log('[ScheduleTabContent] currentPage:', currentPage);
+  console.log('[ScheduleTabContent] totalItemCount:', totalItemCount);
+  if (staffRecords && staffRecords.length > 0) {
+    console.log('[ScheduleTabContent] First record ID:', staffRecords[0].ID);
+    console.log('[ScheduleTabContent] First record Date:', staffRecords[0].Date);
+    console.log('[ScheduleTabContent] Last record ID:', staffRecords[staffRecords.length - 1].ID);
+  }
    console.log('[ScheduleTabContent] Converting staff records using ONLY StaffRecords data');
    console.log('[ScheduleTabContent] Staff records count:', staffRecords?.length || 0);
    console.log('[ScheduleTabContent] IMPORTANT: NOT using DaysOfLeaves data for TypeOfLeave - using only StaffRecords.TypeOfLeaveID');
@@ -258,7 +276,7 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
      }
      return item;
    });
- }, [staffRecords, modifiedRecords, selectedContract]); // ИСПРАВЛЕНО: убрали leaves из зависимостей
+ }, [staffRecords, modifiedRecords, selectedContract, currentPage,totalItemCount  ]); // ИСПРАВЛЕНО: убрали leaves из зависимостей
 
  const actionHandlerParams: IActionHandlerParams = useMemo(() => ({
    setIsSaving,
@@ -677,6 +695,7 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
                {/* ИСПРАВЛЕНО: Таблица расписания использует ТОЛЬКО данные из StaffRecords */}
                {/* TypeOfLeave берется из StaffRecords.TypeOfLeaveID, а НЕ из DaysOfLeaves */}
                <ScheduleTable
+               key={`${currentPage}-${itemsPerPage}`} 
                  items={itemsForTable}
                  options={scheduleOptions}
                  selectedDate={selectedDate}
