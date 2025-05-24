@@ -79,6 +79,7 @@ export interface IGetPaginatedListItemsOptions {
   skip?: number;
   top?: number;
   nextLink?: string; // Ссылка на следующую страницу для продолжения пагинации
+   showDeleted?: boolean;
 }
 // ----------------------------------
 

@@ -64,8 +64,8 @@ export class RemoteSiteItemService {
               expandFields = true,
               filter,
               orderBy,
-              pageSize = 1000, // Default Graph API page size
-              maxItems = 5000 // Max items to collect across all pages
+              pageSize = 1000, // Увеличенный размер страницы для лучшей производительности
+              maxItems = 10000 // Увеличенный лимит для больших списков
             } = options;
 
             let allItems: unknown[] = [];
@@ -199,6 +199,7 @@ public async getPaginatedListItems(
      skip = 0,
      top = 60,
      nextLink,
+     showDeleted = false, // ← ДОБАВЛЕН ПАРАМЕТР showDeleted
    } = options;
 
    console.log(`[DEBUG] Parsed options:`, {
@@ -208,6 +209,7 @@ public async getPaginatedListItems(
      skip,
      top,
      nextLink,
+     showDeleted, // ← ДОБАВЛЕН В ЛОГИРОВАНИЕ
      clientSidePagination: true
    });
 
@@ -216,7 +218,7 @@ public async getPaginatedListItems(
 
    // *** КЛИЕНТСКАЯ ПАГИНАЦИЯ: Загружаем все данные за раз ***
    // Устанавливаем большой размер страницы для загрузки всех записей месяца
-   const serverPageSize = 3000; // Достаточно для нескольких сотен записей + запас
+   const serverPageSize = 3000; // Увеличено для больших объемов данных StaffRecords + запас
 
    let request = graphClient
      .api(`/sites/${this._siteId}/lists/${listId}/items`)
@@ -304,16 +306,32 @@ public async getPaginatedListItems(
 
    console.log(`[DEBUG] Total items loaded from server: ${allItems.length}`);
 
-   // *** КЛИЕНТСКАЯ ПАГИНАЦИЯ: Выбираем нужную страницу ***
-   const totalCount = allItems.length;
+   // *** ДОБАВЛЕНА КЛИЕНТСКАЯ ФИЛЬТРАЦИЯ ПО DELETED ***
+   let filteredItems = allItems;
+
+   if (!showDeleted) {
+     // Фильтруем - показываем только неудаленные записи (Deleted = 0, null, undefined, или false)
+     filteredItems = allItems.filter((item: Record<string, unknown>) => {
+       const deleted = (item.fields as any)?.Deleted;
+       // Считаем запись удаленной, если Deleted = 1 или '1' или true
+       const isDeleted = deleted === 1 || deleted === '1' || deleted === true;
+       return !isDeleted;
+     });
+     console.log(`[DEBUG] Client-side filtering applied: ${allItems.length} total -> ${filteredItems.length} non-deleted records`);
+   } else {
+     console.log(`[DEBUG] Show Deleted is ON - showing all records including deleted: ${allItems.length}`);
+   }
+
+   // *** КЛИЕНТСКАЯ ПАГИНАЦИЯ: Выбираем нужную страницу ИЗ ОТФИЛЬТРОВАННЫХ ДАННЫХ ***
+   const totalCount = filteredItems.length; // Используем количество отфильтрованных записей
    const startIndex = skip;
    const endIndex = Math.min(skip + validatedTop, totalCount);
    
-   console.log(`[DEBUG] Client-side pagination: skip=${skip}, top=${validatedTop}`);
-   console.log(`[DEBUG] Array slice: startIndex=${startIndex}, endIndex=${endIndex}`);
+   console.log(`[DEBUG] Client-side pagination on filtered data: skip=${skip}, top=${validatedTop}`);
+   console.log(`[DEBUG] Filtered array slice: startIndex=${startIndex}, endIndex=${endIndex}, totalFiltered=${totalCount}`);
    
-   // Получаем только записи для текущей страницы
-   const paginatedItems = allItems.slice(startIndex, endIndex);
+   // Получаем только записи для текущей страницы ИЗ ОТФИЛЬТРОВАННЫХ данных
+   const paginatedItems = filteredItems.slice(startIndex, endIndex);
    
    console.log(`[DEBUG] Client-paginated result: ${paginatedItems.length} items for current page`);
 
