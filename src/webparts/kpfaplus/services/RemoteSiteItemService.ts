@@ -309,7 +309,7 @@ public async getPaginatedListItems(
    // *** ДОБАВЛЕНА КЛИЕНТСКАЯ ФИЛЬТРАЦИЯ ПО DELETED ***
    let filteredItems = allItems;
 
-   if (!showDeleted) {
+   /*if (!showDeleted) {
      // Фильтруем - показываем только неудаленные записи (Deleted = 0, null, undefined, или false)
      filteredItems = allItems.filter((item: Record<string, unknown>) => {
        const deleted = (item.fields as any)?.Deleted;
@@ -320,7 +320,7 @@ public async getPaginatedListItems(
      console.log(`[DEBUG] Client-side filtering applied: ${allItems.length} total -> ${filteredItems.length} non-deleted records`);
    } else {
      console.log(`[DEBUG] Show Deleted is ON - showing all records including deleted: ${allItems.length}`);
-   }
+   } */
 
    // *** КЛИЕНТСКАЯ ПАГИНАЦИЯ: Выбираем нужную страницу ИЗ ОТФИЛЬТРОВАННЫХ ДАННЫХ ***
    const totalCount = filteredItems.length; // Используем количество отфильтрованных записей

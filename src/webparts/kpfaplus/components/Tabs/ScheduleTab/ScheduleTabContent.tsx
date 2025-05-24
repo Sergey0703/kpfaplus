@@ -140,6 +140,7 @@ console.log('[ScheduleTabContent] *** COMPONENT RENDER ***');
  console.log('[ScheduleTabContent] currentPage:', currentPage);
  console.log('[ScheduleTabContent] staffRecords length:', staffRecords?.length || 0);
  console.log('[ScheduleTabContent] totalItemCount:', totalItemCount);
+ console.log('[ScheduleTabContent] showDeleted:', showDeleted);
  if (staffRecords && staffRecords.length > 0) {
    console.log('[ScheduleTabContent] First record ID:', staffRecords[0].ID);
    console.log('[ScheduleTabContent] Last record ID:', staffRecords[staffRecords.length - 1].ID);
@@ -233,7 +234,7 @@ console.log('[ScheduleTabContent] *** COMPONENT RENDER ***');
 
  // ИСПРАВЛЕНО: Функция конвертации использует ТОЛЬКО данные из StaffRecords
  // Никаких отпусков из DaysOfLeaves не передается и не используется
- const getScheduleItemsWithModifications = useCallback((): IScheduleItem[] => {
+ const getAllScheduleItems = useCallback((): IScheduleItem[] => {
   console.log('[ScheduleTabContent] *** CURRENT DATA STATE ***');
   console.log('[ScheduleTabContent] staffRecords length:', staffRecords?.length);
   console.log('[ScheduleTabContent] currentPage:', currentPage);
@@ -260,7 +261,7 @@ console.log('[ScheduleTabContent] *** COMPONENT RENDER ***');
    if (baseItems.length > 0) {
      console.log('[ScheduleTabContent] Sample converted items:');
      baseItems.slice(0, 3).forEach(item => {
-       console.log(`- Item ${item.id}: date=${item.date.toLocaleDateString()}, typeOfLeave="${item.typeOfLeave}", Holiday=${item.Holiday}`);
+       console.log(`- Item ${item.id}: date=${item.date.toLocaleDateString()}, typeOfLeave="${item.typeOfLeave}", Holiday=${item.Holiday}, deleted=${item.deleted}`);
      });
    }
 
@@ -276,7 +277,47 @@ console.log('[ScheduleTabContent] *** COMPONENT RENDER ***');
      }
      return item;
    });
- }, [staffRecords, modifiedRecords, selectedContract, currentPage,totalItemCount  ]); // ИСПРАВЛЕНО: убрали leaves из зависимостей
+ }, [staffRecords, modifiedRecords, selectedContract, currentPage, totalItemCount]); // ИСПРАВЛЕНО: убрали leaves из зависимостей
+
+ // Убираем useMemo и делаем прямое вычисление
+const getScheduleItemsWithModifications = (): IScheduleItem[] => {
+  const allItems = getAllScheduleItems();
+  
+  console.log('[ScheduleTabContent] *** CLIENT-SIDE FILTERING BY DELETED ***');
+  console.log('[ScheduleTabContent] Total items before filtering:', allItems.length);
+  console.log('[ScheduleTabContent] showDeleted setting:', showDeleted);
+  
+  // *** ДОБАВИТЬ ЭТО ЛОГИРОВАНИЕ ДЛЯ ДИАГНОСТИКИ ***
+  const deletedItems = allItems.filter(item => item.deleted === true);
+  const nonDeletedItems = allItems.filter(item => !item.deleted);
+  
+  console.log('[ScheduleTabContent] *** DETAILED BREAKDOWN ***');
+  console.log('[ScheduleTabContent] Total items:', allItems.length);
+  console.log('[ScheduleTabContent] Deleted items (item.deleted === true):', deletedItems.length);
+  console.log('[ScheduleTabContent] Non-deleted items:', nonDeletedItems.length);
+  
+  // Показать примеры удаленных записей, если есть
+  if (deletedItems.length > 0) {
+    console.log('[ScheduleTabContent] Sample deleted items:');
+    deletedItems.slice(0, 3).forEach(item => {
+      console.log(`- DELETED Item ${item.id}: deleted=${item.deleted}, date=${item.date.toLocaleDateString()}`);
+    });
+  } else {
+    console.log('[ScheduleTabContent] *** NO DELETED ITEMS FOUND IN DATA! ***');
+  }
+  
+  if (!showDeleted) {
+    const filteredItems = allItems.filter(item => !item.deleted);
+    console.log('[ScheduleTabContent] Filtered out deleted items:', allItems.length, '->', filteredItems.length);
+    return filteredItems;
+  } else {
+    console.log('[ScheduleTabContent] Showing all items including deleted:', allItems.length);
+    return allItems;
+  }
+};
+
+// И используем просто:
+const itemsForTable = getScheduleItemsWithModifications();
 
  const actionHandlerParams: IActionHandlerParams = useMemo(() => ({
    setIsSaving,
@@ -284,6 +325,7 @@ console.log('[ScheduleTabContent] *** COMPONENT RENDER ***');
    setModifiedRecords,
    onRefreshData
  }), [setIsSaving, setOperationMessage, setModifiedRecords, onRefreshData]);
+
  const performFillOperation = async (): Promise<void> => {
    console.log('[ScheduleTabContent] performFillOperation called');
 
@@ -611,7 +653,8 @@ console.log('[ScheduleTabContent] *** COMPONENT RENDER ***');
    ]
  }), [typesOfLeave]);
 
- const itemsForTable = getScheduleItemsWithModifications();
+ // *** ИСПРАВЛЕНО: ИСПОЛЬЗУЕМ ФУНКЦИЮ С КЛИЕНТСКОЙ ФИЛЬТРАЦИЕЙ ***
+ //const itemsForTable = getScheduleItemsWithModifications();
 
  console.log('[ScheduleTabContent] Rendering component with:', {
    selectedStaffName: selectedStaff?.name,
@@ -620,6 +663,7 @@ console.log('[ScheduleTabContent] *** COMPONENT RENDER ***');
    leavesCount: leaves.length,
    staffRecordsCount: staffRecords?.length || 0,
    itemsForTableCount: itemsForTable.length,
+   showDeleted: showDeleted,
    hasHolidaysService: !!holidaysServiceInstance,
    hasDaysOfLeavesService: !!daysOfLeavesServiceInstance
  });
@@ -660,109 +704,109 @@ console.log('[ScheduleTabContent] *** COMPONENT RENDER ***');
        contracts={contracts}
        selectedContractId={selectedContractId}
        isLoading={isLoading || isLoadingStaffRecords || isSaving}
-       onDateChange={onDateChange}
-       onContractChange={onContractChange}
-       onFillButtonClick={handleFillButtonClick}
-     />
+      onDateChange={onDateChange}
+      onContractChange={onContractChange}
+      onFillButtonClick={handleFillButtonClick}
+    />
 
-     {/* Показываем спиннер при загрузке ВСЕХ данных или записей расписания */}
-     {isLoading || isLoadingStaffRecords || isSaving ? (
-       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '40px 0' }}>
-         <Spinner size={SpinnerSize.large} label={isSaving ? "Processing operation..." : (isLoadingStaffRecords ? "Loading schedule records..." : "Loading data...")} />
-       </div>
-     ) : (
-       <>
-         {selectedContract ? (
-           <div style={{
-             border: 'none',
-             padding: '0px',
-             borderRadius: '4px',
-             minHeight: '300px',
-             backgroundColor: 'white'
-           }}>
-             {/* ИСПРАВЛЕНО: DayInfo использует ТОЛЬКО для информационного отображения */}
-             {/* Эти данные НЕ влияют на таблицу расписания */}
-             <DayInfo
-               selectedDate={selectedDate}
-               holidays={holidays}
-               leaves={leaves}
-               typesOfLeave={typesOfLeave}
-               holidaysService={holidaysServiceInstance}
-               daysOfLeavesService={daysOfLeavesServiceInstance}
-             />
+    {/* Показываем спиннер при загрузке ВСЕХ данных или записей расписания */}
+    {isLoading || isLoadingStaffRecords || isSaving ? (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '40px 0' }}>
+        <Spinner size={SpinnerSize.large} label={isSaving ? "Processing operation..." : (isLoadingStaffRecords ? "Loading schedule records..." : "Loading data...")} />
+      </div>
+    ) : (
+      <>
+        {selectedContract ? (
+          <div style={{
+            border: 'none',
+            padding: '0px',
+            borderRadius: '4px',
+            minHeight: '300px',
+            backgroundColor: 'white'
+          }}>
+            {/* ИСПРАВЛЕНО: DayInfo использует ТОЛЬКО для информационного отображения */}
+            {/* Эти данные НЕ влияют на таблицу расписания */}
+            <DayInfo
+              selectedDate={selectedDate}
+              holidays={holidays}
+              leaves={leaves}
+              typesOfLeave={typesOfLeave}
+              holidaysService={holidaysServiceInstance}
+              daysOfLeavesService={daysOfLeavesServiceInstance}
+            />
 
-             <div style={{ padding: '10px' }}>
-               {/* ИСПРАВЛЕНО: Таблица расписания использует ТОЛЬКО данные из StaffRecords */}
-               {/* TypeOfLeave берется из StaffRecords.TypeOfLeaveID, а НЕ из DaysOfLeaves */}
-               <ScheduleTable
-               key={`${currentPage}-${itemsPerPage}`} 
-                 items={itemsForTable}
-                 options={scheduleOptions}
-                 selectedDate={selectedDate}
-                 selectedContract={selectedContract ? { id: selectedContract.id, name: selectedContract.template } : undefined}
-                 isLoading={false}
-                 showDeleted={showDeleted}
-                 onToggleShowDeleted={onToggleShowDeleted}
-                 onItemChange={handleItemChange}
-                 onAddShift={onAddShift}
-                 onDeleteItem={onDeleteStaffRecord!}
-                 onRestoreItem={onRestoreStaffRecord!}
-                 saveChangesButton={
-                   Object.keys(modifiedRecords).length > 0 ? (
-                     <DefaultButton
-                       text={`Save Changes (${Object.keys(modifiedRecords).length})`}
-                       onClick={saveAllChanges}
-                       disabled={isSaving}
-                       styles={{
-                         root: { backgroundColor: '#0078d4', color: 'white' },
-                         rootHovered: { backgroundColor: '#106ebe', color: 'white' }
-                       }}
-                     />
-                   ) : undefined
-                 }
-                 currentPage={currentPage}
-                 itemsPerPage={itemsPerPage}
-                 totalItemCount={totalItemCount}
-                 onPageChange={onPageChange}
-                 onItemsPerPageChange={onItemsPerPageChange}
-               />
-             </div>
-           </div>
-         ) : (
-           <div style={{
-             display: 'flex',
-             justifyContent: 'center',
-             alignItems: 'center',
-             minHeight: '200px',
-             backgroundColor: '#f9f9f9',
-             borderRadius: '4px',
-             padding: '20px'
-           }}>
-             {contracts.length > 0 ? (
-               <p>Please select a contract to view the schedule</p>
-             ) : (
-               <p>No active contracts available for this staff member</p>
-             )}
-           </div>
-         )}
-       </>
-     )}
+            <div style={{ padding: '10px' }}>
+              {/* ИСПРАВЛЕНО: Таблица расписания использует ТОЛЬКО данные из StaffRecords */}
+              {/* TypeOfLeave берется из StaffRecords.TypeOfLeaveID, а НЕ из DaysOfLeaves */}
+              <ScheduleTable
+                key={`${currentPage}-${itemsPerPage}`} 
+                items={itemsForTable}
+                options={scheduleOptions}
+                selectedDate={selectedDate}
+                selectedContract={selectedContract ? { id: selectedContract.id, name: selectedContract.template } : undefined}
+                isLoading={false}
+                showDeleted={showDeleted}
+                onToggleShowDeleted={onToggleShowDeleted}
+                onItemChange={handleItemChange}
+                onAddShift={onAddShift}
+                onDeleteItem={onDeleteStaffRecord!}
+                onRestoreItem={onRestoreStaffRecord!}
+                saveChangesButton={
+                  Object.keys(modifiedRecords).length > 0 ? (
+                    <DefaultButton
+                      text={`Save Changes (${Object.keys(modifiedRecords).length})`}
+                      onClick={saveAllChanges}
+                      disabled={isSaving}
+                      styles={{
+                        root: { backgroundColor: '#0078d4', color: 'white' },
+                        rootHovered: { backgroundColor: '#106ebe', color: 'white' }
+                      }}
+                    />
+                  ) : undefined
+                }
+                currentPage={currentPage}
+                itemsPerPage={itemsPerPage}
+                totalItemCount={totalItemCount}
+                onPageChange={onPageChange}
+                onItemsPerPageChange={onItemsPerPageChange}
+              />
+            </div>
+          </div>
+        ) : (
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            minHeight: '200px',
+            backgroundColor: '#f9f9f9',
+            borderRadius: '4px',
+            padding: '20px'
+          }}>
+            {contracts.length > 0 ? (
+              <p>Please select a contract to view the schedule</p>
+            ) : (
+              <p>No active contracts available for this staff member</p>
+            )}
+          </div>
+        )}
+      </>
+    )}
 
-     {/* Диалог подтверждения Fill */}
-     <ScheduleTableDialogs
-       confirmDialogProps={{
-         isOpen: fillDialogConfig.isOpen,
-         title: fillDialogConfig.title,
-         message: fillDialogConfig.message,
-         confirmButtonText: fillDialogConfig.confirmButtonText,
-         cancelButtonText: fillDialogConfig.cancelButtonText,
-         onConfirm: fillDialogConfig.onConfirm,
-         confirmButtonColor: fillDialogConfig.confirmButtonColor
-       }}
-       onDismiss={handleDismissFillDialog}
-     />
-   </div>
- );
+    {/* Диалог подтверждения Fill */}
+    <ScheduleTableDialogs
+      confirmDialogProps={{
+        isOpen: fillDialogConfig.isOpen,
+        title: fillDialogConfig.title,
+        message: fillDialogConfig.message,
+        confirmButtonText: fillDialogConfig.confirmButtonText,
+        cancelButtonText: fillDialogConfig.cancelButtonText,
+        onConfirm: fillDialogConfig.onConfirm,
+        confirmButtonColor: fillDialogConfig.confirmButtonColor
+      }}
+      onDismiss={handleDismissFillDialog}
+    />
+  </div>
+);
 };
 
 export default ScheduleTabContent;
