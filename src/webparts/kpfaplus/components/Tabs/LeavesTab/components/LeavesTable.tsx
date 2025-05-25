@@ -139,12 +139,12 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
   }, [leaves]);
 
   // НОВЫЙ ЭФФЕКТ: Регистрируем функцию получения изменённых данных
-  useEffect(() => {
+  useEffect((): void => {
     if (onGetChangedData) {
       console.log('[LeavesTable] Registering getChangedData function');
       
       // Создаем функцию для получения изменённых данных
-      const getChangedDataFunction = () => {
+      const getChangedDataFunction = (): { leaveId: string; changes: Partial<ILeaveDay> }[] => {
         console.log('[LeavesTable] getChangedDataFunction called');
         console.log('[LeavesTable] Current editableLeaves:', editableLeaves.length);
         console.log('[LeavesTable] Current editingLeaveIds:', editingLeaveIds);
@@ -330,7 +330,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
   };
 
   // Обработчики изменения полей (сохраняют изменения локально)
-  const handleStartDateChange = (itemId: string, date: Date | null | undefined): void => {
+  const handleStartDateChange = (itemId: string, date: Date | undefined): void => {
     if (date) {
       console.log('[LeavesTable] Start date changed for item:', itemId, 'to:', formatDate(date));
       setEditableLeaves(prev => prev.map(leave => 
@@ -346,7 +346,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
     }
   };
 
-  const handleEndDateChange = (itemId: string, date: Date | null | undefined): void => {
+  const handleEndDateChange = (itemId: string, date: Date | undefined): void => {
     console.log('[LeavesTable] End date changed for item:', itemId, 'to:', date ? formatDate(date) : 'null');
     setEditableLeaves(prev => prev.map(leave => 
       leave.id === itemId 
@@ -429,9 +429,9 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
           value={currentDate}
           onSelectDate={(selectedDate) => {
             if (field === 'startDate') {
-              handleStartDateChange(item.id, selectedDate);
+              handleStartDateChange(item.id, selectedDate || undefined);
             } else {
-              handleEndDateChange(item.id, selectedDate);
+              handleEndDateChange(item.id, selectedDate || undefined);
             }
           }}
           firstDayOfWeek={DayOfWeek.Monday}
