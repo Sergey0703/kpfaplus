@@ -151,7 +151,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
         
         const changedData: { leaveId: string; changes: Partial<ILeaveDay> }[] = [];
         
-        editableLeaves.forEach((leave, index) => {
+        editableLeaves.forEach((leave, index): void => {
           console.log(`[LeavesTable] Checking leave ${index} (ID: ${leave.id}), isEditing: ${editingLeaveIds.has(leave.id)}, hasLocalChanges: ${!!(leave.localChanges && Object.keys(leave.localChanges).length > 0)}`);
           
           if (editingLeaveIds.has(leave.id) && leave.localChanges && Object.keys(leave.localChanges).length > 0) {

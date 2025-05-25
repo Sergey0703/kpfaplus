@@ -20,11 +20,11 @@ interface IUseLeavesDataReturn {
   isLoading: boolean;
   error?: string;
   loadData: () => void;
-  // Новые методы для CRUD операций
+  // CRUD операции с исправленными типами (null -> undefined)
   deleteLeave: (leaveId: string) => Promise<boolean>;
   restoreLeave: (leaveId: string) => Promise<boolean>;
   saveLeave: (leave: Partial<ILeaveDay>) => Promise<boolean>;
-  createLeave: (leave: Omit<ILeaveDay, 'id'>) => Promise<string | null>;
+  createLeave: (leave: Omit<ILeaveDay, 'id'>) => Promise<string | undefined>;
 }
 
 export const useLeavesData = (props: IUseLeavesDataProps): IUseLeavesDataReturn => {
@@ -45,7 +45,7 @@ export const useLeavesData = (props: IUseLeavesDataProps): IUseLeavesDataReturn 
   const [error, setError] = useState<string | undefined>(undefined);
 
   // Функция для загрузки всех данных
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (): Promise<void> => {
     console.log('[useLeavesData] Starting data load');
     setIsLoading(true);
     setError(undefined);
@@ -120,22 +120,23 @@ export const useLeavesData = (props: IUseLeavesDataProps): IUseLeavesDataReturn 
     console.log('[useLeavesData] Deleting leave:', leaveId);
 
     try {
-      // TODO: Реализовать метод markLeaveAsDeleted в DaysOfLeavesService
-      // const success = await daysOfLeavesService.markLeaveAsDeleted(leaveId);
+      // Используем реальный метод markLeaveAsDeleted из DaysOfLeavesService
+      const success = await daysOfLeavesService.markLeaveAsDeleted(leaveId);
       
-      // Временная имитация успешного удаления
-      console.log('[useLeavesData] Simulating leave deletion for ID:', leaveId);
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Обновляем локальное состояние
-      setLeaves(prev => prev.map(leave => 
-        leave.id === leaveId 
-          ? { ...leave, deleted: true }
-          : leave
-      ));
-      
-      console.log('[useLeavesData] Leave marked as deleted locally');
-      return true;
+      if (success) {
+        console.log('[useLeavesData] Leave deleted successfully, updating local state');
+        
+        // Обновляем локальное состояние
+        setLeaves(prev => prev.map(leave => 
+          leave.id === leaveId 
+            ? { ...leave, deleted: true }
+            : leave
+        ));
+        
+        return true;
+      } else {
+        throw new Error('Failed to delete leave on server');
+      }
       
     } catch (error) {
       console.error('[useLeavesData] Error deleting leave:', error);
@@ -154,22 +155,23 @@ export const useLeavesData = (props: IUseLeavesDataProps): IUseLeavesDataReturn 
     console.log('[useLeavesData] Restoring leave:', leaveId);
 
     try {
-      // TODO: Реализовать метод markLeaveAsActive в DaysOfLeavesService
-      // const success = await daysOfLeavesService.markLeaveAsActive(leaveId);
+      // Используем реальный метод markLeaveAsActive из DaysOfLeavesService
+      const success = await daysOfLeavesService.markLeaveAsActive(leaveId);
       
-      // Временная имитация успешного восстановления
-      console.log('[useLeavesData] Simulating leave restoration for ID:', leaveId);
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Обновляем локальное состояние
-      setLeaves(prev => prev.map(leave => 
-        leave.id === leaveId 
-          ? { ...leave, deleted: false }
-          : leave
-      ));
-      
-      console.log('[useLeavesData] Leave restored locally');
-      return true;
+      if (success) {
+        console.log('[useLeavesData] Leave restored successfully, updating local state');
+        
+        // Обновляем локальное состояние
+        setLeaves(prev => prev.map(leave => 
+          leave.id === leaveId 
+            ? { ...leave, deleted: false }
+            : leave
+        ));
+        
+        return true;
+      } else {
+        throw new Error('Failed to restore leave on server');
+      }
       
     } catch (error) {
       console.error('[useLeavesData] Error restoring leave:', error);
@@ -188,22 +190,23 @@ export const useLeavesData = (props: IUseLeavesDataProps): IUseLeavesDataReturn 
     console.log('[useLeavesData] Saving leave:', leave.id);
 
     try {
-      // TODO: Реализовать метод updateLeave в DaysOfLeavesService
-      // const success = await daysOfLeavesService.updateLeave(leave.id, leave);
+      // Используем реальный метод updateLeave из DaysOfLeavesService
+      const success = await daysOfLeavesService.updateLeave(leave.id, leave);
       
-      // Временная имитация успешного сохранения
-      console.log('[useLeavesData] Simulating leave save for ID:', leave.id);
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Обновляем локальное состояние
-      setLeaves(prev => prev.map(existingLeave => 
-        existingLeave.id === leave.id 
-          ? { ...existingLeave, ...leave }
-          : existingLeave
-      ));
-      
-      console.log('[useLeavesData] Leave saved locally');
-      return true;
+      if (success) {
+        console.log('[useLeavesData] Leave saved successfully, updating local state');
+        
+        // Обновляем локальное состояние
+        setLeaves(prev => prev.map(existingLeave => 
+          existingLeave.id === leave.id 
+            ? { ...existingLeave, ...leave }
+            : existingLeave
+        ));
+        
+        return true;
+      } else {
+        throw new Error(`Failed to save leave ${leave.id} on server`);
+      }
       
     } catch (error) {
       console.error('[useLeavesData] Error saving leave:', error);
@@ -213,38 +216,41 @@ export const useLeavesData = (props: IUseLeavesDataProps): IUseLeavesDataReturn 
   }, [daysOfLeavesService]);
 
   // Функция для создания нового отпуска
-  const createLeave = useCallback(async (leave: Omit<ILeaveDay, 'id'>): Promise<string | null> => {
+  const createLeave = useCallback(async (leave: Omit<ILeaveDay, 'id'>): Promise<string | undefined> => {
     if (!daysOfLeavesService) {
       console.error('[useLeavesData] DaysOfLeavesService not available for create');
-      return null;
+      return undefined;
     }
 
     console.log('[useLeavesData] Creating new leave');
 
     try {
-      // TODO: Реализовать метод createLeave в DaysOfLeavesService
-      // const newLeaveId = await daysOfLeavesService.createLeave(leave);
+      // Используем реальный метод createLeave из DaysOfLeavesService
+      const newLeaveId = await daysOfLeavesService.createLeave(leave);
       
-      // Временная имитация успешного создания
-      console.log('[useLeavesData] Simulating leave creation');
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      const newLeaveId = `temp_${Date.now()}`;
-      const newLeave: ILeaveDay = {
-        ...leave,
-        id: newLeaveId
-      };
-      
-      // Обновляем локальное состояние
-      setLeaves(prev => [...prev, newLeave]);
-      
-      console.log('[useLeavesData] New leave created locally with ID:', newLeaveId);
-      return newLeaveId;
+      if (newLeaveId) {
+        console.log('[useLeavesData] New leave created successfully with ID:', newLeaveId);
+        
+        // Создаём полный объект нового отпуска для локального состояния
+        const newLeave: ILeaveDay = {
+          ...leave,
+          id: newLeaveId,
+          created: new Date(),
+          createdBy: 'Current User' // Можно улучшить, передав реального пользователя
+        };
+        
+        // Обновляем локальное состояние
+        setLeaves(prev => [...prev, newLeave]);
+        
+        return newLeaveId;
+      } else {
+        throw new Error('Failed to get ID from created leave');
+      }
       
     } catch (error) {
       console.error('[useLeavesData] Error creating leave:', error);
       setError(`Failed to create leave: ${error}`);
-      return null;
+      return undefined;
     }
   }, [daysOfLeavesService]);
 
