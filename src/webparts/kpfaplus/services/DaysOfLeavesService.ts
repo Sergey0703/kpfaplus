@@ -158,8 +158,9 @@ export class DaysOfLeavesService {
       // Дата начала <= последний день месяца И (дата окончания >= первый день месяца ИЛИ дата окончания не задана/null)
       filter += ` and fields/Date le '${lastDayStr}' and (fields/Date2 ge '${firstDayStr}' or fields/Date2 eq null)`;
       
-      // Добавляем фильтр по Deleted
-      filter += ` and (fields/Deleted eq null or fields/Deleted ne 1)`;
+      // НЕ добавляем фильтр по Deleted - пусть клиент сам фильтрует
+      // filter += ` and (fields/Deleted eq null or fields/Deleted ne 1)`;
+      // Теперь загружаем ВСЕ записи (и активные, и удаленные) для клиентской фильтрации
       
       this.logInfo(`Using filter: ${filter}`);
       
@@ -202,6 +203,198 @@ export class DaysOfLeavesService {
     } catch (error) {
       this.logError(`Error fetching leaves: ${error}`);
       return [];
+    }
+  }
+
+  /**
+   * Помечает отпуск как удаленный (не удаляет физически)
+   * @param leaveId ID отпуска
+   * @returns Promise с результатом операции
+   */
+  public async markLeaveAsDeleted(leaveId: string): Promise<boolean> {
+    try {
+      this.logInfo(`Marking leave as deleted, ID: ${leaveId}`);
+      
+      if (!leaveId) {
+        throw new Error("Leave ID is empty or invalid");
+      }
+      
+      const leaveIdNumber = parseInt(leaveId);
+      if (isNaN(leaveIdNumber)) {
+        throw new Error(`Invalid leave ID format: ${leaveId}`);
+      }
+      
+      // Используем метод updateListItem из RemoteSiteService
+      const success = await this._remoteSiteService.updateListItem(
+        this._listName,
+        leaveIdNumber,
+        {
+          Deleted: 1
+        }
+      );
+      
+      if (success) {
+        this.logInfo(`Successfully marked leave as deleted, ID: ${leaveId}`);
+        return true;
+      } else {
+        throw new Error(`Failed to mark leave as deleted, ID: ${leaveId}`);
+      }
+    } catch (error) {
+      this.logError(`Error marking leave as deleted: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Снимает отметку удаления с отпуска
+   * @param leaveId ID отпуска
+   * @returns Promise с результатом операции
+   */
+  public async markLeaveAsActive(leaveId: string): Promise<boolean> {
+    try {
+      this.logInfo(`Marking leave as active, ID: ${leaveId}`);
+      
+      if (!leaveId) {
+        throw new Error("Leave ID is empty or invalid");
+      }
+      
+      const leaveIdNumber = parseInt(leaveId);
+      if (isNaN(leaveIdNumber)) {
+        throw new Error(`Invalid leave ID format: ${leaveId}`);
+      }
+      
+      // Используем метод updateListItem из RemoteSiteService
+      const success = await this._remoteSiteService.updateListItem(
+        this._listName,
+        leaveIdNumber,
+        {
+          Deleted: 0
+        }
+      );
+      
+      if (success) {
+        this.logInfo(`Successfully marked leave as active, ID: ${leaveId}`);
+        return true;
+      } else {
+        throw new Error(`Failed to mark leave as active, ID: ${leaveId}`);
+      }
+    } catch (error) {
+      this.logError(`Error marking leave as active: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Обновляет данные отпуска
+   * @param leaveId ID отпуска
+   * @param updateData Данные для обновления
+   * @returns Promise с результатом операции
+   */
+  public async updateLeave(leaveId: string, updateData: Partial<ILeaveDay>): Promise<boolean> {
+    try {
+      this.logInfo(`Updating leave, ID: ${leaveId}`);
+      
+      if (!leaveId) {
+        throw new Error("Leave ID is empty or invalid");
+      }
+      
+      const leaveIdNumber = parseInt(leaveId);
+      if (isNaN(leaveIdNumber)) {
+        throw new Error(`Invalid leave ID format: ${leaveId}`);
+      }
+      
+      // Подготавливаем данные для обновления в формате SharePoint
+      const itemData: Record<string, unknown> = {};
+      
+      if (updateData.title !== undefined) {
+        itemData.Title = updateData.title;
+      }
+      
+      if (updateData.startDate !== undefined) {
+        itemData.Date = updateData.startDate;
+      }
+      
+      if (updateData.endDate !== undefined) {
+        itemData.Date2 = updateData.endDate;
+      }
+      
+      if (updateData.typeOfLeave !== undefined) {
+        itemData.TypeOfLeaveLookupId = updateData.typeOfLeave;
+      }
+      
+      if (updateData.deleted !== undefined) {
+        itemData.Deleted = updateData.deleted ? 1 : 0;
+      }
+      
+      this.logInfo(`Prepared update data: ${JSON.stringify(itemData, null, 2)}`);
+      
+      // Используем метод updateListItem из RemoteSiteService
+      const success = await this._remoteSiteService.updateListItem(
+        this._listName,
+        leaveIdNumber,
+        itemData
+      );
+      
+      if (success) {
+        this.logInfo(`Successfully updated leave, ID: ${leaveId}`);
+        return true;
+      } else {
+        throw new Error(`Failed to update leave, ID: ${leaveId}`);
+      }
+    } catch (error) {
+      this.logError(`Error updating leave: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Создает новый отпуск
+   * @param leaveData Данные нового отпуска
+   * @returns Promise с ID нового отпуска или null при ошибке
+   */
+  public async createLeave(leaveData: Omit<ILeaveDay, 'id' | 'created' | 'createdBy'>): Promise<string | null> {
+    try {
+      this.logInfo(`Creating new leave`);
+      
+      // Подготавливаем данные для создания в формате SharePoint
+      const itemData: Record<string, unknown> = {
+        Title: leaveData.title || '',
+        Date: leaveData.startDate,
+        StaffMemberLookupId: leaveData.staffMemberId,
+        ManagerLookupId: leaveData.managerId,
+        StaffGroupLookupId: leaveData.staffGroupId,
+        TypeOfLeaveLookupId: leaveData.typeOfLeave,
+        Deleted: leaveData.deleted ? 1 : 0
+      };
+      
+      // Добавляем дату окончания, если она есть
+      if (leaveData.endDate) {
+        itemData.Date2 = leaveData.endDate;
+      }
+      
+      this.logInfo(`Prepared create data: ${JSON.stringify(itemData, null, 2)}`);
+      
+      try {
+        // Создаем новый элемент через RemoteSiteService, передавая имя списка
+        const response = await this._remoteSiteService.addListItem(
+          this._listName, // Передаем имя списка, а не ID
+          itemData
+        );
+        
+        if (response && response.id) {
+          const newLeaveId = String(response.id);
+          this.logInfo(`Created new leave with ID: ${newLeaveId}`);
+          return newLeaveId;
+        } else {
+          throw new Error('Failed to get ID from the created item');
+        }
+      } catch (createError) {
+        this.logError(`Error creating new leave: ${createError}`);
+        throw createError;
+      }
+    } catch (error) {
+      this.logError(`Error creating leave: ${error}`);
+      return null;
     }
   }
 

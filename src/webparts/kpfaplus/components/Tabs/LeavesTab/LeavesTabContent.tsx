@@ -7,6 +7,7 @@ import { DaysOfLeavesService } from '../../../services/DaysOfLeavesService';
 import { LeavesFilterPanel } from './components/LeavesFilterPanel';
 import { LeavesTable } from './components/LeavesTable';
 import { useLeavesData } from './utils/useLeavesData';
+import { ConfirmDialog } from '../../ConfirmDialog/ConfirmDialog';
 
 export const LeavesTabContent: React.FC<ITabProps> = (props) => {
   const { selectedStaff, context } = props;
@@ -44,6 +45,9 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
   const [selectedPeriodEnd, setSelectedPeriodEnd] = useState<Date>(lastDay);
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('');
   const [showDeleted, setShowDeleted] = useState<boolean>(false);
+
+  // Состояние для диалога подтверждения создания нового отпуска
+  const [isNewLeaveDialogOpen, setIsNewLeaveDialogOpen] = useState<boolean>(false);
 
   console.log('[LeavesTabContent] Initialized dates:', {
     periodStart: selectedPeriodStart.toLocaleDateString(),
@@ -98,6 +102,126 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
     setShowDeleted(checked);
   };
 
+  // Обработчик для создания нового отпуска
+  const handleAddNewLeave = (): void => {
+    console.log('[LeavesTabContent] Opening new leave confirmation dialog');
+    setIsNewLeaveDialogOpen(true);
+  };
+
+  // Обработчик подтверждения создания нового отпуска
+  const handleConfirmNewLeave = async (): Promise<void> => {
+    if (!daysOfLeavesService || !selectedStaff || !selectedStaff.employeeId) {
+      console.error('[LeavesTabContent] Cannot create new leave: missing service, staff, or employeeId');
+      return;
+    }
+
+    if (!props.currentUserId || !props.managingGroupId) {
+      console.error('[LeavesTabContent] Cannot create new leave: missing currentUserId or managingGroupId');
+      return;
+    }
+
+    console.log('[LeavesTabContent] Creating new leave record');
+
+    try {
+      // Определяем тип отпуска по умолчанию (первый из списка)
+      const defaultTypeOfLeave = typesOfLeave.length > 0 ? parseInt(typesOfLeave[0].id, 10) : 1;
+
+      // Подготавливаем данные для новой записи
+      const newLeaveData = {
+        title: '', // пустые заметки
+        startDate: selectedPeriodStart, // первый день выбранного периода
+        endDate: undefined, // открытый отпуск
+        staffMemberId: parseInt(selectedStaff.employeeId, 10),
+        managerId: parseInt(props.currentUserId, 10),
+        staffGroupId: parseInt(props.managingGroupId, 10),
+        typeOfLeave: defaultTypeOfLeave,
+        deleted: false // Deleted = 0
+      };
+
+      console.log('[LeavesTabContent] New leave data:', newLeaveData);
+
+      // Создаем новую запись на сервере
+      const newLeaveId = await daysOfLeavesService.createLeave(newLeaveData);
+
+      if (newLeaveId) {
+        console.log('[LeavesTabContent] New leave created successfully with ID:', newLeaveId);
+        
+        // Перезагружаем данные для отображения новой записи
+        await loadData();
+        
+        console.log('[LeavesTabContent] Data reloaded after creating new leave');
+      } else {
+        throw new Error('Failed to create new leave record');
+      }
+    } catch (error) {
+      console.error('[LeavesTabContent] Error creating new leave:', error);
+      // Здесь можно добавить отображение ошибки пользователю
+    } finally {
+      // Закрываем диалог в любом случае
+      setIsNewLeaveDialogOpen(false);
+    }
+  };
+
+  // Обработчик отмены создания нового отпуска
+  const handleCancelNewLeave = (): void => {
+    console.log('[LeavesTabContent] New leave creation cancelled');
+    setIsNewLeaveDialogOpen(false);
+  };
+  const handleDeleteLeave = async (leaveId: string): Promise<void> => {
+    if (!daysOfLeavesService) {
+      console.error('[LeavesTabContent] DaysOfLeavesService not available for delete operation');
+      throw new Error('Service not available');
+    }
+
+    console.log('[LeavesTabContent] Deleting leave with ID:', leaveId);
+
+    try {
+      // Вызываем реальный метод сервиса для удаления
+      const success = await daysOfLeavesService.markLeaveAsDeleted(leaveId);
+      
+      if (!success) {
+        throw new Error('Failed to delete leave on server');
+      }
+
+      console.log('[LeavesTabContent] Leave deleted successfully, reloading data');
+      
+      // Перезагружаем данные после успешного удаления
+      await loadData();
+      
+    } catch (error) {
+      console.error('[LeavesTabContent] Error deleting leave:', error);
+      throw error; // Пробрасываем ошибку для обработки в таблице
+    }
+  };
+
+  // Обработчик для серверного восстановления отпуска
+  const handleRestoreLeave = async (leaveId: string): Promise<void> => {
+    if (!daysOfLeavesService) {
+      console.error('[LeavesTabContent] DaysOfLeavesService not available for restore operation');
+      throw new Error('Service not available');
+    }
+
+    console.log('[LeavesTabContent] Restoring leave with ID:', leaveId);
+
+    try {
+      // Вызываем реальный метод сервиса для восстановления
+      const success = await daysOfLeavesService.markLeaveAsActive(leaveId);
+      
+      if (!success) {
+        throw new Error('Failed to restore leave on server');
+      }
+
+      console.log('[LeavesTabContent] Leave restored successfully, reloading data');
+      
+      // Перезагружаем данные после успешного восстановления
+      await loadData();
+      
+    } catch (error) {
+      console.error('[LeavesTabContent] Error restoring leave:', error);
+      throw error; // Пробрасываем ошибку для обработки в таблице
+    }
+  };
+
   // Если сотрудник не выбран
   if (!selectedStaff) {
     return (
@@ -132,6 +256,7 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
         onPeriodEndChange={handlePeriodEndChange}
         onTypeFilterChange={handleTypeFilterChange}
         onShowDeletedChange={handleShowDeletedChange}
+        onAddNewLeave={handleAddNewLeave}
       />
 
       {/* Таблица отпусков */}
@@ -142,8 +267,22 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
           isLoading={isLoading}
           showDeleted={showDeleted}
           selectedTypeFilter={selectedTypeFilter}
+          onDeleteLeave={handleDeleteLeave}
+          onRestoreLeave={handleRestoreLeave}
         />
       </div>
+
+      {/* Диалог подтверждения создания нового отпуска */}
+      <ConfirmDialog
+        isOpen={isNewLeaveDialogOpen}
+        title="Create New Leave"
+        message={`Are you sure you want to create a new leave record for ${selectedStaff.name} starting from ${selectedPeriodStart.toLocaleDateString()}?`}
+        confirmButtonText="Create"
+        cancelButtonText="Cancel"
+        onConfirm={handleConfirmNewLeave}
+        onDismiss={handleCancelNewLeave}
+        confirmButtonColor="#107c10" // зеленый цвет для создания
+      />
     </div>
   );
 };

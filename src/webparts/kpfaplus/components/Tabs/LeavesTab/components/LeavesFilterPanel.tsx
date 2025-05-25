@@ -14,9 +14,11 @@ interface ILeavesFilterPanelProps {
   onPeriodEndChange: (date: Date | null | undefined) => void;
   onTypeFilterChange: (typeId: string) => void;
   onShowDeletedChange: (checked: boolean) => void;
+  // Новый prop для обработки создания нового отпуска
+  onAddNewLeave: () => void;
 }
 
-// Локализация для DatePicker
+// Локализация для DatePicker (та же что в LeavesFilterPanel)
 const datePickerStringsEN = {
   months: [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -65,7 +67,8 @@ export const LeavesFilterPanel: React.FC<ILeavesFilterPanelProps> = (props) => {
     onPeriodStartChange,
     onPeriodEndChange,
     onTypeFilterChange,
-    onShowDeletedChange
+    onShowDeletedChange,
+    onAddNewLeave
   } = props;
 
   console.log('[LeavesFilterPanel] Rendering with types:', typesOfLeave.length);
@@ -100,6 +103,12 @@ export const LeavesFilterPanel: React.FC<ILeavesFilterPanelProps> = (props) => {
       console.log('[LeavesFilterPanel] End date selected:', formatDate(date));
       onPeriodEndChange(date);
     }
+  };
+
+  // Обработчик для кнопки New
+  const handleNewButtonClick = (): void => {
+    console.log('[LeavesFilterPanel] New button clicked');
+    onAddNewLeave();
   };
 
   // Обработчики закрытия календарей
@@ -282,8 +291,27 @@ export const LeavesFilterPanel: React.FC<ILeavesFilterPanelProps> = (props) => {
       </div>
       
       <div style={{ display: 'flex', gap: '10px' }}>
-        <PrimaryButton text="New" disabled />
-        <PrimaryButton text="Save" disabled />
+        <PrimaryButton 
+          text="New" 
+          onClick={handleNewButtonClick}
+          disabled={isLoading}
+          styles={{
+            root: {
+              backgroundColor: '#107c10', // зеленый цвет для создания
+              borderColor: '#107c10'
+            }
+          }}
+        />
+        <PrimaryButton 
+          text="Save" 
+          disabled
+          styles={{
+            root: {
+              backgroundColor: '#a19f9d', // серый цвет для отключенной кнопки
+              borderColor: '#a19f9d'
+            }
+          }}
+        />
       </div>
       
       {isLoading && (
