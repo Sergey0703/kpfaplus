@@ -8,7 +8,7 @@ import { LeavesFilterPanel } from './components/LeavesFilterPanel';
 import { LeavesTable } from './components/LeavesTable';
 import { useLeavesData } from './utils/useLeavesData';
 import { ConfirmDialog } from '../../ConfirmDialog/ConfirmDialog';
-import { MessageBar, MessageBarType } from '@fluentui/react';
+import { MessageBar, MessageBarType, Dialog, DialogType, DialogFooter, PrimaryButton, DefaultButton } from '@fluentui/react';
 
 // Интерфейс для информационных сообщений
 interface IInfoMessage {
@@ -53,14 +53,18 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('');
   const [showDeleted, setShowDeleted] = useState<boolean>(false);
 
-  // Состояние для диалога подтверждения создания нового отпуска
+  // Состояния для диалогов
   const [isNewLeaveDialogOpen, setIsNewLeaveDialogOpen] = useState<boolean>(false);
+  const [isUnsavedChangesDialogOpen, setIsUnsavedChangesDialogOpen] = useState<boolean>(false);
 
-  // НОВЫЕ СОСТОЯНИЯ для управления сохранением
+  // СОСТОЯНИЯ для управления сохранением
   const [editingLeaveIds, setEditingLeaveIds] = useState<Set<string>>(new Set());
-  const [editingCount, setEditingCount] = useState<number>(0); // Добавляем отдельное состояние для счётчика
+  const [editingCount, setEditingCount] = useState<number>(0);
   const [infoMessage, setInfoMessage] = useState<IInfoMessage | null>(null);
   const [isSaving, setIsSaving] = useState<boolean>(false);
+
+  // НОВОЕ СОСТОЯНИЕ для ID новой записи (для выделения зелёной рамкой)
+  const [newlyCreatedLeaveId, setNewlyCreatedLeaveId] = useState<string | null>(null);
 
   // Ref для хранения функции получения изменённых данных из таблицы
   const getChangedDataFunctionRef = React.useRef<(() => { leaveId: string; changes: Partial<ILeaveDay> }[]) | null>(null);
@@ -93,7 +97,7 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
     loadData();
   }, [loadData]);
 
-  // НОВЫЙ ЭФФЕКТ: Управление информационными сообщениями в зависимости от состояния редактирования
+  // ЭФФЕКТ: Управление информационными сообщениями в зависимости от состояния редактирования
   useEffect(() => {
     const hasUnsavedChanges = editingCount > 0;
     
@@ -111,7 +115,7 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
       setInfoMessage(null);
     }
     // Если идёт сохранение (isSaving), не меняем сообщение здесь
-  }, [editingCount, isSaving]); // Используем editingCount вместо editingLeaveIds
+  }, [editingCount, isSaving]);
 
   // Автоматическое скрытие сообщений через 5 секунд (только для success и error)
   useEffect(() => {
@@ -149,81 +153,6 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
     setShowDeleted(checked);
   };
 
-  // Обработчик для создания нового отпуска
-  const handleAddNewLeave = (): void => {
-    console.log('[LeavesTabContent] Opening new leave confirmation dialog');
-    setIsNewLeaveDialogOpen(true);
-  };
-
-  // Обработчик подтверждения создания нового отпуска
-  const handleConfirmNewLeave = async (): Promise<void> => {
-    if (!daysOfLeavesService || !selectedStaff || !selectedStaff.employeeId) {
-      console.error('[LeavesTabContent] Cannot create new leave: missing service, staff, or employeeId');
-      return;
-    }
-
-    if (!props.currentUserId || !props.managingGroupId) {
-      console.error('[LeavesTabContent] Cannot create new leave: missing currentUserId or managingGroupId');
-      return;
-    }
-
-    console.log('[LeavesTabContent] Creating new leave record');
-
-    try {
-      // Определяем тип отпуска по умолчанию (первый из списка)
-      const defaultTypeOfLeave = typesOfLeave.length > 0 ? parseInt(typesOfLeave[0].id, 10) : 1;
-
-      // Подготавливаем данные для новой записи
-      const newLeaveData = {
-        title: '', // пустые заметки
-        startDate: selectedPeriodStart, // первый день выбранного периода
-        endDate: undefined, // открытый отпуск
-        staffMemberId: parseInt(selectedStaff.employeeId, 10),
-        managerId: parseInt(props.currentUserId, 10),
-        staffGroupId: parseInt(props.managingGroupId, 10),
-        typeOfLeave: defaultTypeOfLeave,
-        deleted: false // Deleted = 0
-      };
-
-      console.log('[LeavesTabContent] New leave data:', newLeaveData);
-
-      // Создаем новую запись на сервере
-      const newLeaveId = await daysOfLeavesService.createLeave(newLeaveData);
-
-      if (newLeaveId) {
-        console.log('[LeavesTabContent] New leave created successfully with ID:', newLeaveId);
-        
-        // Показываем сообщение об успехе
-        setInfoMessage({
-          text: "New leave record created successfully",
-          type: MessageBarType.success
-        });
-        
-        // Перезагружаем данные для отображения новой записи
-        await loadData();
-        
-        console.log('[LeavesTabContent] Data reloaded after creating new leave');
-      } else {
-        throw new Error('Failed to create new leave record');
-      }
-    } catch (error) {
-      console.error('[LeavesTabContent] Error creating new leave:', error);
-      setInfoMessage({
-        text: `Error creating new leave: ${error}`,
-        type: MessageBarType.error
-      });
-    } finally {
-      // Закрываем диалог в любом случае
-      setIsNewLeaveDialogOpen(false);
-    }
-  };
-
-  // Обработчик отмены создания нового отпуска
-  const handleCancelNewLeave = (): void => {
-    console.log('[LeavesTabContent] New leave creation cancelled');
-    setIsNewLeaveDialogOpen(false);
-  };
-
   // Callback для регистрации функции получения данных из таблицы
   const handleRegisterGetChangedData = (getDataFunction: () => { leaveId: string; changes: Partial<ILeaveDay> }[]): void => {
     console.log('[LeavesTabContent] Registering getChangedData function from table');
@@ -231,7 +160,7 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
     console.log('[LeavesTabContent] getChangedData function registered, ref is now:', !!getChangedDataFunctionRef.current);
   };
 
-  // НОВЫЕ ОБРАБОТЧИКИ для управления режимом редактирования
+  // ОБРАБОТЧИКИ для управления режимом редактирования
   
   // Добавление ID в список редактируемых
   const handleStartEdit = (leaveId: string): void => {
@@ -239,7 +168,7 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
     setEditingLeaveIds(prev => {
       const newSet = new Set(prev);
       newSet.add(leaveId);
-      setEditingCount(newSet.size); // Обновляем счётчик
+      setEditingCount(newSet.size);
       return newSet;
     });
   };
@@ -250,12 +179,12 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
     setEditingLeaveIds(prev => {
       const newSet = new Set(prev);
       newSet.delete(leaveId);
-      setEditingCount(newSet.size); // Обновляем счётчик
+      setEditingCount(newSet.size);
       return newSet;
     });
   };
 
-  // НОВЫЙ ОБРАБОТЧИК: Глобальное сохранение всех изменений
+  // ОБРАБОТЧИК: Глобальное сохранение всех изменений
   const handleSaveAllChanges = async (): Promise<void> => {
     if (editingCount === 0) {
       console.log('[LeavesTabContent] No changes to save');
@@ -340,6 +269,9 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
         setEditingLeaveIds(new Set());
         setEditingCount(0);
         
+        // Очищаем выделение новых записей при сохранении
+        setNewlyCreatedLeaveId(null);
+        
         // Перезагружаем данные
         await loadData();
         
@@ -358,6 +290,130 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
     }
   };
 
+  // ОБРАБОТЧИКИ для создания нового отпуска с проверкой несохранённых изменений
+
+  // Вычисляем, есть ли несохранённые изменения
+  const hasUnsavedChanges = editingCount > 0;
+
+  // Главный обработчик для кнопки New
+  const handleAddNewLeave = (): void => {
+    console.log('[LeavesTabContent] Add new leave button clicked');
+    
+    // Проверяем, есть ли несохранённые изменения
+    if (hasUnsavedChanges) {
+      console.log('[LeavesTabContent] Unsaved changes detected, showing warning dialog');
+      setIsUnsavedChangesDialogOpen(true);
+    } else {
+      console.log('[LeavesTabContent] No unsaved changes, proceeding with new leave creation');
+      handleProceedWithNewLeave();
+    }
+  };
+
+  // Метод для продолжения создания нового отпуска (без проверки изменений)
+  const handleProceedWithNewLeave = (): void => {
+    console.log('[LeavesTabContent] Opening new leave confirmation dialog');
+    setIsNewLeaveDialogOpen(true);
+  };
+
+  // Сохранить изменения и создать новую запись
+  const handleSaveAndContinue = async (): Promise<void> => {
+    console.log('[LeavesTabContent] Save and continue with new leave');
+    setIsUnsavedChangesDialogOpen(false);
+    
+    try {
+      // Сначала сохраняем текущие изменения
+      await handleSaveAllChanges();
+      
+      // После успешного сохранения сразу создаём новую запись БЕЗ дополнительного диалога
+      setTimeout(async () => {
+        console.log('[LeavesTabContent] Auto-creating new leave after save');
+        await handleConfirmNewLeave(); // Сразу создаём, минуя диалог подтверждения
+      }, 500);
+    } catch (error) {
+      console.error('[LeavesTabContent] Error during save and continue:', error);
+      // При ошибке сохранения не создаём новую запись
+    }
+  };
+
+  // Отменить создание новой записи (остаться в режиме редактирования)
+  const handleCancelNewLeave = (): void => {
+    console.log('[LeavesTabContent] New leave creation cancelled - staying in edit mode');
+    setIsUnsavedChangesDialogOpen(false);
+  };
+
+  // Обработчик подтверждения создания нового отпуска
+  const handleConfirmNewLeave = async (): Promise<void> => {
+    if (!daysOfLeavesService || !selectedStaff || !selectedStaff.employeeId) {
+      console.error('[LeavesTabContent] Cannot create new leave: missing service, staff, or employeeId');
+      return;
+    }
+
+    if (!props.currentUserId || !props.managingGroupId) {
+      console.error('[LeavesTabContent] Cannot create new leave: missing currentUserId or managingGroupId');
+      return;
+    }
+
+    console.log('[LeavesTabContent] Creating new leave record');
+
+    try {
+      // Определяем тип отпуска по умолчанию (первый из списка)
+      const defaultTypeOfLeave = typesOfLeave.length > 0 ? parseInt(typesOfLeave[0].id, 10) : 1;
+
+      // Подготавливаем данные для новой записи
+      const newLeaveData = {
+        title: '', // пустые заметки
+        startDate: selectedPeriodStart, // первый день выбранного периода
+        endDate: undefined, // открытый отпуск
+        staffMemberId: parseInt(selectedStaff.employeeId, 10),
+        managerId: parseInt(props.currentUserId, 10),
+        staffGroupId: parseInt(props.managingGroupId, 10),
+        typeOfLeave: defaultTypeOfLeave,
+        deleted: false // Deleted = 0
+      };
+
+      console.log('[LeavesTabContent] New leave data:', newLeaveData);
+
+      // Создаем новую запись на сервере
+      const newLeaveId = await daysOfLeavesService.createLeave(newLeaveData);
+
+      if (newLeaveId) {
+        console.log('[LeavesTabContent] New leave created successfully with ID:', newLeaveId);
+        
+        // Показываем сообщение об успехе
+        setInfoMessage({
+          text: "New leave record created successfully",
+          type: MessageBarType.success
+        });
+        
+        // Сохраняем ID новой записи для выделения зелёной рамкой
+        setNewlyCreatedLeaveId(newLeaveId);
+        
+        // Перезагружаем данные для отображения новой записи
+        await loadData();
+        
+        console.log('[LeavesTabContent] Data reloaded after creating new leave, highlighting new record');
+      } else {
+        throw new Error('Failed to create new leave record');
+      }
+    } catch (error) {
+      console.error('[LeavesTabContent] Error creating new leave:', error);
+      setInfoMessage({
+        text: `Error creating new leave: ${error}`,
+        type: MessageBarType.error
+      });
+    } finally {
+      // Закрываем диалог в любом случае
+      setIsNewLeaveDialogOpen(false);
+    }
+  };
+
+  // Обработчик отмены создания нового отпуска (для основного диалога)
+  const handleCancelNewLeaveDialog = (): void => {
+    console.log('[LeavesTabContent] New leave creation dialog cancelled');
+    setIsNewLeaveDialogOpen(false);
+  };
+
+  // Обработчики для удаления/восстановления
   const handleDeleteLeave = async (leaveId: string): Promise<void> => {
     if (!daysOfLeavesService) {
       console.error('[LeavesTabContent] DaysOfLeavesService not available for delete operation');
@@ -391,11 +447,10 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
         text: `Error deleting leave: ${error}`,
         type: MessageBarType.error
       });
-      throw error; // Пробрасываем ошибку для обработки в таблице
+      throw error;
     }
   };
 
-  // Обработчик для серверного восстановления отпуска
   const handleRestoreLeave = async (leaveId: string): Promise<void> => {
     if (!daysOfLeavesService) {
       console.error('[LeavesTabContent] DaysOfLeavesService not available for restore operation');
@@ -429,7 +484,7 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
         text: `Error restoring leave: ${error}`,
         type: MessageBarType.error
       });
-      throw error; // Пробрасываем ошибку для обработки в таблице
+      throw error;
     }
   };
 
@@ -442,9 +497,6 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
       </div>
     );
   }
-
-  // Вычисляем, есть ли несохранённые изменения
-  const hasUnsavedChanges = editingCount > 0;
 
   return (
     <div style={{ padding: '20px', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -498,12 +550,12 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
           selectedTypeFilter={selectedTypeFilter}
           onDeleteLeave={handleDeleteLeave}
           onRestoreLeave={handleRestoreLeave}
-          // НОВЫЕ PROPS для управления редактированием
           editingLeaveIds={editingLeaveIds}
           onStartEdit={handleStartEdit}
           onCancelEdit={handleCancelEdit}
-          // НОВЫЙ PROP для получения изменённых данных
           onGetChangedData={handleRegisterGetChangedData}
+          // НОВЫЙ PROP для выделения новых записей
+          newlyCreatedLeaveId={newlyCreatedLeaveId}
         />
       </div>
 
@@ -515,9 +567,38 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
         confirmButtonText="Create"
         cancelButtonText="Cancel"
         onConfirm={handleConfirmNewLeave}
-        onDismiss={handleCancelNewLeave}
-        confirmButtonColor="#107c10" // зеленый цвет для создания
+        onDismiss={handleCancelNewLeaveDialog}
+        confirmButtonColor="#107c10"
       />
+
+      {/* Диалог предупреждения о несохранённых изменениях */}
+      <Dialog
+        hidden={!isUnsavedChangesDialogOpen}
+        onDismiss={handleCancelNewLeave}
+        dialogContentProps={{
+          type: DialogType.normal,
+          title: 'Unsaved Changes',
+          subText: `You have ${editingCount} unsaved ${editingCount === 1 ? 'change' : 'changes'}. Please save your changes before creating a new leave record.`
+        }}
+        modalProps={{
+          isBlocking: true,
+          styles: { main: { maxWidth: 450 } }
+        }}
+      >
+        <DialogFooter>
+          <PrimaryButton 
+            onClick={handleSaveAndContinue} 
+            text="Save & Continue"
+            styles={{
+              root: { backgroundColor: '#0078d4', borderColor: '#0078d4' }
+            }}
+          />
+          <DefaultButton 
+            onClick={handleCancelNewLeave} 
+            text="Cancel"
+          />
+        </DialogFooter>
+      </Dialog>
     </div>
   );
 };

@@ -34,6 +34,8 @@ interface ILeavesTableProps {
   onCancelEdit: (leaveId: string) => void;
   // НОВЫЙ PROP для получения изменённых данных
   onGetChangedData?: (getDataFunction: () => { leaveId: string; changes: Partial<ILeaveDay> }[]) => void;
+  // НОВЫЙ PROP для выделения новых записей
+  newlyCreatedLeaveId?: string | null;
 }
 
 // Интерфейс для редактируемой записи отпуска с локальными изменениями
@@ -102,7 +104,8 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
     editingLeaveIds,
     onStartEdit,
     onCancelEdit,
-    onGetChangedData
+    onGetChangedData,
+    newlyCreatedLeaveId
   } = props;
 
   console.log('[LeavesTable] Rendering with leaves:', leaves.length, 'editing:', editingLeaveIds.size);
@@ -742,6 +745,27 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
         selectionMode={SelectionMode.none}
         isHeaderVisible={true}
         compact={true}
+        // НОВЫЙ PROP для кастомизации стилей строк
+        onRenderRow={(props, defaultRender) => {
+          if (!props || !defaultRender) return null;
+          
+          // Проверяем, является ли эта строка новой записью
+          const isNewlyCreated = newlyCreatedLeaveId && props.item.id === newlyCreatedLeaveId;
+          
+          // Применяем стили к строке
+          const customStyles = isNewlyCreated ? {
+            root: {
+              border: '2px solid #107c10', // зелёная рамка
+              backgroundColor: '#f3f9f1', // светло-зелёный фон
+              animation: 'highlight-fade 3s ease-out' // анимация подсветки
+            }
+          } : undefined;
+          
+          return defaultRender({
+            ...props,
+            styles: customStyles
+          });
+        }}
       />
 
       {/* Диалог подтверждения */}
