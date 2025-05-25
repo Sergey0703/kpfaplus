@@ -24,9 +24,9 @@ export const TabNavigation: React.FC<ITabNavigationProps> = (props) => {
       >
         <PivotItem headerText="Main" itemKey="main" />
         <PivotItem headerText="Contracts" itemKey="contracts" />
+        <PivotItem headerText="Leaves" itemKey="leaves" />
         <PivotItem headerText="Schedule" itemKey="schedule" />
         <PivotItem headerText="Notes" itemKey="notes" />
-        <PivotItem headerText="Leaves" itemKey="leaves" />
         <PivotItem headerText="Leave Time by Years" itemKey="leaveTime" />
         <PivotItem headerText="SRS" itemKey="srs" />
       </Pivot>

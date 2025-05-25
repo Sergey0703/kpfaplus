@@ -515,10 +515,10 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
        return <ContractsTab {...tabProps} />;
      case 'schedule': // Добавляем обработку нашей новой вкладки
       return <ScheduleTab {...tabProps} />;
+    case 'leaves':
+    return <LeavesTab {...tabProps} />;
      case 'notes':
        return <NotesTab {...tabProps} />;
-     case 'leaves':
-       return <LeavesTab {...tabProps} />;
      case 'leaveTimeByYears':
        return <LeaveTimeByYearsTab {...tabProps} />;
      case 'srs':
@@ -707,11 +707,11 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
          >
            <PivotItem itemKey="main" headerText="Main" />
            <PivotItem itemKey="contracts" headerText="Contracts" />
+            <PivotItem itemKey="leaves" headerText="Leaves" />
            <PivotItem itemKey="schedule" headerText="Schedule" />
-           <PivotItem itemKey="notes" headerText="Notes" />
-           <PivotItem itemKey="leaves" headerText="Leaves" />
-           <PivotItem itemKey="leaveTimeByYears" headerText="Leave Time by Years" />
            <PivotItem itemKey="srs" headerText="SRS" />
+           <PivotItem itemKey="notes" headerText="Notes" />
+           <PivotItem itemKey="leaveTimeByYears" headerText="Leave Time by Years" />
            <PivotItem itemKey="remoteConnection" headerText="Remote Connection" />
          </Pivot>
          
