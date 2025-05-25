@@ -350,9 +350,9 @@ export class DaysOfLeavesService {
   /**
    * Создает новый отпуск
    * @param leaveData Данные нового отпуска
-   * @returns Promise с ID нового отпуска или null при ошибке
+   * @returns Promise с ID нового отпуска или undefined при ошибке
    */
-  public async createLeave(leaveData: Omit<ILeaveDay, 'id' | 'created' | 'createdBy'>): Promise<string | null> {
+  public async createLeave(leaveData: Omit<ILeaveDay, 'id' | 'created' | 'createdBy'>): Promise<string | undefined> {
     try {
       this.logInfo(`Creating new leave`);
       
@@ -394,7 +394,7 @@ export class DaysOfLeavesService {
       }
     } catch (error) {
       this.logError(`Error creating leave: ${error}`);
-      return null;
+      return undefined;
     }
   }
 
@@ -453,9 +453,9 @@ export class DaysOfLeavesService {
    * @returns Массив объектов ILeaveDay
    */
   private mapToLeaveDays(items: unknown[]): ILeaveDay[] {
-    // Используем промежуточный массив, который может содержать null
+    // Используем промежуточный массив, который может содержать undefined
     const mappedItems = items
-      .map((item, index): ILeaveDay | null => {
+      .map((item, index): ILeaveDay | undefined => {
         try {
           const typedItem = item as IRawLeaveDayItem;
           const fields = typedItem.fields || {};
@@ -463,7 +463,7 @@ export class DaysOfLeavesService {
           // Проверка наличия обязательных полей
           if (!fields.Date) {
             this.logError(`Missing required date field for leave item ${typedItem.id}`);
-            return null;
+            return undefined;
           }
           
           // Преобразуем строку даты начала в объект Date
@@ -471,7 +471,7 @@ export class DaysOfLeavesService {
           
           if (isNaN(startDate.getTime())) {
             this.logError(`Invalid date format for leave item ${typedItem.id}`);
-            return null;
+            return undefined;
           }
           
           // Обработка случая, когда дата окончания не задана (открытый отпуск)
@@ -581,12 +581,12 @@ export class DaysOfLeavesService {
           };
         } catch (error) {
           this.logError(`Error processing leave item ${(item as {id?: string | number})?.id || 'unknown'}: ${error}`);
-          return null;
+          return undefined;
         }
       });
     
-    // Фильтруем null элементы и возвращаем массив ILeaveDay
-    return mappedItems.filter((item): item is ILeaveDay => item !== null);
+    // Фильтруем undefined элементы и возвращаем массив ILeaveDay
+    return mappedItems.filter((item): item is ILeaveDay => item !== undefined);
   }
 
   /**

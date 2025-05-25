@@ -28,13 +28,13 @@ interface ILeavesTableProps {
   // Серверные операции
   onDeleteLeave: (leaveId: string) => Promise<void>;
   onRestoreLeave: (leaveId: string) => Promise<void>;
-  // НОВЫЕ PROPS для управления редактированием
+  // PROPS для управления редактированием
   editingLeaveIds: Set<string>;
   onStartEdit: (leaveId: string) => void;
   onCancelEdit: (leaveId: string) => void;
-  // НОВЫЙ PROP для получения изменённых данных
+  // PROP для получения изменённых данных
   onGetChangedData?: (getDataFunction: () => { leaveId: string; changes: Partial<ILeaveDay> }[]) => void;
-  // НОВЫЙ PROP для выделения новых записей
+  // PROP для выделения новых записей
   newlyCreatedLeaveId?: string | undefined;
 }
 
@@ -110,6 +110,34 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
 
   console.log('[LeavesTable] Rendering with leaves:', leaves.length, 'editing:', editingLeaveIds.size);
 
+  // Добавляем CSS стили для анимации новой записи
+  React.useEffect((): void => {
+    // Добавляем стили анимации в head, если их ещё нет
+    const styleId = 'leaves-table-highlight-styles';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = `
+        @keyframes highlight-fade {
+          0% {
+            background-color: #d4edda;
+            border-color: #28a745;
+            box-shadow: 0 0 10px rgba(40, 167, 69, 0.5);
+          }
+          50% {
+            background-color: #f8f9fa;
+            border-color: #107c10;
+          }
+          100% {
+            background-color: #f3f9f1;
+            border-color: #107c10;
+          }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+  }, []);
+
   // Состояние для локальных изменений редактируемых записей
   const [editableLeaves, setEditableLeaves] = useState<IEditableLeaveDay[]>([]);
 
@@ -120,7 +148,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
     message: '',
     confirmButtonText: '',
     cancelButtonText: 'Cancel',
-    onConfirm: () => {},
+    onConfirm: (): void => {},
     confirmButtonColor: ''
   });
 
@@ -128,7 +156,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
   const pendingActionLeaveIdRef = useRef<string | undefined>(undefined);
 
   // Синхронизируем editableLeaves с входящими данными leaves
-  useEffect(() => {
+  useEffect((): void => {
     const initialEditableLeaves = leaves.map(leave => ({
       ...leave,
       localChanges: {},
@@ -138,7 +166,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
     setEditableLeaves(initialEditableLeaves);
   }, [leaves]);
 
-  // НОВЫЙ ЭФФЕКТ: Регистрируем функцию получения изменённых данных
+  // ЭФФЕКТ: Регистрируем функцию получения изменённых данных
   useEffect((): void => {
     if (onGetChangedData) {
       console.log('[LeavesTable] Registering getChangedData function');
@@ -193,35 +221,8 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
     }
   }, [editableLeaves, editingLeaveIds, onGetChangedData]);
 
-  // Функция для получения названия типа отпуска
-  const getTypeOfLeaveTitle = (typeId: number): string => {
-    const type = typesOfLeave.find(t => t.id === typeId.toString());
-    return type ? type.title : `Type ${typeId}`;
-  };
-
-  // Функция валидации записи (пока не используется, но будет нужна для будущих этапов)
-  // const validateLeave = (leave: IEditableLeaveDay): { isValid: boolean; errors: any } => {
-  //   const errors: any = {};
-
-  //   const currentStartDate = leave.localChanges?.startDate ?? leave.startDate;
-  //   const currentTypeOfLeave = leave.localChanges?.typeOfLeave ?? leave.typeOfLeave;
-
-  //   if (!currentStartDate) {
-  //     errors.startDate = 'Start date is required';
-  //   }
-
-  //   if (!currentTypeOfLeave || currentTypeOfLeave === 0) {
-  //     errors.typeOfLeave = 'Type of leave is required';
-  //   }
-
-  //   return {
-  //     isValid: Object.keys(errors).length === 0,
-  //     errors
-  //   };
-  // };
-
-  // Получение актуального значения поля с учётом локальных изменений
-  const getCurrentValue = (leave: IEditableLeaveDay, field: keyof ILeaveDay) => {
+  // Функция для получения актуального значения поля с учётом локальных изменений
+  const getCurrentValue = (leave: IEditableLeaveDay, field: keyof ILeaveDay): unknown => {
     if (leave.localChanges && field in leave.localChanges) {
       return leave.localChanges[field as keyof typeof leave.localChanges];
     }
@@ -231,6 +232,12 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
   // Проверка, находится ли запись в режиме редактирования
   const isEditing = (leaveId: string): boolean => {
     return editingLeaveIds.has(leaveId);
+  };
+
+  // Функция для получения названия типа отпуска
+  const getTypeOfLeaveTitle = (typeId: number): string => {
+    const type = typesOfLeave.find(t => t.id === typeId.toString());
+    return type ? type.title : `Type ${typeId}`;
   };
 
   // Обработчик начала редактирования
@@ -275,17 +282,17 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
       message: 'Are you sure you want to delete this leave record? It will be marked as deleted but can be restored later.',
       confirmButtonText: 'Delete',
       cancelButtonText: 'Cancel',
-      onConfirm: () => {
+      onConfirm: (): void => {
         const leaveId = pendingActionLeaveIdRef.current;
         if (leaveId) {
           // Вызываем серверную операцию удаления
           onDeleteLeave(leaveId)
-            .then(() => {
+            .then((): void => {
               console.log(`[LeavesTable] Leave ${leaveId} deleted successfully`);
               setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
               pendingActionLeaveIdRef.current = undefined;
             })
-            .catch(err => {
+            .catch((err): void => {
               console.error(`[LeavesTable] Error deleting leave ${leaveId}:`, err);
               setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
               pendingActionLeaveIdRef.current = undefined;
@@ -308,17 +315,17 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
       message: 'Are you sure you want to restore this deleted leave record?',
       confirmButtonText: 'Restore',
       cancelButtonText: 'Cancel',
-      onConfirm: () => {
+      onConfirm: (): void => {
         const leaveId = pendingActionLeaveIdRef.current;
         if (leaveId) {
           // Вызываем серверную операцию восстановления
           onRestoreLeave(leaveId)
-            .then(() => {
+            .then((): void => {
               console.log(`[LeavesTable] Leave ${leaveId} restored successfully`);
               setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
               pendingActionLeaveIdRef.current = undefined;
             })
-            .catch(err => {
+            .catch((err): void => {
               console.error(`[LeavesTable] Error restoring leave ${leaveId}:`, err);
               setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
               pendingActionLeaveIdRef.current = undefined;
@@ -347,7 +354,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
   };
 
   const handleEndDateChange = (itemId: string, date: Date | undefined): void => {
-    console.log('[LeavesTable] End date changed for item:', itemId, 'to:', date ? formatDate(date) : 'null');
+    console.log('[LeavesTable] End date changed for item:', itemId, 'to:', date ? formatDate(date) : 'undefined');
     setEditableLeaves(prev => prev.map(leave => 
       leave.id === itemId 
         ? { 
@@ -427,7 +434,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
       <div style={{ width: '220px' }}>
         <DatePicker
           value={currentDate}
-          onSelectDate={(selectedDate) => {
+          onSelectDate={(selectedDate): void => {
             if (field === 'startDate') {
               handleStartDateChange(item.id, selectedDate || undefined);
             } else {
@@ -520,7 +527,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
         <Dropdown
           options={typeOptions}
           selectedKey={currentTypeOfLeave.toString()}
-          onChange={(_, option) => option && handleTypeChange(item.id, option.key as string)}
+          onChange={(_, option): void => option && handleTypeChange(item.id, option.key as string)}
           placeholder="Select type..."
           styles={{
             root: { width: '180px' },
@@ -556,7 +563,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
     return (
       <TextField
         value={currentTitle || ''}
-        onChange={(_, newValue) => handleNotesChange(item.id, newValue || '')}
+        onChange={(_, newValue): void => handleNotesChange(item.id, newValue || '')}
         multiline={false}
         styles={{
           root: { width: '200px' },
@@ -566,7 +573,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
     );
   };
 
-  // ОБНОВЛЁННЫЙ рендер ячейки с действиями (БЕЗ кнопки Save)
+  // Рендер ячейки с действиями (БЕЗ кнопки Save)
   const renderActionsCell = (item: IEditableLeaveDay): JSX.Element => {
     const itemIsEditing = isEditing(item.id);
 
@@ -576,7 +583,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
           <IconButton
             iconProps={{ iconName: 'Cancel' }}
             title="Cancel"
-            onClick={() => handleCancelEdit(item.id)}
+            onClick={(): void => handleCancelEdit(item.id)}
             styles={{ 
               root: { 
                 width: '28px', 
@@ -595,7 +602,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
         <IconButton
           iconProps={{ iconName: 'Edit' }}
           title="Edit"
-          onClick={() => handleStartEdit(item.id)}
+          onClick={(): void => handleStartEdit(item.id)}
           styles={{ 
             root: { 
               width: '28px', 
@@ -609,7 +616,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
           <IconButton
             iconProps={{ iconName: 'Refresh' }}
             title="Restore"
-            onClick={() => showRestoreConfirmDialog(item.id)}
+            onClick={(): void => showRestoreConfirmDialog(item.id)}
             styles={{ 
               root: { 
                 width: '28px', 
@@ -623,7 +630,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
           <IconButton
             iconProps={{ iconName: 'Delete' }}
             title="Delete"
-            onClick={() => showDeleteConfirmDialog(item.id)}
+            onClick={(): void => showDeleteConfirmDialog(item.id)}
             styles={{ 
               root: { 
                 width: '28px', 
@@ -646,7 +653,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
       fieldName: 'startDate',
       minWidth: 230,
       maxWidth: 230,
-      onRender: (item: IEditableLeaveDay) => renderDateCell(item, 'startDate', true)
+      onRender: (item: IEditableLeaveDay): JSX.Element => renderDateCell(item, 'startDate', true)
     },
     {
       key: 'endDate',
@@ -654,7 +661,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
       fieldName: 'endDate',
       minWidth: 230,
       maxWidth: 230,
-      onRender: (item: IEditableLeaveDay) => renderDateCell(item, 'endDate', false)
+      onRender: (item: IEditableLeaveDay): JSX.Element => renderDateCell(item, 'endDate', false)
     },
     {
       key: 'typeOfLeave',
@@ -662,7 +669,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
       fieldName: 'typeOfLeave',
       minWidth: 190,
       maxWidth: 190,
-      onRender: (item: IEditableLeaveDay) => renderTypeCell(item)
+      onRender: (item: IEditableLeaveDay): JSX.Element => renderTypeCell(item)
     },
     {
       key: 'notes',
@@ -670,7 +677,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
       fieldName: 'title',
       minWidth: 210,
       isResizable: true,
-      onRender: (item: IEditableLeaveDay) => renderNotesCell(item)
+      onRender: (item: IEditableLeaveDay): JSX.Element => renderNotesCell(item)
     },
     {
       key: 'status',
@@ -678,7 +685,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
       fieldName: 'deleted',
       minWidth: 80,
       maxWidth: 100,
-      onRender: (item: IEditableLeaveDay) => {
+      onRender: (item: IEditableLeaveDay): JSX.Element => {
         const itemIsEditing = isEditing(item.id);
         return (
           <span style={{ 
@@ -696,7 +703,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
       name: 'Actions',
       minWidth: 70,
       maxWidth: 70,
-      onRender: (item: IEditableLeaveDay) => renderActionsCell(item)
+      onRender: (item: IEditableLeaveDay): JSX.Element => renderActionsCell(item)
     }
   ];
 
@@ -745,7 +752,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
         selectionMode={SelectionMode.none}
         isHeaderVisible={true}
         compact={true}
-        // НОВЫЙ PROP для кастомизации стилей строк
+        // PROP для кастомизации стилей строк
         onRenderRow={(props, defaultRender): JSX.Element | null => {
           if (!props || !defaultRender) return null;
           
@@ -778,7 +785,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
         confirmButtonText={confirmDialogProps.confirmButtonText}
         cancelButtonText={confirmDialogProps.cancelButtonText}
         onConfirm={confirmDialogProps.onConfirm}
-        onDismiss={() => setConfirmDialogProps(prev => ({ ...prev, isOpen: false }))}
+        onDismiss={(): void => setConfirmDialogProps(prev => ({ ...prev, isOpen: false }))}
         confirmButtonColor={confirmDialogProps.confirmButtonColor}
       />
     </div>
