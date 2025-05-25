@@ -523,22 +523,22 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
     }
 
     return (
-      <div style={{ width: '180px' }}>
+      <div style={{ width: '150px' }}> {/* Уменьшено с 180px до 150px */}
         <Dropdown
           options={typeOptions}
           selectedKey={currentTypeOfLeave.toString()}
           onChange={(_, option): void => option && handleTypeChange(item.id, option.key as string)}
           placeholder="Select type..."
           styles={{
-            root: { width: '180px' },
+            root: { width: '150px' }, // Уменьшено с 180px до 150px
             dropdown: { 
-              height: '28px',
+              height: '26px', // Уменьшено с 28px до 26px
               border: hasError ? '2px solid #d13438' : undefined
             },
             title: { 
-              height: '28px', 
-              lineHeight: '26px', 
-              fontSize: '12px' 
+              height: '26px', 
+              lineHeight: '24px', 
+              fontSize: '11px' // Уменьшено с 12px до 11px
             },
           }}
         />
@@ -566,8 +566,11 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
         onChange={(_, newValue): void => handleNotesChange(item.id, newValue || '')}
         multiline={false}
         styles={{
-          root: { width: '200px' },
-          field: { height: '28px', fontSize: '12px' }
+          root: { width: '180px' }, // Уменьшено с 200px до 180px
+          field: { 
+            height: '26px', // Уменьшено с 28px до 26px
+            fontSize: '11px' // Уменьшено с 12px до 11px
+          }
         }}
       />
     );
@@ -645,65 +648,67 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
     );
   };
 
-  // Колонки таблицы
+  // Колонки таблицы - ОПТИМИЗИРОВАННЫЕ РАЗМЕРЫ
   const columns: IColumn[] = [
     {
       key: 'startDate',
       name: 'Start Date *',
       fieldName: 'startDate',
-      minWidth: 230,
-      maxWidth: 230,
+      minWidth: 120, // Уменьшено с 230 до 120
+      maxWidth: 120,
       onRender: (item: IEditableLeaveDay): JSX.Element => renderDateCell(item, 'startDate', true)
     },
     {
       key: 'endDate',
       name: 'End Date',
       fieldName: 'endDate',
-      minWidth: 230,
-      maxWidth: 230,
+      minWidth: 120, // Уменьшено с 230 до 120
+      maxWidth: 120,
       onRender: (item: IEditableLeaveDay): JSX.Element => renderDateCell(item, 'endDate', false)
     },
     {
       key: 'typeOfLeave',
       name: 'Type of Leave *',
       fieldName: 'typeOfLeave',
-      minWidth: 190,
-      maxWidth: 190,
+      minWidth: 160, // Уменьшено с 190 до 160
+      maxWidth: 160,
       onRender: (item: IEditableLeaveDay): JSX.Element => renderTypeCell(item)
     },
     {
       key: 'notes',
       name: 'Notes',
       fieldName: 'title',
-      minWidth: 210,
-      isResizable: true,
+      minWidth: 200, // Уменьшено с 210 до 200
+      isResizable: true, // Позволяет пользователю менять размер
       onRender: (item: IEditableLeaveDay): JSX.Element => renderNotesCell(item)
     },
-    {
-      key: 'status',
-      name: 'Status',
-      fieldName: 'deleted',
-      minWidth: 80,
-      maxWidth: 100,
-      onRender: (item: IEditableLeaveDay): JSX.Element => {
-        const itemIsEditing = isEditing(item.id);
-        return (
-          <span style={{ 
-            color: item.deleted ? 'red' : 'green',
-            fontWeight: itemIsEditing ? 'bold' : 'normal'
-          }}>
-            {item.deleted ? 'Deleted' : 'Active'}
-            {itemIsEditing && ' (editing)'}
-          </span>
-        );
-      }
-    },
+    // УДАЛИЛИ колонку Status для экономии места
     {
       key: 'actions',
       name: 'Actions',
       minWidth: 70,
       maxWidth: 70,
       onRender: (item: IEditableLeaveDay): JSX.Element => renderActionsCell(item)
+    },
+    // НОВАЯ колонка с ID записей
+    {
+      key: 'id',
+      name: 'ID',
+      fieldName: 'id',
+      minWidth: 60,
+      maxWidth: 60,
+      onRender: (item: IEditableLeaveDay): JSX.Element => {
+        const itemIsEditing = isEditing(item.id);
+        return (
+          <span style={{ 
+            fontSize: '11px',
+            color: itemIsEditing ? '#0078d4' : '#666',
+            fontWeight: itemIsEditing ? 'bold' : 'normal'
+          }}>
+            {item.id}
+          </span>
+        );
+      }
     }
   ];
 
