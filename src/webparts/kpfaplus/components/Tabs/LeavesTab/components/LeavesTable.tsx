@@ -1,6 +1,6 @@
 // src/webparts/kpfaplus/components/Tabs/LeavesTab/components/LeavesTable.tsx
 import * as React from 'react';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { 
   DetailsList, 
   DetailsListLayoutMode, 
@@ -25,15 +25,26 @@ interface ILeavesTableProps {
   isLoading: boolean;
   showDeleted: boolean;
   selectedTypeFilter: string;
-  // Новые props для серверных операций
+  // Серверные операции
   onDeleteLeave: (leaveId: string) => Promise<void>;
   onRestoreLeave: (leaveId: string) => Promise<void>;
+  // НОВЫЕ PROPS для управления редактированием
+  editingLeaveIds: Set<string>;
+  onStartEdit: (leaveId: string) => void;
+  onCancelEdit: (leaveId: string) => void;
+  // НОВЫЙ PROP для получения изменённых данных
+  onGetChangedData?: (getDataFunction: () => { leaveId: string; changes: Partial<ILeaveDay> }[]) => void;
 }
 
-// Интерфейс для редактируемой записи отпуска
+// Интерфейс для редактируемой записи отпуска с локальными изменениями
 interface IEditableLeaveDay extends ILeaveDay {
-  isEditing?: boolean;
-  isNew?: boolean;
+  // Локальные изменения для режима редактирования
+  localChanges?: {
+    startDate?: Date;
+    endDate?: Date;
+    typeOfLeave?: number;
+    title?: string;
+  };
   hasErrors?: boolean;
   errors?: {
     startDate?: string;
@@ -41,7 +52,7 @@ interface IEditableLeaveDay extends ILeaveDay {
   };
 }
 
-// Локализация для DatePicker (та же что в LeavesFilterPanel)
+// Локализация для DatePicker
 const datePickerStringsEN = {
   months: [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -77,7 +88,6 @@ const formatDate = (date?: Date): string => {
   return `${day}.${month}.${year}`;
 };
 
-// Константы для стилей календаря (те же что в LeavesFilterPanel)
 const calendarMinWidth = '655px';
 
 export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
@@ -88,12 +98,16 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
     showDeleted, 
     selectedTypeFilter,
     onDeleteLeave,
-    onRestoreLeave 
+    onRestoreLeave,
+    editingLeaveIds,
+    onStartEdit,
+    onCancelEdit,
+    onGetChangedData
   } = props;
 
-  console.log('[LeavesTable] Rendering with leaves:', leaves.length, 'types:', typesOfLeave.length);
+  console.log('[LeavesTable] Rendering with leaves:', leaves.length, 'editing:', editingLeaveIds.size);
 
-  // Состояние для редактируемых записей
+  // Состояние для локальных изменений редактируемых записей
   const [editableLeaves, setEditableLeaves] = useState<IEditableLeaveDay[]>([]);
 
   // Состояние для диалога подтверждения
@@ -110,17 +124,71 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
   // Ref для хранения ID записи в ожидании действия
   const pendingActionLeaveIdRef = useRef<string | undefined>(undefined);
 
-  // Инициализируем редактируемые записи при изменении исходных данных
-  React.useEffect(() => {
+  // Синхронизируем editableLeaves с входящими данными leaves
+  useEffect(() => {
     const initialEditableLeaves = leaves.map(leave => ({
       ...leave,
-      isEditing: false,
-      isNew: false,
+      localChanges: {},
       hasErrors: false,
       errors: {}
     }));
     setEditableLeaves(initialEditableLeaves);
   }, [leaves]);
+
+  // НОВЫЙ ЭФФЕКТ: Регистрируем функцию получения изменённых данных
+  useEffect(() => {
+    if (onGetChangedData) {
+      console.log('[LeavesTable] Registering getChangedData function');
+      
+      // Создаем функцию для получения изменённых данных
+      const getChangedDataFunction = () => {
+        console.log('[LeavesTable] getChangedDataFunction called');
+        console.log('[LeavesTable] Current editableLeaves:', editableLeaves.length);
+        console.log('[LeavesTable] Current editingLeaveIds:', editingLeaveIds);
+        
+        const changedData: { leaveId: string; changes: Partial<ILeaveDay> }[] = [];
+        
+        editableLeaves.forEach((leave, index) => {
+          console.log(`[LeavesTable] Checking leave ${index} (ID: ${leave.id}), isEditing: ${editingLeaveIds.has(leave.id)}, hasLocalChanges: ${!!(leave.localChanges && Object.keys(leave.localChanges).length > 0)}`);
+          
+          if (editingLeaveIds.has(leave.id) && leave.localChanges && Object.keys(leave.localChanges).length > 0) {
+            const changes: Partial<ILeaveDay> = {};
+            
+            console.log(`[LeavesTable] Processing changes for leave ${leave.id}:`, leave.localChanges);
+            
+            // Собираем только изменённые поля
+            if (leave.localChanges.startDate !== undefined) {
+              changes.startDate = leave.localChanges.startDate;
+            }
+            if (leave.localChanges.endDate !== undefined) {
+              changes.endDate = leave.localChanges.endDate;
+            }
+            if (leave.localChanges.typeOfLeave !== undefined) {
+              changes.typeOfLeave = leave.localChanges.typeOfLeave;
+            }
+            if (leave.localChanges.title !== undefined) {
+              changes.title = leave.localChanges.title;
+            }
+            
+            if (Object.keys(changes).length > 0) {
+              console.log(`[LeavesTable] Adding changes for leave ${leave.id}:`, changes);
+              changedData.push({
+                leaveId: leave.id,
+                changes
+              });
+            }
+          }
+        });
+        
+        console.log('[LeavesTable] Returning changedData:', changedData);
+        return changedData;
+      };
+      
+      // Вызываем callback для регистрации функции
+      onGetChangedData(getChangedDataFunction);
+      console.log('[LeavesTable] getChangedData function registered successfully');
+    }
+  }, [editableLeaves, editingLeaveIds, onGetChangedData]);
 
   // Функция для получения названия типа отпуска
   const getTypeOfLeaveTitle = (typeId: number): string => {
@@ -128,83 +196,68 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
     return type ? type.title : `Type ${typeId}`;
   };
 
-  // Функция валидации записи
-  const validateLeave = (leave: IEditableLeaveDay): { isValid: boolean; errors: any } => {
-    const errors: any = {};
+  // Функция валидации записи (пока не используется, но будет нужна для будущих этапов)
+  // const validateLeave = (leave: IEditableLeaveDay): { isValid: boolean; errors: any } => {
+  //   const errors: any = {};
 
-    if (!leave.startDate) {
-      errors.startDate = 'Start date is required';
+  //   const currentStartDate = leave.localChanges?.startDate ?? leave.startDate;
+  //   const currentTypeOfLeave = leave.localChanges?.typeOfLeave ?? leave.typeOfLeave;
+
+  //   if (!currentStartDate) {
+  //     errors.startDate = 'Start date is required';
+  //   }
+
+  //   if (!currentTypeOfLeave || currentTypeOfLeave === 0) {
+  //     errors.typeOfLeave = 'Type of leave is required';
+  //   }
+
+  //   return {
+  //     isValid: Object.keys(errors).length === 0,
+  //     errors
+  //   };
+  // };
+
+  // Получение актуального значения поля с учётом локальных изменений
+  const getCurrentValue = (leave: IEditableLeaveDay, field: keyof ILeaveDay) => {
+    if (leave.localChanges && field in leave.localChanges) {
+      return leave.localChanges[field as keyof typeof leave.localChanges];
     }
+    return leave[field];
+  };
 
-    if (!leave.typeOfLeave || leave.typeOfLeave === 0) {
-      errors.typeOfLeave = 'Type of leave is required';
-    }
-
-    return {
-      isValid: Object.keys(errors).length === 0,
-      errors
-    };
+  // Проверка, находится ли запись в режиме редактирования
+  const isEditing = (leaveId: string): boolean => {
+    return editingLeaveIds.has(leaveId);
   };
 
   // Обработчик начала редактирования
   const handleStartEdit = (itemId: string): void => {
     console.log('[LeavesTable] Starting edit for item:', itemId);
+    
+    // Очищаем локальные изменения и ошибки для этой записи
     setEditableLeaves(prev => prev.map(leave => 
       leave.id === itemId 
-        ? { ...leave, isEditing: true, hasErrors: false, errors: {} }
+        ? { ...leave, localChanges: {}, hasErrors: false, errors: {} }
         : leave
     ));
+    
+    // Уведомляем родительский компонент
+    onStartEdit(itemId);
   };
 
   // Обработчик отмены редактирования
   const handleCancelEdit = (itemId: string): void => {
     console.log('[LeavesTable] Cancelling edit for item:', itemId);
     
-    // Если это новая запись, удаляем её
-    if (editableLeaves.find(l => l.id === itemId)?.isNew) {
-      setEditableLeaves(prev => prev.filter(leave => leave.id !== itemId));
-      return;
-    }
-
-    // Для существующих записей - восстанавливаем из оригинальных данных
-    const originalLeave = leaves.find(l => l.id === itemId);
-    if (originalLeave) {
-      setEditableLeaves(prev => prev.map(leave => 
-        leave.id === itemId 
-          ? { ...originalLeave, isEditing: false, hasErrors: false, errors: {} }
-          : leave
-      ));
-    }
-  };
-
-  // Обработчик сохранения записи
-  const handleSaveEdit = (itemId: string): void => {
-    console.log('[LeavesTable] Saving edit for item:', itemId);
-    
-    const leaveToSave = editableLeaves.find(l => l.id === itemId);
-    if (!leaveToSave) return;
-
-    const validation = validateLeave(leaveToSave);
-    
-    if (!validation.isValid) {
-      console.log('[LeavesTable] Validation failed:', validation.errors);
-      setEditableLeaves(prev => prev.map(leave => 
-        leave.id === itemId 
-          ? { ...leave, hasErrors: true, errors: validation.errors }
-          : leave
-      ));
-      return;
-    }
-
-    // Здесь будет вызов API для сохранения
-    console.log('[LeavesTable] Would save leave:', leaveToSave);
-    
-    // Пока просто выходим из режима редактирования
+    // Очищаем локальные изменения и ошибки для этой записи
     setEditableLeaves(prev => prev.map(leave => 
       leave.id === itemId 
-        ? { ...leave, isEditing: false, hasErrors: false, errors: {} }
+        ? { ...leave, localChanges: {}, hasErrors: false, errors: {} }
         : leave
     ));
+    
+    // Уведомляем родительский компонент
+    onCancelEdit(itemId);
   };
 
   // Обработчик для показа диалога подтверждения удаления
@@ -273,44 +326,57 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
     });
   };
 
-  // Обработчик изменения даты начала
+  // Обработчики изменения полей (сохраняют изменения локально)
   const handleStartDateChange = (itemId: string, date: Date | null | undefined): void => {
     if (date) {
       console.log('[LeavesTable] Start date changed for item:', itemId, 'to:', formatDate(date));
       setEditableLeaves(prev => prev.map(leave => 
         leave.id === itemId 
-          ? { ...leave, startDate: date }
+          ? { 
+              ...leave, 
+              localChanges: { ...leave.localChanges, startDate: date },
+              hasErrors: false,
+              errors: {}
+            }
           : leave
       ));
     }
   };
 
-  // Обработчик изменения даты окончания
   const handleEndDateChange = (itemId: string, date: Date | null | undefined): void => {
     console.log('[LeavesTable] End date changed for item:', itemId, 'to:', date ? formatDate(date) : 'null');
     setEditableLeaves(prev => prev.map(leave => 
       leave.id === itemId 
-        ? { ...leave, endDate: date || undefined }
+        ? { 
+            ...leave, 
+            localChanges: { ...leave.localChanges, endDate: date || undefined }
+          }
         : leave
     ));
   };
 
-  // Обработчик изменения типа отпуска
   const handleTypeChange = (itemId: string, typeId: string): void => {
     console.log('[LeavesTable] Type changed for item:', itemId, 'to:', typeId);
     setEditableLeaves(prev => prev.map(leave => 
       leave.id === itemId 
-        ? { ...leave, typeOfLeave: parseInt(typeId, 10) }
+        ? { 
+            ...leave, 
+            localChanges: { ...leave.localChanges, typeOfLeave: parseInt(typeId, 10) },
+            hasErrors: false,
+            errors: {}
+          }
         : leave
     ));
   };
 
-  // Обработчик изменения заметок
   const handleNotesChange = (itemId: string, notes: string): void => {
     console.log('[LeavesTable] Notes changed for item:', itemId);
     setEditableLeaves(prev => prev.map(leave => 
       leave.id === itemId 
-        ? { ...leave, title: notes }
+        ? { 
+            ...leave, 
+            localChanges: { ...leave.localChanges, title: notes }
+          }
         : leave
     ));
   };
@@ -333,28 +399,31 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
       return false;
     }
     
-    // Фильтр по типу отпуска
-    if (selectedTypeFilter && leave.typeOfLeave.toString() !== selectedTypeFilter) {
-      return false;
+    // Фильтр по типу отпуска (используем актуальное значение)
+    if (selectedTypeFilter) {
+      const currentTypeOfLeave = getCurrentValue(leave, 'typeOfLeave') as number;
+      if (currentTypeOfLeave.toString() !== selectedTypeFilter) {
+        return false;
+      }
     }
     
     return true;
   });
 
-  // Рендер ячейки с датой (с едиными стилями как в панели управления)
+  // Рендер ячейки с датой
   const renderDateCell = (item: IEditableLeaveDay, field: 'startDate' | 'endDate', isRequired: boolean = false) => {
-    const isEditing = item.isEditing;
+    const itemIsEditing = isEditing(item.id);
     const hasError = item.hasErrors && item.errors && item.errors[field as keyof typeof item.errors];
-    const date = field === 'startDate' ? item.startDate : item.endDate;
+    const currentDate = getCurrentValue(item, field) as Date | undefined;
 
-    if (!isEditing) {
-      return <span>{date ? formatDate(date) : (field === 'endDate' ? 'Open' : '-')}</span>;
+    if (!itemIsEditing) {
+      return <span>{currentDate ? formatDate(currentDate) : (field === 'endDate' ? 'Open' : '-')}</span>;
     }
 
     return (
       <div style={{ width: '220px' }}>
         <DatePicker
-          value={date}
+          value={currentDate}
           onSelectDate={(selectedDate) => {
             if (field === 'startDate') {
               handleStartDateChange(item.id, selectedDate);
@@ -435,18 +504,19 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
 
   // Рендер ячейки с типом отпуска
   const renderTypeCell = (item: IEditableLeaveDay) => {
-    const isEditing = item.isEditing;
+    const itemIsEditing = isEditing(item.id);
     const hasError = item.hasErrors && item.errors && item.errors.typeOfLeave;
+    const currentTypeOfLeave = getCurrentValue(item, 'typeOfLeave') as number;
 
-    if (!isEditing) {
-      return <span>{getTypeOfLeaveTitle(item.typeOfLeave)}</span>;
+    if (!itemIsEditing) {
+      return <span>{getTypeOfLeaveTitle(currentTypeOfLeave)}</span>;
     }
 
     return (
       <div style={{ width: '180px' }}>
         <Dropdown
           options={typeOptions}
-          selectedKey={item.typeOfLeave.toString()}
+          selectedKey={currentTypeOfLeave.toString()}
           onChange={(_, option) => option && handleTypeChange(item.id, option.key as string)}
           placeholder="Select type..."
           styles={{
@@ -473,15 +543,16 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
 
   // Рендер ячейки с заметками
   const renderNotesCell = (item: IEditableLeaveDay) => {
-    const isEditing = item.isEditing;
+    const itemIsEditing = isEditing(item.id);
+    const currentTitle = getCurrentValue(item, 'title') as string;
 
-    if (!isEditing) {
-      return <span>{item.title || '-'}</span>;
+    if (!itemIsEditing) {
+      return <span>{currentTitle || '-'}</span>;
     }
 
     return (
       <TextField
-        value={item.title || ''}
+        value={currentTitle || ''}
         onChange={(_, newValue) => handleNotesChange(item.id, newValue || '')}
         multiline={false}
         styles={{
@@ -492,24 +563,13 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
     );
   };
 
-  // Рендер ячейки с действиями
+  // ОБНОВЛЁННЫЙ рендер ячейки с действиями (БЕЗ кнопки Save)
   const renderActionsCell = (item: IEditableLeaveDay) => {
-    if (item.isEditing) {
+    const itemIsEditing = isEditing(item.id);
+
+    if (itemIsEditing) {
       return (
         <div style={{ display: 'flex', gap: '5px' }}>
-          <IconButton
-            iconProps={{ iconName: 'Save' }}
-            title="Save"
-            onClick={() => handleSaveEdit(item.id)}
-            styles={{ 
-              root: { 
-                width: '28px', 
-                height: '28px',
-                backgroundColor: '#107c10',
-                color: 'white'
-              } 
-            }}
-          />
           <IconButton
             iconProps={{ iconName: 'Cancel' }}
             title="Cancel"
@@ -575,7 +635,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
     );
   };
 
-  // Колонки таблицы (с увеличенной шириной для дат)
+  // Колонки таблицы
   const columns: IColumn[] = [
     {
       key: 'startDate',
@@ -615,17 +675,24 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
       fieldName: 'deleted',
       minWidth: 80,
       maxWidth: 100,
-      onRender: (item: IEditableLeaveDay) => (
-        <span style={{ color: item.deleted ? 'red' : 'green' }}>
-          {item.deleted ? 'Deleted' : 'Active'}
-        </span>
-      )
+      onRender: (item: IEditableLeaveDay) => {
+        const itemIsEditing = isEditing(item.id);
+        return (
+          <span style={{ 
+            color: item.deleted ? 'red' : 'green',
+            fontWeight: itemIsEditing ? 'bold' : 'normal'
+          }}>
+            {item.deleted ? 'Deleted' : 'Active'}
+            {itemIsEditing && ' (editing)'}
+          </span>
+        );
+      }
     },
     {
       key: 'actions',
       name: 'Actions',
-      minWidth: 80,
-      maxWidth: 80,
+      minWidth: 70,
+      maxWidth: 70,
       onRender: (item: IEditableLeaveDay) => renderActionsCell(item)
     }
   ];
@@ -658,6 +725,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
     <div>
       <p style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}>
         Showing {filteredLeaves.length} of {leaves.length} leave records
+        {editingLeaveIds.size > 0 && <span style={{ color: '#0078d4', marginLeft: '10px' }}>✏️ {editingLeaveIds.size} record(s) being edited</span>}
         {hasValidationErrors && <span style={{ color: '#d13438', marginLeft: '10px' }}>⚠ Some records have validation errors</span>}
       </p>
       

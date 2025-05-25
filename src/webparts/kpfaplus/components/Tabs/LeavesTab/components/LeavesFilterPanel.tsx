@@ -14,11 +14,13 @@ interface ILeavesFilterPanelProps {
   onPeriodEndChange: (date: Date | null | undefined) => void;
   onTypeFilterChange: (typeId: string) => void;
   onShowDeletedChange: (checked: boolean) => void;
-  // Новый prop для обработки создания нового отпуска
   onAddNewLeave: () => void;
+  // Новые props для управления сохранением
+  hasUnsavedChanges?: boolean;
+  onSaveChanges: () => void;
 }
 
-// Локализация для DatePicker (та же что в LeavesFilterPanel)
+// Локализация для DatePicker (та же что и раньше)
 const datePickerStringsEN = {
   months: [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -68,10 +70,12 @@ export const LeavesFilterPanel: React.FC<ILeavesFilterPanelProps> = (props) => {
     onPeriodEndChange,
     onTypeFilterChange,
     onShowDeletedChange,
-    onAddNewLeave
+    onAddNewLeave,
+    hasUnsavedChanges = false,
+    onSaveChanges
   } = props;
 
-  console.log('[LeavesFilterPanel] Rendering with types:', typesOfLeave.length);
+  console.log('[LeavesFilterPanel] Rendering with types:', typesOfLeave.length, 'hasUnsavedChanges:', hasUnsavedChanges);
 
   // Подготавливаем опции для dropdown типов отпусков
   const typeOptions: IDropdownOption[] = [
@@ -109,6 +113,12 @@ export const LeavesFilterPanel: React.FC<ILeavesFilterPanelProps> = (props) => {
   const handleNewButtonClick = (): void => {
     console.log('[LeavesFilterPanel] New button clicked');
     onAddNewLeave();
+  };
+
+  // Обработчик для кнопки Save - НОВЫЙ
+  const handleSaveButtonClick = (): void => {
+    console.log('[LeavesFilterPanel] Save button clicked');
+    onSaveChanges();
   };
 
   // Обработчики закрытия календарей
@@ -303,12 +313,14 @@ export const LeavesFilterPanel: React.FC<ILeavesFilterPanelProps> = (props) => {
           }}
         />
         <PrimaryButton 
-          text="Save" 
-          disabled
+          text={hasUnsavedChanges ? "Save *" : "Save"}
+          onClick={handleSaveButtonClick}
+          disabled={!hasUnsavedChanges || isLoading}
           styles={{
             root: {
-              backgroundColor: '#a19f9d', // серый цвет для отключенной кнопки
-              borderColor: '#a19f9d'
+              backgroundColor: hasUnsavedChanges ? '#0078d4' : '#a19f9d', // синий если есть изменения, серый если нет
+              borderColor: hasUnsavedChanges ? '#0078d4' : '#a19f9d',
+              color: 'white'
             }
           }}
         />
