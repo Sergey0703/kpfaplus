@@ -30,11 +30,25 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
     return undefined;
   }, [context]);
 
-  // Базовые состояния
-  const [selectedPeriodStart, setSelectedPeriodStart] = useState<Date>(new Date());
-  const [selectedPeriodEnd, setSelectedPeriodEnd] = useState<Date>(new Date());
+  // Функция для получения первого и последнего дня текущего месяца
+  const getCurrentMonthDates = () => {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return { firstDay, lastDay };
+  };
+
+  // Базовые состояния с правильной инициализацией дат
+  const { firstDay, lastDay } = getCurrentMonthDates();
+  const [selectedPeriodStart, setSelectedPeriodStart] = useState<Date>(firstDay);
+  const [selectedPeriodEnd, setSelectedPeriodEnd] = useState<Date>(lastDay);
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('');
   const [showDeleted, setShowDeleted] = useState<boolean>(false);
+
+  console.log('[LeavesTabContent] Initialized dates:', {
+    periodStart: selectedPeriodStart.toLocaleDateString(),
+    periodEnd: selectedPeriodEnd.toLocaleDateString()
+  });
 
   // Используем хук для работы с данными
   const {
