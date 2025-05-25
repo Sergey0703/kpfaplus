@@ -39,7 +39,7 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
   }, [context]);
 
   // Функция для получения первого и последнего дня текущего месяца
-  const getCurrentMonthDates = () => {
+  const getCurrentMonthDates = (): { firstDay: Date; lastDay: Date } => {
     const now = new Date();
     const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
     const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
@@ -64,7 +64,7 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
   // НОВОЕ СОСТОЯНИЕ для ID новой записи (для выделения зелёной рамкой)
-  const [newlyCreatedLeaveId, setNewlyCreatedLeaveId] = useState<string | null>(null);
+  const [newlyCreatedLeaveId, setNewlyCreatedLeaveId] = useState<string | undefined>(undefined);
 
   // Ref для хранения функции получения изменённых данных из таблицы
   const getChangedDataFunctionRef = React.useRef<(() => { leaveId: string; changes: Partial<ILeaveDay> }[]) | null>(null);
@@ -270,7 +270,7 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
         setEditingCount(0);
         
         // Очищаем выделение новых записей при сохранении
-        setNewlyCreatedLeaveId(null);
+        setNewlyCreatedLeaveId(undefined);
         
         // Перезагружаем данные
         await loadData();
@@ -290,55 +290,15 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
     }
   };
 
-  // ОБРАБОТЧИКИ для создания нового отпуска с проверкой несохранённых изменений
-
   // Вычисляем, есть ли несохранённые изменения
   const hasUnsavedChanges = editingCount > 0;
 
-  // Главный обработчик для кнопки New
-  const handleAddNewLeave = (): void => {
-    console.log('[LeavesTabContent] Add new leave button clicked');
-    
-    // Проверяем, есть ли несохранённые изменения
-    if (hasUnsavedChanges) {
-      console.log('[LeavesTabContent] Unsaved changes detected, showing warning dialog');
-      setIsUnsavedChangesDialogOpen(true);
-    } else {
-      console.log('[LeavesTabContent] No unsaved changes, proceeding with new leave creation');
-      handleProceedWithNewLeave();
-    }
-  };
+  // ВПЕРЁД ОБЪЯВЛЯЕМ ФУНКЦИИ в правильном порядке
 
   // Метод для продолжения создания нового отпуска (без проверки изменений)
   const handleProceedWithNewLeave = (): void => {
     console.log('[LeavesTabContent] Opening new leave confirmation dialog');
     setIsNewLeaveDialogOpen(true);
-  };
-
-  // Сохранить изменения и создать новую запись
-  const handleSaveAndContinue = async (): Promise<void> => {
-    console.log('[LeavesTabContent] Save and continue with new leave');
-    setIsUnsavedChangesDialogOpen(false);
-    
-    try {
-      // Сначала сохраняем текущие изменения
-      await handleSaveAllChanges();
-      
-      // После успешного сохранения сразу создаём новую запись БЕЗ дополнительного диалога
-      setTimeout(async () => {
-        console.log('[LeavesTabContent] Auto-creating new leave after save');
-        await handleConfirmNewLeave(); // Сразу создаём, минуя диалог подтверждения
-      }, 500);
-    } catch (error) {
-      console.error('[LeavesTabContent] Error during save and continue:', error);
-      // При ошибке сохранения не создаём новую запись
-    }
-  };
-
-  // Отменить создание новой записи (остаться в режиме редактирования)
-  const handleCancelNewLeave = (): void => {
-    console.log('[LeavesTabContent] New leave creation cancelled - staying in edit mode');
-    setIsUnsavedChangesDialogOpen(false);
   };
 
   // Обработчик подтверждения создания нового отпуска
@@ -405,6 +365,48 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
       // Закрываем диалог в любом случае
       setIsNewLeaveDialogOpen(false);
     }
+  };
+
+  // ОБРАБОТЧИКИ для создания нового отпуска с проверкой несохранённых изменений
+
+  // Главный обработчик для кнопки New
+  const handleAddNewLeave = (): void => {
+    console.log('[LeavesTabContent] Add new leave button clicked');
+    
+    // Проверяем, есть ли несохранённые изменения
+    if (hasUnsavedChanges) {
+      console.log('[LeavesTabContent] Unsaved changes detected, showing warning dialog');
+      setIsUnsavedChangesDialogOpen(true);
+    } else {
+      console.log('[LeavesTabContent] No unsaved changes, proceeding with new leave creation');
+      handleProceedWithNewLeave();
+    }
+  };
+
+  // Сохранить изменения и создать новую запись
+  const handleSaveAndContinue = async (): Promise<void> => {
+    console.log('[LeavesTabContent] Save and continue with new leave');
+    setIsUnsavedChangesDialogOpen(false);
+    
+    try {
+      // Сначала сохраняем текущие изменения
+      await handleSaveAllChanges();
+      
+      // После успешного сохранения сразу создаём новую запись БЕЗ дополнительного диалога
+      setTimeout(async () => {
+        console.log('[LeavesTabContent] Auto-creating new leave after save');
+        await handleConfirmNewLeave(); // Сразу создаём, минуя диалог подтверждения
+      }, 500);
+    } catch (error) {
+      console.error('[LeavesTabContent] Error during save and continue:', error);
+      // При ошибке сохранения не создаём новую запись
+    }
+  };
+
+  // Отменить создание новой записи (остаться в режиме редактирования)
+  const handleCancelNewLeave = (): void => {
+    console.log('[LeavesTabContent] New leave creation cancelled - staying in edit mode');
+    setIsUnsavedChangesDialogOpen(false);
   };
 
   // Обработчик отмены создания нового отпуска (для основного диалога)

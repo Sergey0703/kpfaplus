@@ -35,7 +35,7 @@ interface ILeavesTableProps {
   // НОВЫЙ PROP для получения изменённых данных
   onGetChangedData?: (getDataFunction: () => { leaveId: string; changes: Partial<ILeaveDay> }[]) => void;
   // НОВЫЙ PROP для выделения новых записей
-  newlyCreatedLeaveId?: string | null;
+  newlyCreatedLeaveId?: string | undefined;
 }
 
 // Интерфейс для редактируемой записи отпуска с локальными изменениями
@@ -414,7 +414,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
   });
 
   // Рендер ячейки с датой
-  const renderDateCell = (item: IEditableLeaveDay, field: 'startDate' | 'endDate', isRequired: boolean = false) => {
+  const renderDateCell = (item: IEditableLeaveDay, field: 'startDate' | 'endDate', isRequired: boolean = false): JSX.Element => {
     const itemIsEditing = isEditing(item.id);
     const hasError = item.hasErrors && item.errors && item.errors[field as keyof typeof item.errors];
     const currentDate = getCurrentValue(item, field) as Date | undefined;
@@ -506,7 +506,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
   };
 
   // Рендер ячейки с типом отпуска
-  const renderTypeCell = (item: IEditableLeaveDay) => {
+  const renderTypeCell = (item: IEditableLeaveDay): JSX.Element => {
     const itemIsEditing = isEditing(item.id);
     const hasError = item.hasErrors && item.errors && item.errors.typeOfLeave;
     const currentTypeOfLeave = getCurrentValue(item, 'typeOfLeave') as number;
@@ -545,7 +545,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
   };
 
   // Рендер ячейки с заметками
-  const renderNotesCell = (item: IEditableLeaveDay) => {
+  const renderNotesCell = (item: IEditableLeaveDay): JSX.Element => {
     const itemIsEditing = isEditing(item.id);
     const currentTitle = getCurrentValue(item, 'title') as string;
 
@@ -567,7 +567,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
   };
 
   // ОБНОВЛЁННЫЙ рендер ячейки с действиями (БЕЗ кнопки Save)
-  const renderActionsCell = (item: IEditableLeaveDay) => {
+  const renderActionsCell = (item: IEditableLeaveDay): JSX.Element => {
     const itemIsEditing = isEditing(item.id);
 
     if (itemIsEditing) {
@@ -746,7 +746,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
         isHeaderVisible={true}
         compact={true}
         // НОВЫЙ PROP для кастомизации стилей строк
-        onRenderRow={(props, defaultRender) => {
+        onRenderRow={(props, defaultRender): JSX.Element | null => {
           if (!props || !defaultRender) return null;
           
           // Проверяем, является ли эта строка новой записью
@@ -761,10 +761,12 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
             }
           } : undefined;
           
-          return defaultRender({
+          const result = defaultRender({
             ...props,
             styles: customStyles
           });
+          
+          return result as JSX.Element;
         }}
       />
 

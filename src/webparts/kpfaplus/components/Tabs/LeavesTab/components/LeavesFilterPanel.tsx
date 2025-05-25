@@ -10,8 +10,8 @@ interface ILeavesFilterPanelProps {
   showDeleted: boolean;
   typesOfLeave: ITypeOfLeave[];
   isLoading: boolean;
-  onPeriodStartChange: (date: Date | null | undefined) => void;
-  onPeriodEndChange: (date: Date | null | undefined) => void;
+  onPeriodStartChange: (date: Date | undefined) => void;
+  onPeriodEndChange: (date: Date | undefined) => void;
   onTypeFilterChange: (typeId: string) => void;
   onShowDeletedChange: (checked: boolean) => void;
   onAddNewLeave: () => void;
