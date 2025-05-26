@@ -4,7 +4,9 @@ import {
   ITimetableRow, 
   IWeeklyStaffData, 
   IDayInfo, 
-  IWeekInfo 
+  IWeekInfo,
+  IWeekGroup,
+  ITimetableStaffRow
 } from '../interfaces/TimetableInterfaces';
 import { TimetableShiftCalculator } from './TimetableShiftCalculator';
 import { TimetableWeekCalculator } from './TimetableWeekCalculator';
@@ -17,17 +19,16 @@ import { IStaffRecord } from '../../../../services/StaffRecordsService';
 export class TimetableDataProcessor {
 
   /**
-   * Основной метод обработки данных
+   * Основной метод обработки данных (старый формат - для совместимости)
    * Преобразует входные данные в структуру ITimetableRow[]
    */
   public static processData(params: ITimetableDataParams): ITimetableRow[] {
-    const { staffRecords, staffMembers, weeks, enterLunchTime } = params;
+    const { staffRecords, staffMembers, weeks } = params;
 
-    console.log('[TimetableDataProcessor] Processing data:', {
+    console.log('[TimetableDataProcessor] Processing data (old format):', {
       staffRecordsCount: staffRecords.length,
       staffMembersCount: staffMembers.length,
-      weeksCount: weeks.length,
-      enterLunchTime
+      weeksCount: weeks.length
     });
 
     const rows: ITimetableRow[] = [];
@@ -53,8 +54,7 @@ export class TimetableDataProcessor {
       weeks.forEach(week => {
         const weeklyData = this.processWeekData(
           staffStaffRecords, 
-          week, 
-          enterLunchTime
+          week
         );
         
         row.weeks[week.weekNum] = weeklyData;
@@ -66,8 +66,73 @@ export class TimetableDataProcessor {
     // Сортируем строки: реальные сотрудники сначала, потом по имени
     const sortedRows = this.sortStaffRows(rows);
 
-    console.log(`[TimetableDataProcessor] Processed ${sortedRows.length} staff rows`);
+    console.log(`[TimetableDataProcessor] Processed ${sortedRows.length} staff rows (old format)`);
     return sortedRows;
+  }
+
+  /**
+   * НОВЫЙ МЕТОД: Обработка данных с группировкой по неделям
+   * Преобразует входные данные в структуру IWeekGroup[]
+   */
+  public static processDataByWeeks(params: ITimetableDataParams): IWeekGroup[] {
+    const { staffRecords, staffMembers, weeks } = params;
+
+    console.log('[TimetableDataProcessor] Processing data by weeks:', {
+      staffRecordsCount: staffRecords.length,
+      staffMembersCount: staffMembers.length,
+      weeksCount: weeks.length
+    });
+
+    const weekGroups: IWeekGroup[] = [];
+
+    // Обрабатываем каждую неделю
+    weeks.forEach((week, index) => {
+      console.log(`[TimetableDataProcessor] Processing week ${week.weekNum}: ${week.weekLabel}`);
+
+      const staffRows: ITimetableStaffRow[] = [];
+      let weekHasData = false;
+
+      // Для каждой недели обрабатываем всех сотрудников
+      staffMembers.forEach(staffMember => {
+        // Получаем записи для этого сотрудника
+        const staffStaffRecords = this.getStaffRecords(staffRecords, staffMember);
+        
+        // Обрабатываем данные только для текущей недели
+        const weeklyData = this.processWeekData(staffStaffRecords, week);
+        
+        // Проверяем, есть ли данные у этого сотрудника на этой неделе
+        const hasStaffData = Object.values(weeklyData.days).some(day => day.hasData);
+        if (hasStaffData) {
+          weekHasData = true;
+        }
+
+        const staffRow: ITimetableStaffRow = {
+          staffId: staffMember.id,
+          staffName: staffMember.name,
+          isDeleted: staffMember.deleted === 1,
+          hasPersonInfo: this.hasPersonInfo(staffMember),
+          weekData: weeklyData
+        };
+
+        staffRows.push(staffRow);
+      });
+
+      // Сортируем сотрудников в группе недели
+      const sortedStaffRows = this.sortStaffRowsInWeek(staffRows);
+
+      const weekGroup: IWeekGroup = {
+        weekInfo: week,
+        staffRows: sortedStaffRows,
+        isExpanded: index === 0, // Первая неделя развернута по умолчанию
+        hasData: weekHasData
+      };
+
+      weekGroups.push(weekGroup);
+      console.log(`[TimetableDataProcessor] Week ${week.weekNum}: ${sortedStaffRows.length} staff, hasData: ${weekHasData}`);
+    });
+
+    console.log(`[TimetableDataProcessor] Processed ${weekGroups.length} week groups`);
+    return weekGroups;
   }
 
   /**
@@ -75,8 +140,7 @@ export class TimetableDataProcessor {
    */
   private static processWeekData(
     staffRecords: IStaffRecord[], 
-    week: IWeekInfo, 
-    enterLunchTime: boolean
+    week: IWeekInfo
   ): IWeeklyStaffData {
     console.log(`[TimetableDataProcessor] Processing week ${week.weekNum}:`, {
       weekStart: week.weekStart.toISOString(),
@@ -106,8 +170,7 @@ export class TimetableDataProcessor {
         weekRecords, 
         dayNum, 
         week.weekStart, 
-        week.weekEnd, 
-        enterLunchTime
+        week.weekEnd
       );
       
       weeklyData.days[dayNum] = dayInfo;
@@ -127,8 +190,7 @@ export class TimetableDataProcessor {
     weekRecords: IStaffRecord[],
     dayNumber: number,
     weekStart: Date,
-    weekEnd: Date,
-    enterLunchTime: boolean
+    weekEnd: Date
   ): IDayInfo {
     // Находим дату для этого дня недели
     const dayDate = this.getDateForDayInWeek(weekStart, dayNumber);
@@ -138,8 +200,7 @@ export class TimetableDataProcessor {
       weekRecords,
       dayNumber,
       weekStart,
-      weekEnd,
-      enterLunchTime
+      weekEnd
     );
 
     // Рассчитываем общие минуты
@@ -162,41 +223,108 @@ export class TimetableDataProcessor {
    * Получает записи конкретного сотрудника
    */
   private static getStaffRecords(allRecords: IStaffRecord[], staffMember: any): IStaffRecord[] {
-    const staffEmployeeId = parseInt(staffMember.employeeId || '0', 10);
+    const staffEmployeeId = staffMember.employeeId || '';
+    const staffId = staffMember.id;
+    
+    console.log(`[TimetableDataProcessor] Getting records for staff: ${staffMember.name} (ID: ${staffId}, employeeId: ${staffEmployeeId})`);
     
     // Пытаемся найти записи по разным критериям
-    return allRecords.filter(record => {
-      // Способ 1: По ID записи (если содержит ID сотрудника)
-      if (record.ID.includes(staffMember.id)) {
-        return true;
-      }
-      
-      // Способ 2: По employeeId (если есть связь в StaffRecord)
-      if (staffEmployeeId > 0) {
-        // Проверяем по Title (имени) - временное решение
-        if (record.Title && record.Title.includes(staffMember.name)) {
+    const matchingRecords = allRecords.filter(record => {
+      // Способ 1: По employeeId через WeeklyTimeTableID (если это связь с контрактом сотрудника)
+      if (staffEmployeeId && record.WeeklyTimeTableID) {
+        const recordContractId = record.WeeklyTimeTableID.toString();
+        if (recordContractId === staffEmployeeId) {
+          console.log(`[TimetableDataProcessor] Match by WeeklyTimeTableID: ${recordContractId} === ${staffEmployeeId}`);
           return true;
         }
       }
       
+      // Способ 2: По Title (если содержит имя сотрудника)
+      if (record.Title && record.Title.includes(staffMember.name)) {
+        console.log(`[TimetableDataProcessor] Match by name in Title: "${record.Title}" contains "${staffMember.name}"`);
+        return true;
+      }
+      
+      // Способ 3: По ID записи (если содержит ID сотрудника из staffMembers)
+      if (record.ID && record.ID.toString().includes(staffId)) {
+        console.log(`[TimetableDataProcessor] Match by record ID: ${record.ID} contains ${staffId}`);
+        return true;
+      }
+      
       return false;
     });
+
+    console.log(`[TimetableDataProcessor] Found ${matchingRecords.length} records for ${staffMember.name}`);
+    
+    if (matchingRecords.length > 0) {
+      console.log(`[TimetableDataProcessor] Sample matching records:`, 
+        matchingRecords.slice(0, 3).map(r => ({
+          ID: r.ID,
+          Date: r.Date.toLocaleDateString(),
+          Title: r.Title,
+          WeeklyTimeTableID: r.WeeklyTimeTableID
+        }))
+      );
+    }
+
+    return matchingRecords;
   }
 
   /**
    * Проверяет, есть ли у сотрудника данные Person (реальный vs шаблон)  
    */
   private static hasPersonInfo(staffMember: any): boolean {
-    // В реальной реализации нужно проверить наличие поля Person.Email
-    // Пока возвращаем true для всех, кроме явных шаблонов
-    return !staffMember.isTemplate && staffMember.deleted !== 1;
+    // Проверяем наличие employeeId как признак реального сотрудника
+    const hasEmployeeId = staffMember.employeeId && 
+                         staffMember.employeeId !== '0' && 
+                         staffMember.employeeId.trim() !== '';
+    
+    // Проверяем, что сотрудник не помечен как удаленный
+    const isNotDeleted = staffMember.deleted !== 1;
+    
+    // Проверяем, что это не явно указанный шаблон
+    const isNotTemplate = !staffMember.isTemplate;
+    
+    const result = hasEmployeeId && isNotDeleted && isNotTemplate;
+    
+    console.log(`[TimetableDataProcessor] hasPersonInfo for ${staffMember.name}:`, {
+      hasEmployeeId,
+      isNotDeleted,
+      isNotTemplate,
+      result,
+      employeeId: staffMember.employeeId,
+      deleted: staffMember.deleted,
+      isTemplate: staffMember.isTemplate
+    });
+    
+    return result;
   }
 
   /**
-   * Сортирует строки сотрудников
+   * Сортирует строки сотрудников (для старого формата)
    */
   private static sortStaffRows(rows: ITimetableRow[]): ITimetableRow[] {
     return rows.sort((a, b) => {
+      // Сначала по наличию данных Person (реальные сотрудники vs шаблоны)
+      if (a.hasPersonInfo !== b.hasPersonInfo) {
+        return a.hasPersonInfo ? -1 : 1; // Реальные сначала
+      }
+      
+      // Затем активные перед удаленными
+      if (a.isDeleted !== b.isDeleted) {
+        return a.isDeleted ? 1 : -1; // Активные сначала
+      }
+      
+      // Затем по имени
+      return a.staffName.localeCompare(b.staffName);
+    });
+  }
+
+  /**
+   * Сортирует строки сотрудников в группе недели
+   */
+  private static sortStaffRowsInWeek(staffRows: ITimetableStaffRow[]): ITimetableStaffRow[] {
+    return staffRows.sort((a, b) => {
       // Сначала по наличию данных Person (реальные сотрудники vs шаблоны)
       if (a.hasPersonInfo !== b.hasPersonInfo) {
         return a.hasPersonInfo ? -1 : 1; // Реальные сначала
@@ -232,7 +360,7 @@ export class TimetableDataProcessor {
   }
 
   /**
-   * Получает сводную статистику по данным
+   * Получает сводную статистику по данным (старый формат)
    */
   public static getDataSummary(rows: ITimetableRow[]): {
     totalStaff: number;
@@ -248,8 +376,8 @@ export class TimetableDataProcessor {
     
     let totalRecords = 0;
     rows.forEach(row => {
-      Object.values(row.weeks).forEach(week => {
-        Object.values(week.days).forEach(day => {
+      Object.values(row.weeks).forEach((week: IWeeklyStaffData) => {
+        Object.values(week.days).forEach((day: IDayInfo) => {
           totalRecords += day.shifts.length;
         });
       });
@@ -265,7 +393,49 @@ export class TimetableDataProcessor {
   }
 
   /**
-   * Фильтрует данные по критериям
+   * Получает сводную статистику по данным недель
+   */
+  public static getWeeksDataSummary(weekGroups: IWeekGroup[]): {
+    totalWeeks: number;
+    weeksWithData: number;
+    totalStaff: number;
+    activeStaff: number;
+    deletedStaff: number;
+    templatesStaff: number;
+    totalRecords: number;
+  } {
+    const totalWeeks = weekGroups.length;
+    const weeksWithData = weekGroups.filter(w => w.hasData).length;
+    
+    // Берем данные из первой недели (состав сотрудников одинаков для всех недель)
+    const firstWeekStaff = weekGroups.length > 0 ? weekGroups[0].staffRows : [];
+    const totalStaff = firstWeekStaff.length;
+    const activeStaff = firstWeekStaff.filter(s => !s.isDeleted).length;
+    const deletedStaff = firstWeekStaff.filter(s => s.isDeleted).length;
+    const templatesStaff = firstWeekStaff.filter(s => !s.hasPersonInfo).length;
+    
+    let totalRecords = 0;
+    weekGroups.forEach(weekGroup => {
+      weekGroup.staffRows.forEach(staffRow => {
+        Object.values(staffRow.weekData.days).forEach((day: IDayInfo) => {
+          totalRecords += day.shifts.length;
+        });
+      });
+    });
+
+    return {
+      totalWeeks,
+      weeksWithData,
+      totalStaff,
+      activeStaff,
+      deletedStaff,
+      templatesStaff,
+      totalRecords
+    };
+  }
+
+  /**
+   * Фильтрует данные по критериям (старый формат - для совместимости)
    */
   public static filterData(
     rows: ITimetableRow[], 
@@ -294,5 +464,101 @@ export class TimetableDataProcessor {
       
       return true;
     });
+  }
+
+  /**
+   * Фильтрует данные недель по критериям
+   */
+  public static filterWeeksData(
+    weekGroups: IWeekGroup[], 
+    filters: {
+      showDeleted?: boolean;
+      showTemplates?: boolean;
+      searchText?: string;
+    }
+  ): IWeekGroup[] {
+    return weekGroups.map(weekGroup => {
+      const filteredStaffRows = weekGroup.staffRows.filter(staffRow => {
+        // Фильтр по удаленным
+        if (!filters.showDeleted && staffRow.isDeleted) {
+          return false;
+        }
+        
+        // Фильтр по шаблонам
+        if (!filters.showTemplates && !staffRow.hasPersonInfo) {
+          return false;
+        }
+        
+        // Поиск по имени
+        if (filters.searchText && 
+            !staffRow.staffName.toLowerCase().includes(filters.searchText.toLowerCase())) {
+          return false;
+        }
+        
+        return true;
+      });
+
+      return {
+        ...weekGroup,
+        staffRows: filteredStaffRows,
+        hasData: filteredStaffRows.some(staffRow => 
+          Object.values(staffRow.weekData.days).some((day: IDayInfo) => day.hasData)
+        )
+      };
+    });
+  }
+
+  /**
+   * Группирует записи по сотрудникам для отладки
+   */
+  public static debugGroupRecordsByStaff(records: IStaffRecord[]): Record<string, IStaffRecord[]> {
+    const grouped: Record<string, IStaffRecord[]> = {};
+    
+    records.forEach(record => {
+      const key = record.WeeklyTimeTableID?.toString() || record.Title || record.ID || 'Unknown';
+      if (!grouped[key]) {
+        grouped[key] = [];
+      }
+      grouped[key].push(record);
+    });
+    
+    console.log('[TimetableDataProcessor] Records grouped by staff:', Object.keys(grouped).map(key => ({
+      key,
+      count: grouped[key].length,
+      sampleDates: grouped[key].slice(0, 3).map(r => r.Date.toLocaleDateString())
+    })));
+    
+    return grouped;
+  }
+
+  /**
+   * Получает уникальные значения полей для анализа данных
+   */
+  public static analyzeStaffRecordsFields(records: IStaffRecord[]): {
+    weeklyTimeTableIds: string[];
+    titlePatterns: string[];
+    dateRange: { start: Date; end: Date } | null;
+  } {
+    const weeklyTimeTableIds = Array.from(new Set(records.map(r => r.WeeklyTimeTableID?.toString()).filter(Boolean)));
+    const titlePatterns = Array.from(new Set(records.map(r => r.Title).filter(Boolean)));
+    
+    const dates = records.map(r => r.Date).sort((a, b) => a.getTime() - b.getTime());
+    const dateRange = dates.length > 0 ? { start: dates[0], end: dates[dates.length - 1] } : null;
+    
+    console.log('[TimetableDataProcessor] Staff records analysis:', {
+      totalRecords: records.length,
+      uniqueWeeklyTimeTableIds: weeklyTimeTableIds.length,
+      uniqueTitlePatterns: titlePatterns.length,
+      dateRange: dateRange ? {
+        start: dateRange.start.toLocaleDateString(),
+        end: dateRange.end.toLocaleDateString()
+      } : null
+    });
+    
+    return {
+      weeklyTimeTableIds,
+      titlePatterns,
+      dateRange
+    };
   }
 }

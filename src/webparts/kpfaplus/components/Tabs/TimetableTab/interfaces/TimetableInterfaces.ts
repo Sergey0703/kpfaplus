@@ -49,8 +49,46 @@ export interface IWeeklyStaffData {
   formattedWeekTotal: string; // "40h 00m"
 }
 
+// ===== НОВЫЕ ИНТЕРФЕЙСЫ ДЛЯ ГРУППИРОВКИ ПО НЕДЕЛЯМ =====
+
 /**
- * Интерфейс для строки таблицы расписания
+ * Интерфейс для строки сотрудника в конкретной неделе
+ */
+export interface ITimetableStaffRow {
+  staffId: string;
+  staffName: string;
+  isDeleted: boolean;
+  hasPersonInfo: boolean;
+  weekData: IWeeklyStaffData; // Данные только для этой недели
+}
+
+/**
+ * Интерфейс для группы недели
+ */
+export interface IWeekGroup {
+  weekInfo: IWeekInfo;
+  staffRows: ITimetableStaffRow[];
+  isExpanded: boolean;
+  hasData: boolean; // Есть ли данные у хотя бы одного сотрудника на этой неделе
+}
+
+/**
+ * Интерфейс для состояния Timetable tab
+ */
+export interface ITimetableTabState {
+  selectedDate: Date;
+  staffRecords: IStaffRecord[];
+  isLoadingStaffRecords: boolean;
+  errorStaffRecords?: string;
+  
+  // Состояние групп недель
+  expandedWeeks: Set<number>; // Какие недели развернуты (по weekNum)
+  weeksData: IWeekGroup[];    // Данные, сгруппированные по неделям
+  weeks: IWeekInfo[];         // Информация о неделях месяца
+}
+
+/**
+ * Интерфейс для строки таблицы расписания (старый формат - для совместимости)
  */
 export interface ITimetableRow {
   staffId: string;
@@ -61,8 +99,32 @@ export interface ITimetableRow {
 }
 
 /**
- * Интерфейс для параметров расчета недель
+ * Тип для отображения режима таблицы
  */
+export enum TimetableDisplayMode {
+  ByWeeks = 'weeks',
+  ByDays = 'days'
+}
+
+/**
+ * Интерфейс для пропсов компонентов таблицы (старый формат - для совместимости)
+ */
+export interface ITimetableTableProps {
+  data: ITimetableRow[];
+  weeks: IWeekInfo[];
+  displayMode: TimetableDisplayMode;
+  isLoading: boolean;
+  dayOfStartWeek: number;
+}
+
+/**
+ * Интерфейс для пропсов рендеринга ячейки (старый формат - для совместимости)
+ */
+export interface ITimetableCellProps {
+  staffData: IWeeklyStaffData;
+  dayNumber?: number; // Если показываем конкретный день
+  isWeekMode: boolean;
+}
 export interface IWeekCalculationParams {
   selectedDate: Date;
   startWeekDay: number; // 1=Sunday, 2=Monday, etc.
@@ -75,7 +137,6 @@ export interface ITimetableDataParams {
   staffRecords: IStaffRecord[];
   staffMembers: any[]; // Из контекста
   weeks: IWeekInfo[];
-  enterLunchTime: boolean;
 }
 
 /**
@@ -96,33 +157,45 @@ export interface IShiftCalculationParams {
   lunchStart?: Date;
   lunchEnd?: Date;
   timeForLunch?: number;
-  enterLunchTime: boolean;
+}
+
+// ===== ИНТЕРФЕЙСЫ ДЛЯ КОМПОНЕНТОВ =====
+
+/**
+ * Интерфейс для пропсов группы недели
+ */
+export interface IWeekGroupProps {
+  weekGroup: IWeekGroup;
+  dayOfStartWeek: number;
+  onToggleExpand: (weekNum: number) => void;
 }
 
 /**
- * Тип для отображения режима таблицы
+ * Интерфейс для пропсов заголовка недели
  */
-export enum TimetableDisplayMode {
-  ByWeeks = 'weeks',
-  ByDays = 'days'
+export interface IWeekGroupHeaderProps {
+  weekInfo: IWeekInfo;
+  isExpanded: boolean;
+  hasData: boolean;
+  staffCount: number;
+  onToggle: () => void;
 }
 
 /**
- * Интерфейс для пропсов компонентов таблицы
+ * Интерфейс для пропсов содержимого недели
  */
-export interface ITimetableTableProps {
-  data: ITimetableRow[];
-  weeks: IWeekInfo[];
-  displayMode: TimetableDisplayMode;
-  isLoading: boolean;
+export interface IWeekGroupContentProps {
+  staffRows: ITimetableStaffRow[];
+  weekInfo: IWeekInfo;
   dayOfStartWeek: number;
 }
 
 /**
- * Интерфейс для пропсов рендеринга ячейки
+ * Интерфейс для пропсов управления разворачиванием
  */
-export interface ITimetableCellProps {
-  staffData: IWeeklyStaffData;
-  dayNumber?: number; // Если показываем конкретный день
-  isWeekMode: boolean;
+export interface IExpandControlsProps {
+  totalWeeks: number;
+  expandedCount: number;
+  onExpandAll: () => void;
+  onCollapseAll: () => void;
 }

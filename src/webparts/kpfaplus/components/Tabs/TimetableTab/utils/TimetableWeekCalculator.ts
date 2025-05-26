@@ -219,4 +219,147 @@ export class TimetableWeekCalculator {
     
     return [...days.slice(startIndex), ...days.slice(0, startIndex)];
   }
+
+  /**
+   * Форматирует минуты в часы и минуты (вспомогательная функция)
+   */
+  public static formatMinutesToHours(totalMinutes: number): string {
+    if (totalMinutes === 0) {
+      return "0h 00m";
+    }
+
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    
+    return `${hours}h ${minutes.toString().padStart(2, '0')}m`;
+  }
+
+  /**
+   * Получает дату для конкретного дня недели в указанной неделе
+   */
+  public static getDateForDayInWeek(weekStart: Date, dayNumber: number): Date {
+    const date = new Date(weekStart);
+    
+    // Находим, какой день недели у weekStart
+    const startDayNumber = this.getDayNumber(weekStart);
+    
+    // Рассчитываем смещение до нужного дня
+    let offset = dayNumber - startDayNumber;
+    if (offset < 0) {
+      offset += 7; // Если день на следующей неделе
+    }
+    
+    date.setDate(weekStart.getDate() + offset);
+    return date;
+  }
+
+  /**
+   * Получает краткое название дня недели
+   */
+  public static getShortDayName(dayNumber: number): string {
+    const shortDayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    return shortDayNames[dayNumber - 1] || 'Unk';
+  }
+
+  /**
+   * Проверяет, является ли дата выходным (суббота или воскресенье)
+   */
+  public static isWeekend(date: Date): boolean {
+    const dayNumber = this.getDayNumber(date);
+    return dayNumber === 1 || dayNumber === 7; // Sunday or Saturday
+  }
+
+  /**
+   * Получает первый день недели для заданной даты
+   */
+  public static getWeekStart(date: Date, startWeekDay: number): Date {
+    const dayNumber = this.getDayNumber(date);
+    const daysFromStart = (dayNumber - startWeekDay + 7) % 7;
+    
+    const weekStart = new Date(date);
+    weekStart.setDate(date.getDate() - daysFromStart);
+    
+    return weekStart;
+  }
+
+  /**
+   * Получает последний день недели для заданной даты
+   */
+  public static getWeekEnd(date: Date, startWeekDay: number): Date {
+    const weekStart = this.getWeekStart(date, startWeekDay);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    
+    return weekEnd;
+  }
+
+  /**
+   * Проверяет, находятся ли две даты в одной неделе
+   */
+  public static areDatesInSameWeek(date1: Date, date2: Date, startWeekDay: number): boolean {
+    const week1Start = this.getWeekStart(date1, startWeekDay);
+    const week2Start = this.getWeekStart(date2, startWeekDay);
+    
+    return week1Start.getTime() === week2Start.getTime();
+  }
+
+  /**
+   * Получает номер недели в году (ISO week number)
+   */
+  public static getWeekNumber(date: Date): number {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  }
+
+  /**
+   * Форматирует период недели в читаемый вид
+   */
+  public static formatWeekPeriod(weekStart: Date, weekEnd: Date): string {
+    const startStr = weekStart.toLocaleDateString('en-GB', { 
+      day: '2-digit', 
+      month: 'short'
+    });
+    const endStr = weekEnd.toLocaleDateString('en-GB', { 
+      day: '2-digit', 
+      month: 'short',
+      year: 'numeric'
+    });
+    
+    return `${startStr} - ${endStr}`;
+  }
+
+  /**
+   * Получает количество рабочих дней в неделе (исключая выходные)
+   */
+  public static getWorkingDaysInWeek(weekStart: Date, weekEnd: Date): number {
+    let workingDays = 0;
+    const currentDate = new Date(weekStart);
+    
+    while (currentDate <= weekEnd) {
+      if (!this.isWeekend(currentDate)) {
+        workingDays++;
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    return workingDays;
+  }
+
+  /**
+   * Получает массив всех дат в неделе
+   */
+  public static getDatesInWeek(weekStart: Date, weekEnd: Date): Date[] {
+    const dates: Date[] = [];
+    const currentDate = new Date(weekStart);
+    
+    while (currentDate <= weekEnd) {
+      dates.push(new Date(currentDate));
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    return dates;
+  }
 }
