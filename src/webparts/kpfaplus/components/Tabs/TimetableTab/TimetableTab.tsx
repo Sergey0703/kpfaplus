@@ -7,7 +7,11 @@ import {
   MessageBar,
   MessageBarType,
   Spinner,
-  Toggle
+  Toggle,
+  DetailsList,
+  DetailsListLayoutMode,
+  SelectionMode,
+  IColumn
 } from '@fluentui/react';
 import { ITabProps } from '../../../models/types';
 import { useDataContext } from '../../../context';
@@ -31,6 +35,23 @@ interface IWeekInfo {
 enum TimetableDisplayMode {
   ByWeeks = 'weeks',
   ByDays = 'days'
+}
+
+// Интерфейс для строки таблицы
+interface ITimetableRow {
+  staffId: string;
+  staffName: string;
+  isDeleted: boolean;
+  hasPersonInfo: boolean;
+  weeks: { [weekNumber: number]: IWeekData };
+}
+
+// Интерфейс для данных недели
+interface IWeekData {
+  weekNum: number;
+  totalHours: string;
+  workDays: number;
+  details: string;
 }
 
 // Локализация для DatePicker
@@ -235,6 +256,232 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
     }
   };
 
+  // Создаем данные для таблицы
+  const timetableData = useMemo((): ITimetableRow[] => {
+    console.log('[TimetableTab] Creating timetable data');
+    
+    // Фильтруем сотрудников по настройкам
+    const filteredStaff = staffMembers.filter(staff => {
+      if (!showDeleted && staff.deleted === 1) return false;
+      // Определяем шаблон как сотрудника без employeeId или с пустым employeeId
+      const isTemplate = !staff.employeeId || staff.employeeId === '0' || staff.employeeId === '';
+      if (!showTemplates && isTemplate) return false;
+      return true;
+    });
+
+    return filteredStaff.map(staff => {
+      // Определяем шаблон как сотрудника без employeeId или с пустым employeeId
+      const isTemplate = !staff.employeeId || staff.employeeId === '0' || staff.employeeId === '';
+      
+      const row: ITimetableRow = {
+        staffId: staff.id,
+        staffName: staff.name,
+        isDeleted: staff.deleted === 1,
+        hasPersonInfo: !isTemplate,
+        weeks: {}
+      };
+
+      // Создаем данные для каждой недели (пока моковые данные)
+      weeks.forEach(week => {
+        // Генерируем случайные данные для демонстрации
+        const workDays = Math.floor(Math.random() * 5) + 1; // 1-5 рабочих дней
+        const totalHours = (workDays * 8).toString(); // 8 часов в день
+        
+        row.weeks[week.weekNum] = {
+          weekNum: week.weekNum,
+          totalHours: `${totalHours}h 00m`,
+          workDays,
+          details: `${workDays} days`
+        };
+      });
+
+      return row;
+    });
+  }, [staffMembers, weeks, showDeleted, showTemplates]);
+
+  // Создаем колонки для таблицы
+  const columns = useMemo((): IColumn[] => {
+    const cols: IColumn[] = [
+      // Колонка с именами сотрудников
+      {
+        key: 'staffMember',
+        name: 'Staff Member',
+        fieldName: 'staffName',
+        minWidth: 200,
+        maxWidth: 250,
+        isResizable: true,
+        onRender: (item: ITimetableRow): JSX.Element => (
+          <div style={{ 
+            padding: '8px',
+            color: item.isDeleted ? '#a19f9d' : '#323130',
+            fontStyle: item.isDeleted ? 'italic' : 'normal'
+          }}>
+            <div style={{ 
+              fontWeight: '500',
+              fontSize: '14px',
+              marginBottom: '2px'
+            }}>
+              {item.staffName}
+            </div>
+            <div style={{ 
+              fontSize: '11px', 
+              color: '#666',
+              lineHeight: '1.2'
+            }}>
+              {item.isDeleted && (
+                <span style={{ 
+                  color: '#d83b01',
+                  marginRight: '4px'
+                }}>
+                  (Deleted)
+                </span>
+              )}
+              {!item.hasPersonInfo && (
+                <span style={{ 
+                  color: '#8a8886',
+                  marginRight: '4px'
+                }}>
+                  (Template)
+                </span>
+              )}
+              <div>ID: {item.staffId}</div>
+            </div>
+          </div>
+        )
+      }
+    ];
+
+    if (displayMode === TimetableDisplayMode.ByWeeks) {
+      // Режим по неделям - добавляем колонки для каждой недели
+      weeks.forEach(week => {
+        cols.push({
+          key: `week_${week.weekNum}`,
+          name: `Week ${week.weekNum}`,
+          minWidth: 120,
+          maxWidth: 140,
+          isResizable: true,
+          onRenderHeader: (): JSX.Element => (
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ 
+                fontWeight: 'bold', 
+                fontSize: '13px',
+                marginBottom: '2px'
+              }}>
+                Week {week.weekNum}
+              </div>
+              <div style={{ 
+                fontSize: '10px', 
+                color: '#666',
+                lineHeight: '1.2'
+              }}>
+                {week.weekStart.toLocaleDateString('en-GB', { 
+                  day: '2-digit', 
+                  month: '2-digit' 
+                })} - {week.weekEnd.toLocaleDateString('en-GB', { 
+                  day: '2-digit', 
+                  month: '2-digit' 
+                })}
+              </div>
+            </div>
+          ),
+          onRender: (item: ITimetableRow): JSX.Element => {
+            const weekData = item.weeks[week.weekNum];
+            
+            if (!weekData || weekData.workDays === 0) {
+              return <div style={{ color: '#a19f9d', textAlign: 'center', padding: '4px' }}>-</div>;
+            }
+            
+            return (
+              <div style={{ 
+                fontSize: '12px', 
+                padding: '4px',
+                lineHeight: '1.3',
+                textAlign: 'center'
+              }}>
+                <div style={{ 
+                  fontWeight: 'bold', 
+                  color: '#0078d4', 
+                  marginBottom: '2px' 
+                }}>
+                  {weekData.totalHours}
+                </div>
+                <div style={{ 
+                  color: '#666', 
+                  fontSize: '11px' 
+                }}>
+                  {weekData.details}
+                </div>
+              </div>
+            );
+          }
+        });
+      });
+    } else {
+      // Режим по дням - показываем дни первой недели
+      const firstWeek = weeks[0];
+      if (firstWeek) {
+        const orderedDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        
+        orderedDays.forEach((dayName, index) => {
+          cols.push({
+            key: `day_${index}`,
+            name: dayName,
+            minWidth: 140,
+            maxWidth: 180,
+            isResizable: true,
+            onRenderHeader: (): JSX.Element => {
+              const dayDate = new Date(firstWeek.weekStart);
+              dayDate.setDate(firstWeek.weekStart.getDate() + index);
+              
+              return (
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ 
+                    fontWeight: 'bold', 
+                    fontSize: '13px',
+                    marginBottom: '2px'
+                  }}>
+                    {dayName}
+                  </div>
+                  <div style={{ 
+                    fontSize: '11px', 
+                    color: '#666' 
+                  }}>
+                    {dayDate.toLocaleDateString('en-GB', { 
+                      day: '2-digit', 
+                      month: '2-digit' 
+                    })}
+                  </div>
+                </div>
+              );
+            },
+            onRender: (item: ITimetableRow): JSX.Element => {
+              // Временные данные для дней
+              const hasData = Math.random() > 0.3; // 70% вероятность наличия данных
+              
+              if (!hasData) {
+                return <div style={{ color: '#a19f9d', textAlign: 'center', padding: '4px' }}>-</div>;
+              }
+              
+              return (
+                <div style={{ 
+                  fontSize: '11px', 
+                  padding: '4px',
+                  lineHeight: '1.2'
+                }}>
+                  <div style={{ color: '#323130' }}>
+                    09:00 - 17:00 (8h 00m)
+                  </div>
+                </div>
+              );
+            }
+          });
+        });
+      }
+    }
+
+    return cols;
+  }, [weeks, displayMode]); // Убрали timetableData из зависимостей
+
   return (
     <div style={{ padding: '20px', height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Заголовок */}
@@ -391,29 +638,59 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
         </button>
       </div>
 
-      {/* Временная заглушка таблицы */}
+      {/* Таблица расписания */}
       <div style={{ flex: 1, overflow: 'auto' }}>
         {isLoading ? (
           <div style={{ textAlign: 'center', padding: '40px' }}>
             <Spinner size={2} />
             <p style={{ marginTop: '16px' }}>Loading staff timetable...</p>
           </div>
-        ) : (
-          <div style={{ 
-            border: '2px dashed #dee2e6',
-            borderRadius: '8px',
-            padding: '40px',
-            textAlign: 'center',
-            color: '#6c757d'
-          }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📅</div>
-            <div style={{ fontSize: '18px', marginBottom: '8px' }}>
-              Timetable functionality ready
-            </div>
-            <div style={{ fontSize: '14px' }}>
-              Mode: {displayMode} | Weeks: {weeks.length} | Staff: {staffMembers.length} | Records: {staffRecords.length}
-            </div>
+        ) : timetableData.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px' }}>
+            <p>No staff members found for the current group.</p>
+            <p style={{ fontSize: '12px', color: '#666', marginTop: '8px' }}>
+              Mode: {displayMode} | Group: {managingGroupId} | Weeks: {weeks.length}
+            </p>
           </div>
+        ) : (
+          <>
+            <div style={{ 
+              fontSize: '12px', 
+              color: '#666', 
+              marginBottom: '10px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <span>
+                Showing {timetableData.length} staff members | 
+                Mode: {displayMode === TimetableDisplayMode.ByWeeks ? 'Weekly view' : 'Daily view'} |
+                Records: {staffRecords.length}
+              </span>
+              <span>
+                Week starts on day: {dayOfStartWeek} | Weeks: {weeks.length}
+              </span>
+            </div>
+            
+            <DetailsList
+              items={timetableData}
+              columns={columns}
+              layoutMode={DetailsListLayoutMode.justified}
+              selectionMode={SelectionMode.none}
+              isHeaderVisible={true}
+              compact={false}
+              styles={{
+                root: {
+                  '.ms-DetailsHeader': {
+                    backgroundColor: '#f3f2f1'
+                  },
+                  '.ms-DetailsList-contentWrapper': {
+                    overflow: 'visible'
+                  }
+                }
+              }}
+            />
+          </>
         )}
       </div>
     </div>
