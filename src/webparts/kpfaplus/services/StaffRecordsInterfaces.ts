@@ -46,6 +46,9 @@ export interface IStaffRecord {
   // Дополнительные рассчитываемые поля
   SortOrder?: number;            // Порядок сортировки
   WorkTime?: string;             // Рассчитанное рабочее время в формате "часы.минуты"
+  StaffMemberLookupId?: string;
+ManagerLookupId?: string;
+StaffGroupLookupId?: string;
 }
 
 /**

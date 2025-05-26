@@ -15,7 +15,7 @@ import { IStaffRecord } from '../../../../services/StaffRecordsService';
 /**
  * Процессор данных для таблицы расписания
  * Преобразует данные StaffRecords в структуру для отображения по неделям и дням
- * УПРОЩЕННАЯ ВЕРСИЯ: данные уже отфильтрованы на сервере
+ * ИСПРАВЛЕННАЯ ВЕРСИЯ: данные уже отфильтрованы на сервере, используем StaffMemberLookupId
  */
 export class TimetableDataProcessor {
 
@@ -137,75 +137,124 @@ export class TimetableDataProcessor {
     return weekGroups;
   }
 
-  /**
-   * УПРОЩЕННЫЙ МЕТОД: Получает записи конкретного сотрудника
-   * Данные уже отфильтрованы на сервере, нужно только сопоставить по employeeId
-   * ТОЛЬКО ТОЧНОЕ СОВПАДЕНИЕ ID!
-   */
-  private static getStaffRecords(
-    allRecords: IStaffRecord[], 
-    staffMember: any
-  ): IStaffRecord[] {
-    const staffEmployeeId = staffMember.employeeId || '';
-    
-    console.log(`[TimetableDataProcessor] Getting records for staff: ${staffMember.name} (employeeId: ${staffEmployeeId})`);
-    
-    if (!staffEmployeeId) {
-      console.log(`[TimetableDataProcessor] No employeeId for staff: ${staffMember.name} - SKIPPING`);
-      return [];
-    }
-    
-    // ЕДИНСТВЕННЫЙ СПОСОБ: ТОЧНОЕ СОВПАДЕНИЕ employeeId с WeeklyTimeTableID
-    const matchingRecords = allRecords.filter(record => {
-      const recordWeeklyTimeTableID = record.WeeklyTimeTableID?.toString() || '';
+  // ЗАМЕНИТЕ метод getStaffRecords в TimetableDataProcessor.ts на эту отладочную версию:
+
+private static getStaffRecords(
+  allRecords: IStaffRecord[], 
+  staffMember: any
+): IStaffRecord[] {
+  const staffEmployeeId = staffMember.employeeId || '';
+  
+  console.log(`[TimetableDataProcessor] *** DEBUG getStaffRecords START ***`);
+  console.log(`[TimetableDataProcessor] Staff: ${staffMember.name} (employeeId: ${staffEmployeeId})`);
+  console.log(`[TimetableDataProcessor] Total records received: ${allRecords.length}`);
+  
+  if (allRecords.length > 0) {
+    console.log(`[TimetableDataProcessor] Sample records structure:`, allRecords.slice(0, 2).map(r => ({
+      ID: r.ID,
+      Date: r.Date?.toLocaleDateString(),
+      StaffMemberLookupId: r.StaffMemberLookupId,
+      WeeklyTimeTableID: r.WeeklyTimeTableID,
+      Title: r.Title?.substring(0, 30),
+      allKeys: Object.keys(r)
+    })));
+  }
+  
+  if (!staffEmployeeId) {
+    console.log(`[TimetableDataProcessor] No employeeId for staff: ${staffMember.name} - SKIPPING`);
+    return [];
+  }
+  
+  console.log(`[TimetableDataProcessor] Looking for matches with employeeId: "${staffEmployeeId}" (type: ${typeof staffEmployeeId})`);
+  
+  // Сначала проверим, есть ли поле StaffMemberLookupId в записях
+  const hasStaffMemberLookupId = allRecords.some(r => r.StaffMemberLookupId !== undefined);
+  console.log(`[TimetableDataProcessor] Records have StaffMemberLookupId field: ${hasStaffMemberLookupId}`);
+  
+  if (hasStaffMemberLookupId) {
+    const uniqueStaffMemberIds = Array.from(new Set(allRecords.map(r => r.StaffMemberLookupId?.toString()).filter(Boolean)));
+    console.log(`[TimetableDataProcessor] Available StaffMemberLookupId values:`, uniqueStaffMemberIds);
+  }
+  
+  // Попробуем разные способы сопоставления
+  let matchingRecords: IStaffRecord[] = [];
+  
+  // Способ 1: По StaffMemberLookupId
+  if (hasStaffMemberLookupId) {
+    matchingRecords = allRecords.filter(record => {
+      const recordStaffMemberId = record.StaffMemberLookupId?.toString() || '';
       const staffEmployeeIdStr = staffEmployeeId.toString();
+      const isMatch = recordStaffMemberId === staffEmployeeIdStr;
       
-      const isExactMatch = recordWeeklyTimeTableID === staffEmployeeIdStr;
-      
-      if (isExactMatch) {
-        console.log(`[TimetableDataProcessor] ✅ EXACT MATCH found for ${staffMember.name}:`, {
-          recordId: record.ID,
-          recordDate: record.Date.toLocaleDateString(),
-          recordWeeklyTimeTableID: recordWeeklyTimeTableID,
-          staffEmployeeId: staffEmployeeIdStr,
-          title: record.Title?.substring(0, 50)
-        });
+      if (isMatch) {
+        console.log(`[TimetableDataProcessor] ✅ MATCH by StaffMemberLookupId: ${recordStaffMemberId} === ${staffEmployeeIdStr}`);
       }
       
-      return isExactMatch;
+      return isMatch;
     });
-
-    console.log(`[TimetableDataProcessor] Found ${matchingRecords.length} records for ${staffMember.name} using EXACT ID match`);
     
-    if (matchingRecords.length > 0) {
-      console.log(`[TimetableDataProcessor] Sample matching records:`, 
-        matchingRecords.slice(0, 2).map(r => ({
-          ID: r.ID,
-          Date: r.Date.toLocaleDateString(),
-          WeeklyTimeTableID: r.WeeklyTimeTableID,
-          Title: r.Title?.substring(0, 30) + (r.Title && r.Title.length > 30 ? '...' : '')
-        }))
-      );
-    } else {
-      // Диагностика при отсутствии точных совпадений
-      console.log(`[TimetableDataProcessor] ❌ NO EXACT MATCHES for ${staffMember.name}`);
-      console.log(`[TimetableDataProcessor] Diagnostic info:`, {
-        lookingFor: `employeeId: "${staffEmployeeId}" (type: ${typeof staffEmployeeId})`,
-        totalRecords: allRecords.length,
-        availableWeeklyTimeTableIDs: Array.from(
-          new Set(allRecords.map(r => r.WeeklyTimeTableID?.toString()).filter(Boolean))
-        ).slice(0, 10),
-        sampleRecordData: allRecords.slice(0, 3).map(r => ({
-          ID: r.ID,
-          WeeklyTimeTableID: r.WeeklyTimeTableID,
-          WeeklyTimeTableIDType: typeof r.WeeklyTimeTableID,
-          Title: r.Title?.substring(0, 20)
-        }))
-      });
-    }
-
-    return matchingRecords;
+    console.log(`[TimetableDataProcessor] Matches by StaffMemberLookupId: ${matchingRecords.length}`);
   }
+  
+  // Способ 2: Если не нашли по StaffMemberLookupId, попробуем по WeeklyTimeTableID
+  if (matchingRecords.length === 0) {
+    console.log(`[TimetableDataProcessor] No matches by StaffMemberLookupId, trying WeeklyTimeTableID...`);
+    const hasWeeklyTimeTableID = allRecords.some(r => r.WeeklyTimeTableID !== undefined);
+    console.log(`[TimetableDataProcessor] Records have WeeklyTimeTableID field: ${hasWeeklyTimeTableID}`);
+    
+    if (hasWeeklyTimeTableID) {
+      const uniqueWeeklyTimeTableIds = Array.from(new Set(allRecords.map(r => r.WeeklyTimeTableID?.toString()).filter(Boolean)));
+      console.log(`[TimetableDataProcessor] Available WeeklyTimeTableID values:`, uniqueWeeklyTimeTableIds);
+      
+      matchingRecords = allRecords.filter(record => {
+        const recordWeeklyTimeTableID = record.WeeklyTimeTableID?.toString() || '';
+        const staffEmployeeIdStr = staffEmployeeId.toString();
+        const isMatch = recordWeeklyTimeTableID === staffEmployeeIdStr;
+        
+        if (isMatch) {
+          console.log(`[TimetableDataProcessor] ✅ MATCH by WeeklyTimeTableID: ${recordWeeklyTimeTableID} === ${staffEmployeeIdStr}`);
+        }
+        
+        return isMatch;
+      });
+      
+      console.log(`[TimetableDataProcessor] Matches by WeeklyTimeTableID: ${matchingRecords.length}`);
+    }
+  }
+  
+  // Способ 3: Если все еще не нашли, попробуем найти по Title или другим полям
+  if (matchingRecords.length === 0) {
+    console.log(`[TimetableDataProcessor] No matches found by ID fields. Checking alternative approaches...`);
+    
+    // Проверяем, может быть в Title есть наш ID
+    const titleMatches = allRecords.filter(record => {
+      return record.Title && record.Title.includes(staffEmployeeId);
+    });
+    
+    console.log(`[TimetableDataProcessor] Records with employeeId in Title: ${titleMatches.length}`);
+    if (titleMatches.length > 0) {
+      console.log(`[TimetableDataProcessor] Sample Title matches:`, titleMatches.slice(0, 2).map(r => r.Title));
+    }
+  }
+  
+  console.log(`[TimetableDataProcessor] Final result for ${staffMember.name}: ${matchingRecords.length} records`);
+  
+  if (matchingRecords.length > 0) {
+    console.log(`[TimetableDataProcessor] Sample matching records:`, 
+      matchingRecords.slice(0, 2).map(r => ({
+        ID: r.ID,
+        Date: r.Date.toLocaleDateString(),
+        StaffMemberLookupId: r.StaffMemberLookupId,
+        WeeklyTimeTableID: r.WeeklyTimeTableID,
+        Title: r.Title?.substring(0, 30)
+      }))
+    );
+  }
+  
+  console.log(`[TimetableDataProcessor] *** DEBUG getStaffRecords END ***`);
+  
+  return matchingRecords;
+}
 
   /**
    * Обрабатывает данные для одной недели одного сотрудника
@@ -523,7 +572,7 @@ export class TimetableDataProcessor {
     const grouped: Record<string, IStaffRecord[]> = {};
     
     records.forEach(record => {
-      const key = record.WeeklyTimeTableID?.toString() || record.Title || record.ID || 'Unknown';
+      const key = record.StaffMemberLookupId?.toString() || record.Title || record.ID || 'Unknown';
       if (!grouped[key]) {
         grouped[key] = [];
       }
@@ -542,31 +591,58 @@ export class TimetableDataProcessor {
   /**
    * Получает уникальные значения полей для анализа данных
    */
-  public static analyzeStaffRecordsFields(records: IStaffRecord[]): {
-    weeklyTimeTableIds: string[];
-    titlePatterns: string[];
-    dateRange: { start: Date; end: Date } | null;
-  } {
-    const weeklyTimeTableIds = Array.from(new Set(records.map(r => r.WeeklyTimeTableID?.toString()).filter(Boolean)));
-    const titlePatterns = Array.from(new Set(records.map(r => r.Title).filter(Boolean)));
+ public static analyzeStaffRecordsFields(records: IStaffRecord[]): {
+  staffMemberLookupIds: string[];
+  weeklyTimeTableIds: string[];
+  titlePatterns: string[];
+  dateRange: { start: Date; end: Date } | null;
+} {
+  const staffMemberLookupIds: string[] = [];
+  const weeklyTimeTableIds: string[] = [];
+  const titlePatterns: string[] = [];
+  
+  records.forEach(record => {
+    if (record.StaffMemberLookupId) {
+      const id = record.StaffMemberLookupId.toString();
+      if (!staffMemberLookupIds.includes(id)) {
+        staffMemberLookupIds.push(id);
+      }
+    }
     
-    const dates = records.map(r => r.Date).sort((a, b) => a.getTime() - b.getTime());
-    const dateRange = dates.length > 0 ? { start: dates[0], end: dates[dates.length - 1] } : null;
+    if (record.WeeklyTimeTableID) {
+      const id = record.WeeklyTimeTableID.toString();
+      if (!weeklyTimeTableIds.includes(id)) {
+        weeklyTimeTableIds.push(id);
+      }
+    }
     
-    console.log('[TimetableDataProcessor] Staff records analysis:', {
-      totalRecords: records.length,
-      uniqueWeeklyTimeTableIds: weeklyTimeTableIds.length,
-      uniqueTitlePatterns: titlePatterns.length,
-      dateRange: dateRange ? {
-        start: dateRange.start.toLocaleDateString(),
-        end: dateRange.end.toLocaleDateString()
-      } : null
-    });
-    
-    return {
-      weeklyTimeTableIds,
-      titlePatterns,
-      dateRange
-    };
-  }
+    if (record.Title) {
+      if (!titlePatterns.includes(record.Title)) {
+        titlePatterns.push(record.Title);
+      }
+    }
+  });
+  
+  const dates = records.map(r => r.Date).sort((a, b) => a.getTime() - b.getTime());
+  const dateRange = dates.length > 0 ? { start: dates[0], end: dates[dates.length - 1] } : null;
+  
+  console.log('[TimetableDataProcessor] Staff records analysis:', {
+    totalRecords: records.length,
+    uniqueStaffMemberLookupIds: staffMemberLookupIds.length,
+    uniqueWeeklyTimeTableIds: weeklyTimeTableIds.length,
+    uniqueTitlePatterns: titlePatterns.length,
+    dateRange: dateRange ? {
+      start: dateRange.start.toLocaleDateString(),
+      end: dateRange.end.toLocaleDateString()
+    } : null
+  });
+  
+  return {
+    staffMemberLookupIds,
+    weeklyTimeTableIds,
+    titlePatterns,
+    dateRange
+  };
+}
+
 }

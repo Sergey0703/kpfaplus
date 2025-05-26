@@ -106,14 +106,14 @@ export const useTimetableStaffRecordsData = (
       setIsLoadingStaffRecords(true);
       setErrorStaffRecords(undefined);
 
-      // Рассчитываем диапазон дат для всех недель месяца
-      const startDate = weeks[0].weekStart;
-      const endDate = weeks[weeks.length - 1].weekEnd;
+      // ИСПРАВЛЕНИЕ: Используем диапазон выбранного месяца, а не недель
+      const startDate = new Date(dateToUse.getFullYear(), dateToUse.getMonth(), 1);
+      const endDate = new Date(dateToUse.getFullYear(), dateToUse.getMonth() + 1, 0);
 
       console.log('[useTimetableStaffRecordsData] Loading data for date range:', {
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
-        totalDays: Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+        totalDays: Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
       });
 
       // Фильтруем только активных сотрудников (не удаленных)
@@ -203,6 +203,7 @@ export const useTimetableStaffRecordsData = (
                   ID: r.ID,
                   Date: r.Date.toLocaleDateString(),
                   Title: r.Title,
+                  StaffMemberLookupId: r.StaffMemberLookupId,
                   WeeklyTimeTableID: r.WeeklyTimeTableID,
                   ShiftDate1: r.ShiftDate1?.toLocaleTimeString(),
                   ShiftDate2: r.ShiftDate2?.toLocaleTimeString()
@@ -242,19 +243,55 @@ export const useTimetableStaffRecordsData = (
         // Анализируем распределение записей по сотрудникам
         const recordsByStaff: Record<string, number> = {};
         allStaffRecords.forEach(record => {
-          const key = record.WeeklyTimeTableID?.toString() || record.Title || 'Unknown';
+          const key = record.StaffMemberLookupId?.toString() || record.Title || 'Unknown';
           recordsByStaff[key] = (recordsByStaff[key] || 0) + 1;
         });
         
         console.log('[useTimetableStaffRecordsData] Records distribution by staff:', recordsByStaff);
+
+        // *** ДОПОЛНИТЕЛЬНАЯ ОТЛАДКА: Анализируем структуру записей ***
+        console.log('[useTimetableStaffRecordsData] *** RECORDS STRUCTURE ANALYSIS ***');
+        if (allStaffRecords.length > 0) {
+          const sampleRecord = allStaffRecords[0];
+          console.log('[useTimetableStaffRecordsData] Sample record structure:', {
+            ID: sampleRecord.ID,
+            Date: sampleRecord.Date,
+            StaffMemberLookupId: sampleRecord.StaffMemberLookupId,
+            WeeklyTimeTableID: sampleRecord.WeeklyTimeTableID,
+            Title: sampleRecord.Title,
+            ShiftDate1: sampleRecord.ShiftDate1,
+            ShiftDate2: sampleRecord.ShiftDate2,
+            allFields: Object.keys(sampleRecord)
+          });
+        }
       }
 
       // Сохраняем все загруженные записи
+      console.log('[useTimetableStaffRecordsData] *** SETTING STAFF RECORDS IN STATE ***');
+      console.log('[useTimetableStaffRecordsData] Setting staff records count:', allStaffRecords.length);
       setStaffRecords(allStaffRecords);
 
+      // *** ДОБАВЛЯЕМ ОТЛАДКУ ПЕРЕД ВЫЗОВОМ ПРОЦЕССОРА ***
+      console.log('[useTimetableStaffRecordsData] *** CALLING TimetableDataProcessor.processDataByWeeks ***');
+      console.log('[useTimetableStaffRecordsData] Passing to processor:', {
+        staffRecords: allStaffRecords.length,
+        staffMembers: activeStaffMembers.length,
+        weeks: weeks.length,
+        currentUserId: currentUserId,
+        managingGroupId: managingGroupId,
+        firstFewRecords: allStaffRecords.slice(0, 2).map(r => ({
+          ID: r.ID,
+          Date: r.Date?.toLocaleDateString(),
+          StaffMemberLookupId: r.StaffMemberLookupId,
+          WeeklyTimeTableID: r.WeeklyTimeTableID
+        })),
+        firstFewStaffMembers: activeStaffMembers.slice(0, 2).map(s => ({
+          name: s.name,
+          employeeId: s.employeeId
+        }))
+      });
+
       // Обрабатываем данные в структуру групп недель
-      // Теперь НЕ ПЕРЕДАЕМ currentUserId и managingGroupId в процессор,
-      // т.к. данные уже отфильтрованы на сервере
       const weeksData = TimetableDataProcessor.processDataByWeeks({
         staffRecords: allStaffRecords,
         staffMembers: activeStaffMembers, // Используем только активных сотрудников
@@ -264,6 +301,7 @@ export const useTimetableStaffRecordsData = (
         managingGroupId: managingGroupId
       });
 
+      console.log(`[useTimetableStaffRecordsData] *** PROCESSOR COMPLETED ***`);
       console.log(`[useTimetableStaffRecordsData] Processed ${weeksData.length} week groups`);
       
       // Логируем статистику по неделям
@@ -289,6 +327,7 @@ export const useTimetableStaffRecordsData = (
         failedRequests
       });
 
+      console.log('[useTimetableStaffRecordsData] *** SETTING WEEKS DATA IN STATE ***');
       setWeeksData(weeksData);
 
       // Если были ошибки в запросах, но есть успешные результаты
@@ -305,6 +344,7 @@ export const useTimetableStaffRecordsData = (
       setStaffRecords([]);
       setWeeksData([]);
     } finally {
+      console.log('[useTimetableStaffRecordsData] *** SETTING LOADING STATE TO FALSE ***');
       setIsLoadingStaffRecords(false);
     }
   }, [
