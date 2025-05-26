@@ -1,3 +1,4 @@
+// src/webparts/kpfaplus/components/Tabs/TimetableTab/interfaces/TimetableInterfaces.ts
 import { IStaffRecord } from '../../../../services/StaffRecordsService';
 
 /**
@@ -48,7 +49,7 @@ export interface IWeeklyStaffData {
   formattedWeekTotal: string; // "40h 00m"
 }
 
-// ===== НОВЫЕ ИНТЕРФЕЙСЫ ДЛЯ ГРУППИРОВКИ ПО НЕДЕЛЯМ =====
+// ===== ИНТЕРФЕЙСЫ ДЛЯ ГРУППИРОВКИ ПО НЕДЕЛЯМ =====
 
 /**
  * Интерфейс для строки сотрудника в конкретной неделе
@@ -131,14 +132,15 @@ export interface IWeekCalculationParams {
 }
 
 /**
- * Интерфейс для параметров обработки данных - ОБНОВЛЕН!
+ * Интерфейс для параметров обработки данных
+ * Параметры currentUserId и managingGroupId оставлены для совместимости и логирования
  */
 export interface ITimetableDataParams {
   staffRecords: IStaffRecord[];
   staffMembers: any[]; // Из контекста
   weeks: IWeekInfo[];
   
-  // *** НОВЫЕ ПОЛЯ ДЛЯ ПРАВИЛЬНОЙ ФИЛЬТРАЦИИ ***
+  // Параметры для логирования и совместимости (данные уже отфильтрованы на сервере)
   currentUserId?: string;    // ID текущего пользователя (менеджера)
   managingGroupId?: string;  // ID управляющей группы
 }

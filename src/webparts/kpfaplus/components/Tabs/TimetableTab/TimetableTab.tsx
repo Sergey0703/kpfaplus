@@ -76,39 +76,59 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
     staffMembersCount: staffMembers.length
   });
 
-  // *** ДОБАВЛЯЕМ ОТЛАДОЧНОЕ ЛОГИРОВАНИЕ ***
-  console.log('[TimetableTab] Current filter parameters:', {
+  // *** ОТЛАДОЧНОЕ ЛОГИРОВАНИЕ ПАРАМЕТРОВ ФИЛЬТРАЦИИ ***
+  console.log('[TimetableTab] Filter parameters for server-side filtering:', {
     currentUserId,
     managingGroupId,
     dayOfStartWeek,
     staffMembersCount: staffMembers.length,
-    hasContext: !!context
+    hasContext: !!context,
+    note: 'These parameters will be used for individual staff requests'
   });
 
   // Проверяем employeeId у сотрудников для отладки
   if (staffMembers.length > 0) {
-    console.log('[TimetableTab] Sample staff members employeeId check:');
-    staffMembers.slice(0, 5).forEach((staff, index) => {
-      console.log(`[TimetableTab] Staff ${index + 1} - ${staff.name}:`, {
-        id: staff.id,
+    console.log('[TimetableTab] Staff members analysis for server requests:');
+    
+    const staffWithEmployeeId = staffMembers.filter(s => s.employeeId && s.employeeId !== '0');
+    const activeStaff = staffMembers.filter(s => s.deleted !== 1);
+    const activeStaffWithEmployeeId = staffMembers.filter(s => s.deleted !== 1 && s.employeeId && s.employeeId !== '0');
+    
+    console.log('[TimetableTab] Staff statistics:', {
+      total: staffMembers.length,
+      withEmployeeId: staffWithEmployeeId.length,
+      active: activeStaff.length,
+      activeWithEmployeeId: activeStaffWithEmployeeId.length,
+      willMakeRequests: activeStaffWithEmployeeId.length
+    });
+
+    // Показываем примеры сотрудников для которых будут делаться запросы
+    console.log('[TimetableTab] Sample staff members for server requests:');
+    activeStaffWithEmployeeId.slice(0, 5).forEach((staff, index) => {
+      console.log(`[TimetableTab] Request ${index + 1} - ${staff.name}:`, {
         employeeId: staff.employeeId,
+        employeeIdType: typeof staff.employeeId,
+        id: staff.id,
         deleted: staff.deleted,
-        hasEmployeeId: !!(staff.employeeId && staff.employeeId !== '0'),
-        isDeleted: staff.deleted === 1
+        willRequest: true
       });
     });
 
-    // Статистика по сотрудникам
-    const activeStaff = staffMembers.filter(s => s.deleted !== 1);
-    const staffWithEmployeeId = staffMembers.filter(s => s.employeeId && s.employeeId !== '0');
+    // Показываем сотрудников которые будут пропущены
+    const skippedStaff = staffMembers.filter(s => 
+      s.deleted === 1 || !s.employeeId || s.employeeId === '0'
+    );
     
-    console.log('[TimetableTab] Staff members summary:', {
-      total: staffMembers.length,
-      active: activeStaff.length,
-      deleted: staffMembers.length - activeStaff.length,
-      withEmployeeId: staffWithEmployeeId.length,
-      withoutEmployeeId: staffMembers.length - staffWithEmployeeId.length
-    });
+    if (skippedStaff.length > 0) {
+      console.log('[TimetableTab] Staff members that will be SKIPPED:');
+      skippedStaff.slice(0, 3).forEach((staff, index) => {
+        console.log(`[TimetableTab] Skipped ${index + 1} - ${staff.name}:`, {
+          employeeId: staff.employeeId,
+          deleted: staff.deleted,
+          reason: staff.deleted === 1 ? 'deleted' : 'no employeeId'
+        });
+      });
+    }
   }
 
   // Инициализируем хуки состояния
@@ -128,7 +148,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
   // Инициализируем сервис StaffRecords
   const staffRecordsService = useMemo(() => {
     if (context) {
-      console.log('[TimetableTab] Initializing StaffRecordsService');
+      console.log('[TimetableTab] Initializing StaffRecordsService for individual staff requests');
       return StaffRecordsService.getInstance(context);
     }
     return undefined;
@@ -143,10 +163,14 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
 
     const calculatedWeeks = TimetableWeekCalculator.calculateWeeksForMonth(weekCalculationParams);
     
-    console.log('[TimetableTab] Calculated weeks:', {
+    console.log('[TimetableTab] Calculated weeks for server requests:', {
       selectedMonth: state.selectedDate.toLocaleDateString(),
       startWeekDay: dayOfStartWeek,
       weeksCount: calculatedWeeks.length,
+      dateRange: {
+        start: calculatedWeeks[0]?.weekStart.toLocaleDateString(),
+        end: calculatedWeeks[calculatedWeeks.length - 1]?.weekEnd.toLocaleDateString()
+      },
       weekRanges: calculatedWeeks.map(w => ({
         weekNum: w.weekNum,
         start: w.weekStart.toLocaleDateString(),
@@ -160,20 +184,20 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
   // Обновляем состояние недель при их пересчете
   useEffect(() => {
     if (weeks.length > 0 && weeks.length !== state.weeks.length) {
-      console.log('[TimetableTab] Updating weeks in state:', weeks.length);
+      console.log('[TimetableTab] Updating weeks in state for server requests:', weeks.length);
       setWeeks(weeks);
     }
   }, [weeks, state.weeks.length, setWeeks]);
 
-  // Инициализируем хук загрузки данных
+  // Инициализируем хук загрузки данных - ДАННЫЕ ФИЛЬТРУЮТСЯ НА СЕРВЕРЕ
   const { refreshTimetableData } = useTimetableStaffRecordsData({
     context,
     selectedDate: state.selectedDate,
-    currentUserId,          // *** ПЕРЕДАЕМ ПАРАМЕТРЫ ФИЛЬТРАЦИИ ***
-    managingGroupId,        // *** ПЕРЕДАЕМ ПАРАМЕТРЫ ФИЛЬТРАЦИИ ***
+    currentUserId,          // *** ИСПОЛЬЗУЕТСЯ ДЛЯ СЕРВЕРНОЙ ФИЛЬТРАЦИИ ***
+    managingGroupId,        // *** ИСПОЛЬЗУЕТСЯ ДЛЯ СЕРВЕРНОЙ ФИЛЬТРАЦИИ ***
     staffRecordsService,
-    weeks: state.weeks, // Используем weeks из состояния
-    staffMembers,
+    weeks: state.weeks,
+    staffMembers,           // Активные сотрудники с employeeId будут обработаны
     setWeeksData,
     setStaffRecords,
     setIsLoadingStaffRecords,
@@ -184,6 +208,8 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
   const handleMonthChange = (date: Date | null | undefined): void => {
     if (date) {
       console.log('[TimetableTab] Month changed to:', formatDate(date));
+      console.log('[TimetableTab] This will trigger new server requests for all active staff');
+      
       // Обновляем выбранную дату через setState
       setState(prevState => ({
         ...prevState,
@@ -224,7 +250,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
       recordsCount
     };
     
-    console.log('[TimetableTab] Current statistics:', stats);
+    console.log('[TimetableTab] Current statistics from server-filtered data:', stats);
     return stats;
   }, [state.expandedWeeks.size, state.weeksData, state.staffRecords.length]);
 
@@ -236,7 +262,8 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
       weeksDataCount: state.weeksData.length,
       staffRecordsCount: state.staffRecords.length,
       isLoading: state.isLoadingStaffRecords,
-      hasError: !!state.errorStaffRecords
+      hasError: !!state.errorStaffRecords,
+      note: 'Data from individual server requests per staff member'
     });
   }, [state]);
 
@@ -244,7 +271,8 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
     hasWeeksData: state.weeksData.length > 0,
     isLoading: state.isLoadingStaffRecords,
     hasError: !!state.errorStaffRecords,
-    statistics
+    statistics,
+    filteringNote: 'Server-side filtering by StaffMember, Manager, and StaffGroup'
   });
 
   return (
@@ -259,6 +287,9 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
           Week starts on day: {dayOfStartWeek} | 
           Staff count: {statistics.staffCount} | 
           Records: {statistics.recordsCount}
+        </p>
+        <p style={{ margin: '4px 0 0 0', color: '#888', fontSize: '12px' }}>
+          Data filtered server-side by StaffMember, Manager, and StaffGroup fields
         </p>
       </div>
 
@@ -319,7 +350,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
         <div>
           <button
             onClick={() => {
-              console.log('[TimetableTab] Manual refresh requested');
+              console.log('[TimetableTab] Manual refresh requested - will make new server requests for all staff');
               refreshTimetableData().catch(error => {
                 console.error('[TimetableTab] Manual refresh failed:', error);
               });
@@ -342,7 +373,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
         {state.isLoadingStaffRecords && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Spinner size={1} />
-            <span style={{ fontSize: '12px', color: '#666' }}>Loading...</span>
+            <span style={{ fontSize: '12px', color: '#666' }}>Loading individual staff records...</span>
           </div>
         )}
       </div>
@@ -373,7 +404,10 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
             <Spinner size={2} />
             <p style={{ marginTop: '16px' }}>Loading staff timetable...</p>
             <p style={{ fontSize: '12px', color: '#666', marginTop: '8px' }}>
-              Loading records for {staffMembers.length} staff members from {weeks.length} weeks
+              Making individual server requests for {staffMembers.filter(s => s.deleted !== 1 && s.employeeId && s.employeeId !== '0').length} active staff members
+            </p>
+            <p style={{ fontSize: '11px', color: '#888', marginTop: '4px' }}>
+              Each request filters by: StaffMember = employeeId, Manager = {currentUserId}, StaffGroup = {managingGroupId}
             </p>
           </div>
         ) : state.weeksData.length === 0 ? (
@@ -383,7 +417,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
               Group: {managingGroupId} | User: {currentUserId} | Weeks calculated: {weeks.length} | Staff: {statistics.staffCount}
             </p>
             
-            {/* Отладочная информация */}
+            {/* Отладочная информация для серверной фильтрации */}
             <div style={{ 
               marginTop: '20px', 
               padding: '15px', 
@@ -393,18 +427,22 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
               fontSize: '11px',
               color: '#666'
             }}>
-              <div style={{ fontWeight: 'bold', marginBottom: '10px' }}>Debug Information:</div>
-              <div>• Staff Records Loaded: {state.staffRecords.length}</div>
+              <div style={{ fontWeight: 'bold', marginBottom: '10px' }}>Server-Side Filtering Debug Information:</div>
+              <div>• Total Staff Records Loaded: {state.staffRecords.length}</div>
               <div>• Weeks Calculated: {weeks.length}</div>
-              <div>• Staff Members: {staffMembers.length} ({staffMembers.filter(s => s.deleted !== 1).length} active)</div>
-              <div>• Staff with Employee ID: {staffMembers.filter(s => s.employeeId && s.employeeId !== '0').length}</div>
-              <div>• Managing Group ID: {managingGroupId || 'Not set'}</div>
-              <div>• Current User ID: {currentUserId || 'Not set'}</div>
+              <div>• Total Staff Members: {staffMembers.length}</div>
+              <div>• Active Staff Members: {staffMembers.filter(s => s.deleted !== 1).length}</div>
+              <div>• Active Staff with Employee ID: {staffMembers.filter(s => s.deleted !== 1 && s.employeeId && s.employeeId !== '0').length}</div>
+              <div>• Managing Group ID (StaffGroup filter): {managingGroupId || 'Not set'}</div>
+              <div>• Current User ID (Manager filter): {currentUserId || 'Not set'}</div>
               <div>• Context Available: {context ? 'Yes' : 'No'}</div>
               <div>• Staff Records Service: {staffRecordsService ? 'Available' : 'Not available'}</div>
+              <div style={{ marginTop: '8px', fontStyle: 'italic' }}>
+                Each staff member gets individual request with: StaffMember = employeeId, Manager = currentUserId, StaffGroup = managingGroupId
+              </div>
             </div>
             
-            {weeks.length > 0 && statistics.staffCount > 0 && (
+            {weeks.length > 0 && statistics.staffCount >= 0 && (
               <button 
                 onClick={() => {
                   console.log('[TimetableTab] Manual refresh requested from no-data state');
@@ -422,7 +460,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
                   cursor: 'pointer'
                 }}
               >
-                Refresh Data
+                Refresh Data (Make Server Requests)
               </button>
             )}
           </div>
@@ -441,7 +479,8 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
               Showing {statistics.totalWeeks} weeks for {statistics.staffCount} staff members | 
               {statistics.weeksWithData} weeks have data | 
               Total records: {statistics.recordsCount} | 
-              Week starts on: {TimetableWeekCalculator.getDayName(dayOfStartWeek || 7)}
+              Week starts on: {TimetableWeekCalculator.getDayName(dayOfStartWeek || 7)} | 
+              <span style={{ fontStyle: 'italic' }}>Data server-filtered by exact ID matches</span>
             </div>
             
             {/* Группы недель */}
