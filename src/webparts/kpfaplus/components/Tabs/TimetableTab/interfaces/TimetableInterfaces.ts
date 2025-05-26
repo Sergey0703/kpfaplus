@@ -1,4 +1,3 @@
-// src/webparts/kpfaplus/components/Tabs/TimetableTab/interfaces/TimetableInterfaces.ts
 import { IStaffRecord } from '../../../../services/StaffRecordsService';
 
 /**
@@ -125,18 +124,23 @@ export interface ITimetableCellProps {
   dayNumber?: number; // Если показываем конкретный день
   isWeekMode: boolean;
 }
+
 export interface IWeekCalculationParams {
   selectedDate: Date;
   startWeekDay: number; // 1=Sunday, 2=Monday, etc.
 }
 
 /**
- * Интерфейс для параметров обработки данных
+ * Интерфейс для параметров обработки данных - ОБНОВЛЕН!
  */
 export interface ITimetableDataParams {
   staffRecords: IStaffRecord[];
   staffMembers: any[]; // Из контекста
   weeks: IWeekInfo[];
+  
+  // *** НОВЫЕ ПОЛЯ ДЛЯ ПРАВИЛЬНОЙ ФИЛЬТРАЦИИ ***
+  currentUserId?: string;    // ID текущего пользователя (менеджера)
+  managingGroupId?: string;  // ID управляющей группы
 }
 
 /**

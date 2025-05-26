@@ -40,7 +40,6 @@ export const useTimetableStaffRecordsData = (
     staffRecordsService,
     weeks,
     staffMembers,
-    // setState, // Убираем неиспользуемый параметр
     setWeeksData,
     setStaffRecords,
     setIsLoadingStaffRecords,
@@ -142,16 +141,45 @@ export const useTimetableStaffRecordsData = (
           firstRecordDate: result.records[0].Date.toLocaleDateString(),
           lastRecordDate: result.records[result.records.length - 1].Date.toLocaleDateString()
         });
+        
+        // Логируем несколько примеров записей для анализа
+        console.log('[useTimetableStaffRecordsData] Sample records for analysis:');
+        result.records.slice(0, 5).forEach((record, index) => {
+          console.log(`[useTimetableStaffRecordsData] Record ${index + 1}:`, {
+            ID: record.ID,
+            Date: record.Date.toLocaleDateString(),
+            Title: record.Title,
+            WeeklyTimeTableID: record.WeeklyTimeTableID,
+            WeeklyTimeTableTitle: record.WeeklyTimeTableTitle,
+            ShiftDate1: record.ShiftDate1?.toLocaleTimeString(),
+            ShiftDate2: record.ShiftDate2?.toLocaleTimeString()
+          });
+        });
+        
+        // Анализируем уникальные WeeklyTimeTableID для понимания связей
+        const uniqueWeeklyTimeTableIds = Array.from(
+          new Set(result.records.map(r => r.WeeklyTimeTableID).filter(Boolean))
+        );
+        console.log('[useTimetableStaffRecordsData] Unique WeeklyTimeTableIDs found:', uniqueWeeklyTimeTableIds);
+        
+        // Анализируем паттерны в Title
+        const titlePatterns = Array.from(
+          new Set(result.records.map(r => r.Title).filter(Boolean))
+        );
+        console.log('[useTimetableStaffRecordsData] Title patterns found:', titlePatterns.slice(0, 10));
       }
 
       // Сохраняем сырые записи
       setStaffRecords(result.records);
 
-      // Обрабатываем данные в структуру групп недель
+      // Обрабатываем данные в структуру групп недель с НОВЫМИ параметрами
       const weeksData = TimetableDataProcessor.processDataByWeeks({
         staffRecords: result.records,
         staffMembers: staffMembers,
-        weeks: weeks
+        weeks: weeks,
+        // *** ДОБАВЛЯЕМ НОВЫЕ ПАРАМЕТРЫ ФИЛЬТРАЦИИ ***
+        currentUserId: currentUserId,
+        managingGroupId: managingGroupId
       });
 
       console.log(`[useTimetableStaffRecordsData] Processed ${weeksData.length} week groups`);
@@ -164,6 +192,19 @@ export const useTimetableStaffRecordsData = (
         
         console.log(`[useTimetableStaffRecordsData] Week ${weekGroup.weekInfo.weekNum}: ${staffWithData}/${weekGroup.staffRows.length} staff have data`);
       });
+
+      // Дополнительная отладочная информация
+      if (weeksData.length > 0) {
+        const totalStaffRows = weeksData.reduce((sum, week) => sum + week.staffRows.length, 0);
+        const weeksWithData = weeksData.filter(week => week.hasData).length;
+        
+        console.log('[useTimetableStaffRecordsData] Processing summary:', {
+          totalWeeks: weeksData.length,
+          weeksWithData,
+          totalStaffRows,
+          averageStaffPerWeek: Math.round(totalStaffRows / weeksData.length)
+        });
+      }
 
       setWeeksData(weeksData);
 
@@ -184,8 +225,8 @@ export const useTimetableStaffRecordsData = (
     context,
     staffRecordsService,
     selectedDate,
-    currentUserId,
-    managingGroupId,
+    currentUserId,        // *** ДОБАВЛЯЕМ В ЗАВИСИМОСТИ ***
+    managingGroupId,      // *** ДОБАВЛЯЕМ В ЗАВИСИМОСТИ ***
     weeks,
     staffMembers,
     setStaffRecords,
@@ -212,6 +253,29 @@ export const useTimetableStaffRecordsData = (
       selectedDate: selectedDate.toISOString()
     });
     
+    // Логируем информацию о сотрудниках для отладки
+    if (staffMembers.length > 0) {
+      console.log('[useTimetableStaffRecordsData] Staff members analysis:');
+      staffMembers.slice(0, 5).forEach((staff, index) => {
+        console.log(`[useTimetableStaffRecordsData] Staff ${index + 1}:`, {
+          name: staff.name,
+          id: staff.id,
+          employeeId: staff.employeeId,
+          deleted: staff.deleted,
+          hasEmployeeId: !!(staff.employeeId && staff.employeeId !== '0')
+        });
+      });
+      
+      const activeStaff = staffMembers.filter(s => s.deleted !== 1);
+      const staffWithEmployeeId = staffMembers.filter(s => s.employeeId && s.employeeId !== '0');
+      
+      console.log('[useTimetableStaffRecordsData] Staff statistics:', {
+        total: staffMembers.length,
+        active: activeStaff.length,
+        withEmployeeId: staffWithEmployeeId.length
+      });
+    }
+    
     if (
       context && 
       staffRecordsService && 
@@ -226,6 +290,15 @@ export const useTimetableStaffRecordsData = (
       });
     } else {
       console.log('[useTimetableStaffRecordsData] *** CLEARING DATA - missing dependencies ***');
+      console.log('[useTimetableStaffRecordsData] Missing dependencies analysis:', {
+        hasContext: !!context,
+        hasStaffRecordsService: !!staffRecordsService,
+        hasManagingGroupId: !!managingGroupId,
+        hasCurrentUserId: !!currentUserId,
+        weeksCount: weeks.length,
+        staffMembersCount: staffMembers.length
+      });
+      
       setStaffRecords([]);
       setWeeksData([]);
       setIsLoadingStaffRecords(false);
@@ -236,6 +309,7 @@ export const useTimetableStaffRecordsData = (
     weeks.length,      // При пересчете недель
     staffMembers.length, // При изменении состава группы
     managingGroupId,   // При смене группы
+    currentUserId,     // *** ДОБАВЛЯЕМ В ЗАВИСИМОСТИ ***
     loadTimetableData  // Функция уже содержит остальные зависимости
   ]);
 

@@ -23,12 +23,14 @@ export class TimetableDataProcessor {
    * Преобразует входные данные в структуру ITimetableRow[]
    */
   public static processData(params: ITimetableDataParams): ITimetableRow[] {
-    const { staffRecords, staffMembers, weeks } = params;
+    const { staffRecords, staffMembers, weeks, currentUserId, managingGroupId } = params;
 
     console.log('[TimetableDataProcessor] Processing data (old format):', {
       staffRecordsCount: staffRecords.length,
       staffMembersCount: staffMembers.length,
-      weeksCount: weeks.length
+      weeksCount: weeks.length,
+      currentUserId,
+      managingGroupId
     });
 
     // ИСКЛЮЧАЕМ УДАЛЕННЫХ СОТРУДНИКОВ СРАЗУ
@@ -57,7 +59,12 @@ export class TimetableDataProcessor {
       };
 
       // Получаем записи для этого сотрудника
-      const staffStaffRecords = this.getStaffRecords(staffRecords, staffMember);
+      const staffStaffRecords = this.getStaffRecords(
+        staffRecords, 
+        staffMember,
+        currentUserId,
+        managingGroupId
+      );
       
       console.log(`[TimetableDataProcessor] Found ${staffStaffRecords.length} records for ${staffMember.name}`);
 
@@ -86,12 +93,14 @@ export class TimetableDataProcessor {
    * Преобразует входные данные в структуру IWeekGroup[]
    */
   public static processDataByWeeks(params: ITimetableDataParams): IWeekGroup[] {
-    const { staffRecords, staffMembers, weeks } = params;
+    const { staffRecords, staffMembers, weeks, currentUserId, managingGroupId } = params;
 
-    console.log('[TimetableDataProcessor] Processing data by weeks:', {
+    console.log('[TimetableDataProcessor] Processing data by weeks with filter params:', {
       staffRecordsCount: staffRecords.length,
       staffMembersCount: staffMembers.length,
-      weeksCount: weeks.length
+      weeksCount: weeks.length,
+      currentUserId,
+      managingGroupId
     });
 
     // ИСКЛЮЧАЕМ УДАЛЕННЫХ СОТРУДНИКОВ СРАЗУ
@@ -116,8 +125,13 @@ export class TimetableDataProcessor {
 
       // Для каждой недели обрабатываем только АКТИВНЫХ сотрудников
       activeStaffMembers.forEach(staffMember => {
-        // Получаем записи для этого сотрудника
-        const staffStaffRecords = this.getStaffRecords(staffRecords, staffMember);
+        // Получаем записи для этого сотрудника с НОВОЙ фильтрацией
+        const staffStaffRecords = this.getStaffRecords(
+          staffRecords, 
+          staffMember,
+          currentUserId,      // *** ПЕРЕДАЕМ НОВЫЕ ПАРАМЕТРЫ ***
+          managingGroupId     // *** ПЕРЕДАЕМ НОВЫЕ ПАРАМЕТРЫ ***
+        );
         
         // Обрабатываем данные только для текущей недели
         const weeklyData = this.processWeekData(staffStaffRecords, week);
@@ -155,6 +169,84 @@ export class TimetableDataProcessor {
 
     console.log(`[TimetableDataProcessor] Processed ${weekGroups.length} week groups with only active staff`);
     return weekGroups;
+  }
+
+  /**
+   * ИСПРАВЛЕННЫЙ МЕТОД: Получает записи конкретного сотрудника с правильной фильтрацией
+   * Использует employeeId для поиска записей этого сотрудника
+   */
+  private static getStaffRecords(
+    allRecords: IStaffRecord[], 
+    staffMember: any,
+    currentUserId?: string,
+    managingGroupId?: string
+  ): IStaffRecord[] {
+    const staffEmployeeId = staffMember.employeeId || '';
+    
+    console.log(`[TimetableDataProcessor] Getting records for staff: ${staffMember.name}`);
+    console.log(`[TimetableDataProcessor] Filter parameters:`, {
+      staffName: staffMember.name,
+      staffId: staffMember.id,
+      staffEmployeeId,
+      currentUserId,
+      managingGroupId,
+      totalRecords: allRecords.length
+    });
+    
+    if (!staffEmployeeId) {
+      console.log(`[TimetableDataProcessor] No employeeId for staff: ${staffMember.name}`);
+      return [];
+    }
+    
+    // ПРАВИЛЬНАЯ ФИЛЬТРАЦИЯ: Ищем записи, которые принадлежат этому сотруднику
+    const matchingRecords = allRecords.filter(record => {
+      // Проверяем различные способы связи записи с сотрудником
+      const checks = {
+        // 1. По WeeklyTimeTableID (наиболее вероятная связь с контрактом)
+        byWeeklyTimeTableID: record.WeeklyTimeTableID && 
+                            record.WeeklyTimeTableID.toString() === staffEmployeeId,
+        
+        // 2. По содержанию имени в Title (fallback)
+        byTitleContains: record.Title && 
+                        record.Title.toLowerCase().includes(staffMember.name.toLowerCase()),
+        
+        // 3. По ID записи (если есть прямое соответствие)
+        byRecordID: record.ID && record.ID.toString() === staffEmployeeId,
+        
+        // 4. По частичному совпадению ID в записи
+        byIDContains: record.ID && staffEmployeeId && 
+                     record.ID.toString().includes(staffEmployeeId)
+      };
+      
+      const hasMatch = Object.values(checks).some(check => check);
+      
+      if (hasMatch) {
+        console.log(`[TimetableDataProcessor] Match found for ${staffMember.name}:`, {
+          recordId: record.ID,
+          recordDate: record.Date.toLocaleDateString(),
+          recordTitle: record.Title,
+          weeklyTimeTableID: record.WeeklyTimeTableID,
+          checks
+        });
+      }
+      
+      return hasMatch;
+    });
+
+    console.log(`[TimetableDataProcessor] Found ${matchingRecords.length} records for ${staffMember.name}`);
+    
+    if (matchingRecords.length > 0) {
+      console.log(`[TimetableDataProcessor] Sample matching records:`, 
+        matchingRecords.slice(0, 3).map(r => ({
+          ID: r.ID,
+          Date: r.Date.toLocaleDateString(),
+          Title: r.Title,
+          WeeklyTimeTableID: r.WeeklyTimeTableID
+        }))
+      );
+    }
+
+    return matchingRecords;
   }
 
   /**
@@ -239,57 +331,6 @@ export class TimetableDataProcessor {
       formattedContent,
       hasData: shifts.length > 0
     };
-  }
-
-  /**
-   * Получает записи конкретного сотрудника
-   */
-  private static getStaffRecords(allRecords: IStaffRecord[], staffMember: any): IStaffRecord[] {
-    const staffEmployeeId = staffMember.employeeId || '';
-    const staffId = staffMember.id;
-    
-    console.log(`[TimetableDataProcessor] Getting records for staff: ${staffMember.name} (ID: ${staffId}, employeeId: ${staffEmployeeId})`);
-    
-    // Пытаемся найти записи по разным критериям
-    const matchingRecords = allRecords.filter(record => {
-      // Способ 1: По employeeId через WeeklyTimeTableID (если это связь с контрактом сотрудника)
-      if (staffEmployeeId && record.WeeklyTimeTableID) {
-        const recordContractId = record.WeeklyTimeTableID.toString();
-        if (recordContractId === staffEmployeeId) {
-          console.log(`[TimetableDataProcessor] Match by WeeklyTimeTableID: ${recordContractId} === ${staffEmployeeId}`);
-          return true;
-        }
-      }
-      
-      // Способ 2: По Title (если содержит имя сотрудника)
-      if (record.Title && record.Title.includes(staffMember.name)) {
-        console.log(`[TimetableDataProcessor] Match by name in Title: "${record.Title}" contains "${staffMember.name}"`);
-        return true;
-      }
-      
-      // Способ 3: По ID записи (если содержит ID сотрудника из staffMembers)
-      if (record.ID && record.ID.toString().includes(staffId)) {
-        console.log(`[TimetableDataProcessor] Match by record ID: ${record.ID} contains ${staffId}`);
-        return true;
-      }
-      
-      return false;
-    });
-
-    console.log(`[TimetableDataProcessor] Found ${matchingRecords.length} records for ${staffMember.name}`);
-    
-    if (matchingRecords.length > 0) {
-      console.log(`[TimetableDataProcessor] Sample matching records:`, 
-        matchingRecords.slice(0, 3).map(r => ({
-          ID: r.ID,
-          Date: r.Date.toLocaleDateString(),
-          Title: r.Title,
-          WeeklyTimeTableID: r.WeeklyTimeTableID
-        }))
-      );
-    }
-
-    return matchingRecords;
   }
 
   /**
