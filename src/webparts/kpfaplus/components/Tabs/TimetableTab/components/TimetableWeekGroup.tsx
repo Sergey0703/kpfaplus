@@ -171,8 +171,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
         onRender: (staffRow): JSX.Element => (
           <div style={{ 
             padding: '8px',
-            color: staffRow.isDeleted ? '#a19f9d' : '#323130',
-            fontStyle: staffRow.isDeleted ? 'italic' : 'normal'
+            color: '#323130'
           }}>
             <div style={{ 
               fontWeight: '500',
@@ -186,14 +185,6 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
               color: '#666',
               lineHeight: '1.2'
             }}>
-              {staffRow.isDeleted && (
-                <span style={{ 
-                  color: '#d83b01',
-                  marginRight: '4px'
-                }}>
-                  (Deleted)
-                </span>
-              )}
               {!staffRow.hasPersonInfo && (
                 <span style={{ 
                   color: '#8a8886',

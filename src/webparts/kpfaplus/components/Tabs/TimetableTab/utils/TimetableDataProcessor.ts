@@ -31,16 +31,27 @@ export class TimetableDataProcessor {
       weeksCount: weeks.length
     });
 
+    // ИСКЛЮЧАЕМ УДАЛЕННЫХ СОТРУДНИКОВ СРАЗУ
+    const activeStaffMembers = staffMembers.filter(staffMember => {
+      const isDeleted = staffMember.deleted === 1;
+      if (isDeleted) {
+        console.log(`[TimetableDataProcessor] Excluding deleted staff: ${staffMember.name}`);
+      }
+      return !isDeleted;
+    });
+
+    console.log(`[TimetableDataProcessor] Active staff members: ${activeStaffMembers.length}/${staffMembers.length}`);
+
     const rows: ITimetableRow[] = [];
 
-    // Обрабатываем каждого сотрудника
-    staffMembers.forEach(staffMember => {
+    // Обрабатываем только АКТИВНЫХ сотрудников
+    activeStaffMembers.forEach(staffMember => {
       console.log(`[TimetableDataProcessor] Processing staff: ${staffMember.name} (ID: ${staffMember.id})`);
 
       const row: ITimetableRow = {
         staffId: staffMember.id,
         staffName: staffMember.name,
-        isDeleted: staffMember.deleted === 1,
+        isDeleted: false, // Все сотрудники здесь активные
         hasPersonInfo: this.hasPersonInfo(staffMember),
         weeks: {}
       };
@@ -63,10 +74,10 @@ export class TimetableDataProcessor {
       rows.push(row);
     });
 
-    // Сортируем строки: реальные сотрудники сначала, потом по имени
+    // Сортируем строки по имени (удаленных уже нет)
     const sortedRows = this.sortStaffRows(rows);
 
-    console.log(`[TimetableDataProcessor] Processed ${sortedRows.length} staff rows (old format)`);
+    console.log(`[TimetableDataProcessor] Processed ${sortedRows.length} active staff rows (old format)`);
     return sortedRows;
   }
 
@@ -83,6 +94,17 @@ export class TimetableDataProcessor {
       weeksCount: weeks.length
     });
 
+    // ИСКЛЮЧАЕМ УДАЛЕННЫХ СОТРУДНИКОВ СРАЗУ
+    const activeStaffMembers = staffMembers.filter(staffMember => {
+      const isDeleted = staffMember.deleted === 1;
+      if (isDeleted) {
+        console.log(`[TimetableDataProcessor] Excluding deleted staff: ${staffMember.name}`);
+      }
+      return !isDeleted;
+    });
+
+    console.log(`[TimetableDataProcessor] Active staff members: ${activeStaffMembers.length}/${staffMembers.length}`);
+
     const weekGroups: IWeekGroup[] = [];
 
     // Обрабатываем каждую неделю
@@ -92,8 +114,8 @@ export class TimetableDataProcessor {
       const staffRows: ITimetableStaffRow[] = [];
       let weekHasData = false;
 
-      // Для каждой недели обрабатываем всех сотрудников
-      staffMembers.forEach(staffMember => {
+      // Для каждой недели обрабатываем только АКТИВНЫХ сотрудников
+      activeStaffMembers.forEach(staffMember => {
         // Получаем записи для этого сотрудника
         const staffStaffRecords = this.getStaffRecords(staffRecords, staffMember);
         
@@ -109,7 +131,7 @@ export class TimetableDataProcessor {
         const staffRow: ITimetableStaffRow = {
           staffId: staffMember.id,
           staffName: staffMember.name,
-          isDeleted: staffMember.deleted === 1,
+          isDeleted: false, // Все сотрудники здесь активные
           hasPersonInfo: this.hasPersonInfo(staffMember),
           weekData: weeklyData
         };
@@ -128,10 +150,10 @@ export class TimetableDataProcessor {
       };
 
       weekGroups.push(weekGroup);
-      console.log(`[TimetableDataProcessor] Week ${week.weekNum}: ${sortedStaffRows.length} staff, hasData: ${weekHasData}`);
+      console.log(`[TimetableDataProcessor] Week ${week.weekNum}: ${sortedStaffRows.length} active staff, hasData: ${weekHasData}`);
     });
 
-    console.log(`[TimetableDataProcessor] Processed ${weekGroups.length} week groups`);
+    console.log(`[TimetableDataProcessor] Processed ${weekGroups.length} week groups with only active staff`);
     return weekGroups;
   }
 
@@ -310,12 +332,7 @@ export class TimetableDataProcessor {
         return a.hasPersonInfo ? -1 : 1; // Реальные сначала
       }
       
-      // Затем активные перед удаленными
-      if (a.isDeleted !== b.isDeleted) {
-        return a.isDeleted ? 1 : -1; // Активные сначала
-      }
-      
-      // Затем по имени
+      // Затем по имени (удаленных уже нет в списке)
       return a.staffName.localeCompare(b.staffName);
     });
   }
@@ -330,12 +347,7 @@ export class TimetableDataProcessor {
         return a.hasPersonInfo ? -1 : 1; // Реальные сначала
       }
       
-      // Затем активные перед удаленными
-      if (a.isDeleted !== b.isDeleted) {
-        return a.isDeleted ? 1 : -1; // Активные сначала
-      }
-      
-      // Затем по имени
+      // Затем по имени (удаленных уже нет в списке)
       return a.staffName.localeCompare(b.staffName);
     });
   }
