@@ -13,6 +13,9 @@ import { ITabProps } from '../../../models/types';
 import { useDataContext } from '../../../context';
 import { StaffRecordsService } from '../../../services/StaffRecordsService';
 
+// Константы
+const calendarMinWidth = '655px';
+
 export interface ITimetableTabProps extends ITabProps {
   // Дополнительные пропсы для таблицы времени, если понадобятся
 }
@@ -286,6 +289,9 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
                   '.ms-TextField-field': { height: '32px' },
                 },
               },
+              callout: {
+                minWidth: calendarMinWidth
+              }
             }}
           />
         </div>
