@@ -1,17 +1,18 @@
 // src/webparts/kpfaplus/components/Tabs/TimetableTab/utils/useTimetableStaffRecordsData.ts
 
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { WebPartContext } from '@microsoft/sp-webpart-base';
 import { StaffRecordsService, IStaffRecord } from '../../../../services/StaffRecordsService';
 import { IStaffRecordsResult, IStaffRecordsQueryParams } from '../../../../services/StaffRecordsInterfaces';
 import { 
   IWeekInfo, 
   IWeekGroup,
-  IStaffMember, // FIXED: Added proper import
-  ITimetableStaffRow, // FIXED: Added missing import
-  IDayInfo // FIXED: Added missing import
+  IStaffMember,
+  ITimetableStaffRow,
+  IDayInfo
 } from '../interfaces/TimetableInterfaces';
 import { TimetableDataProcessor } from './TimetableDataProcessor';
+import { TimetableWeekCalculator } from './TimetableWeekCalculator';
 
 interface UseTimetableStaffRecordsDataProps {
   context?: WebPartContext;
@@ -20,7 +21,7 @@ interface UseTimetableStaffRecordsDataProps {
   managingGroupId?: string;
   staffRecordsService?: StaffRecordsService;
   weeks: IWeekInfo[];
-  staffMembers: IStaffMember[]; // FIXED: заменили 'any[]' на 'IStaffMember[]'
+  staffMembers: IStaffMember[];
   setWeeksData: (weeksData: IWeekGroup[]) => void;
   setStaffRecords: (records: IStaffRecord[]) => void;
   setIsLoadingStaffRecords: (isLoading: boolean) => void;
@@ -49,7 +50,11 @@ export const useTimetableStaffRecordsData = (
     setErrorStaffRecords
   } = props;
 
-  console.log('[useTimetableStaffRecordsData] Hook initialized with:', {
+  // *** ЗАЩИТА ОТ ПАРАЛЛЕЛЬНЫХ ЗАПРОСОВ ***
+  const isLoadingRef = useRef(false);
+  const lastRequestParamsRef = useRef<string>('');
+
+  console.log('[useTimetableStaffRecordsData] Hook initialized with optimized batch loading:', {
     hasContext: !!context,
     hasStaffRecordsService: !!staffRecordsService,
     weeksCount: weeks.length,
@@ -62,7 +67,31 @@ export const useTimetableStaffRecordsData = (
   const loadTimetableData = useCallback(async (overrideDate?: Date): Promise<void> => {
     const dateToUse = overrideDate || selectedDate;
     
-    console.log('[useTimetableStaffRecordsData] *** loadTimetableData CALLED ***');
+    // *** СОЗДАЕМ УНИКАЛЬНЫЙ КЛЮЧ ЗАПРОСА ДЛЯ ПРОВЕРКИ ДУБЛИКАТОВ ***
+    const requestKey = `${dateToUse.toISOString()}-${managingGroupId}-${currentUserId}-${staffMembers.length}-${weeks.length}`;
+    
+    console.log('[useTimetableStaffRecordsData] *** OPTIMIZED loadTimetableData CALLED ***');
+    console.log('[useTimetableStaffRecordsData] Request key:', requestKey);
+    console.log('[useTimetableStaffRecordsData] Last request key:', lastRequestParamsRef.current);
+    console.log('[useTimetableStaffRecordsData] Is currently loading:', isLoadingRef.current);
+    
+    // *** ЗАЩИТА ОТ ДУБЛИРУЮЩИХ ЗАПРОСОВ ***
+    if (isLoadingRef.current) {
+      console.log('[useTimetableStaffRecordsData] 🛑 SKIPPING: Request already in progress');
+      return;
+    }
+    
+    if (lastRequestParamsRef.current === requestKey) {
+      console.log('[useTimetableStaffRecordsData] 🛑 SKIPPING: Same request parameters as last time');
+      return;
+    }
+    
+    // Помечаем что запрос начался
+    isLoadingRef.current = true;
+    lastRequestParamsRef.current = requestKey;
+    
+    console.log('[useTimetableStaffRecordsData] ✅ PROCEEDING: New unique request');
+    console.log('[useTimetableStaffRecordsData] Using SINGLE BATCH REQUEST instead of individual requests');
     console.log('[useTimetableStaffRecordsData] Parameters:', {
       date: dateToUse.toISOString(),
       weeksCount: weeks.length,
@@ -77,6 +106,7 @@ export const useTimetableStaffRecordsData = (
       setWeeksData([]);
       setIsLoadingStaffRecords(false);
       setErrorStaffRecords('Service not available.');
+      isLoadingRef.current = false;
       return;
     }
 
@@ -86,6 +116,7 @@ export const useTimetableStaffRecordsData = (
       setWeeksData([]);
       setIsLoadingStaffRecords(false);
       setErrorStaffRecords('Group ID or User ID not available.');
+      isLoadingRef.current = false;
       return;
     }
 
@@ -94,6 +125,7 @@ export const useTimetableStaffRecordsData = (
       setStaffRecords([]);
       setWeeksData([]);
       setIsLoadingStaffRecords(false);
+      isLoadingRef.current = false;
       return;
     }
 
@@ -102,6 +134,7 @@ export const useTimetableStaffRecordsData = (
       setStaffRecords([]);
       setWeeksData([]);
       setIsLoadingStaffRecords(false);
+      isLoadingRef.current = false;
       return;
     }
 
@@ -109,7 +142,7 @@ export const useTimetableStaffRecordsData = (
       setIsLoadingStaffRecords(true);
       setErrorStaffRecords(undefined);
 
-      // ИСПРАВЛЕНИЕ: Используем диапазон выбранного месяца, а не недель
+      // Используем диапазон выбранного месяца
       const startDate = new Date(dateToUse.getFullYear(), dateToUse.getMonth(), 1);
       const endDate = new Date(dateToUse.getFullYear(), dateToUse.getMonth() + 1, 0);
 
@@ -144,12 +177,13 @@ export const useTimetableStaffRecordsData = (
         setStaffRecords([]);
         setWeeksData([]);
         setIsLoadingStaffRecords(false);
+        isLoadingRef.current = false;
         return;
       }
 
       // Логируем информацию о сотрудниках для отладки
       console.log('[useTimetableStaffRecordsData] Staff members to process:');
-      activeStaffMembers.forEach((staff, index) => {
+      activeStaffMembers.slice(0, 5).forEach((staff, index) => {
         console.log(`[useTimetableStaffRecordsData] Staff ${index + 1}:`, {
           name: staff.name,
           id: staff.id,
@@ -158,105 +192,205 @@ export const useTimetableStaffRecordsData = (
         });
       });
 
-      // *** НОВЫЙ ПОДХОД: Отдельный запрос для каждого сотрудника ***
-      const allStaffRecords: IStaffRecord[] = [];
-      let successfulRequests = 0;
-      let failedRequests = 0;
+      // *** НОВЫЙ ОПТИМИЗИРОВАННЫЙ ПОДХОД: ОДИН ЗАПРОС НА ВСЮ ГРУППУ ***
+      console.log(`[useTimetableStaffRecordsData] *** MAKING SINGLE BATCH REQUEST FOR ENTIRE GROUP ***`);
+      console.log(`[useTimetableStaffRecordsData] Previous approach: ${activeStaffMembers.length} individual requests`);
+      console.log(`[useTimetableStaffRecordsData] New approach: 1 batch request + client-side filtering`);
 
-      console.log(`[useTimetableStaffRecordsData] *** STARTING INDIVIDUAL REQUESTS FOR ${activeStaffMembers.length} STAFF MEMBERS ***`);
+      // Подготавливаем один запрос для всей группы (БЕЗ employeeID фильтра)
+      const batchQueryParams: IStaffRecordsQueryParams = {
+        startDate: startDate,
+        endDate: endDate,
+        currentUserID: currentUserId,           // *** ФИЛЬТР ПО МЕНЕДЖЕРУ ***
+        staffGroupID: managingGroupId,          // *** ФИЛЬТР ПО ГРУППЕ ***
+        employeeID: '',                         // *** УБИРАЕМ ФИЛЬТР ПО СОТРУДНИКУ - ПУСТАЯ СТРОКА ***
+        timeTableID: undefined,                 // Не фильтруем по контракту
+        skip: 0,
+        top: 10000 // Увеличиваем лимит для всех сотрудников группы
+      };
 
-      // Делаем запросы для каждого сотрудника
-      for (const staffMember of activeStaffMembers) {
-        try {
-          console.log(`[useTimetableStaffRecordsData] Loading records for: ${staffMember.name} (employeeId: ${staffMember.employeeId})`);
+      console.log('[useTimetableStaffRecordsData] Batch query params:', batchQueryParams);
+      
+      const startTime = performance.now();
 
-          const queryParams: IStaffRecordsQueryParams = {
-            startDate: startDate,
-            endDate: endDate,
-            currentUserID: currentUserId,           // *** ФИЛЬТР ПО МЕНЕДЖЕРУ ***
-            staffGroupID: managingGroupId,          // *** ФИЛЬТР ПО ГРУППЕ ***
-            employeeID: staffMember.employeeId || '', // FIXED: Handle undefined case
-            timeTableID: undefined,                 // Не фильтруем по контракту
-            skip: 0,
-            top: 5000 // Достаточно для одного сотрудника
-          };
+      // Делаем ОДИН запрос для всей группы
+      const batchResult: IStaffRecordsResult = await staffRecordsService.getStaffRecordsWithOptions(batchQueryParams);
 
-          console.log(`[useTimetableStaffRecordsData] Query params for ${staffMember.name}:`, queryParams);
+      const loadTime = performance.now() - startTime;
 
-          const result: IStaffRecordsResult = await staffRecordsService.getStaffRecordsWithOptions(queryParams);
-
-          console.log(`[useTimetableStaffRecordsData] Result for ${staffMember.name}:`, {
-            recordsCount: result.records.length,
-            totalCount: result.totalCount,
-            hasError: !!result.error
-          });
-
-          if (result.error) {
-            console.error(`[useTimetableStaffRecordsData] Error for ${staffMember.name}: ${result.error}`);
-            failedRequests++;
-          } else {
-            // Добавляем записи к общему списку
-            allStaffRecords.push(...result.records);
-            successfulRequests++;
-            
-            // Логируем примеры записей для первых нескольких сотрудников
-            if (successfulRequests <= 3 && result.records.length > 0) {
-              console.log(`[useTimetableStaffRecordsData] Sample records for ${staffMember.name}:`, 
-                result.records.slice(0, 2).map(r => ({
-                  ID: r.ID,
-                  Date: r.Date.toLocaleDateString(),
-                  Title: r.Title,
-                  StaffMemberLookupId: r.StaffMemberLookupId,
-                  WeeklyTimeTableID: r.WeeklyTimeTableID,
-                  ShiftDate1: r.ShiftDate1?.toLocaleTimeString(),
-                  ShiftDate2: r.ShiftDate2?.toLocaleTimeString()
-                }))
-              );
-            }
-          }
-
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          console.error(`[useTimetableStaffRecordsData] Exception loading records for ${staffMember.name}:`, errorMessage);
-          failedRequests++;
-        }
-      }
-
-      console.log(`[useTimetableStaffRecordsData] *** REQUESTS COMPLETED ***`);
-      console.log(`[useTimetableStaffRecordsData] Summary:`, {
-        totalStaff: activeStaffMembers.length,
-        successfulRequests,
-        failedRequests,
-        totalRecordsLoaded: allStaffRecords.length
+      console.log('[useTimetableStaffRecordsData] *** BATCH REQUEST COMPLETED ***');
+      console.log('[useTimetableStaffRecordsData] Batch result:', {
+        recordsCount: batchResult.records.length,
+        totalCount: batchResult.totalCount,
+        loadTimeMs: Math.round(loadTime),
+        hasError: !!batchResult.error,
+        estimatedSpeedupVsIndividual: `${activeStaffMembers.length}x faster (${activeStaffMembers.length} requests → 1 request)`
       });
 
-      // Анализируем полученные записи
-      if (allStaffRecords.length > 0) {
+      if (batchResult.error) {
+        throw new Error(`Batch request failed: ${batchResult.error}`);
+      }
+
+      // *** КЛИЕНТСКАЯ ФИЛЬТРАЦИЯ ПО СОТРУДНИКАМ ***
+      console.log('[useTimetableStaffRecordsData] *** PERFORMING CLIENT-SIDE FILTERING ***');
+
+      // Создаем Set с employeeId активных сотрудников для быстрой фильтрации
+      const activeEmployeeIds = new Set(
+        activeStaffMembers
+          .map(staff => staff.employeeId?.toString())
+          .filter(id => id && id !== '0')
+      );
+
+      console.log('[useTimetableStaffRecordsData] Active employee IDs for filtering:', Array.from(activeEmployeeIds));
+
+      // *** ДЕТАЛЬНАЯ ДИАГНОСТИКА ВХОДЯЩИХ ДАННЫХ ***
+      console.log('[useTimetableStaffRecordsData] *** DETAILED DATA ANALYSIS BEFORE FILTERING ***');
+      
+      // Анализируем все полученные записи
+      const recordsByStaffId: Record<string, number> = {};
+      const recordsByDate: Record<string, number> = {};
+      const uniqueStaffIdsInRecords = new Set<string>();
+      
+      batchResult.records.forEach(record => {
+        const staffId = record.StaffMemberLookupId?.toString() || 'Unknown';
+        const dateStr = record.Date.toLocaleDateString();
+        
+        recordsByStaffId[staffId] = (recordsByStaffId[staffId] || 0) + 1;
+        recordsByDate[dateStr] = (recordsByDate[dateStr] || 0) + 1;
+        uniqueStaffIdsInRecords.add(staffId);
+      });
+
+      console.log('[useTimetableStaffRecordsData] Raw data analysis:', {
+        totalRecordsFromServer: batchResult.records.length,
+        uniqueStaffIdsInRecords: uniqueStaffIdsInRecords.size,
+        staffIdsInRecords: Array.from(uniqueStaffIdsInRecords),
+        activeStaffCount: activeStaffMembers.length,
+        activeEmployeeIds: Array.from(activeEmployeeIds),
+        recordsDistributionByStaff: recordsByStaffId,
+        recordsDistributionByDate: Object.keys(recordsByDate).length > 10 ? 
+          `${Object.keys(recordsByDate).length} unique dates` : 
+          recordsByDate
+      });
+
+      // *** АНАЛИЗ СОВПАДЕНИЙ ***
+      const matchingStaffIds = Array.from(uniqueStaffIdsInRecords).filter(id => activeEmployeeIds.has(id));
+      const nonMatchingStaffIds = Array.from(uniqueStaffIdsInRecords).filter(id => !activeEmployeeIds.has(id));
+      
+      console.log('[useTimetableStaffRecordsData] Staff ID matching analysis:', {
+        matchingStaffIds: matchingStaffIds,
+        nonMatchingStaffIds: nonMatchingStaffIds.slice(0, 10), // Показываем только первые 10
+        matchingCount: matchingStaffIds.length,
+        nonMatchingCount: nonMatchingStaffIds.length,
+        potentialIssue: nonMatchingStaffIds.length > matchingStaffIds.length ? 
+          'More non-matching than matching IDs - check ID format consistency' : 
+          'Normal'
+      });
+
+      // Фильтруем полученные записи по нашим активным сотрудникам
+      const filteredRecords = batchResult.records.filter(record => {
+        const recordStaffMemberId = record.StaffMemberLookupId?.toString();
+        const shouldInclude = recordStaffMemberId && activeEmployeeIds.has(recordStaffMemberId);
+        
+        // Логи фильтрации убраны для сокращения объема
+        
+        return shouldInclude;
+      });
+
+      console.log('[useTimetableStaffRecordsData] *** CLIENT-SIDE FILTERING COMPLETED ***');
+      console.log('[useTimetableStaffRecordsData] Filtering results:', {
+        totalRecordsFromServer: batchResult.records.length,
+        filteredRecordsForOurStaff: filteredRecords.length,
+        filteringEfficiency: `${Math.round((filteredRecords.length / batchResult.records.length) * 100)}% records matched our staff`,
+        activeStaffCount: activeStaffMembers.length
+      });
+
+      // Анализируем полученные отфильтрованные записи
+      if (filteredRecords.length > 0) {
         const dateRange = {
-          start: Math.min(...allStaffRecords.map(r => r.Date.getTime())),
-          end: Math.max(...allStaffRecords.map(r => r.Date.getTime()))
+          start: Math.min(...filteredRecords.map(r => r.Date.getTime())),
+          end: Math.max(...filteredRecords.map(r => r.Date.getTime()))
         };
         
-        console.log(`[useTimetableStaffRecordsData] Loaded records date range:`, {
+        console.log(`[useTimetableStaffRecordsData] *** FILTERED RECORDS ANALYSIS ***`);
+        console.log(`[useTimetableStaffRecordsData] Filtered records date range:`, {
           firstRecordDate: new Date(dateRange.start).toLocaleDateString(),
           lastRecordDate: new Date(dateRange.end).toLocaleDateString(),
-          totalRecords: allStaffRecords.length
+          totalRecords: filteredRecords.length,
+          requestedRange: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
         });
+
+        // *** КРИТИЧНО: Анализируем распределение записей по неделям ***
+        const recordsByWeek: Record<number, number> = {};
+        const recordsByWeekAndStaff: Record<string, Record<number, number>> = {};
+        
+        filteredRecords.forEach(record => {
+          const recordDate = new Date(record.Date);
+          const staffId = record.StaffMemberLookupId?.toString() || 'Unknown';
+          
+          // Находим неделю для этой записи
+          const matchingWeek = weeks.find(week => 
+            TimetableWeekCalculator.isDateInWeek(recordDate, week.weekStart, week.weekEnd)
+          );
+          
+          if (matchingWeek) {
+            recordsByWeek[matchingWeek.weekNum] = (recordsByWeek[matchingWeek.weekNum] || 0) + 1;
+            
+            if (!recordsByWeekAndStaff[staffId]) {
+              recordsByWeekAndStaff[staffId] = {};
+            }
+            recordsByWeekAndStaff[staffId][matchingWeek.weekNum] = 
+              (recordsByWeekAndStaff[staffId][matchingWeek.weekNum] || 0) + 1;
+          } else {
+            console.warn(`[useTimetableStaffRecordsData] ⚠️ Record ${record.ID} (${recordDate.toLocaleDateString()}) does not match any calculated week!`);
+          }
+        });
+
+        console.log('[useTimetableStaffRecordsData] *** RECORDS DISTRIBUTION BY WEEKS ***', {
+          weeklyDistribution: recordsByWeek,
+          totalWeeks: weeks.length,
+          weeksWithData: Object.keys(recordsByWeek).length,
+          avgRecordsPerWeek: Math.round(filteredRecords.length / Object.keys(recordsByWeek).length),
+          potentialIssue: Object.keys(recordsByWeek).length === 1 ? 
+            'WARNING: All records in single week - possible date filtering issue' : 
+            'Normal distribution'
+        });
+
+        // Показываем распределение по сотрудникам и неделям (первые несколько для отладки)
+        // Логи отладки убраны для сокращения объема
 
         // Анализируем распределение записей по сотрудникам
         const recordsByStaff: Record<string, number> = {};
-        allStaffRecords.forEach(record => {
-          const key = record.StaffMemberLookupId?.toString() || record.Title || 'Unknown';
+        filteredRecords.forEach(record => {
+          const key = record.StaffMemberLookupId?.toString() || 'Unknown';
           recordsByStaff[key] = (recordsByStaff[key] || 0) + 1;
         });
         
         console.log('[useTimetableStaffRecordsData] Records distribution by staff:', recordsByStaff);
 
+        // Проверяем покрытие сотрудников
+        const staffWithRecords = Object.keys(recordsByStaff).length;
+        const staffWithoutRecords = activeStaffMembers.filter(staff => 
+          !recordsByStaff[staff.employeeId?.toString() || '']
+        );
+
+        console.log('[useTimetableStaffRecordsData] Staff coverage analysis:', {
+          totalActiveStaff: activeStaffMembers.length,
+          staffWithRecords: staffWithRecords,
+          staffWithoutRecords: staffWithoutRecords.length,
+          coveragePercentage: Math.round((staffWithRecords / activeStaffMembers.length) * 100) + '%'
+        });
+
+        if (staffWithoutRecords.length > 0) {
+          console.log('[useTimetableStaffRecordsData] Staff without records:', 
+            staffWithoutRecords.slice(0, 3).map(s => ({ name: s.name, employeeId: s.employeeId }))
+          );
+        }
+
         // *** ДОПОЛНИТЕЛЬНАЯ ОТЛАДКА: Анализируем структуру записей ***
-        console.log('[useTimetableStaffRecordsData] *** RECORDS STRUCTURE ANALYSIS ***');
-        if (allStaffRecords.length > 0) {
-          const sampleRecord = allStaffRecords[0];
-          console.log('[useTimetableStaffRecordsData] Sample record structure:', {
+        console.log('[useTimetableStaffRecordsData] *** FILTERED RECORDS STRUCTURE ANALYSIS ***');
+        if (filteredRecords.length > 0) {
+          const sampleRecord = filteredRecords[0];
+          console.log('[useTimetableStaffRecordsData] Sample filtered record structure:', {
             ID: sampleRecord.ID,
             Date: sampleRecord.Date,
             StaffMemberLookupId: sampleRecord.StaffMemberLookupId,
@@ -269,20 +403,21 @@ export const useTimetableStaffRecordsData = (
         }
       }
 
-      // Сохраняем все загруженные записи
-      console.log('[useTimetableStaffRecordsData] *** SETTING STAFF RECORDS IN STATE ***');
-      console.log('[useTimetableStaffRecordsData] Setting staff records count:', allStaffRecords.length);
-      setStaffRecords(allStaffRecords);
+      // Сохраняем отфильтрованные записи
+      console.log('[useTimetableStaffRecordsData] *** SETTING FILTERED STAFF RECORDS IN STATE ***');
+      console.log('[useTimetableStaffRecordsData] Setting staff records count:', filteredRecords.length);
+      setStaffRecords(filteredRecords);
 
       // *** ДОБАВЛЯЕМ ОТЛАДКУ ПЕРЕД ВЫЗОВОМ ПРОЦЕССОРА ***
       console.log('[useTimetableStaffRecordsData] *** CALLING TimetableDataProcessor.processDataByWeeks ***');
       console.log('[useTimetableStaffRecordsData] Passing to processor:', {
-        staffRecords: allStaffRecords.length,
+        staffRecords: filteredRecords.length,
         staffMembers: activeStaffMembers.length,
         weeks: weeks.length,
         currentUserId: currentUserId,
         managingGroupId: managingGroupId,
-        firstFewRecords: allStaffRecords.slice(0, 2).map(r => ({
+        optimizationNote: 'Data loaded with single batch request + client filtering',
+        firstFewRecords: filteredRecords.slice(0, 2).map(r => ({
           ID: r.ID,
           Date: r.Date?.toLocaleDateString(),
           StaffMemberLookupId: r.StaffMemberLookupId,
@@ -296,7 +431,7 @@ export const useTimetableStaffRecordsData = (
 
       // Обрабатываем данные в структуру групп недель
       const weeksData = TimetableDataProcessor.processDataByWeeks({
-        staffRecords: allStaffRecords,
+        staffRecords: filteredRecords,
         staffMembers: activeStaffMembers, // Используем только активных сотрудников
         weeks: weeks,
         // Оставляем параметры для совместимости и логирования
@@ -309,8 +444,8 @@ export const useTimetableStaffRecordsData = (
       
       // Логируем статистику по неделям
       weeksData.forEach((weekGroup: IWeekGroup) => {
-        const staffWithData = weekGroup.staffRows.filter((row: ITimetableStaffRow) => // FIXED: Заменили 'any' на 'ITimetableStaffRow'
-          Object.values(row.weekData.days).some((day: IDayInfo) => day.hasData) // FIXED: Заменили 'any' на 'IDayInfo'
+        const staffWithData = weekGroup.staffRows.filter((row: ITimetableStaffRow) =>
+          Object.values(row.weekData.days).some((day: IDayInfo) => day.hasData)
         ).length;
         
         console.log(`[useTimetableStaffRecordsData] Week ${weekGroup.weekInfo.weekNum}: ${staffWithData}/${weekGroup.staffRows.length} staff have data`);
@@ -320,35 +455,45 @@ export const useTimetableStaffRecordsData = (
       const totalStaffRows = weeksData.reduce((sum, week) => sum + week.staffRows.length, 0);
       const weeksWithData = weeksData.filter(week => week.hasData).length;
       
+      console.log('[useTimetableStaffRecordsData] *** OPTIMIZATION PERFORMANCE SUMMARY ***');
       console.log('[useTimetableStaffRecordsData] Final processing summary:', {
         totalWeeks: weeksData.length,
         weeksWithData,
         totalStaffRows,
         averageStaffPerWeek: Math.round(totalStaffRows / (weeksData.length || 1)),
-        totalRecordsProcessed: allStaffRecords.length,
-        successfulRequests,
-        failedRequests
+        totalRecordsProcessed: filteredRecords.length,
+        
+        // Показатели оптимизации
+        optimizationResults: {
+          oldApproach: `${activeStaffMembers.length} individual HTTP requests`,
+          newApproach: '1 batch HTTP request + client filtering',
+          networkRequestsReduced: `${activeStaffMembers.length}x fewer requests`,
+          estimatedTimeImprovement: `${Math.round(loadTime)}ms for all data vs ~${Math.round(loadTime * activeStaffMembers.length)}ms for individual requests`,
+          dataEfficiency: `${Math.round((filteredRecords.length / batchResult.records.length) * 100)}% of server data was relevant`
+        }
       });
 
-      console.log('[useTimetableStaffRecordsData] *** SETTING WEEKS DATA IN STATE ***');
+      console.log('[useTimetableStaffRecordsData] *** SETTING OPTIMIZED WEEKS DATA IN STATE ***');
       setWeeksData(weeksData);
 
-      // Если были ошибки в запросах, но есть успешные результаты
-      if (failedRequests > 0 && successfulRequests > 0) {
-        setErrorStaffRecords(`Warning: Failed to load data for ${failedRequests} staff members out of ${activeStaffMembers.length}`);
-      } else if (failedRequests > 0 && successfulRequests === 0) {
-        setErrorStaffRecords(`Failed to load data for all staff members`);
+      // Проверяем если есть проблемы с данными
+      if (filteredRecords.length === 0 && activeStaffMembers.length > 0) {
+        console.warn('[useTimetableStaffRecordsData] Warning: No records found for any active staff members');
+        setErrorStaffRecords('No schedule records found for active staff members in selected period');
       }
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('[useTimetableStaffRecordsData] *** CRITICAL ERROR loading timetable data ***:', error);
+      console.error('[useTimetableStaffRecordsData] *** CRITICAL ERROR in optimized batch loading ***:', error);
       setErrorStaffRecords(`Failed to load timetable data: ${errorMessage}`);
       setStaffRecords([]);
       setWeeksData([]);
     } finally {
       console.log('[useTimetableStaffRecordsData] *** SETTING LOADING STATE TO FALSE ***');
       setIsLoadingStaffRecords(false);
+      
+      // *** СБРАСЫВАЕМ ФЛАГ ЗАГРУЗКИ ***
+      isLoadingRef.current = false;
     }
   }, [
     context,
@@ -365,13 +510,13 @@ export const useTimetableStaffRecordsData = (
   ]);
 
   const refreshTimetableData = useCallback(async (): Promise<void> => {
-    console.log('[useTimetableStaffRecordsData] Refreshing timetable data');
+    console.log('[useTimetableStaffRecordsData] Refreshing timetable data with optimized batch loading');
     await loadTimetableData();
   }, [loadTimetableData]);
 
   // Эффект для автоматической загрузки данных при изменении ключевых параметров
   useEffect(() => {
-    console.log('[useTimetableStaffRecordsData] *** useEffect TRIGGERED ***');
+    console.log('[useTimetableStaffRecordsData] *** useEffect TRIGGERED FOR OPTIMIZED LOADING ***');
     console.log('[useTimetableStaffRecordsData] Dependencies:', {
       hasContext: !!context,
       hasStaffRecordsService: !!staffRecordsService,
@@ -379,22 +524,19 @@ export const useTimetableStaffRecordsData = (
       hasCurrentUserId: !!currentUserId,
       weeksCount: weeks.length,
       staffMembersCount: staffMembers.length,
-      selectedDate: selectedDate.toISOString()
+      selectedDate: selectedDate.toISOString(),
+      optimizationNote: 'Will use single batch request instead of individual requests'
     });
     
-    if (
-      context && 
+    // *** ЗАЩИТА ОТ МНОЖЕСТВЕННЫХ ЗАПРОСОВ ***
+    const hasAllRequiredDeps = context && 
       staffRecordsService && 
       managingGroupId && 
       currentUserId &&
       weeks.length > 0 &&
-      staffMembers.length > 0
-    ) {
-      console.log('[useTimetableStaffRecordsData] *** CALLING loadTimetableData from useEffect ***');
-      loadTimetableData().catch(error => {
-        console.error('[useTimetableStaffRecordsData] Error in useEffect loadTimetableData:', error);
-      });
-    } else {
+      staffMembers.length > 0;
+
+    if (!hasAllRequiredDeps) {
       console.log('[useTimetableStaffRecordsData] *** CLEARING DATA - missing dependencies ***');
       console.log('[useTimetableStaffRecordsData] Missing dependencies analysis:', {
         hasContext: !!context,
@@ -409,14 +551,33 @@ export const useTimetableStaffRecordsData = (
       setWeeksData([]);
       setIsLoadingStaffRecords(false);
       setErrorStaffRecords(undefined);
+      return;
     }
+
+    // *** DEBOUNCE: Задержка перед запросом для предотвращения частых вызовов ***
+    console.log('[useTimetableStaffRecordsData] *** SETTING UP DEBOUNCED REQUEST ***');
+    
+    const timeoutId = setTimeout(() => {
+      console.log('[useTimetableStaffRecordsData] *** DEBOUNCED REQUEST EXECUTING ***');
+      console.log('[useTimetableStaffRecordsData] *** CALLING OPTIMIZED loadTimetableData from useEffect ***');
+      
+      loadTimetableData().catch(error => {
+        console.error('[useTimetableStaffRecordsData] Error in useEffect optimized loadTimetableData:', error);
+      });
+    }, 300); // 300ms задержка для группировки быстрых изменений
+
+    // Cleanup функция для отмены предыдущих запросов
+    return () => {
+      console.log('[useTimetableStaffRecordsData] *** CLEANUP: Cancelling previous debounced request ***');
+      clearTimeout(timeoutId);
+    };
   }, [
-    selectedDate,
+    selectedDate.toISOString(), // Используем строку для стабильного сравнения
     weeks.length,
     staffMembers.length,
     managingGroupId,
     currentUserId,
-    loadTimetableData
+    // НЕ включаем loadTimetableData в зависимости - это может вызвать бесконечные ререндеры
   ]);
 
   return {
