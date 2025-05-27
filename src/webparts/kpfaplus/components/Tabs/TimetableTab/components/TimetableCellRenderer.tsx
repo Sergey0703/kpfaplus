@@ -8,24 +8,18 @@ import {
 import { TimetableWeekCalculator } from '../utils/TimetableWeekCalculator';
 
 /**
- * Компонент для рендеринга ячеек таблицы расписания
+ * Пустая ячейка
  */
-export const TimetableCellRenderer: React.FC<ITimetableCellProps> = (props) => {
-  const { staffData, dayNumber, isWeekMode } = props;
-
-  // Если это режим недель, показываем сводку по неделе
-  if (isWeekMode) {
-    return <WeekSummaryCell staffData={staffData} />;
-  }
-
-  // Если это режим дней, показываем конкретный день
-  if (dayNumber && staffData.days[dayNumber]) {
-    return <DaySummaryCell dayData={staffData.days[dayNumber]} />;
-  }
-
-  // Пустая ячейка
-  return <EmptyCell />;
-};
+const EmptyCell: React.FC = () => (
+  <div style={{ 
+    color: '#a19f9d', 
+    fontSize: '12px', 
+    textAlign: 'center',
+    padding: '4px'
+  }}>
+    -
+  </div>
+);
 
 /**
  * Ячейка с сводкой по неделе
@@ -116,18 +110,24 @@ const DaySummaryCell: React.FC<{ dayData: IDayInfo }> = ({ dayData }) => {
 };
 
 /**
- * Пустая ячейка
+ * Компонент для рендеринга ячеек таблицы расписания
  */
-const EmptyCell: React.FC = () => (
-  <div style={{ 
-    color: '#a19f9d', 
-    fontSize: '12px', 
-    textAlign: 'center',
-    padding: '4px'
-  }}>
-    -
-  </div>
-);
+export const TimetableCellRenderer: React.FC<ITimetableCellProps> = (props) => {
+  const { staffData, dayNumber, isWeekMode } = props;
+
+  // Если это режим недель, показываем сводку по неделе
+  if (isWeekMode) {
+    return <WeekSummaryCell staffData={staffData} />;
+  }
+
+  // Если это режим дней, показываем конкретный день
+  if (dayNumber && staffData.days[dayNumber]) {
+    return <DaySummaryCell dayData={staffData.days[dayNumber]} />;
+  }
+
+  // Пустая ячейка
+  return <EmptyCell />;
+};
 
 /**
  * Компонент заголовка столбца для дня недели
