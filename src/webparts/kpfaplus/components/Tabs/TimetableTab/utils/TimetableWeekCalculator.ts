@@ -147,16 +147,25 @@ export class TimetableWeekCalculator {
     // Находим первый день месяца
     const monthStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
     
+    // FIXED: Избегаем потенциально бесконечного цикла
     // Если начало недели после начала месяца, двигаемся назад на неделю
-    while (selectedDay > monthStart) {
+    let iterationCount = 0;
+    const maxIterations = 10; // Защита от бесконечного цикла
+    
+    while (selectedDay.getTime() > monthStart.getTime() && iterationCount < maxIterations) {
       selectedDay.setDate(selectedDay.getDate() - 7);
+      iterationCount++;
+    }
+    
+    if (iterationCount >= maxIterations) {
+      console.warn('[TimetableWeekCalculator] Maximum iterations reached in calculateFirstWeekStart');
     }
     
     // Убеждаемся, что мы находимся в правильной неделе относительно месяца
     const testDate = new Date(selectedDay);
     testDate.setDate(testDate.getDate() + 6); // Конец недели
     
-    if (testDate < monthStart) {
+    if (testDate.getTime() < monthStart.getTime()) {
       selectedDay.setDate(selectedDay.getDate() + 7);
     }
 
@@ -338,11 +347,20 @@ export class TimetableWeekCalculator {
     let workingDays = 0;
     const currentDate = new Date(weekStart);
     
-    while (currentDate <= weekEnd) {
+    // FIXED: Используем сравнение времени и добавляем защиту от бесконечного цикла
+    let iterationCount = 0;
+    const maxIterations = 8; // Максимум 8 дней (с запасом для недели)
+    
+    while (currentDate.getTime() <= weekEnd.getTime() && iterationCount < maxIterations) {
       if (!this.isWeekend(currentDate)) {
         workingDays++;
       }
       currentDate.setDate(currentDate.getDate() + 1);
+      iterationCount++;
+    }
+    
+    if (iterationCount >= maxIterations) {
+      console.warn('[TimetableWeekCalculator] Maximum iterations reached in getWorkingDaysInWeek');
     }
     
     return workingDays;
@@ -355,9 +373,18 @@ export class TimetableWeekCalculator {
     const dates: Date[] = [];
     const currentDate = new Date(weekStart);
     
-    while (currentDate <= weekEnd) {
+    // FIXED: Используем сравнение времени и добавляем защиту от бесконечного цикла
+    let iterationCount = 0;
+    const maxIterations = 8; // Максимум 8 дней (с запасом для недели)
+    
+    while (currentDate.getTime() <= weekEnd.getTime() && iterationCount < maxIterations) {
       dates.push(new Date(currentDate));
       currentDate.setDate(currentDate.getDate() + 1);
+      iterationCount++;
+    }
+    
+    if (iterationCount >= maxIterations) {
+      console.warn('[TimetableWeekCalculator] Maximum iterations reached in getDatesInWeek');
     }
     
     return dates;
