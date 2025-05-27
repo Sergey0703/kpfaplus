@@ -4,7 +4,8 @@ import {
   IWeekGroupProps,
   IWeekGroupHeaderProps,
   IWeekGroupContentProps,
-  IExpandControlsProps
+  IExpandControlsProps,
+  IShiftInfo // FIXED: Added missing import for shift type
 } from '../interfaces/TimetableInterfaces';
 import { TimetableWeekCalculator } from '../utils/TimetableWeekCalculator';
 import { 
@@ -17,43 +18,8 @@ import {
 } from '@fluentui/react';
 
 /**
- * Компонент группы недели с заголовком и содержимым
- */
-export const TimetableWeekGroup: React.FC<IWeekGroupProps> = (props) => {
-  const { weekGroup, dayOfStartWeek, onToggleExpand } = props;
-
-  const handleToggle = (): void => {
-    onToggleExpand(weekGroup.weekInfo.weekNum);
-  };
-
-  return (
-    <div style={{ 
-      marginBottom: '20px',
-      border: '1px solid #e1e5e9',
-      borderRadius: '4px',
-      backgroundColor: '#ffffff'
-    }}>
-      <TimetableWeekGroupHeader
-        weekInfo={weekGroup.weekInfo}
-        isExpanded={weekGroup.isExpanded}
-        hasData={weekGroup.hasData}
-        staffCount={weekGroup.staffRows.length}
-        onToggle={handleToggle}
-      />
-      
-      {weekGroup.isExpanded && (
-        <TimetableWeekGroupContent
-          staffRows={weekGroup.staffRows}
-          weekInfo={weekGroup.weekInfo}
-          dayOfStartWeek={dayOfStartWeek}
-        />
-      )}
-    </div>
-  );
-};
-
-/**
  * Компонент заголовка группы недели
+ * FIXED: Moved definition before usage
  */
 export const TimetableWeekGroupHeader: React.FC<IWeekGroupHeaderProps> = (props) => {
   const { weekInfo, isExpanded, hasData, staffCount, onToggle } = props;
@@ -147,6 +113,7 @@ export const TimetableWeekGroupHeader: React.FC<IWeekGroupHeaderProps> = (props)
 
 /**
  * Компонент содержимого группы недели
+ * FIXED: Moved definition before usage
  */
 export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (props) => {
   const { staffRows, weekInfo, dayOfStartWeek } = props;
@@ -266,7 +233,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
               padding: '4px',
               lineHeight: '1.3'
             }}>
-              {dayData.shifts.map((shift: any, index: number) => (
+              {dayData.shifts.map((shift: IShiftInfo, index: number) => ( // FIXED: Added explicit type annotation
                 <div key={index} style={{ 
                   color: '#323130',
                   marginBottom: index < dayData.shifts.length - 1 ? '2px' : '0'
@@ -430,6 +397,43 @@ export const TimetableExpandControls: React.FC<IExpandControlsProps> = (props) =
           }
         }}
       />
+    </div>
+  );
+};
+
+/**
+ * Компонент группы недели с заголовком и содержимым
+ * FIXED: Moved to end to use components defined above
+ */
+export const TimetableWeekGroup: React.FC<IWeekGroupProps> = (props) => {
+  const { weekGroup, dayOfStartWeek, onToggleExpand } = props;
+
+  const handleToggle = (): void => {
+    onToggleExpand(weekGroup.weekInfo.weekNum);
+  };
+
+  return (
+    <div style={{ 
+      marginBottom: '20px',
+      border: '1px solid #e1e5e9',
+      borderRadius: '4px',
+      backgroundColor: '#ffffff'
+    }}>
+      <TimetableWeekGroupHeader
+        weekInfo={weekGroup.weekInfo}
+        isExpanded={weekGroup.isExpanded}
+        hasData={weekGroup.hasData}
+        staffCount={weekGroup.staffRows.length}
+        onToggle={handleToggle}
+      />
+      
+      {weekGroup.isExpanded && (
+        <TimetableWeekGroupContent
+          staffRows={weekGroup.staffRows}
+          weekInfo={weekGroup.weekInfo}
+          dayOfStartWeek={dayOfStartWeek}
+        />
+      )}
     </div>
   );
 };

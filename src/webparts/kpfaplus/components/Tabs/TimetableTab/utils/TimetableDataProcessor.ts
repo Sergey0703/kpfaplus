@@ -6,7 +6,8 @@ import {
   IDayInfo, 
   IWeekInfo,
   IWeekGroup,
-  ITimetableStaffRow
+  ITimetableStaffRow,
+  IStaffMember // FIXED: Added proper import
 } from '../interfaces/TimetableInterfaces';
 import { TimetableShiftCalculator } from './TimetableShiftCalculator';
 import { TimetableWeekCalculator } from './TimetableWeekCalculator';
@@ -143,7 +144,7 @@ export class TimetableDataProcessor {
    */
   private static getStaffRecords(
     allRecords: IStaffRecord[], 
-    staffMember: any
+    staffMember: IStaffMember // FIXED: заменили 'any' на 'IStaffMember'
   ): IStaffRecord[] {
     const staffEmployeeId = staffMember.employeeId || '';
     
@@ -256,17 +257,17 @@ export class TimetableDataProcessor {
   /**
    * Проверяет, есть ли у сотрудника данные Person (реальный vs шаблон)  
    */
-  private static hasPersonInfo(staffMember: any): boolean {
+  private static hasPersonInfo(staffMember: IStaffMember): boolean { // FIXED: заменили 'any' на 'IStaffMember'
     // Проверяем наличие employeeId как признак реального сотрудника
-    const hasEmployeeId = staffMember.employeeId && 
+    const hasEmployeeId = !!(staffMember.employeeId && 
                          staffMember.employeeId !== '0' && 
-                         staffMember.employeeId.trim() !== '';
+                         staffMember.employeeId.trim() !== ''); // FIXED: Convert to boolean
     
     // Проверяем, что сотрудник не помечен как удаленный
-    const isNotDeleted = staffMember.deleted !== 1;
+    const isNotDeleted = (staffMember.deleted || 0) !== 1; // FIXED: Handle undefined case
     
     // Проверяем, что это не явно указанный шаблон
-    const isNotTemplate = !staffMember.isTemplate;
+    const isNotTemplate = !(staffMember.isTemplate || false); // FIXED: Handle undefined case
     
     const result = hasEmployeeId && isNotDeleted && isNotTemplate;
     
