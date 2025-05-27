@@ -113,6 +113,8 @@ const { typeOfLeaveID, typeOfLeave } = this.extractTypeOfLeave(fields.TypeOfLeav
         Holiday: this.ensureNumber(fields.Holiday, 0),
         TypeOfLeaveID: typeOfLeaveID,
         TypeOfLeave: typeOfLeave,
+
+        StaffMemberLookupId: this.ensureString(fields.StaffMemberLookupId),
         WeeklyTimeTableID: weeklyTimeTableID,
         WeeklyTimeTable: weeklyTimeTable,
         WeeklyTimeTableTitle: weeklyTimeTableTitle
