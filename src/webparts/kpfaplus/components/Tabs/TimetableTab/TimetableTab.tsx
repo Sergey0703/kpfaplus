@@ -11,7 +11,11 @@ import {
 import { ITabProps } from '../../../models/types';
 import { useDataContext } from '../../../context';
 import { StaffRecordsService } from '../../../services/StaffRecordsService';
-import { IWeekInfo, IWeekCalculationParams } from './interfaces/TimetableInterfaces';
+import { 
+  IWeekInfo, 
+  IWeekCalculationParams,
+  IDayInfo
+} from './interfaces/TimetableInterfaces';
 import { TimetableWeekCalculator } from './utils/TimetableWeekCalculator';
 import { useTimetableTabState } from './utils/useTimetableTabState';
 import { useTimetableStaffRecordsData } from './utils/useTimetableStaffRecordsData';
@@ -235,7 +239,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
       // Подсчитываем общее количество записей
       state.weeksData.forEach(weekGroup => {
         weekGroup.staffRows.forEach(staffRow => {
-          Object.values(staffRow.weekData.days).forEach((day: any) => {
+          Object.values(staffRow.weekData.days).forEach((day: IDayInfo) => {
             recordsCount += day.shifts ? day.shifts.length : 0;
           });
         });
