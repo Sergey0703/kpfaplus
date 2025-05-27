@@ -14,6 +14,7 @@ import { IStaffMemberUpdateData } from '../models/types';
 import { ConfirmDialog } from './ConfirmDialog/ConfirmDialog';
 import { StaffSelector } from './StaffSelector/StaffSelector';
 import { RemoteConnectionTest } from './RemoteConnectionTest/RemoteConnectionTest';
+import { ResizableLayout } from './ResizableLayout/ResizableLayout';
 
 // Импортируем компоненты вкладок
 import { MainTab } from './Tabs/MainTab/MainTab';
@@ -590,139 +591,153 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
 
  return (
    <div style={{ width: '100%', height: '100%', margin: 0, padding: 0, position: 'relative' }}>
-     <div style={{ display: 'flex', width: '100%', height: '100%', overflow: 'hidden' }}>
-       {/* Левая панель */}
-       <div style={{ 
-         width: '200px', 
-         minWidth: '200px',
-         height: '100%',
-         backgroundColor: '#f0f6ff',
-         borderRight: '1px solid #ddd',
-         padding: '10px'
-       }}>
-         <div style={{ marginBottom: '10px' }}>
-           <label>Select Group</label>
-           <select 
-             value={selectedDepartmentId}
-             onChange={handleDepartmentChange}
-             style={{ 
-               display: 'block', 
-               width: '100%',
-               padding: '5px',
-               marginTop: '5px',
-               border: '1px solid #ccc',
-               borderRadius: '3px'
-             }}
-           >
-             {departments.map((dept: IDepartment) => (
-               <option key={dept.ID} value={dept.ID.toString()}>
-                 {dept.Title}
-               </option>
-             ))}
-           </select>
-         </div>
-         
-         {/* Используем компонент StaffGallery без пропсов */}
-         <StaffGallery />
-       </div>
-       
-       {/* Правая панель */}
-       <div style={{ 
-         flex: 1, 
-         height: '100%', 
-         overflowY: 'auto',
-         backgroundColor: '#ffffff',
-         padding: '10px'
-       }}>
-         {/* Информация о текущем пользователе и система логирования */}
-         <div style={{ 
-           backgroundColor: '#f6f6f6', 
-           padding: '8px', 
-           marginBottom: '10px',
-           borderRadius: '4px',
-           fontSize: '12px'
-         }}>
-           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-             <div>
-               {currentUser && `Current user: ${currentUser.Title} (ID: ${currentUser.ID})`}
-               {departments.length > 0 && ` | Managing groups: ${departments.length}`}
+     <ResizableLayout
+       minLeftWidth={180}
+       maxLeftWidth={500}
+       defaultLeftWidth={250}
+       collapsedWidth={36} // Ширина в свернутом состоянии (8 пикселей)
+       showCollapseButton={true}
+       leftPanel={
+  <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    {/* Select Group - убираем padding, так как теперь это внутри ResizableLayout */}
+    <div style={{ padding: '10px', flexShrink: 0 }}>
+      <label style={{ 
+        fontSize: '12px', 
+        fontWeight: '600', 
+        color: '#323130',
+        marginBottom: '5px',
+        display: 'block'
+      }}>
+        Select Group
+      </label>
+      <select 
+        value={selectedDepartmentId}
+        onChange={handleDepartmentChange}
+        style={{ 
+          display: 'block', 
+          width: '100%',
+          padding: '6px 8px',
+          marginTop: '5px',
+          border: '1px solid #c8c6c4',
+          borderRadius: '2px',
+          fontSize: '13px',
+          backgroundColor: '#ffffff'
+        }}
+      >
+        {departments.map((dept: IDepartment) => (
+          <option key={dept.ID} value={dept.ID.toString()}>
+            {dept.Title}
+          </option>
+        ))}
+      </select>
+    </div>
+    
+    {/* Staff Gallery - теперь занимает оставшееся место */}
+    <div style={{ 
+      flex: 1, 
+      overflow: 'auto',
+      padding: '0 10px 10px 10px'
+    }}>
+      <StaffGallery />
+    </div>
+  </div>
+}
+       rightPanel={
+         <div style={{ padding: '10px', height: '100%', display: 'flex', flexDirection: 'column' }}>
+           {/* Информация о текущем пользователе и система логирования */}
+           <div style={{ 
+             backgroundColor: '#f6f6f6', 
+             padding: '8px', 
+             marginBottom: '10px',
+             borderRadius: '4px',
+             fontSize: '12px',
+             flexShrink: 0
+           }}>
+             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+               <div>
+                 {currentUser && `Current user: ${currentUser.Title} (ID: ${currentUser.ID})`}
+                 {departments.length > 0 && ` | Managing groups: ${departments.length}`}
+               </div>
+               <div style={{ display: 'flex', alignItems: 'center' }}>
+                 <RefreshButton 
+                   title="Refresh data" 
+                 />
+                 <Toggle
+                   label="Show loading log"
+                   checked={showLoadingDetails}
+                   onChange={handleToggleLoadingDetails}
+                   styles={{
+                     root: { margin: 0, marginLeft: '10px' },
+                     label: { fontSize: '12px' }
+                   }}
+                 />
+               </div>
              </div>
-             <div style={{ display: 'flex', alignItems: 'center' }}>
-               <RefreshButton 
-                 title="Refresh data" 
-               />
-               <Toggle
-                 label="Show loading log"
-                 checked={showLoadingDetails}
-                 onChange={handleToggleLoadingDetails}
-                 styles={{
-                   root: { margin: 0, marginLeft: '10px' },
-                   label: { fontSize: '12px' }
-                 }}
-               />
-             </div>
+             
+             {/* Показываем журнал загрузки, если включен */}
+             {showLoadingDetails && (
+               <div style={{ marginTop: '10px', maxHeight: '200px', overflowY: 'auto' }}>
+                 <h4 style={{ margin: '0 0 5px 0', fontSize: '14px' }}>Loading Log:</h4>
+                 <ul style={{ margin: 0, padding: '0 0 0 20px', fontSize: '11px' }}>
+                   {loadingState.loadingSteps.map((step: ILoadingStep, index: number) => (
+                     <li key={index} style={{ marginBottom: '2px' }}>
+                       <span style={{ 
+                         display: 'inline-block', 
+                         width: '16px',
+                         marginRight: '5px',
+                         textAlign: 'center'
+                       }}>
+                         {step.status === 'pending' && '⏱️'}
+                         {step.status === 'loading' && '🔄'}
+                         {step.status === 'success' && '✅'}
+                         {step.status === 'error' && '❌'}
+                       </span>
+                       <span style={{ fontWeight: 'bold' }}>{step.description}</span>
+                       {step.details && <span style={{ marginLeft: '5px', color: '#666' }}>- {step.details}</span>}
+                       <span style={{ color: '#888', marginLeft: '5px', fontSize: '10px' }}>
+                         ({step.timestamp.toLocaleTimeString()})
+                       </span>
+                     </li>
+                   ))}
+                 </ul>
+               </div>
+             )}
            </div>
-           
-           {/* Показываем журнал загрузки, если включен */}
-           {showLoadingDetails && (
-             <div style={{ marginTop: '10px', maxHeight: '200px', overflowY: 'auto' }}>
-               <h4 style={{ margin: '0 0 5px 0', fontSize: '14px' }}>Loading Log:</h4>
-               <ul style={{ margin: 0, padding: '0 0 0 20px', fontSize: '11px' }}>
-                 {loadingState.loadingSteps.map((step: ILoadingStep, index: number) => (
-                   <li key={index} style={{ marginBottom: '2px' }}>
-                     <span style={{ 
-                       display: 'inline-block', 
-                       width: '16px',
-                       marginRight: '5px',
-                       textAlign: 'center'
-                     }}>
-                       {step.status === 'pending' && '⏱️'}
-                       {step.status === 'loading' && '🔄'}
-                       {step.status === 'success' && '✅'}
-                       {step.status === 'error' && '❌'}
-                     </span>
-                     <span style={{ fontWeight: 'bold' }}>{step.description}</span>
-                     {step.details && <span style={{ marginLeft: '5px', color: '#666' }}>- {step.details}</span>}
-                     <span style={{ color: '#888', marginLeft: '5px', fontSize: '10px' }}>
-                       ({step.timestamp.toLocaleTimeString()})
-                     </span>
-                   </li>
-                 ))}
-               </ul>
+
+           {/* Сообщение о статусе операции */}
+           {statusMessage && (
+             <div style={{ marginBottom: '15px', flexShrink: 0 }}>
+               <MessageBar messageBarType={statusMessage.type}>
+                 {statusMessage.text}
+               </MessageBar>
              </div>
            )}
-         </div>
 
-         {/* Сообщение о статусе операции */}
-         {statusMessage && (
-           <div style={{ marginBottom: '15px' }}>
-             <MessageBar messageBarType={statusMessage.type}>
-               {statusMessage.text}
-             </MessageBar>
+           {/* Панель с вкладками */}
+           <div style={{ flexShrink: 0, marginBottom: '15px' }}>
+             <Pivot 
+               selectedKey={selectedTabKey} 
+               onLinkClick={handleTabChange}
+             >
+               <PivotItem itemKey="main" headerText="Main" />
+               <PivotItem itemKey="contracts" headerText="Contracts" />
+               <PivotItem itemKey="leaves" headerText="Leaves" />
+               <PivotItem itemKey="schedule" headerText="Schedule" />
+               <PivotItem itemKey="timetable" headerText="Timetable" />
+               <PivotItem itemKey="srs" headerText="SRS" />
+               <PivotItem itemKey="notes" headerText="Notes" />
+               <PivotItem itemKey="leaveTimeByYears" headerText="Leave Time by Years" />
+               <PivotItem itemKey="remoteConnection" headerText="Remote Connection" />
+             </Pivot>
            </div>
-         )}
-
-         {/* Панель с вкладками */}
-         <Pivot 
-           selectedKey={selectedTabKey} 
-           onLinkClick={handleTabChange}
-           style={{ marginBottom: '15px' }}
-         >
-           <PivotItem itemKey="main" headerText="Main" />
-           <PivotItem itemKey="contracts" headerText="Contracts" />
-            <PivotItem itemKey="leaves" headerText="Leaves" />
-           <PivotItem itemKey="schedule" headerText="Schedule" />
-           <PivotItem itemKey="timetable" headerText="Timetable" />
-           <PivotItem itemKey="srs" headerText="SRS" />
-           <PivotItem itemKey="notes" headerText="Notes" />
-           <PivotItem itemKey="leaveTimeByYears" headerText="Leave Time by Years" />
-           <PivotItem itemKey="remoteConnection" headerText="Remote Connection" />
-         </Pivot>
-         
-         {/* Содержимое активной вкладки */}
-         {renderTabContent()}
-       </div>
-     </div>
+           
+           {/* Содержимое активной вкладки - занимает оставшееся пространство */}
+           <div style={{ flex: 1, overflow: 'auto' }}>
+             {renderTabContent()}
+           </div>
+         </div>
+       }
+     />
 
      {/* Диалог подтверждения */}
      <ConfirmDialog
@@ -736,8 +751,8 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
        confirmButtonColor={confirmDialogProps.confirmButtonColor}
      />
 
-    {/* Селектор сотрудника */}
-    <StaffSelector 
+     {/* Селектор сотрудника */}
+     <StaffSelector 
        isOpen={isStaffSelectorOpen}
        onDismiss={handleStaffSelectorDismiss}
        departmentId={selectedDepartmentId}
