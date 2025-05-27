@@ -423,7 +423,7 @@ export class TimetableDataProcessor {
     staffRecords: IStaffRecord[], 
     week: IWeekInfo
   ): IWeeklyStaffData {
-    console.log(`[TimetableDataProcessor] Processing week ${week.weekNum} with ${staffRecords.length} pre-filtered records`);
+    //console.log(`[TimetableDataProcessor] Processing week ${week.weekNum} with ${staffRecords.length} pre-filtered records`);
 
     const weeklyData: IWeeklyStaffData = {
       weekNum: week.weekNum,
@@ -440,7 +440,7 @@ export class TimetableDataProcessor {
       return TimetableWeekCalculator.isDateInWeek(recordDate, week.weekStart, week.weekEnd);
     });
 
-    console.log(`[TimetableDataProcessor] After week date filtering: ${weekRecords.length} records for week ${week.weekNum}`);
+    //console.log(`[TimetableDataProcessor] After week date filtering: ${weekRecords.length} records for week ${week.weekNum}`);
 
     // Обрабатываем каждый день недели (1-7)
     for (let dayNum = 1; dayNum <= 7; dayNum++) {

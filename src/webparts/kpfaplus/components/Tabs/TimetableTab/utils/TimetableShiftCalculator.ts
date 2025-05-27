@@ -127,7 +127,7 @@ export class TimetableShiftCalculator {
   public static processStaffRecordsToShifts(
     records: IStaffRecord[]
   ): IShiftInfo[] {
-    console.log('[TimetableShiftCalculator] Processing records to shifts:', records.length);
+    //console.log('[TimetableShiftCalculator] Processing records to shifts:', records.length);
 
     if (records.length === 0) {
       return [];
@@ -376,7 +376,7 @@ export class TimetableShiftCalculator {
     weekStart: Date,
     weekEnd: Date
   ): IShiftInfo[] {
-    console.log(`[TimetableShiftCalculator] Getting shifts for day ${dayNumber} in week ${weekStart.toLocaleDateString()} - ${weekEnd.toLocaleDateString()}`);
+   // console.log(`[TimetableShiftCalculator] Getting shifts for day ${dayNumber} in week ${weekStart.toLocaleDateString()} - ${weekEnd.toLocaleDateString()}`);
     
     // Фильтруем записи для конкретного дня недели в указанной неделе
     const dayRecords = records.filter(record => {
@@ -399,7 +399,7 @@ export class TimetableShiftCalculator {
       return isCorrectDay && isInWeek;
     });
 
-    console.log(`[TimetableShiftCalculator] Found ${dayRecords.length} records for day ${dayNumber}`);
+    //console.log(`[TimetableShiftCalculator] Found ${dayRecords.length} records for day ${dayNumber}`);
 
     return this.processStaffRecordsToShifts(dayRecords);
   }

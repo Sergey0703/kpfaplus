@@ -478,7 +478,7 @@ export const useTimetableStaffRecordsData = (
     });
 
     // *** ФИНАЛЬНАЯ ДИАГНОСТИКА: ОПРЕДЕЛЯЕМ КОРЕНЬ ПРОБЛЕМЫ ***
-    if (Object.keys(recordsByWeek).length === 1 && recordsByWeek[1]) {
+  /*  if (Object.keys(recordsByWeek).length === 1 && recordsByWeek[1]) {
       console.error('[useTimetableStaffRecordsData] 🚨🚨🚨 ROOT CAUSE IDENTIFIED 🚨🚨🚨');
       console.error('[useTimetableStaffRecordsData] PROBLEM: All filtered records are in Week 1 only');
       console.error('[useTimetableStaffRecordsData] Likely causes ranked by probability:');
@@ -492,28 +492,28 @@ export const useTimetableStaffRecordsData = (
       console.error('[useTimetableStaffRecordsData] 2. Verify actual data exists in SharePoint for other weeks');
       console.error('[useTimetableStaffRecordsData] 3. Check timezone handling in date formatting');
       console.error('[useTimetableStaffRecordsData] 4. Clear server/SharePoint cache');
-    }
+    } */
 
     // Проверяем распределение по сотрудникам
-    const staffWithRecords = Object.keys(recordsByWeekAndStaff).length;
-    const staffWithoutRecords = activeStaffMembers.filter(staff => 
-      !recordsByWeekAndStaff[staff.employeeId?.toString() || '']
-    );
+  //  const staffWithRecords = Object.keys(recordsByWeekAndStaff).length;
+  //  const staffWithoutRecords = activeStaffMembers.filter(staff => 
+  //    !recordsByWeekAndStaff[staff.employeeId?.toString() || '']
+  //  );
 
-    console.log('[useTimetableStaffRecordsData] Staff coverage analysis:', {
+   /* console.log('[useTimetableStaffRecordsData] Staff coverage analysis:', {
       totalActiveStaff: activeStaffMembers.length,
       staffWithRecords: staffWithRecords,
       staffWithoutRecords: staffWithoutRecords.length,
       coveragePercentage: Math.round((staffWithRecords / activeStaffMembers.length) * 100) + '%',
       staffWithoutRecordsNames: staffWithoutRecords.slice(0, 3).map(s => s.name)
-    });
+    }); */
 
     // Сохраняем отфильтрованные записи
-    console.log('[useTimetableStaffRecordsData] *** SETTING FILTERED STAFF RECORDS IN STATE ***');
+   // console.log('[useTimetableStaffRecordsData] *** SETTING FILTERED STAFF RECORDS IN STATE ***');
     setStaffRecords(filteredRecords);
 
     // Обрабатываем данные в структуру групп недель
-    console.log('[useTimetableStaffRecordsData] *** CALLING TimetableDataProcessor.processDataByWeeks ***');
+    //console.log('[useTimetableStaffRecordsData] *** CALLING TimetableDataProcessor.processDataByWeeks ***');
     const weeksData = TimetableDataProcessor.processDataByWeeks({
       staffRecords: filteredRecords,
       staffMembers: activeStaffMembers,

@@ -27,7 +27,7 @@ interface UseTimetableTabStateReturn {
  * Custom hook для управления состоянием Timetable tab
  */
 export const useTimetableTabState = (): UseTimetableTabStateReturn => {
-  console.log('[useTimetableTabState] Initializing state hook');
+  //console.log('[useTimetableTabState] Initializing state hook');
   
   // Инициализируем состояние
   const [state, setState] = useState<ITimetableTabState>({
@@ -116,37 +116,37 @@ export const useTimetableTabState = (): UseTimetableTabStateReturn => {
 
   // Специализированные сеттеры для удобства
   const setWeeksData = useCallback((weeksData: IWeekGroup[]): void => {
-    console.log(`[useTimetableTabState] Setting ${weeksData.length} week groups`);
+    //console.log(`[useTimetableTabState] Setting ${weeksData.length} week groups`);
     setState(prevState => ({ ...prevState, weeksData }));
   }, []);
 
   const setWeeks = useCallback((weeks: IWeekInfo[]): void => {
-    console.log(`[useTimetableTabState] Setting ${weeks.length} weeks info`);
+    //console.log(`[useTimetableTabState] Setting ${weeks.length} weeks info`);
     setState(prevState => ({ ...prevState, weeks }));
   }, []);
 
   const setStaffRecords = useCallback((records: IStaffRecord[]): void => {
-    console.log(`[useTimetableTabState] Setting ${records.length} staff records`);
+    //console.log(`[useTimetableTabState] Setting ${records.length} staff records`);
     setState(prevState => ({ ...prevState, staffRecords: records }));
   }, []);
 
   const setIsLoadingStaffRecords = useCallback((isLoading: boolean): void => {
-    console.log(`[useTimetableTabState] Setting loading state: ${isLoading}`);
+    //console.log(`[useTimetableTabState] Setting loading state: ${isLoading}`);
     setState(prevState => ({ ...prevState, isLoadingStaffRecords: isLoading }));
   }, []);
 
   const setErrorStaffRecords = useCallback((error?: string): void => {
-    console.log(`[useTimetableTabState] Setting error: ${error || 'none'}`);
+    //console.log(`[useTimetableTabState] Setting error: ${error || 'none'}`);
     setState(prevState => ({ ...prevState, errorStaffRecords: error }));
-  }, []);
+  }, []); 
 
-  console.log('[useTimetableTabState] Current state:', {
+  /*console.log('[useTimetableTabState] Current state:', {
     hasWeeks: state.weeks.length > 0,
     hasWeeksData: state.weeksData.length > 0,
     expandedWeeksCount: state.expandedWeeks.size,
     staffRecordsCount: state.staffRecords.length,
     isLoading: state.isLoadingStaffRecords
-  });
+  }); */
 
   return {
     state,

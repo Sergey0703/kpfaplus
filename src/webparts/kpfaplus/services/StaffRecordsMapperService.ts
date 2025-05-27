@@ -308,7 +308,7 @@ const { typeOfLeaveID, typeOfLeave } = this.extractTypeOfLeave(fields.TypeOfLeav
      * @param message Сообщение для логирования
      */
     private logInfo(message: string): void {
-      console.log(`[${this._logSource}] ${message}`);
+  //    console.log(`[${this._logSource}] ${message}`);
     }
   
     /**

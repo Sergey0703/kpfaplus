@@ -73,42 +73,42 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
   // Получаем данные из контекста
   const { staffMembers } = useDataContext();
 
-  console.log('[TimetableTab] Rendering with props:', {
+ /* console.log('[TimetableTab] Rendering with props:', {
     managingGroupId,
     currentUserId,
     dayOfStartWeek,
     staffMembersCount: staffMembers.length
-  });
+  }); */
 
   // *** ОТЛАДОЧНОЕ ЛОГИРОВАНИЕ ПАРАМЕТРОВ ФИЛЬТРАЦИИ ***
-  console.log('[TimetableTab] Filter parameters for server-side filtering:', {
+ /* console.log('[TimetableTab] Filter parameters for server-side filtering:', {
     currentUserId,
     managingGroupId,
     dayOfStartWeek,
     staffMembersCount: staffMembers.length,
     hasContext: !!context,
     note: 'These parameters will be used for individual staff requests'
-  });
+  }); */
 
   // Проверяем employeeId у сотрудников для отладки
   if (staffMembers.length > 0) {
-    console.log('[TimetableTab] Staff members analysis for server requests:');
+    //console.log('[TimetableTab] Staff members analysis for server requests:');
     
-    const staffWithEmployeeId = staffMembers.filter(s => s.employeeId && s.employeeId !== '0');
-    const activeStaff = staffMembers.filter(s => s.deleted !== 1);
-    const activeStaffWithEmployeeId = staffMembers.filter(s => s.deleted !== 1 && s.employeeId && s.employeeId !== '0');
+  //  const staffWithEmployeeId = staffMembers.filter(s => s.employeeId && s.employeeId !== '0');
+  //  const activeStaff = staffMembers.filter(s => s.deleted !== 1);
+ //   const activeStaffWithEmployeeId = staffMembers.filter(s => s.deleted !== 1 && s.employeeId && s.employeeId !== '0');
     
-    console.log('[TimetableTab] Staff statistics:', {
+   /* console.log('[TimetableTab] Staff statistics:', {
       total: staffMembers.length,
       withEmployeeId: staffWithEmployeeId.length,
       active: activeStaff.length,
       activeWithEmployeeId: activeStaffWithEmployeeId.length,
       willMakeRequests: activeStaffWithEmployeeId.length
-    });
+    }); */
 
     // Показываем примеры сотрудников для которых будут делаться запросы
-    console.log('[TimetableTab] Sample staff members for server requests:');
-    activeStaffWithEmployeeId.slice(0, 5).forEach((staff, index) => {
+  //  console.log('[TimetableTab] Sample staff members for server requests:');
+  /*  activeStaffWithEmployeeId.slice(0, 5).forEach((staff, index) => {
       console.log(`[TimetableTab] Request ${index + 1} - ${staff.name}:`, {
         employeeId: staff.employeeId,
         employeeIdType: typeof staff.employeeId,
@@ -116,15 +116,15 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
         deleted: staff.deleted,
         willRequest: true
       });
-    });
+    }); */
 
     // Показываем сотрудников которые будут пропущены
-    const skippedStaff = staffMembers.filter(s => 
-      s.deleted === 1 || !s.employeeId || s.employeeId === '0'
-    );
+  //  const skippedStaff = staffMembers.filter(s => 
+  //    s.deleted === 1 || !s.employeeId || s.employeeId === '0'
+  //  );
     
-    if (skippedStaff.length > 0) {
-      console.log('[TimetableTab] Staff members that will be SKIPPED:');
+   /* if (skippedStaff.length > 0) {
+    //  console.log('[TimetableTab] Staff members that will be SKIPPED:');
       skippedStaff.slice(0, 3).forEach((staff, index) => {
         console.log(`[TimetableTab] Skipped ${index + 1} - ${staff.name}:`, {
           employeeId: staff.employeeId,
@@ -132,7 +132,8 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
           reason: staff.deleted === 1 ? 'deleted' : 'no employeeId'
         });
       });
-    }
+    } */
+
   }
 
   // Инициализируем хуки состояния
