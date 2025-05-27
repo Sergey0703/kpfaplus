@@ -132,12 +132,23 @@ export interface IWeekCalculationParams {
 }
 
 /**
+ * Интерфейс для сотрудника (заменяет 'any')
+ */
+export interface IStaffMember {
+  id: string;
+  name: string;
+  employeeId?: string;
+  deleted?: number;
+  isTemplate?: boolean;
+}
+
+/**
  * Интерфейс для параметров обработки данных
  * Параметры currentUserId и managingGroupId оставлены для совместимости и логирования
  */
 export interface ITimetableDataParams {
   staffRecords: IStaffRecord[];
-  staffMembers: any[]; // Из контекста
+  staffMembers: IStaffMember[]; // FIXED: заменили 'any[]' на 'IStaffMember[]'
   weeks: IWeekInfo[];
   
   // Параметры для логирования и совместимости (данные уже отфильтрованы на сервере)

@@ -6,7 +6,10 @@ import { StaffRecordsService, IStaffRecord } from '../../../../services/StaffRec
 import { IStaffRecordsResult, IStaffRecordsQueryParams } from '../../../../services/StaffRecordsInterfaces';
 import { 
   IWeekInfo, 
-  IWeekGroup 
+  IWeekGroup,
+  IStaffMember, // FIXED: Added proper import
+  ITimetableStaffRow, // FIXED: Added missing import
+  IDayInfo // FIXED: Added missing import
 } from '../interfaces/TimetableInterfaces';
 import { TimetableDataProcessor } from './TimetableDataProcessor';
 
@@ -17,7 +20,7 @@ interface UseTimetableStaffRecordsDataProps {
   managingGroupId?: string;
   staffRecordsService?: StaffRecordsService;
   weeks: IWeekInfo[];
-  staffMembers: any[]; // Из контекста
+  staffMembers: IStaffMember[]; // FIXED: заменили 'any[]' на 'IStaffMember[]'
   setWeeksData: (weeksData: IWeekGroup[]) => void;
   setStaffRecords: (records: IStaffRecord[]) => void;
   setIsLoadingStaffRecords: (isLoading: boolean) => void;
@@ -172,7 +175,7 @@ export const useTimetableStaffRecordsData = (
             endDate: endDate,
             currentUserID: currentUserId,           // *** ФИЛЬТР ПО МЕНЕДЖЕРУ ***
             staffGroupID: managingGroupId,          // *** ФИЛЬТР ПО ГРУППЕ ***
-            employeeID: staffMember.employeeId,     // *** ФИЛЬТР ПО КОНКРЕТНОМУ СОТРУДНИКУ ***
+            employeeID: staffMember.employeeId || '', // FIXED: Handle undefined case
             timeTableID: undefined,                 // Не фильтруем по контракту
             skip: 0,
             top: 5000 // Достаточно для одного сотрудника
@@ -306,8 +309,8 @@ export const useTimetableStaffRecordsData = (
       
       // Логируем статистику по неделям
       weeksData.forEach((weekGroup: IWeekGroup) => {
-        const staffWithData = weekGroup.staffRows.filter((row: any) => 
-          Object.values(row.weekData.days).some((day: any) => day.hasData)
+        const staffWithData = weekGroup.staffRows.filter((row: ITimetableStaffRow) => // FIXED: Заменили 'any' на 'ITimetableStaffRow'
+          Object.values(row.weekData.days).some((day: IDayInfo) => day.hasData) // FIXED: Заменили 'any' на 'IDayInfo'
         ).length;
         
         console.log(`[useTimetableStaffRecordsData] Week ${weekGroup.weekInfo.weekNum}: ${staffWithData}/${weekGroup.staffRows.length} staff have data`);
