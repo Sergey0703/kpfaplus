@@ -215,6 +215,86 @@ export class StaffRecordsService {
   }
 
   /**
+   * --- НОВЫЙ МЕТОД ДЛЯ TIMETABLE ---
+   * Получение ВСЕХ записей расписания персонала за период БЕЗ ПАГИНАЦИИ.
+   * Специально создан для TimetableTab где нужны все данные месяца сразу.
+   * 
+   * @param queryParams Параметры запроса (без skip/top)
+   * @param sortOptions Опции сортировки (опционально)
+   * @returns Promise с результатами запроса (ВСЕ записи и общее количество)
+   */
+  public async getAllStaffRecordsForTimetable(
+    queryParams: Omit<IStaffRecordsQueryParams, 'skip' | 'top' | 'nextLink'>,
+    sortOptions?: ISortOptions
+  ): Promise<IStaffRecordsResult> {
+    try {
+      // Логируем начало выполнения метода
+      this.logInfo(`[DEBUG] getAllStaffRecordsForTimetable ВЫЗВАН С ПАРАМЕТРАМИ:
+        startDate: ${queryParams.startDate.toISOString()},
+        endDate: ${queryParams.endDate.toISOString()},
+        currentUserID: ${queryParams.currentUserID},
+        staffGroupID: ${queryParams.staffGroupID},
+        employeeID: ${queryParams.employeeID},
+        timeTableID: ${queryParams.timeTableID || 'не указан'},
+        sortOptions: ${sortOptions ? JSON.stringify(sortOptions) : 'не указаны'},
+        NOTE: ЗАГРУЖАЕМ ВСЕ ДАННЫЕ БЕЗ ПАГИНАЦИИ`
+      );
+
+      // Получаем ВСЕ сырые данные из API через новый сервис получения данных
+      const fetchResult = await this._fetchService.fetchAllStaffRecordsForTimetable(queryParams);
+
+      // Проверяем наличие ошибки в fetchResult
+      if (!fetchResult || fetchResult.items === undefined || fetchResult.totalCount === undefined) {
+        const errorMsg = "Получены некорректные данные от fetchService.fetchAllStaffRecordsForTimetable";
+        this.logError(`[ОШИБКА] ${errorMsg}`);
+        return { records: [], totalCount: 0, error: errorMsg };
+      }
+
+      this.logInfo(`[DEBUG] Получены ВСЕ данные: ${fetchResult.items.length} записей, общее количество: ${fetchResult.totalCount}`);
+
+      // Преобразуем СЫРЫЕ данные (ВСЕ записи) в формат IStaffRecord
+      const mappedRecords = this._mapperService.mapToStaffRecords(fetchResult.items);
+
+      // Рассчитываем рабочее время для каждой записи (для ВСЕХ записей сразу)
+      const recordsWithWorkTime = mappedRecords.map(record =>
+        this._calculationService.calculateWorkTime(record)
+      );
+
+      // Сортируем записи согласно опциям или по умолчанию (сортируем ВСЕ записи)
+      const defaultSortOptions: ISortOptions = sortOptions || {
+        type: StaffRecordsSortType.ByDate,
+        ascending: true
+      };
+
+      const sortedRecords = this._calculationService.sortStaffRecords(
+        recordsWithWorkTime,
+        defaultSortOptions
+      );
+
+      this.logInfo(`[DEBUG] Получено и обработано ${sortedRecords.length} записей расписания (ВСЕ данные за период).`);
+      this.logInfo(`[DEBUG] Общее количество записей (согласно серверу): ${fetchResult.totalCount}`);
+
+      // Формируем и возвращаем результат IStaffRecordsResult
+      return {
+        records: sortedRecords, // ВСЕ обработанные записи
+        totalCount: fetchResult.totalCount, // Общее количество записей с сервера
+        error: undefined
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logError(`[ОШИБКА] Не удалось получить все записи расписания: ${errorMessage}`);
+      console.error('[StaffRecordsService] [DEBUG] Подробности ошибки:', error);
+
+      // В случае ошибки возвращаем объект с ошибкой и пустым результатом
+      return {
+        records: [],
+        totalCount: 0,
+        error: errorMessage
+      };
+    }
+  }
+
+  /**
  * Обновляет запись расписания
  *
  * @param recordId ID записи для обновления

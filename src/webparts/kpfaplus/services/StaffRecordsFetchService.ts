@@ -183,6 +183,133 @@ export class StaffRecordsFetchService {
   }
 
   /**
+   * --- НОВЫЙ МЕТОД ДЛЯ TIMETABLE ---
+   * Получает ВСЕ записи расписания персонала за период БЕЗ ПАГИНАЦИИ.
+   * Использует getAllFilteredItemsFromList вместо getPaginatedItemsFromList.
+   *
+   * @param queryParams Параметры запроса (без skip/top - не нужны)
+   * @returns Promise с объектом содержащим ВСЕ записи и общее количество
+   */
+  public async fetchAllStaffRecordsForTimetable(
+    queryParams: Omit<IStaffRecordsQueryParams, 'skip' | 'top' | 'nextLink'>
+  ): Promise<{ items: any[], totalCount: number }> {
+    try {
+      const {
+        startDate,
+        endDate,
+        currentUserID,
+        staffGroupID,
+        employeeID,
+        timeTableID
+      } = queryParams;
+
+      // Расширенное логирование параметров запроса
+      this.logInfo(
+        `[DEBUG] fetchAllStaffRecordsForTimetable ВЫЗВАН С ПАРАМЕТРАМИ:` +
+        `\n  startDate: ${startDate.toISOString()}` +
+        `\n  endDate: ${endDate.toISOString()}` +
+        `\n  currentUserID: ${currentUserID} (тип: ${typeof currentUserID})` +
+        `\n  staffGroupID: ${staffGroupID} (тип: ${typeof staffGroupID})` +
+        `\n  employeeID: ${employeeID} (тип: ${typeof employeeID})` +
+        `\n  timeTableID: ${timeTableID || "не указан"} (тип: ${typeof timeTableID})` +
+        `\n  NOTE: БЕЗ ПАГИНАЦИИ - загружаем ВСЕ данные за период`
+      );
+
+      // Проверяем наличие RemoteSiteService
+      if (!this._remoteSiteService) {
+        this.logError("[ОШИБКА] RemoteSiteService не инициализирован");
+        return { items: [], totalCount: 0 };
+      }
+
+      // Проверка имени списка
+      if (!this._listName) {
+        const errorMsg = "Имя списка не определено";
+        this.logError(`[ОШИБКА] ${errorMsg}`);
+        throw new Error(errorMsg);
+      }
+
+      // Форматирование дат для фильтрации
+      const startDateStr = this.formatDateForFilter(startDate);
+      const endDateStr = this.formatDateForFilter(endDate);
+      this.logInfo(
+        `[DEBUG] Форматированные даты для запроса: ${startDateStr} - ${endDateStr}`
+      );
+
+      // Проверка валидности дат после форматирования
+      if (startDateStr === '' || endDateStr === '') {
+        const errorMsg = "Некорректные даты начала/окончания периода";
+        this.logError(`[ОШИБКА] ${errorMsg}`);
+        throw new Error(errorMsg);
+      }
+
+      // Строим фильтр для запроса к SharePoint
+      const filter = this.buildFilterExpression(
+        startDateStr,
+        endDateStr,
+        employeeID,
+        staffGroupID,
+        currentUserID,
+        timeTableID
+      );
+      this.logInfo(`[DEBUG] ИТОГОВЫЙ ФИЛЬТР: ${filter}`);
+
+      // Определяем параметры сортировки по умолчанию (по дате)
+      const orderBy = { field: "fields/Date", ascending: true };
+
+      // --- ИСПОЛЬЗУЕМ НОВЫЙ МЕТОД RemoteSiteService.getAllFilteredItemsFromList ---
+      this.logInfo(`[DEBUG] НАЧИНАЕМ запрос к списку ${this._listName} БЕЗ пагинации через RemoteSiteService...`);
+
+      let fetchResult: { items: any[], totalCount: number };
+      try {
+        // Вызываем новый метод RemoteSiteService.getAllFilteredItemsFromList
+        fetchResult = await this._remoteSiteService.getAllFilteredItemsFromList(
+          this._listName,
+          filter,
+          orderBy
+        );
+
+        this.logInfo(
+          `[DEBUG] ПОЛУЧЕН ответ от RemoteSiteService.getAllFilteredItemsFromList: ${fetchResult.items.length} элементов, ОБЩЕЕ количество: ${fetchResult.totalCount}`
+        );
+      } catch (requestError) {
+        this.logError(
+          `[ОШИБКА] Ошибка при запросе ко всем элементам списка через RemoteSiteService: ${JSON.stringify(requestError)}`
+        );
+        throw requestError;
+      }
+
+      // Логирование результата запроса
+      this.logInfo(
+        `Получено ${fetchResult.items.length} элементов расписания из SharePoint (ВСЕ данные за период)`
+      );
+      if (fetchResult.items.length > 0) {
+        // Логируем первый элемент сырых данных
+        this.logDetailedDataInfo(fetchResult.items[0]);
+      } else {
+        this.logInfo(
+          `[DEBUG] Нет элементов в ответе от сервера для фильтра: ${filter}`
+        );
+      }
+
+      // Возвращаем объект с ВСЕ записями и общим количеством
+      return {
+        items: fetchResult.items,
+        totalCount: fetchResult.totalCount
+      };
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logError(
+        `[КРИТИЧЕСКАЯ ОШИБКА] Не удалось получить все записи расписания: ${errorMessage}`
+      );
+      console.error(`[${this._logSource}] [DEBUG] Подробности ошибки:`, error);
+
+      // В случае ошибки, пробрасываем ее дальше
+      throw new Error(`Failed to fetch all staff records: ${errorMessage}`);
+    }
+  }
+
+  /**
    * Получает одну запись расписания по ID
    * Использует публичный метод RemoteSiteService.getListItem
    *

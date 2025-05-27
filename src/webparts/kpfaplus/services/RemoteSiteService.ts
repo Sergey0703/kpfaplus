@@ -251,6 +251,40 @@ export class RemoteSiteService {
   return this._itemService.getPaginatedListItems(graphClient, listTitle, options);
 }
 
+  /**
+   * --- НОВЫЙ МЕТОД ДЛЯ TIMETABLE: ЗАГРУЗКА ВСЕХ ОТФИЛЬТРОВАННЫХ ДАННЫХ ---
+   * Получает ВСЕ элементы списка с применением фильтра без пагинации.
+   * Специально создан для Timetable где нужны все данные месяца сразу.
+   *
+   * @param listTitle Название списка
+   * @param filter OData фильтр (обязательный)
+   * @param orderBy Сортировка (опционально)
+   * @returns Promise с объектом, содержащим ВСЕ отфильтрованные элементы
+   */
+  public async getAllFilteredItemsFromList(
+    listTitle: string,
+    filter: string,
+    orderBy?: { field: string, ascending: boolean }
+  ): Promise<{ items: IRemoteListItemResponse[], totalCount: number }> {
+    console.log(`[DEBUG] RemoteSiteService.getAllFilteredItemsFromList called for: ${listTitle}`);
+    console.log(`[DEBUG] Filter: ${filter}`);
+    console.log(`[DEBUG] OrderBy:`, orderBy);
+    
+    await this.ensureServices();
+    if (!this._itemService) { 
+      throw new Error("Item service not initialized after ensureServices"); 
+    }
+
+    const graphClient = await this.getGraphClient();
+    console.log(`[DEBUG] Calling itemService.getAllFilteredItemsForTimetable...`);
+
+    return this._itemService.getAllFilteredItemsForTimetable(
+      graphClient, 
+      listTitle, 
+      filter, 
+      orderBy
+    );
+  }
 
   /**
    * Обновляет элемент списка через Graph API
