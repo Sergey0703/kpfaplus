@@ -9,22 +9,35 @@ import { IStaffRecord } from '../../../../services/StaffRecordsService';
 /**
  * Калькулятор смен и рабочего времени
  * Реплицирует логику из Power Apps формул FormatDayShifts, CalculateDayMinutes и др.
+ * ОБНОВЛЕНО: Поддержка цветов отпусков
  */
 export class TimetableShiftCalculator {
 
   /**
    * Рассчитывает рабочие минуты для одной смены
    * ИСПРАВЛЕНО: Новый формат смены без пробела и в формате (HH:MM)
+   * ОБНОВЛЕНО: Поддержка информации о типе отпуска
    */
   public static calculateShiftMinutes(params: IShiftCalculationParams): IShiftCalculationResult {
-    const { startTime, endTime, lunchStart, lunchEnd, timeForLunch } = params;
+    const { 
+      startTime, 
+      endTime, 
+      lunchStart, 
+      lunchEnd, 
+      timeForLunch, 
+      typeOfLeaveId, 
+      typeOfLeaveTitle, 
+      typeOfLeaveColor 
+    } = params;
 
     console.log('[TimetableShiftCalculator] Calculating shift:', {
       startTime: startTime.toISOString(),
       endTime: endTime.toISOString(),
       lunchStart: lunchStart?.toISOString(),
       lunchEnd: lunchEnd?.toISOString(),
-      timeForLunch
+      timeForLunch,
+      typeOfLeaveId,
+      typeOfLeaveColor
     });
 
     // Проверяем на нулевые времена (00:00)
@@ -41,7 +54,10 @@ export class TimetableShiftCalculator {
       return {
         workMinutes: 0,
         formattedTime: "0h 00m",
-        formattedShift: "00:00 - 00:00(0:00)"
+        formattedShift: "00:00 - 00:00(0:00)",
+        typeOfLeaveId,
+        typeOfLeaveTitle,
+        typeOfLeaveColor
       };
     }
 
@@ -113,13 +129,17 @@ export class TimetableShiftCalculator {
       lunchMinutes,
       workMinutes,
       formattedTime,
-      formattedShift
+      formattedShift,
+      typeOfLeaveColor
     });
 
     return {
       workMinutes,
       formattedTime,
-      formattedShift
+      formattedShift,
+      typeOfLeaveId,
+      typeOfLeaveTitle,
+      typeOfLeaveColor
     };
   }
 
@@ -145,12 +165,12 @@ export class TimetableShiftCalculator {
   /**
    * Обрабатывает записи StaffRecord в IShiftInfo
    * Реплицирует логику сортировки и обработки смен из Power Apps
+   * ОБНОВЛЕНО: Поддержка информации о типах отпусков
    */
   public static processStaffRecordsToShifts(
-    records: IStaffRecord[]
+    records: IStaffRecord[],
+    getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined
   ): IShiftInfo[] {
-    //console.log('[TimetableShiftCalculator] Processing records to shifts:', records.length);
-
     if (records.length === 0) {
       return [];
     }
@@ -213,12 +233,38 @@ export class TimetableShiftCalculator {
         console.warn(`[TimetableShiftCalculator] Invalid ShiftDate4 in record ${record.ID}`);
       }
 
+      // ДОБАВЛЕНО: Обработка типа отпуска
+      let typeOfLeaveId: string | undefined = undefined;
+      let typeOfLeaveTitle: string | undefined = undefined;
+      let typeOfLeaveColor: string | undefined = undefined;
+
+      if (record.TypeOfLeaveID) {
+        typeOfLeaveId = record.TypeOfLeaveID;
+        
+        // Получаем цвет типа отпуска если доступна функция
+        if (getLeaveTypeColor) {
+          typeOfLeaveColor = getLeaveTypeColor(typeOfLeaveId);
+        }
+        
+        // Получаем название типа отпуска если доступно
+        if (record.TypeOfLeave) {
+          typeOfLeaveTitle = record.TypeOfLeave.Title;
+        }
+
+        if (typeOfLeaveColor) {
+          console.log(`[TimetableShiftCalculator] Applied leave type ${typeOfLeaveId} with color ${typeOfLeaveColor} to shift ${record.ID}`);
+        }
+      }
+
       const calculation = this.calculateShiftMinutes({
         startTime,
         endTime,
         lunchStart: lunchStart && !isNaN(lunchStart.getTime()) ? lunchStart : undefined,
         lunchEnd: lunchEnd && !isNaN(lunchEnd.getTime()) ? lunchEnd : undefined,
-        timeForLunch
+        timeForLunch,
+        typeOfLeaveId,
+        typeOfLeaveTitle,
+        typeOfLeaveColor
       });
 
       return {
@@ -229,7 +275,10 @@ export class TimetableShiftCalculator {
         lunchEnd,
         timeForLunch,
         workMinutes: calculation.workMinutes,
-        formattedShift: calculation.formattedShift
+        formattedShift: calculation.formattedShift,
+        typeOfLeaveId: calculation.typeOfLeaveId,
+        typeOfLeaveTitle: calculation.typeOfLeaveTitle,
+        typeOfLeaveColor: calculation.typeOfLeaveColor
       };
     });
 
@@ -239,7 +288,7 @@ export class TimetableShiftCalculator {
     if (shifts.length > 0) {
       console.log('[TimetableShiftCalculator] Sample shifts:');
       shifts.slice(0, 3).forEach((shift, index) => {
-        console.log(`  Shift ${index + 1}: ${shift.formattedShift} (${shift.workMinutes} min)`);
+        console.log(`  Shift ${index + 1}: ${shift.formattedShift} (${shift.workMinutes} min)${shift.typeOfLeaveColor ? ` - Leave color: ${shift.typeOfLeaveColor}` : ''}`);
       });
     }
 
@@ -386,21 +435,20 @@ export class TimetableShiftCalculator {
       return false;
     }
 
-    // Можем добавить другие проверки валидности
     return true;
   }
 
   /**
    * Получает все смены для конкретного дня недели из записей
+   * ОБНОВЛЕНО: Поддержка функции получения цвета типа отпуска
    */
   public static getShiftsForDay(
     records: IStaffRecord[],
     dayNumber: number,
     weekStart: Date,
-    weekEnd: Date
+    weekEnd: Date,
+    getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined
   ): IShiftInfo[] {
-   // console.log(`[TimetableShiftCalculator] Getting shifts for day ${dayNumber} in week ${weekStart.toLocaleDateString()} - ${weekEnd.toLocaleDateString()}`);
-    
     // Фильтруем записи для конкретного дня недели в указанной неделе
     const dayRecords = records.filter(record => {
       const recordDate = new Date(record.Date);
@@ -422,9 +470,7 @@ export class TimetableShiftCalculator {
       return isCorrectDay && isInWeek;
     });
 
-    //console.log(`[TimetableShiftCalculator] Found ${dayRecords.length} records for day ${dayNumber}`);
-
-    return this.processStaffRecordsToShifts(dayRecords);
+    return this.processStaffRecordsToShifts(dayRecords, getLeaveTypeColor);
   }
 
   /**
@@ -486,6 +532,7 @@ export class TimetableShiftCalculator {
 
   /**
    * Получает статистику по сменам
+   * ОБНОВЛЕНО: Добавлена статистика по типам отпусков
    */
   public static getShiftsStatistics(shifts: IShiftInfo[]): {
     totalShifts: number;
@@ -494,6 +541,8 @@ export class TimetableShiftCalculator {
     shortestShiftMinutes: number;
     longestShiftMinutes: number;
     formattedStatistics: string;
+    shiftsWithLeave: number;
+    leaveTypes: string[];
   } {
     if (shifts.length === 0) {
       return {
@@ -502,7 +551,9 @@ export class TimetableShiftCalculator {
         averageShiftMinutes: 0,
         shortestShiftMinutes: 0,
         longestShiftMinutes: 0,
-        formattedStatistics: "No shifts"
+        formattedStatistics: "No shifts",
+        shiftsWithLeave: 0,
+        leaveTypes: []
       };
     }
 
@@ -512,12 +563,24 @@ export class TimetableShiftCalculator {
     const shortestShiftMinutes = Math.min(...workMinutes);
     const longestShiftMinutes = Math.max(...workMinutes);
 
+    // ДОБАВЛЕНО: Статистика по типам отпусков
+    const shiftsWithLeave = shifts.filter(s => s.typeOfLeaveId).length;
+    const leaveTypesSet = new Set<string>();
+    shifts.forEach(s => {
+      if (s.typeOfLeaveTitle) {
+        leaveTypesSet.add(s.typeOfLeaveTitle);
+      }
+    });
+    const leaveTypes: string[] = [];
+    leaveTypesSet.forEach(type => leaveTypes.push(type));
+
     const formattedStatistics = [
       `${shifts.length} shifts`,
       `Total: ${this.formatMinutesToHours(totalWorkMinutes)}`,
       `Avg: ${this.formatMinutesToHours(averageShiftMinutes)}`,
-      `Range: ${this.formatMinutesToHours(shortestShiftMinutes)} - ${this.formatMinutesToHours(longestShiftMinutes)}`
-    ].join(', ');
+      `Range: ${this.formatMinutesToHours(shortestShiftMinutes)} - ${this.formatMinutesToHours(longestShiftMinutes)}`,
+      shiftsWithLeave > 0 ? `Leave: ${shiftsWithLeave}` : ''
+    ].filter(s => s).join(', ');
 
     return {
       totalShifts: shifts.length,
@@ -525,7 +588,9 @@ export class TimetableShiftCalculator {
       averageShiftMinutes,
       shortestShiftMinutes,
       longestShiftMinutes,
-      formattedStatistics
+      formattedStatistics,
+      shiftsWithLeave,
+      leaveTypes
     };
   }
 
@@ -588,5 +653,300 @@ export class TimetableShiftCalculator {
     const displayHours = hours % 12 || 12;
 
     return `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+  }
+
+  /**
+   * НОВЫЙ МЕТОД: Получает все уникальные типы отпусков из смен
+   */
+  public static getUniqueLeaveTypes(shifts: IShiftInfo[]): Array<{
+    id: string;
+    title: string;
+    color: string;
+    count: number;
+  }> {
+    const leaveTypesMap = new Map<string, {
+      id: string;
+      title: string;
+      color: string;
+      count: number;
+    }>();
+
+    shifts.forEach(shift => {
+      if (shift.typeOfLeaveId && shift.typeOfLeaveColor) {
+        const existing = leaveTypesMap.get(shift.typeOfLeaveId);
+        if (existing) {
+          existing.count++;
+        } else {
+          leaveTypesMap.set(shift.typeOfLeaveId, {
+            id: shift.typeOfLeaveId,
+            title: shift.typeOfLeaveTitle || shift.typeOfLeaveId,
+            color: shift.typeOfLeaveColor,
+            count: 1
+          });
+        }
+      }
+    });
+
+    return Array.from(leaveTypesMap.values()).sort((a, b) => b.count - a.count);
+  }
+
+  /**
+   * НОВЫЙ МЕТОД: Проверяет, есть ли в сменах отпуска
+   */
+  public static hasLeaveTypes(shifts: IShiftInfo[]): boolean {
+    return shifts.some(shift => shift.typeOfLeaveId);
+  }
+
+  /**
+   * НОВЫЙ МЕТОД: Получает доминирующий цвет отпуска для дня (если есть несколько смен с разными типами отпусков)
+   */
+  public static getDominantLeaveColor(shifts: IShiftInfo[]): string | undefined {
+    if (shifts.length === 0) {
+      return undefined;
+    }
+
+    // Считаем количество смен каждого типа отпуска
+    const leaveColorCounts = new Map<string, number>();
+    
+    shifts.forEach(shift => {
+      if (shift.typeOfLeaveColor) {
+        const existing = leaveColorCounts.get(shift.typeOfLeaveColor);
+        leaveColorCounts.set(shift.typeOfLeaveColor, (existing || 0) + 1);
+      }
+    });
+
+    if (leaveColorCounts.size === 0) {
+      return undefined;
+    }
+
+    // Возвращаем цвет с наибольшим количеством смен
+    let dominantColor: string | undefined = undefined;
+    let maxCount = 0;
+
+    leaveColorCounts.forEach((count, color) => {
+      if (count > maxCount) {
+        maxCount = count;
+        dominantColor = color;
+      }
+    });
+
+    return dominantColor;
+  }
+
+  /**
+   * НОВЫЙ МЕТОД: Форматирует информацию о типах отпусков в дне
+   */
+  public static formatLeaveInfo(shifts: IShiftInfo[]): string {
+    const leaveTypes = this.getUniqueLeaveTypes(shifts);
+    
+    if (leaveTypes.length === 0) {
+      return '';
+    }
+
+    if (leaveTypes.length === 1) {
+      return leaveTypes[0].title;
+    }
+
+    return leaveTypes.map(lt => `${lt.title} (${lt.count})`).join(', ');
+  }
+
+  /**
+   * НОВЫЙ МЕТОД: Получает цвет для первого типа отпуска в списке смен
+   */
+  public static getFirstLeaveColor(shifts: IShiftInfo[]): string | undefined {
+    const shiftWithLeave = shifts.find(shift => shift.typeOfLeaveColor);
+    return shiftWithLeave?.typeOfLeaveColor;
+  }
+
+  /**
+   * НОВЫЙ МЕТОД: Проверяет, содержит ли день определенный тип отпуска
+   */
+  public static hasSpecificLeaveType(shifts: IShiftInfo[], leaveTypeId: string): boolean {
+    return shifts.some(shift => shift.typeOfLeaveId === leaveTypeId);
+  }
+
+  /**
+   * НОВЫЙ МЕТОД: Получает все цвета отпусков в дне
+   */
+  public static getAllLeaveColors(shifts: IShiftInfo[]): string[] {
+    const colorsSet = new Set<string>();
+    shifts.forEach(shift => {
+      if (shift.typeOfLeaveColor) {
+        colorsSet.add(shift.typeOfLeaveColor);
+      }
+    });
+    
+    // Возвращаем уникальные цвета (исправлено для совместимости с ES5)
+    const colors: string[] = [];
+    colorsSet.forEach(color => colors.push(color));
+    return colors;
+  }
+
+  /**
+   * НОВЫЙ МЕТОД: Создает градиент из нескольких цветов отпусков (для случая когда в дне несколько типов отпусков)
+   */
+  public static createLeaveColorsGradient(shifts: IShiftInfo[]): string | undefined {
+    const colors = this.getAllLeaveColors(shifts);
+    
+    if (colors.length === 0) {
+      return undefined;
+    }
+    
+    if (colors.length === 1) {
+      return colors[0];
+    }
+    
+    // Создаем CSS градиент для нескольких цветов
+    const gradientStops = colors.map((color, index) => {
+      const percentage = (index / (colors.length - 1)) * 100;
+      return `${color} ${percentage}%`;
+    }).join(', ');
+    
+    return `linear-gradient(45deg, ${gradientStops})`;
+  }
+
+  /**
+   * НОВЫЙ МЕТОД: Получает статистику по типам отпусков для группы смен
+   */
+  public static getLeaveTypesStatistics(shifts: IShiftInfo[]): {
+    totalShiftsWithLeave: number;
+    uniqueLeaveTypes: number;
+    leaveTypeBreakdown: Array<{
+      id: string;
+      title: string;
+      color: string;
+      count: number;
+      percentage: number;
+    }>;
+    mostCommonLeaveType?: {
+      id: string;
+      title: string;
+      color: string;
+      count: number;
+    };
+  } {
+    const leaveTypes = this.getUniqueLeaveTypes(shifts);
+    const totalShiftsWithLeave = shifts.filter(s => s.typeOfLeaveId).length;
+    
+    const leaveTypeBreakdown = leaveTypes.map(lt => ({
+      ...lt,
+      percentage: totalShiftsWithLeave > 0 ? Math.round((lt.count / totalShiftsWithLeave) * 100) : 0
+    }));
+    
+    const mostCommonLeaveType = leaveTypes.length > 0 ? leaveTypes[0] : undefined;
+    
+    return {
+      totalShiftsWithLeave,
+      uniqueLeaveTypes: leaveTypes.length,
+      leaveTypeBreakdown,
+      mostCommonLeaveType
+    };
+  }
+
+  /**
+   * НОВЫЙ МЕТОД: Применяет цветовую схему к списку смен (для отладки и визуализации)
+   */
+  public static applyColorSchemeToShifts(shifts: IShiftInfo[]): Array<IShiftInfo & { 
+    colorScheme: {
+      backgroundColor: string;
+      textColor: string;
+      borderColor: string;
+    } 
+  }> {
+    return shifts.map(shift => {
+      let backgroundColor = '#ffffff';
+      let textColor = '#000000';
+      let borderColor = '#cccccc';
+      
+      if (shift.typeOfLeaveColor) {
+        backgroundColor = shift.typeOfLeaveColor;
+        
+        // Определяем цвет текста на основе яркости фона
+        const rgb = this.hexToRgb(shift.typeOfLeaveColor);
+        if (rgb) {
+          const brightness = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
+          textColor = brightness > 128 ? '#000000' : '#ffffff';
+        }
+        
+        borderColor = this.darkenHexColor(shift.typeOfLeaveColor, 0.2);
+      }
+      
+      return {
+        ...shift,
+        colorScheme: {
+          backgroundColor,
+          textColor,
+          borderColor
+        }
+      };
+    });
+  }
+
+  /**
+   * ВСПОМОГАТЕЛЬНЫЙ МЕТОД: Конвертирует HEX цвет в RGB
+   */
+  private static hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : null;
+  }
+
+  /**
+   * ВСПОМОГАТЕЛЬНЫЙ МЕТОД: Затемняет HEX цвет на указанный процент
+   */
+  private static darkenHexColor(hex: string, percent: number): string {
+    const rgb = this.hexToRgb(hex);
+    if (!rgb) return hex;
+    
+    const darken = (color: number) => Math.max(0, Math.floor(color * (1 - percent)));
+    
+    const r = darken(rgb.r).toString(16).padStart(2, '0');
+    const g = darken(rgb.g).toString(16).padStart(2, '0');
+    const b = darken(rgb.b).toString(16).padStart(2, '0');
+    
+    return `#${r}${g}${b}`;
+  }
+
+  /**
+   * НОВЫЙ МЕТОД: Проверяет контрастность цвета для читаемости текста
+   */
+  public static getTextColorForBackground(backgroundColor: string): string {
+    const rgb = this.hexToRgb(backgroundColor);
+    if (!rgb) return '#000000';
+    
+    // Используем формулу относительной яркости
+    const brightness = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
+    return brightness > 128 ? '#000000' : '#ffffff';
+  }
+
+  /**
+   * НОВЫЙ МЕТОД: Создает CSS стили для ячейки с отпуском
+   */
+  public static createLeaveCellStyles(shifts: IShiftInfo[]): {
+    backgroundColor?: string;
+    color?: string;
+    border?: string;
+    borderRadius?: string;
+    textShadow?: string;
+  } {
+    const dominantColor = this.getDominantLeaveColor(shifts);
+    
+    if (!dominantColor) {
+      return {};
+    }
+    
+    const textColor = this.getTextColorForBackground(dominantColor);
+    const borderColor = this.darkenHexColor(dominantColor, 0.2);
+    
+    return {
+      backgroundColor: dominantColor,
+      color: textColor,
+      border: `1px solid ${borderColor}`,
+      borderRadius: '3px',
+      textShadow: textColor === '#ffffff' ? '0 1px 2px rgba(0,0,0,0.3)' : 'none'
+    };
   }
 }

@@ -24,14 +24,16 @@ interface ITimetableStaffRowWithKey extends ITimetableStaffRow {
 /**
  * Компонент содержимого группы недели
  * ИСПРАВЛЕНО: Отключена виртуализация для решения проблемы с рендерингом после Noel Murphy
+ * ОБНОВЛЕНО: Поддержка цветов отпусков
  */
 export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (props) => {
-  const { staffRows, weekInfo, dayOfStartWeek } = props;
+  const { staffRows, weekInfo, dayOfStartWeek, getLeaveTypeColor } = props;
 
   console.log('[TimetableWeekGroupContent] Rendering content for week:', {
     weekNum: weekInfo.weekNum,
     staffRowsCount: staffRows.length,
-    dayOfStartWeek
+    dayOfStartWeek,
+    hasLeaveTypeColorFunction: !!getLeaveTypeColor
   });
 
   // Создаем уникальные ключи для каждой строки
@@ -200,6 +202,14 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
                 </div>
               );
             }
+
+            // ДОБАВЛЕНО: Получаем цвет фона ячейки на основе типа отпуска
+            let backgroundColor: string | undefined = undefined;
+            
+            if (dayData.hasLeave && dayData.leaveTypeColor) {
+              backgroundColor = dayData.leaveTypeColor;
+              console.log(`[TimetableWeekGroupContent] Applying leave color ${backgroundColor} to day ${dayNumber} for staff ${staffRowWithKey.staffName}`);
+            }
             
             return (
               <div 
@@ -207,7 +217,10 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
                 style={{ 
                   fontSize: '11px', // УВЕЛИЧЕНО с 10px до 11px для основного контента
                   padding: '2px',
-                  lineHeight: '1.3' // Немного увеличена высота строки для лучшей читаемости
+                  lineHeight: '1.3', // Немного увеличена высота строки для лучшей читаемости
+                  backgroundColor: backgroundColor, // ДОБАВЛЕНО: Цвет фона для отпусков
+                  borderRadius: backgroundColor ? '2px' : 'none', // Небольшое скругление углов для цветных ячеек
+                  border: backgroundColor ? '1px solid rgba(0,0,0,0.1)' : 'none' // Тонкая рамка для выделения
                 }}
               >
                 {dayData.shifts.map((shift: IShiftInfo, shiftIndex: number) => (
@@ -218,10 +231,25 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
                       // ЕСЛИ ОДНА СМЕНА - ЖИРНЫЙ, ЕСЛИ НЕСКОЛЬКО - ТОНКИЙ
                       fontWeight: dayData.shifts.length === 1 ? 'bold' : 'normal',
                       fontSize: '11px', // УВЕЛИЧЕНО с 10px до 11px для смен
-                      marginBottom: shiftIndex < dayData.shifts.length - 1 ? '1px' : '0'
+                      marginBottom: shiftIndex < dayData.shifts.length - 1 ? '1px' : '0',
+                      // ДОБАВЛЕНО: Если есть цвет отпуска, делаем текст более читаемым
+                      textShadow: backgroundColor ? '0 0 2px rgba(255,255,255,0.8)' : 'none'
                     }}
                   >
                     {shift.formattedShift}
+                    {/* ДОБАВЛЕНО: Показываем индикатор типа отпуска если есть */}
+                    {shift.typeOfLeaveTitle && (
+                      <span style={{
+                        fontSize: '9px',
+                        marginLeft: '4px',
+                        padding: '1px 3px',
+                        backgroundColor: 'rgba(255,255,255,0.7)',
+                        borderRadius: '2px',
+                        color: '#666'
+                      }}>
+                        {shift.typeOfLeaveTitle}
+                      </span>
+                    )}
                   </div>
                 ))}
                 {dayData.shifts.length > 1 && (
@@ -229,7 +257,9 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
                     color: '#323130',        // ЧЕРНЫЙ ЦВЕТ вместо синего
                     fontWeight: 'bold',      // ЖИРНЫЙ ШРИФТ
                     fontSize: '11px',        // УВЕЛИЧЕНО с 9px до 11px для Total
-                    marginTop: '2px'         // Немного увеличен отступ сверху
+                    marginTop: '2px',        // Немного увеличен отступ сверху
+                    // ДОБАВЛЕНО: Если есть цвет отпуска, делаем текст более читаемым
+                    textShadow: backgroundColor ? '0 0 2px rgba(255,255,255,0.8)' : 'none'
                   }}>
                     Total: {dayData.totalMinutes > 0 ? 
                       TimetableWeekCalculator.formatMinutesToHours(dayData.totalMinutes) : 
@@ -251,7 +281,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
 
     console.log(`[TimetableWeekGroupContent] Created ${cols.length} columns for week ${weekInfo.weekNum}`);
     return cols;
-  }, [weekInfo, dayOfStartWeek, forceRenderKey]);
+  }, [weekInfo, dayOfStartWeek, forceRenderKey, getLeaveTypeColor]);
 
   // Проверяем данные
   if (!staffRowsWithKeys || staffRowsWithKeys.length === 0) {
@@ -483,13 +513,15 @@ export const TimetableExpandControls: React.FC<{
 /**
  * Компонент группы недели с заголовком и содержимым
  * ИСПРАВЛЕН ТИП: weekGroup теперь IWeekGroup вместо any
+ * ОБНОВЛЕНО: Поддержка цветов отпусков
  */
 export const TimetableWeekGroup: React.FC<{
   weekGroup: IWeekGroup;
   dayOfStartWeek: number;
   onToggleExpand: (weekNum: number) => void;
+  getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined;
 }> = (props) => {
-  const { weekGroup, dayOfStartWeek, onToggleExpand } = props;
+  const { weekGroup, dayOfStartWeek, onToggleExpand, getLeaveTypeColor } = props;
 
   const handleToggle = (): void => {
     console.log(`[TimetableWeekGroup] Toggling week ${weekGroup.weekInfo.weekNum} - this will trigger DetailsList re-render`);
@@ -516,6 +548,7 @@ export const TimetableWeekGroup: React.FC<{
           staffRows={weekGroup.staffRows}
           weekInfo={weekGroup.weekInfo}
           dayOfStartWeek={dayOfStartWeek}
+          getLeaveTypeColor={getLeaveTypeColor}
         />
       )}
     </div>
