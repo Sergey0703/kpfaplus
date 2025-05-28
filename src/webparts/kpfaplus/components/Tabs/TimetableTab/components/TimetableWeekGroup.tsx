@@ -205,9 +205,9 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
               <div 
                 key={`${staffRowWithKey.uniqueKey}-day${dayNumber}`}
                 style={{ 
-                  fontSize: '10px', 
+                  fontSize: '11px', // УВЕЛИЧЕНО с 10px до 11px для основного контента
                   padding: '2px',
-                  lineHeight: '1.2'
+                  lineHeight: '1.3' // Немного увеличена высота строки для лучшей читаемости
                 }}
               >
                 {dayData.shifts.map((shift: IShiftInfo, shiftIndex: number) => (
@@ -217,6 +217,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
                       color: '#323130',
                       // ЕСЛИ ОДНА СМЕНА - ЖИРНЫЙ, ЕСЛИ НЕСКОЛЬКО - ТОНКИЙ
                       fontWeight: dayData.shifts.length === 1 ? 'bold' : 'normal',
+                      fontSize: '11px', // УВЕЛИЧЕНО с 10px до 11px для смен
                       marginBottom: shiftIndex < dayData.shifts.length - 1 ? '1px' : '0'
                     }}
                   >
@@ -227,8 +228,8 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
                   <div style={{ 
                     color: '#323130',        // ЧЕРНЫЙ ЦВЕТ вместо синего
                     fontWeight: 'bold',      // ЖИРНЫЙ ШРИФТ
-                    fontSize: '9px',
-                    marginTop: '1px'
+                    fontSize: '11px',        // УВЕЛИЧЕНО с 9px до 11px для Total
+                    marginTop: '2px'         // Немного увеличен отступ сверху
                   }}>
                     Total: {dayData.totalMinutes > 0 ? 
                       TimetableWeekCalculator.formatMinutesToHours(dayData.totalMinutes) : 
