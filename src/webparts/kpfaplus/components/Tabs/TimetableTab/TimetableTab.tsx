@@ -278,12 +278,13 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
         
         // Данные сотрудников
         staffRows.forEach((staffRow: any) => {
-          // Строка с именем сотрудника и данными по дням
+          // ИСПРАВЛЕНО: Одна строка с именем сотрудника + часы в одной ячейке
           const nameCell = worksheet.getCell(currentRow, 1);
-          nameCell.value = staffRow.staffName;
+          // Объединяем имя и часы в одной ячейке с переносом строки
+          nameCell.value = `${staffRow.staffName}\n${staffRow.weekData.formattedWeekTotal.trim()}`;
           nameCell.style = {
             font: { bold: true },
-            alignment: { horizontal: 'left', vertical: 'middle' },
+            alignment: { horizontal: 'left', vertical: 'middle', wrapText: true },
             border: {
               top: { style: 'thin' },
               bottom: { style: 'thin' },
@@ -292,7 +293,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
             }
           };
           
-          // Добавляем данные по дням
+          // Добавляем данные по дням в ту же строку
           orderedDays.forEach((dayNum, dayIndex) => {
             const dayData = staffRow.weekData.days[dayNum];
             const cellContent = formatDayCell(dayData);
@@ -312,35 +313,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
               }
             };
           });
-          currentRow++;
-          
-          // Строка с итогами недели
-          const totalCell = worksheet.getCell(currentRow, 1);
-          totalCell.value = staffRow.weekData.formattedWeekTotal.trim();
-          totalCell.style = {
-            font: { italic: true, bold: true },
-            alignment: { horizontal: 'right' },
-            border: {
-              top: { style: 'thin' },
-              bottom: { style: 'thin' },
-              left: { style: 'thin' },
-              right: { style: 'thin' }
-            }
-          };
-          
-          // Пустые ячейки с рамками для строки итогов
-          for (let col = 2; col <= orderedDays.length + 1; col++) {
-            const emptyCell = worksheet.getCell(currentRow, col);
-            emptyCell.style = {
-              border: {
-                top: { style: 'thin' },
-                bottom: { style: 'thin' },
-                left: { style: 'thin' },
-                right: { style: 'thin' }
-              }
-            };
-          }
-          currentRow++;
+          currentRow++; // Переходим к следующему сотруднику
         });
         
         // Пустая строка между неделями (кроме последней)
