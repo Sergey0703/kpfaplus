@@ -1,10 +1,7 @@
 // src/webparts/kpfaplus/components/Tabs/TimetableTab/components/TimetableWeekGroup.tsx
 import * as React from 'react';
 import { 
-  IWeekGroupProps,
-  IWeekGroupHeaderProps,
   IWeekGroupContentProps,
-  IExpandControlsProps,
   IShiftInfo
 } from '../interfaces/TimetableInterfaces';
 import { TimetableWeekCalculator } from '../utils/TimetableWeekCalculator';
@@ -12,72 +9,106 @@ import {
   DetailsList,
   DetailsListLayoutMode,
   SelectionMode,
-  IColumn,
-  IconButton,
-  DefaultButton
+  IColumn
 } from '@fluentui/react';
 
 /**
- * Компонент содержимого группы недели - ИСПРАВЛЕННАЯ ВЕРСИЯ
+ * ДИАГНОСТИЧЕСКАЯ ВЕРСИЯ: Компонент содержимого группы недели
+ * С детальным логированием для поиска проблемы с рендерингом после Noel Murphy
  */
 export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (props) => {
   const { staffRows, weekInfo, dayOfStartWeek } = props;
 
-  console.log('[TimetableWeekGroupContent] Rendering content for week:', {
+  console.log('[TimetableWeekGroupContent] 🔍 DIAGNOSTIC MODE: Rendering content for week:', {
     weekNum: weekInfo.weekNum,
     staffRowsCount: staffRows.length,
     dayOfStartWeek,
-    // ДОБАВЛЯЕМ ДЕТАЛЬНУЮ ДИАГНОСТИКУ
-    staffRowsDetails: staffRows.map((row, index) => ({
-      index,
-      staffId: row.staffId,
-      staffName: row.staffName,
-      isDeleted: row.isDeleted,
-      hasData: Object.values(row.weekData.days).some(day => day.hasData)
-    }))
+    mode: 'DIAGNOSTIC - tracking render calls'
   });
 
-  // Создаем колонки для таблицы с улучшенной обработкой ошибок
+  // Создаем уникальные ключи для каждой строки
+  const staffRowsWithKeys = React.useMemo(() => {
+    return staffRows.map((staffRow, index) => ({
+      ...staffRow,
+      uniqueKey: `week${weekInfo.weekNum}-staff${staffRow.staffId}-index${index}`,
+      originalIndex: index,
+      weekNum: weekInfo.weekNum
+    }));
+  }, [staffRows, weekInfo.weekNum]);
+
+  // Принудительный ре-рендер DetailsList
+  const [forceRenderKey, setForceRenderKey] = React.useState(0);
+  
+  React.useEffect(() => {
+    setForceRenderKey(prev => prev + 1);
+    console.log(`[TimetableWeekGroupContent] 🔄 Force re-render triggered for week ${weekInfo.weekNum}`);
+  }, [weekInfo.weekNum, staffRows.length]);
+
+  // Создаем колонки для таблицы с детальной диагностикой
   const columns = React.useMemo((): IColumn[] => {
-    console.log(`[TimetableWeekGroupContent] Creating columns for week ${weekInfo.weekNum}`);
+    console.log(`[TimetableWeekGroupContent] 🏗️ Creating columns for week ${weekInfo.weekNum}`);
 
     const cols: IColumn[] = [
-      // Колонка с именами сотрудников - УЛУЧШЕННАЯ ВЕРСИЯ
+      // КОЛОНКА ИМЕН СОТРУДНИКОВ С ДИАГНОСТИКОЙ
       {
-        key: 'staffMember',
+        key: `staffMember-week${weekInfo.weekNum}`,
         name: 'Staff Member',
         fieldName: 'staffName',
         minWidth: 180,
         maxWidth: 220,
         isResizable: true,
-        onRender: (staffRow, index): JSX.Element => {
+        onRender: (staffRowWithKey, index): JSX.Element => {
+          // КРИТИЧЕСКАЯ ДИАГНОСТИКА КАЖДОГО РЕНДЕРА
+          console.log(`[TimetableWeekGroupContent] 🎯 RENDERING STAFF COLUMN: Week ${weekInfo.weekNum}, Index ${index}, Name: ${staffRowWithKey?.staffName || 'NULL'}`);
+          
           try {
-            // ДОБАВЛЯЕМ ПРОВЕРКИ НА СУЩЕСТВОВАНИЕ ДАННЫХ
-            if (!staffRow) {
-              console.warn(`[TimetableWeekGroupContent] Week ${weekInfo.weekNum}: staffRow is null at index ${index}`);
-              return <div>Error: Missing staff data</div>;
+            if (!staffRowWithKey) {
+              console.error(`[TimetableWeekGroupContent] ❌ ERROR: staffRow is null at index ${index} in week ${weekInfo.weekNum}`);
+              return <div style={{ color: 'red' }}>Error: Missing staff data</div>;
             }
 
-            console.log(`[TimetableWeekGroupContent] Week ${weekInfo.weekNum}: Rendering staff ${staffRow.staffName} (index: ${index})`);
+            // Специальная диагностика для критических сотрудников
+            const isNoelMurphy = staffRowWithKey.staffName?.toLowerCase().includes('noel murphy');
+            const isAfterNoelMurphy = index !== undefined && index >= 19; // Noel Murphy на индексе 19
+            
+            if (isNoelMurphy) {
+              console.log(`[TimetableWeekGroupContent] 🎯 RENDERING NOEL MURPHY: Week ${weekInfo.weekNum}, Index ${index}`);
+            }
+            
+            if (isAfterNoelMurphy) {
+              console.log(`[TimetableWeekGroupContent] 🚨 RENDERING AFTER NOEL MURPHY: Week ${weekInfo.weekNum}, Index ${index}, Name: ${staffRowWithKey.staffName}`);
+            }
 
-            return (
-              <div style={{ 
-                padding: '8px',
-                color: '#323130'
-              }}>
+            const result = (
+              <div 
+                key={staffRowWithKey.uniqueKey}
+                style={{ 
+                  padding: '8px',
+                  color: staffRowWithKey.isDeleted ? '#a19f9d' : '#323130',
+                  fontStyle: staffRowWithKey.isDeleted ? 'italic' : 'normal'
+                }}
+              >
                 <div style={{ 
                   fontWeight: '500',
                   fontSize: '14px',
                   marginBottom: '2px'
                 }}>
-                  {staffRow.staffName || 'Unknown Staff'}
+                  {staffRowWithKey.staffName || 'Unknown Staff'}
                 </div>
                 <div style={{ 
                   fontSize: '11px', 
                   color: '#666',
                   lineHeight: '1.2'
                 }}>
-                  {!staffRow.hasPersonInfo && (
+                  {staffRowWithKey.isDeleted && (
+                    <span style={{ 
+                      color: '#d83b01',
+                      marginRight: '4px'
+                    }}>
+                      (Deleted)
+                    </span>
+                  )}
+                  {!staffRowWithKey.hasPersonInfo && (
                     <span style={{ 
                       color: '#8a8886',
                       marginRight: '4px'
@@ -85,13 +116,30 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
                       (Template)
                     </span>
                   )}
-                  <div>ID: {staffRow.staffId || 'Unknown'}</div>
+                  <div>ID: {staffRowWithKey.staffId || 'Unknown'}</div>
                 </div>
               </div>
             );
+
+            // Подтверждаем успешный рендер
+            if (isNoelMurphy) {
+              console.log(`[TimetableWeekGroupContent] ✅ NOEL MURPHY RENDERED SUCCESSFULLY`);
+            }
+            if (isAfterNoelMurphy) {  
+              console.log(`[TimetableWeekGroupContent] ✅ STAFF AFTER NOEL MURPHY RENDERED: ${staffRowWithKey.staffName}`);
+            }
+
+            return result;
+            
           } catch (error) {
-            console.error(`[TimetableWeekGroupContent] Error rendering staff at index ${index}:`, error);
-            return <div style={{ color: 'red' }}>Render Error</div>;
+            console.error(`[TimetableWeekGroupContent] 💥 CRITICAL RENDER ERROR at index ${index}:`, error);
+            console.error(`[TimetableWeekGroupContent] Staff data:`, staffRowWithKey);
+            
+            if (index !== undefined && index >= 19) {
+              console.error(`[TimetableWeekGroupContent] 🚨🚨🚨 ERROR AFTER NOEL MURPHY - THIS IS THE PROBLEM!`);
+            }
+            
+            return <div style={{ color: 'red', fontSize: '12px' }}>Render Error: {staffRowWithKey?.staffName || 'Unknown'}</div>;
           }
         }
       }
@@ -100,31 +148,30 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
     try {
       // Получаем упорядоченные дни недели
       const orderedDays = TimetableWeekCalculator.getOrderedDaysOfWeek(dayOfStartWeek);
-      console.log(`[TimetableWeekGroupContent] Week ${weekInfo.weekNum}: Ordered days:`, orderedDays);
 
-      // Добавляем колонки для каждого дня недели - УЛУЧШЕННАЯ ВЕРСИЯ
+      // КОЛОНКИ ДНЕЙ НЕДЕЛИ С ДИАГНОСТИКОЙ
       orderedDays.forEach(dayNumber => {
-        try {
-          const dayName = TimetableWeekCalculator.getDayName(dayNumber);
-          
-          // Рассчитываем дату для этого дня недели
-          const dayDate = new Date(weekInfo.weekStart);
-          const startDayNumber = TimetableWeekCalculator.getDayNumber(weekInfo.weekStart);
-          
-          let offset = dayNumber - startDayNumber;
-          if (offset < 0) {
-            offset += 7;
-          }
-          
-          dayDate.setDate(weekInfo.weekStart.getDate() + offset);
+        const dayName = TimetableWeekCalculator.getDayName(dayNumber);
+        
+        cols.push({
+          key: `day${dayNumber}-week${weekInfo.weekNum}`,
+          name: '',
+          minWidth: 120,
+          maxWidth: 160,
+          isResizable: true,
+          onRenderHeader: (): JSX.Element => {
+            // Рассчитываем дату для этого дня недели
+            const dayDate = new Date(weekInfo.weekStart);
+            const startDayNumber = TimetableWeekCalculator.getDayNumber(weekInfo.weekStart);
+            
+            let offset = dayNumber - startDayNumber;
+            if (offset < 0) {
+              offset += 7;
+            }
+            
+            dayDate.setDate(weekInfo.weekStart.getDate() + offset);
 
-          cols.push({
-            key: `day_${dayNumber}`,
-            name: '', // Пустое имя, будем использовать onRenderHeader
-            minWidth: 120,
-            maxWidth: 160,
-            isResizable: true,
-            onRenderHeader: (): JSX.Element => (
+            return (
               <div style={{ textAlign: 'center' }}>
                 <div style={{ 
                   fontWeight: 'bold', 
@@ -143,90 +190,119 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
                   })}
                 </div>
               </div>
-            ),
-            onRender: (staffRow, index): JSX.Element => {
-              try {
-                // ДОБАВЛЯЕМ ПРОВЕРКИ НА СУЩЕСТВОВАНИЕ ДАННЫХ
-                if (!staffRow || !staffRow.weekData || !staffRow.weekData.days) {
-                  console.warn(`[TimetableWeekGroupContent] Week ${weekInfo.weekNum}, Day ${dayNumber}: Missing data for staff at index ${index}`);
-                  return (
-                    <div style={{ 
-                      color: '#a19f9d', 
-                      textAlign: 'center', 
-                      padding: '4px',
-                      fontSize: '12px'
-                    }}>
-                      -
-                    </div>
-                  );
+            );
+          },
+          onRender: (staffRowWithKey, index): JSX.Element => {
+            // ДИАГНОСТИКА РЕНДЕРА ДЛЯ КАЖДОГО ДНЯ
+            const isAfterNoelMurphy = index !== undefined && index >= 19;
+            
+            if (isAfterNoelMurphy) {
+              console.log(`[TimetableWeekGroupContent] 🔍 RENDERING DAY ${dayName} for staff after Noel Murphy: Index ${index}, Name: ${staffRowWithKey?.staffName}`);
+            }
+            
+            try {
+              if (!staffRowWithKey || !staffRowWithKey.weekData || !staffRowWithKey.weekData.days) {
+                if (isAfterNoelMurphy) {
+                  console.warn(`[TimetableWeekGroupContent] ⚠️ Missing weekData for staff after Noel Murphy at index ${index}`);
                 }
-
-                const dayData = staffRow.weekData.days[dayNumber];
-                
-                if (!dayData || !dayData.hasData) {
-                  return (
-                    <div style={{ 
-                      color: '#a19f9d', 
-                      textAlign: 'center', 
-                      padding: '4px',
-                      fontSize: '12px'
-                    }}>
-                      -
-                    </div>
-                  );
-                }
-                
                 return (
                   <div style={{ 
+                    color: '#a19f9d', 
+                    textAlign: 'center', 
+                    padding: '4px',
+                    fontSize: '12px'
+                  }}>
+                    -
+                  </div>
+                );
+              }
+
+              const dayData = staffRowWithKey.weekData.days[dayNumber];
+              
+              if (!dayData || !dayData.hasData) {
+                return (
+                  <div style={{ 
+                    color: '#a19f9d', 
+                    textAlign: 'center', 
+                    padding: '4px',
+                    fontSize: '12px'
+                  }}>
+                    -
+                  </div>
+                );
+              }
+              
+              const result = (
+                <div 
+                  key={`${staffRowWithKey.uniqueKey}-day${dayNumber}`}
+                  style={{ 
                     fontSize: '11px', 
                     padding: '4px',
                     lineHeight: '1.3'
-                  }}>
-                    {dayData.shifts.map((shift: IShiftInfo, shiftIndex: number) => (
-                      <div key={`${staffRow.staffId}-${dayNumber}-${shiftIndex}`} style={{ 
+                  }}
+                >
+                  {dayData.shifts.map((shift: IShiftInfo, shiftIndex: number) => (
+                    <div 
+                      key={`${staffRowWithKey.uniqueKey}-day${dayNumber}-shift${shiftIndex}`} 
+                      style={{ 
                         color: '#323130',
                         marginBottom: shiftIndex < dayData.shifts.length - 1 ? '2px' : '0'
-                      }}>
-                        {shift.formattedShift}
-                      </div>
-                    ))}
-                    {dayData.shifts.length > 1 && (
-                      <div style={{ 
-                        color: '#0078d4', 
-                        fontWeight: 'bold',
-                        fontSize: '10px',
-                        marginTop: '2px'
-                      }}>
-                        Total: {dayData.totalMinutes > 0 ? 
-                          TimetableWeekCalculator.formatMinutesToHours(dayData.totalMinutes) : 
-                          '0h 00m'
-                        }
-                      </div>
-                    )}
-                  </div>
-                );
-              } catch (error) {
-                console.error(`[TimetableWeekGroupContent] Error rendering day ${dayNumber} for staff at index ${index}:`, error);
-                return <div style={{ color: 'red', fontSize: '10px' }}>Error</div>;
+                      }}
+                    >
+                      {shift.formattedShift}
+                    </div>
+                  ))}
+                  {dayData.shifts.length > 1 && (
+                    <div style={{ 
+                      color: '#0078d4', 
+                      fontWeight: 'bold',
+                      fontSize: '10px',
+                      marginTop: '2px'
+                    }}>
+                      Total: {dayData.totalMinutes > 0 ? 
+                        TimetableWeekCalculator.formatMinutesToHours(dayData.totalMinutes) : 
+                        '0h 00m'
+                      }
+                    </div>
+                  )}
+                </div>
+              );
+
+              if (isAfterNoelMurphy && dayData.hasData) {
+                console.log(`[TimetableWeekGroupContent] ✅ Successfully rendered day ${dayName} for staff after Noel Murphy`);
               }
+
+              return result;
+              
+            } catch (error) {
+              console.error(`[TimetableWeekGroupContent] 💥 CRITICAL DAY RENDER ERROR for ${dayName} at index ${index}:`, error);
+              
+              if (isAfterNoelMurphy) {
+                console.error(`[TimetableWeekGroupContent] 🚨🚨🚨 DAY RENDER ERROR AFTER NOEL MURPHY!`);
+              }
+              
+              return <div style={{ color: 'red', fontSize: '10px' }}>Day Error</div>;
             }
-          });
-        } catch (error) {
-          console.error(`[TimetableWeekGroupContent] Error creating column for day ${dayNumber}:`, error);
-        }
+          }
+        });
       });
 
-      // Добавляем колонку с недельным итогом - УЛУЧШЕННАЯ ВЕРСИЯ
+      // КОЛОНКА НЕДЕЛЬНОГО ИТОГА С ДИАГНОСТИКОЙ
       cols.push({
-        key: 'weekTotal',
+        key: `weekTotal-week${weekInfo.weekNum}`,
         name: 'Week Total',
         minWidth: 80,
         maxWidth: 100,
         isResizable: true,
-        onRender: (staffRow, index): JSX.Element => {
+        onRender: (staffRowWithKey, index): JSX.Element => {
+          const isAfterNoelMurphy = index !== undefined && index >= 19;
+          
+          if (isAfterNoelMurphy) {
+            console.log(`[TimetableWeekGroupContent] 🔍 RENDERING WEEK TOTAL for staff after Noel Murphy: Index ${index}, Name: ${staffRowWithKey?.staffName}`);
+          }
+          
           try {
-            if (!staffRow || !staffRow.weekData) {
-              console.warn(`[TimetableWeekGroupContent] Week ${weekInfo.weekNum}: Missing weekData for staff at index ${index}`);
+            if (!staffRowWithKey || !staffRowWithKey.weekData) {
               return (
                 <div style={{ 
                   color: '#a19f9d', 
@@ -238,7 +314,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
               );
             }
 
-            const weekData = staffRow.weekData;
+            const weekData = staffRowWithKey.weekData;
             
             if (weekData.totalWeekMinutes === 0) {
               return (
@@ -252,12 +328,15 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
               );
             }
             
-            return (
-              <div style={{ 
-                fontSize: '12px',
-                textAlign: 'center',
-                padding: '4px'
-              }}>
+            const result = (
+              <div 
+                key={`${staffRowWithKey.uniqueKey}-total`}
+                style={{ 
+                  fontSize: '12px',
+                  textAlign: 'center',
+                  padding: '4px'
+                }}
+              >
                 <div style={{ 
                   fontWeight: 'bold', 
                   color: '#0078d4'
@@ -266,24 +345,36 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
                 </div>
               </div>
             );
+
+            if (isAfterNoelMurphy) {
+              console.log(`[TimetableWeekGroupContent] ✅ Successfully rendered week total for staff after Noel Murphy`);
+            }
+
+            return result;
+            
           } catch (error) {
-            console.error(`[TimetableWeekGroupContent] Error rendering week total for staff at index ${index}:`, error);
-            return <div style={{ color: 'red', fontSize: '10px' }}>Error</div>;
+            console.error(`[TimetableWeekGroupContent] 💥 CRITICAL WEEK TOTAL RENDER ERROR at index ${index}:`, error);
+            
+            if (isAfterNoelMurphy) {
+              console.error(`[TimetableWeekGroupContent] 🚨🚨🚨 WEEK TOTAL ERROR AFTER NOEL MURPHY!`);
+            }
+            
+            return <div style={{ color: 'red', fontSize: '10px' }}>Total Error</div>;
           }
         }
       });
 
     } catch (error) {
-      console.error(`[TimetableWeekGroupContent] Error creating columns for week ${weekInfo.weekNum}:`, error);
+      console.error(`[TimetableWeekGroupContent] Error creating columns:`, error);
     }
 
-    console.log(`[TimetableWeekGroupContent] Week ${weekInfo.weekNum}: Created ${cols.length} columns`);
+    console.log(`[TimetableWeekGroupContent] 🏗️ Created ${cols.length} columns for week ${weekInfo.weekNum}`);
     return cols;
-  }, [weekInfo, dayOfStartWeek]);
+  }, [weekInfo, dayOfStartWeek, forceRenderKey]);
 
-  // ДОБАВЛЯЕМ ПРОВЕРКУ НА ПУСТЫЕ ДАННЫЕ
-  if (!staffRows || staffRows.length === 0) {
-    console.warn(`[TimetableWeekGroupContent] Week ${weekInfo.weekNum}: No staff rows provided`);
+  // Проверяем данные
+  if (!staffRowsWithKeys || staffRowsWithKeys.length === 0) {
+    console.warn(`[TimetableWeekGroupContent] No staff rows for week ${weekInfo.weekNum}`);
     return (
       <div style={{ 
         padding: '20px', 
@@ -296,47 +387,76 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
     );
   }
 
-  // ДОБАВЛЯЕМ ПРОВЕРКУ НА ВАЛИДНОСТЬ ДАННЫХ
-  const validStaffRows = staffRows.filter((row, index) => {
-    if (!row) {
-      console.warn(`[TimetableWeekGroupContent] Week ${weekInfo.weekNum}: Null staff row at index ${index}`);
-      return false;
+  // ДИАГНОСТИКА ДАННЫХ ПЕРЕД РЕНДЕРОМ
+  console.log(`[TimetableWeekGroupContent] 📊 DIAGNOSTIC DATA ANALYSIS for week ${weekInfo.weekNum}:`);
+  console.log(`[TimetableWeekGroupContent] Total staff rows: ${staffRowsWithKeys.length}`);
+  
+  staffRowsWithKeys.forEach((staff, index) => {
+    if (index >= 18 && index <= 22) { // Область вокруг Noel Murphy
+      console.log(`[TimetableWeekGroupContent] Staff ${index}: ${staff.staffName} (Key: ${staff.uniqueKey})`);
     }
-    if (!row.staffName) {
-      console.warn(`[TimetableWeekGroupContent] Week ${weekInfo.weekNum}: Staff row without name at index ${index}`);
-      return false;
-    }
-    return true;
   });
 
-  if (validStaffRows.length !== staffRows.length) {
-    console.error(`[TimetableWeekGroupContent] Week ${weekInfo.weekNum}: Found ${staffRows.length - validStaffRows.length} invalid staff rows`);
-  }
-
-  console.log(`[TimetableWeekGroupContent] Week ${weekInfo.weekNum}: Rendering DetailsList with ${validStaffRows.length} valid staff rows`);
+  console.log(`[TimetableWeekGroupContent] 🚀 About to render DetailsList for week ${weekInfo.weekNum} with ${staffRowsWithKeys.length} items`);
 
   try {
     return (
       <div style={{ padding: '0' }}>
         <DetailsList
-          items={validStaffRows} // Используем только валидные строки
+          key={`detailsList-week${weekInfo.weekNum}-render${forceRenderKey}`}
+          items={staffRowsWithKeys}
           columns={columns}
           layoutMode={DetailsListLayoutMode.justified}
           selectionMode={SelectionMode.none}
           isHeaderVisible={true}
           compact={true}
-          // ДОБАВЛЯЕМ ОБРАБОТЧИК ОШИБОК РЕНДЕРИНГА
+          
+          // Собственный getKey для уникальности
+          getKey={(item: any, index?: number) => {
+            const key = item.uniqueKey || `fallback-${weekInfo.weekNum}-${index}`;
+            
+            // Логируем ключи для критической области
+            if (index !== undefined && index >= 18 && index <= 22) {
+              console.log(`[TimetableWeekGroupContent] 🔑 getKey for critical area: Index ${index}, Name: ${item.staffName}, Key: ${key}`);
+            }
+            
+            return key;
+          }}
+          
+          enableUpdateAnimations={false}
+          
+          // КРИТИЧЕСКАЯ ДИАГНОСТИКА В onRenderItemColumn
           onRenderItemColumn={(item, index, column) => {
+            const isAfterNoelMurphy = index !== undefined && index >= 19;
+            
+            if (isAfterNoelMurphy) {
+              console.log(`[TimetableWeekGroupContent] 🎯 onRenderItemColumn called for staff after Noel Murphy: Index ${index}, Column: ${column?.key}, Name: ${item?.staffName}`);
+            }
+            
             try {
               if (column && column.onRender) {
-                return column.onRender(item, index, column);
+                const result = column.onRender(item, index, column);
+                
+                if (isAfterNoelMurphy) {
+                  console.log(`[TimetableWeekGroupContent] ✅ Column ${column.key} rendered successfully for staff after Noel Murphy`);
+                }
+                
+                return result;
               }
               return null;
             } catch (error) {
-              console.error(`[TimetableWeekGroupContent] Error rendering column ${column?.key} for item at index ${index}:`, error);
-              return <div style={{ color: 'red', fontSize: '10px' }}>Render Error</div>;
+              console.error(`[TimetableWeekGroupContent] 💥 CRITICAL onRenderItemColumn ERROR: Index ${index}, Column: ${column?.key}`, error);
+              
+              if (isAfterNoelMurphy) {
+                console.error(`[TimetableWeekGroupContent] 🚨🚨🚨 RENDER ERROR AFTER NOEL MURPHY - FOUND THE PROBLEM!`);
+                console.error(`[TimetableWeekGroupContent] Problem column: ${column?.key}`);
+                console.error(`[TimetableWeekGroupContent] Problem item:`, item);
+              }
+              
+              return <div style={{ color: 'red', fontSize: '10px' }}>Error</div>;
             }
           }}
+          
           styles={{
             root: {
               '.ms-DetailsHeader': {
@@ -345,6 +465,10 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
               },
               '.ms-DetailsList-contentWrapper': {
                 overflow: 'visible'
+              },
+              '.ms-DetailsRow': {
+                transition: 'none !important',
+                animation: 'none !important'
               }
             }
           }}
@@ -352,7 +476,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
       </div>
     );
   } catch (error) {
-    console.error(`[TimetableWeekGroupContent] Critical error rendering DetailsList for week ${weekInfo.weekNum}:`, error);
+    console.error(`[TimetableWeekGroupContent] 💥 CRITICAL DetailsList render error:`, error);
     return (
       <div style={{ 
         padding: '20px', 
@@ -360,7 +484,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
         color: 'red',
         fontSize: '14px'
       }}>
-        Error rendering week data. Check console for details.
+        Critical DetailsList Error - Check console
       </div>
     );
   }
@@ -369,7 +493,13 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
 /**
  * Компонент заголовка группы недели
  */
-export const TimetableWeekGroupHeader: React.FC<IWeekGroupHeaderProps> = (props) => {
+export const TimetableWeekGroupHeader: React.FC<{
+  weekInfo: any;
+  isExpanded: boolean;
+  hasData: boolean;
+  staffCount: number;
+  onToggle: () => void;
+}> = (props) => {  
   const { weekInfo, isExpanded, hasData, staffCount, onToggle } = props;
 
   return (
@@ -385,23 +515,18 @@ export const TimetableWeekGroupHeader: React.FC<IWeekGroupHeaderProps> = (props)
       }}
       onClick={onToggle}
     >
-      <IconButton
-        iconProps={{ 
-          iconName: isExpanded ? 'ChevronDown' : 'ChevronRight' 
-        }}
-        styles={{
-          root: { 
-            minWidth: '24px',
-            width: '24px',
-            height: '24px',
-            marginRight: '8px'
-          }
-        }}
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggle();
-        }}
-      />
+      <div style={{ 
+        minWidth: '24px',
+        width: '24px',
+        height: '24px',
+        marginRight: '8px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer'
+      }}>
+        {isExpanded ? '▼' : '▶'}
+      </div>
 
       <div style={{ flex: 1 }}>
         <div style={{
@@ -459,7 +584,12 @@ export const TimetableWeekGroupHeader: React.FC<IWeekGroupHeaderProps> = (props)
 /**
  * Компонент управления разворачиванием всех недель
  */
-export const TimetableExpandControls: React.FC<IExpandControlsProps> = (props) => {
+export const TimetableExpandControls: React.FC<{
+  totalWeeks: number;
+  expandedCount: number;
+  onExpandAll: () => void;
+  onCollapseAll: () => void;
+}> = (props) => {
   const { totalWeeks, expandedCount, onExpandAll, onCollapseAll } = props;
 
   return (
@@ -490,29 +620,39 @@ export const TimetableExpandControls: React.FC<IExpandControlsProps> = (props) =
       
       <div style={{ flex: 1 }} />
       
-      <DefaultButton
-        text="Expand All"
+      <button
         onClick={onExpandAll}
         disabled={expandedCount === totalWeeks}
-        styles={{
-          root: {
-            minWidth: '90px',
-            height: '32px'
-          }
+        style={{
+          minWidth: '90px',
+          height: '32px',
+          padding: '6px 12px',
+          backgroundColor: expandedCount === totalWeeks ? '#f3f2f1' : '#ffffff',
+          color: expandedCount === totalWeeks ? '#a19f9d' : '#323130',
+          border: '1px solid #ccc',
+          borderRadius: '4px',
+          cursor: expandedCount === totalWeeks ? 'not-allowed' : 'pointer'
         }}
-      />
+      >
+        Expand All
+      </button>
       
-      <DefaultButton
-        text="Collapse All"
+      <button
         onClick={onCollapseAll}
         disabled={expandedCount === 0}
-        styles={{
-          root: {
-            minWidth: '90px',
-            height: '32px'
-          }
+        style={{
+          minWidth: '90px',
+          height: '32px',
+          padding: '6px 12px',
+          backgroundColor: expandedCount === 0 ? '#f3f2f1' : '#ffffff',
+          color: expandedCount === 0 ? '#a19f9d' : '#323130',
+          border: '1px solid #ccc',
+          borderRadius: '4px',
+          cursor: expandedCount === 0 ? 'not-allowed' : 'pointer'
         }}
-      />
+      >
+        Collapse All
+      </button>
     </div>
   );
 };
@@ -520,10 +660,15 @@ export const TimetableExpandControls: React.FC<IExpandControlsProps> = (props) =
 /**
  * Компонент группы недели с заголовком и содержимым
  */
-export const TimetableWeekGroup: React.FC<IWeekGroupProps> = (props) => {
+export const TimetableWeekGroup: React.FC<{
+  weekGroup: any;
+  dayOfStartWeek: number;
+  onToggleExpand: (weekNum: number) => void;
+}> = (props) => {
   const { weekGroup, dayOfStartWeek, onToggleExpand } = props;
 
   const handleToggle = (): void => {
+    console.log(`[TimetableWeekGroup] Toggling week ${weekGroup.weekInfo.weekNum} - this will trigger DetailsList re-render`);
     onToggleExpand(weekGroup.weekInfo.weekNum);
   };
 
