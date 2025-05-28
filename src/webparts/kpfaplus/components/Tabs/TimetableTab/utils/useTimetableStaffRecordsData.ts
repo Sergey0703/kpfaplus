@@ -448,9 +448,20 @@ export const useTimetableStaffRecordsData = (
       return;
     }
     
-    // Помечаем что запрос начался
-    isLoadingRef.current = true;
-    lastRequestParamsRef.current = requestKey;
+    // *** ИСПРАВЛЕНИЕ RACE CONDITION: Используем функциональный подход ***
+    let shouldProceed = false;
+    
+    // Атомарная проверка и установка состояния
+    if (!isLoadingRef.current) {
+      isLoadingRef.current = true;
+      lastRequestParamsRef.current = requestKey;
+      shouldProceed = true;
+    }
+    
+    if (!shouldProceed) {
+      console.log('[useTimetableStaffRecordsData] 🛑 SKIPPING: Already loading (atomic check)');
+      return;
+    }
     
     console.log('[useTimetableStaffRecordsData] ✅ PROCEEDING: New unique request with NEW TIMETABLE STRATEGY');
 
@@ -573,8 +584,10 @@ export const useTimetableStaffRecordsData = (
       console.log('[useTimetableStaffRecordsData] *** SETTING LOADING STATE TO FALSE ***');
       setIsLoadingStaffRecords(false);
       
-      // *** СБРАСЫВАЕМ ФЛАГ ЗАГРУЗКИ ***
-      isLoadingRef.current = false;
+      // *** БЕЗОПАСНЫЙ СБРОС ФЛАГА ЗАГРУЗКИ ***
+      setTimeout(() => {
+        isLoadingRef.current = false;
+      }, 0);
     }
   }, [
     context,
