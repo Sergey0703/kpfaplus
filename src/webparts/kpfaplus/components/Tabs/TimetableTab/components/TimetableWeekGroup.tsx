@@ -2,7 +2,9 @@
 import * as React from 'react';
 import { 
   IWeekGroupContentProps,
-  IShiftInfo
+  IShiftInfo,
+  ITimetableStaffRow,
+  IWeekGroup
 } from '../interfaces/TimetableInterfaces';
 import { TimetableWeekCalculator } from '../utils/TimetableWeekCalculator';
 import { 
@@ -11,6 +13,13 @@ import {
   SelectionMode,
   IColumn
 } from '@fluentui/react';
+
+// Расширенный тип для строк с уникальными ключами
+interface ITimetableStaffRowWithKey extends ITimetableStaffRow {
+  uniqueKey: string;
+  originalIndex: number;
+  weekNum: number;
+}
 
 /**
  * Компонент содержимого группы недели
@@ -33,7 +42,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
       originalIndex: index,
       weekNum: weekInfo.weekNum
     }));
-  }, [staffRows, weekInfo.weekNum]);
+  }, [staffRows, weekInfo.weekNum]) as ITimetableStaffRowWithKey[];
 
   // Принудительный ре-рендер DetailsList
   const [forceRenderKey, setForceRenderKey] = React.useState(0);
@@ -56,7 +65,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
         minWidth: 140,
         maxWidth: 180,
         isResizable: true,
-        onRender: (staffRowWithKey): JSX.Element => {
+        onRender: (staffRowWithKey: ITimetableStaffRowWithKey): JSX.Element => {
           if (!staffRowWithKey) {
             return <div style={{ color: 'red' }}>Error: Missing staff data</div>;
           }
@@ -105,139 +114,139 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
       }
     ];
 
-  try {
-  // Получаем упорядоченные дни недели
-  const orderedDays = TimetableWeekCalculator.getOrderedDaysOfWeek(dayOfStartWeek);
+    try {
+      // Получаем упорядоченные дни недели
+      const orderedDays = TimetableWeekCalculator.getOrderedDaysOfWeek(dayOfStartWeek);
 
-  // КОЛОНКИ ДНЕЙ НЕДЕЛИ
-  orderedDays.forEach(dayNumber => {
-    const dayName = TimetableWeekCalculator.getDayName(dayNumber);
-    
-    // Рассчитываем дату для этого дня недели
-    const dayDate = new Date(weekInfo.weekStart);
-    const startDayNumber = TimetableWeekCalculator.getDayNumber(weekInfo.weekStart);
-    
-    let offset = dayNumber - startDayNumber;
-    if (offset < 0) {
-      offset += 7;
-    }
-    
-    dayDate.setDate(weekInfo.weekStart.getDate() + offset);
-
-    // Форматируем дату в формате DD/MM как в Power Apps
-    const day = dayDate.getDate().toString().padStart(2, '0');
-    const month = (dayDate.getMonth() + 1).toString().padStart(2, '0');
-    const formattedDate = `${day}/${month}`;
-
-    cols.push({
-      key: `day${dayNumber}-week${weekInfo.weekNum}`,
-      name: dayName, // Только день недели
-      minWidth: 80,
-      maxWidth: 100,
-      isResizable: true,
-      
-      onRenderHeader: (): JSX.Element => {
-        return (
-          <div style={{ 
-            textAlign: 'center',
-            padding: '2px 0',
-            height: 'auto',
-            lineHeight: '1.2'
-          }}>
-            <div style={{ 
-              fontWeight: 'bold', 
-              fontSize: '12px',
-              marginBottom: '2px',
-              color: '#323130'
-            }}>
-              {dayName}
-            </div>
-            <div style={{ 
-              fontSize: '10px', 
-              color: '#666',
-              fontWeight: 'normal'
-            }}>
-              {formattedDate}
-            </div>
-          </div>
-        );
-      },
-      
-      onRender: (staffRowWithKey): JSX.Element => {
-        if (!staffRowWithKey || !staffRowWithKey.weekData || !staffRowWithKey.weekData.days) {
-          return (
-            <div style={{ 
-              color: '#a19f9d', 
-              textAlign: 'center', 
-              padding: '2px',
-              fontSize: '11px'
-            }}>
-              -
-            </div>
-          );
-        }
-
-        const dayData = staffRowWithKey.weekData.days[dayNumber];
+      // КОЛОНКИ ДНЕЙ НЕДЕЛИ
+      orderedDays.forEach(dayNumber => {
+        const dayName = TimetableWeekCalculator.getDayName(dayNumber);
         
-        if (!dayData || !dayData.hasData) {
-          return (
-            <div style={{ 
-              color: '#a19f9d', 
-              textAlign: 'center', 
-              padding: '2px',
-              fontSize: '11px'
-            }}>
-              -
-            </div>
-          );
+        // Рассчитываем дату для этого дня недели
+        const dayDate = new Date(weekInfo.weekStart);
+        const startDayNumber = TimetableWeekCalculator.getDayNumber(weekInfo.weekStart);
+        
+        let offset = dayNumber - startDayNumber;
+        if (offset < 0) {
+          offset += 7;
         }
         
-        return (
-          <div 
-            key={`${staffRowWithKey.uniqueKey}-day${dayNumber}`}
-            style={{ 
-              fontSize: '10px', 
-              padding: '2px',
-              lineHeight: '1.2'
-            }}
-          >
-            {dayData.shifts.map((shift: IShiftInfo, shiftIndex: number) => (
+        dayDate.setDate(weekInfo.weekStart.getDate() + offset);
+
+        // Форматируем дату в формате DD/MM как в Power Apps
+        const day = dayDate.getDate().toString().padStart(2, '0');
+        const month = (dayDate.getMonth() + 1).toString().padStart(2, '0');
+        const formattedDate = `${day}/${month}`;
+
+        cols.push({
+          key: `day${dayNumber}-week${weekInfo.weekNum}`,
+          name: dayName, // Только день недели
+          minWidth: 80,
+          maxWidth: 100,
+          isResizable: true,
+          
+          onRenderHeader: (): JSX.Element => {
+            return (
+              <div style={{ 
+                textAlign: 'center',
+                padding: '2px 0',
+                height: 'auto',
+                lineHeight: '1.2'
+              }}>
+                <div style={{ 
+                  fontWeight: 'bold', 
+                  fontSize: '12px',
+                  marginBottom: '2px',
+                  color: '#323130'
+                }}>
+                  {dayName}
+                </div>
+                <div style={{ 
+                  fontSize: '10px', 
+                  color: '#666',
+                  fontWeight: 'normal'
+                }}>
+                  {formattedDate}
+                </div>
+              </div>
+            );
+          },
+          
+          onRender: (staffRowWithKey: ITimetableStaffRowWithKey): JSX.Element => {
+            if (!staffRowWithKey || !staffRowWithKey.weekData || !staffRowWithKey.weekData.days) {
+              return (
+                <div style={{ 
+                  color: '#a19f9d', 
+                  textAlign: 'center', 
+                  padding: '2px',
+                  fontSize: '11px'
+                }}>
+                  -
+                </div>
+              );
+            }
+
+            const dayData = staffRowWithKey.weekData.days[dayNumber];
+            
+            if (!dayData || !dayData.hasData) {
+              return (
+                <div style={{ 
+                  color: '#a19f9d', 
+                  textAlign: 'center', 
+                  padding: '2px',
+                  fontSize: '11px'
+                }}>
+                  -
+                </div>
+              );
+            }
+            
+            return (
               <div 
-                key={`${staffRowWithKey.uniqueKey}-day${dayNumber}-shift${shiftIndex}`} 
+                key={`${staffRowWithKey.uniqueKey}-day${dayNumber}`}
                 style={{ 
-                  color: '#323130',
-                  // ЕСЛИ ОДНА СМЕНА - ЖИРНЫЙ, ЕСЛИ НЕСКОЛЬКО - ТОНКИЙ
-                  fontWeight: dayData.shifts.length === 1 ? 'bold' : 'normal',
-                  marginBottom: shiftIndex < dayData.shifts.length - 1 ? '1px' : '0'
+                  fontSize: '10px', 
+                  padding: '2px',
+                  lineHeight: '1.2'
                 }}
               >
-                {shift.formattedShift}
+                {dayData.shifts.map((shift: IShiftInfo, shiftIndex: number) => (
+                  <div 
+                    key={`${staffRowWithKey.uniqueKey}-day${dayNumber}-shift${shiftIndex}`} 
+                    style={{ 
+                      color: '#323130',
+                      // ЕСЛИ ОДНА СМЕНА - ЖИРНЫЙ, ЕСЛИ НЕСКОЛЬКО - ТОНКИЙ
+                      fontWeight: dayData.shifts.length === 1 ? 'bold' : 'normal',
+                      marginBottom: shiftIndex < dayData.shifts.length - 1 ? '1px' : '0'
+                    }}
+                  >
+                    {shift.formattedShift}
+                  </div>
+                ))}
+                {dayData.shifts.length > 1 && (
+                  <div style={{ 
+                    color: '#323130',        // ЧЕРНЫЙ ЦВЕТ вместо синего
+                    fontWeight: 'bold',      // ЖИРНЫЙ ШРИФТ
+                    fontSize: '9px',
+                    marginTop: '1px'
+                  }}>
+                    Total: {dayData.totalMinutes > 0 ? 
+                      TimetableWeekCalculator.formatMinutesToHours(dayData.totalMinutes) : 
+                      '0h 00m'
+                    }
+                  </div>
+                )}
               </div>
-            ))}
-            {dayData.shifts.length > 1 && (
-              <div style={{ 
-                color: '#323130',        // ЧЕРНЫЙ ЦВЕТ вместо синего
-                fontWeight: 'bold',      // ЖИРНЫЙ ШРИФТ
-                fontSize: '9px',
-                marginTop: '1px'
-              }}>
-                Total: {dayData.totalMinutes > 0 ? 
-                  TimetableWeekCalculator.formatMinutesToHours(dayData.totalMinutes) : 
-                  '0h 00m'
-                }
-              </div>
-            )}
-          </div>
-        );
-      }
-    });
-  });
+            );
+          }
+        });
+      });
 
-  // КОЛОНКА НЕДЕЛЬНОГО ИТОГА УДАЛЕНА - часы теперь в первой колонке
+      // КОЛОНКА НЕДЕЛЬНОГО ИТОГА УДАЛЕНА - часы теперь в первой колонке
 
-} catch (error) {
-  console.error(`[TimetableWeekGroupContent] Error creating columns:`, error);
-}
+    } catch (error) {
+      console.error(`[TimetableWeekGroupContent] Error creating columns:`, error);
+    }
 
     console.log(`[TimetableWeekGroupContent] Created ${cols.length} columns for week ${weekInfo.weekNum}`);
     return cols;
@@ -264,7 +273,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
     <div style={{ padding: '0' }}>
       <DetailsList
         key={`detailsList-week${weekInfo.weekNum}-render${forceRenderKey}`}
-        items={staffRowsWithKeys}
+        items={staffRowsWithKeys as ITimetableStaffRowWithKey[]}
         columns={columns}
         layoutMode={DetailsListLayoutMode.justified}
         selectionMode={SelectionMode.none}
@@ -274,8 +283,8 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
         // *** КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Отключаем виртуализацию ***
         onShouldVirtualize={() => false}
         
-        // Собственный getKey для уникальности
-        getKey={(item: any, index?: number) => {
+        // Собственный getKey для уникальности - ИСПРАВЛЕН ТИП
+        getKey={(item: ITimetableStaffRowWithKey, index?: number) => {
           const key = item.uniqueKey || `fallback-${weekInfo.weekNum}-${index}`;
           return key;
         }}
@@ -307,7 +316,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
  * Компонент заголовка группы недели
  */
 export const TimetableWeekGroupHeader: React.FC<{
-  weekInfo: any;
+  weekInfo: IWeekGroup['weekInfo'];
   isExpanded: boolean;
   hasData: boolean;
   staffCount: number;
@@ -472,9 +481,10 @@ export const TimetableExpandControls: React.FC<{
 
 /**
  * Компонент группы недели с заголовком и содержимым
+ * ИСПРАВЛЕН ТИП: weekGroup теперь IWeekGroup вместо any
  */
 export const TimetableWeekGroup: React.FC<{
-  weekGroup: any;
+  weekGroup: IWeekGroup;
   dayOfStartWeek: number;
   onToggleExpand: (weekNum: number) => void;
 }> = (props) => {
