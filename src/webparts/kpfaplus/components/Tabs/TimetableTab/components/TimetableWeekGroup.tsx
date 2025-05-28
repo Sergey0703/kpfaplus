@@ -48,57 +48,56 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
     console.log(`[TimetableWeekGroupContent] Creating columns for week ${weekInfo.weekNum}`);
 
     const cols: IColumn[] = [
-      // КОЛОНКА ИМЕН СОТРУДНИКОВ
+      // КОЛОНКА ИМЕН СОТРУДНИКОВ С ЧАСАМИ
       {
         key: `staffMember-week${weekInfo.weekNum}`,
         name: 'Staff Member',
         fieldName: 'staffName',
-        minWidth: 180,
-        maxWidth: 220,
+        minWidth: 140,
+        maxWidth: 180,
         isResizable: true,
         onRender: (staffRowWithKey): JSX.Element => {
           if (!staffRowWithKey) {
             return <div style={{ color: 'red' }}>Error: Missing staff data</div>;
           }
 
+          // Получаем недельный итог часов
+          const weekTotalHours = staffRowWithKey.weekData?.formattedWeekTotal || '0h 00m';
+          const hasWeekData = staffRowWithKey.weekData?.totalWeekMinutes > 0;
+
           return (
             <div 
               key={staffRowWithKey.uniqueKey}
               style={{ 
-                padding: '8px',
+                padding: '4px',
                 color: staffRowWithKey.isDeleted ? '#a19f9d' : '#323130',
                 fontStyle: staffRowWithKey.isDeleted ? 'italic' : 'normal'
               }}
             >
               <div style={{ 
                 fontWeight: '500',
-                fontSize: '14px',
-                marginBottom: '2px'
+                fontSize: '13px',
+                marginBottom: '1px'
               }}>
                 {staffRowWithKey.staffName || 'Unknown Staff'}
               </div>
               <div style={{ 
-                fontSize: '11px', 
-                color: '#666',
-                lineHeight: '1.2'
+                fontSize: '10px', 
+                lineHeight: '1.1',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
               }}>
-                {staffRowWithKey.isDeleted && (
-                  <span style={{ 
-                    color: '#d83b01',
-                    marginRight: '4px'
-                  }}>
-                    (Deleted)
-                  </span>
-                )}
-                {!staffRowWithKey.hasPersonInfo && (
-                  <span style={{ 
-                    color: '#8a8886',
-                    marginRight: '4px'
-                  }}>
-                    (Template)
-                  </span>
-                )}
-                <div>ID: {staffRowWithKey.staffId || 'Unknown'}</div>
+                {/* Недельный итог часов и ID в одной строке */}
+                <span style={{
+                  color: hasWeekData ? '#0078d4' : '#a19f9d',
+                  fontWeight: hasWeekData ? 'bold' : 'normal'
+                }}>
+                  {weekTotalHours}
+                </span>
+                <span style={{ color: '#666' }}>
+                  ID: {staffRowWithKey.staffId || 'Unknown'}
+                </span>
               </div>
             </div>
           );
@@ -117,8 +116,8 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
         cols.push({
           key: `day${dayNumber}-week${weekInfo.weekNum}`,
           name: '',
-          minWidth: 120,
-          maxWidth: 160,
+          minWidth: 80,
+          maxWidth: 100,
           isResizable: true,
           onRenderHeader: (): JSX.Element => {
             // Рассчитываем дату для этого дня недели
@@ -132,23 +131,25 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
             
             dayDate.setDate(weekInfo.weekStart.getDate() + offset);
 
+            // Форматируем дату в формате DD/MM как в Power Apps
+            const day = dayDate.getDate().toString().padStart(2, '0');
+            const month = (dayDate.getMonth() + 1).toString().padStart(2, '0');
+            const formattedDate = `${day}/${month}`;
+
             return (
               <div style={{ textAlign: 'center' }}>
                 <div style={{ 
                   fontWeight: 'bold', 
-                  fontSize: '13px',
-                  marginBottom: '2px'
+                  fontSize: '12px',
+                  marginBottom: '1px'
                 }}>
                   {dayName}
                 </div>
                 <div style={{ 
-                  fontSize: '11px', 
+                  fontSize: '10px', 
                   color: '#666' 
                 }}>
-                  {dayDate.toLocaleDateString('en-GB', { 
-                    day: '2-digit', 
-                    month: '2-digit' 
-                  })}
+                  {formattedDate}
                 </div>
               </div>
             );
@@ -159,8 +160,8 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
                 <div style={{ 
                   color: '#a19f9d', 
                   textAlign: 'center', 
-                  padding: '4px',
-                  fontSize: '12px'
+                  padding: '2px',
+                  fontSize: '11px'
                 }}>
                   -
                 </div>
@@ -174,8 +175,8 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
                 <div style={{ 
                   color: '#a19f9d', 
                   textAlign: 'center', 
-                  padding: '4px',
-                  fontSize: '12px'
+                  padding: '2px',
+                  fontSize: '11px'
                 }}>
                   -
                 </div>
@@ -186,9 +187,9 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
               <div 
                 key={`${staffRowWithKey.uniqueKey}-day${dayNumber}`}
                 style={{ 
-                  fontSize: '11px', 
-                  padding: '4px',
-                  lineHeight: '1.3'
+                  fontSize: '10px', 
+                  padding: '2px',
+                  lineHeight: '1.2'
                 }}
               >
                 {dayData.shifts.map((shift: IShiftInfo, shiftIndex: number) => (
@@ -196,7 +197,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
                     key={`${staffRowWithKey.uniqueKey}-day${dayNumber}-shift${shiftIndex}`} 
                     style={{ 
                       color: '#323130',
-                      marginBottom: shiftIndex < dayData.shifts.length - 1 ? '2px' : '0'
+                      marginBottom: shiftIndex < dayData.shifts.length - 1 ? '1px' : '0'
                     }}
                   >
                     {shift.formattedShift}
@@ -206,8 +207,8 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
                   <div style={{ 
                     color: '#0078d4', 
                     fontWeight: 'bold',
-                    fontSize: '10px',
-                    marginTop: '2px'
+                    fontSize: '9px',
+                    marginTop: '1px'
                   }}>
                     Total: {dayData.totalMinutes > 0 ? 
                       TimetableWeekCalculator.formatMinutesToHours(dayData.totalMinutes) : 
@@ -221,59 +222,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
         });
       });
 
-      // КОЛОНКА НЕДЕЛЬНОГО ИТОГА
-      cols.push({
-        key: `weekTotal-week${weekInfo.weekNum}`,
-        name: 'Week Total',
-        minWidth: 80,
-        maxWidth: 100,
-        isResizable: true,
-        onRender: (staffRowWithKey): JSX.Element => {
-          if (!staffRowWithKey || !staffRowWithKey.weekData) {
-            return (
-              <div style={{ 
-                color: '#a19f9d', 
-                textAlign: 'center',
-                fontSize: '12px'
-              }}>
-                -
-              </div>
-            );
-          }
-
-          const weekData = staffRowWithKey.weekData;
-          
-          if (weekData.totalWeekMinutes === 0) {
-            return (
-              <div style={{ 
-                color: '#a19f9d', 
-                textAlign: 'center',
-                fontSize: '12px'
-              }}>
-                -
-              </div>
-            );
-          }
-          
-          return (
-            <div 
-              key={`${staffRowWithKey.uniqueKey}-total`}
-              style={{ 
-                fontSize: '12px',
-                textAlign: 'center',
-                padding: '4px'
-              }}
-            >
-              <div style={{ 
-                fontWeight: 'bold', 
-                color: '#0078d4'
-              }}>
-                {weekData.formattedWeekTotal || '0h 00m'}
-              </div>
-            </div>
-          );
-        }
-      });
+      // КОЛОНКА НЕДЕЛЬНОГО ИТОГА УДАЛЕНА - часы теперь в первой колонке
 
     } catch (error) {
       console.error(`[TimetableWeekGroupContent] Error creating columns:`, error);

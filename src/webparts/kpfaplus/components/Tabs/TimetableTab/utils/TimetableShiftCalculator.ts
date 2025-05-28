@@ -14,7 +14,7 @@ export class TimetableShiftCalculator {
 
   /**
    * Рассчитывает рабочие минуты для одной смены
-   * Реплицирует логику из Power Apps формул с учетом перехода через полночь и обеда
+   * ИСПРАВЛЕНО: Новый формат смены без пробела и в формате (HH:MM)
    */
   public static calculateShiftMinutes(params: IShiftCalculationParams): IShiftCalculationResult {
     const { startTime, endTime, lunchStart, lunchEnd, timeForLunch } = params;
@@ -41,7 +41,7 @@ export class TimetableShiftCalculator {
       return {
         workMinutes: 0,
         formattedTime: "0h 00m",
-        formattedShift: "00:00 - 00:00 (0h 00m)"
+        formattedShift: "00:00 - 00:00(0:00)"
       };
     }
 
@@ -100,10 +100,13 @@ export class TimetableShiftCalculator {
     const workMinutes = Math.max(0, totalShiftMinutes - lunchMinutes);
 
     // Форматируем результат
-    const formattedTime = this.formatMinutesToHours(workMinutes);
+    const formattedTime = this.formatMinutesToHours(workMinutes); // Для Total - остается как есть
     const startTimeStr = this.formatTime(startTime);
     const endTimeStr = this.formatTime(endTime);
-    const formattedShift = `${startTimeStr} - ${endTimeStr} (${formattedTime})`;
+    
+    // НОВЫЙ ФОРМАТ: "10:00 - 00:00(13:45)" вместо "10:00 - 00:00 (13h 45m)"
+    const formattedWorkTime = this.formatMinutesToHoursMinutes(workMinutes);
+    const formattedShift = `${startTimeStr} - ${endTimeStr}(${formattedWorkTime})`;
 
     console.log('[TimetableShiftCalculator] Calculated result:', {
       totalShiftMinutes,
@@ -118,6 +121,25 @@ export class TimetableShiftCalculator {
       formattedTime,
       formattedShift
     };
+  }
+
+  /**
+   * НОВЫЙ МЕТОД: Форматирует минуты в формат HH:MM для смен
+   * Используется только для отдельных смен, НЕ для Total
+   */
+  public static formatMinutesToHoursMinutes(totalMinutes: number): string {
+    if (totalMinutes === 0) {
+      return "0:00";
+    }
+
+    if (totalMinutes < 0) {
+      return "0:00"; // Защита от отрицательных значений
+    }
+
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    
+    return `${hours}:${minutes.toString().padStart(2, '0')}`;
   }
 
   /**
@@ -240,7 +262,7 @@ export class TimetableShiftCalculator {
     // Если несколько смен, добавляем общий итог
     if (shifts.length > 1) {
       const totalMinutes = shifts.reduce((sum, shift) => sum + shift.workMinutes, 0);
-      const totalFormatted = this.formatMinutesToHours(totalMinutes);
+      const totalFormatted = this.formatMinutesToHours(totalMinutes); // Total остается в старом формате
       content += `\nTotal: ${totalFormatted}`;
     }
 
@@ -255,7 +277,7 @@ export class TimetableShiftCalculator {
     allShifts: IShiftInfo[]
   ): { totalMinutes: number; formattedTotal: string } {
     const totalMinutes = allShifts.reduce((sum, shift) => sum + shift.workMinutes, 0);
-    const formattedTotal = this.formatMinutesToHours(totalMinutes);
+    const formattedTotal = this.formatMinutesToHours(totalMinutes); // Total остается в старом формате
     
     return {
       totalMinutes,
@@ -265,6 +287,7 @@ export class TimetableShiftCalculator {
 
   /**
    * Форматирует минуты в часы и минуты (аналогично FormatMinutesToHours в Power Apps)
+   * ИСПОЛЬЗУЕТСЯ ТОЛЬКО ДЛЯ TOTAL - остается в формате "26h 30m"
    */
   public static formatMinutesToHours(totalMinutes: number): string {
     if (totalMinutes === 0) {
