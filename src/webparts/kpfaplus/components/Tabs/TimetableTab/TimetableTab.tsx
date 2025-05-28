@@ -23,6 +23,7 @@ import {
   TimetableWeekGroup, 
   TimetableExpandControls 
 } from './components/TimetableWeekGroup';
+import * as ExcelJS from 'exceljs';
 
 // Константы
 const calendarMinWidth = '655px';
@@ -71,70 +72,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
   const { managingGroupId, currentUserId, dayOfStartWeek, context } = props;
   
   // Получаем данные из контекста
-  const { staffMembers } = useDataContext();
-
- /* console.log('[TimetableTab] Rendering with props:', {
-    managingGroupId,
-    currentUserId,
-    dayOfStartWeek,
-    staffMembersCount: staffMembers.length
-  }); */
-
-  // *** ОТЛАДОЧНОЕ ЛОГИРОВАНИЕ ПАРАМЕТРОВ ФИЛЬТРАЦИИ ***
- /* console.log('[TimetableTab] Filter parameters for server-side filtering:', {
-    currentUserId,
-    managingGroupId,
-    dayOfStartWeek,
-    staffMembersCount: staffMembers.length,
-    hasContext: !!context,
-    note: 'These parameters will be used for individual staff requests'
-  }); */
-
-  // Проверяем employeeId у сотрудников для отладки
-  if (staffMembers.length > 0) {
-    //console.log('[TimetableTab] Staff members analysis for server requests:');
-    
-  //  const staffWithEmployeeId = staffMembers.filter(s => s.employeeId && s.employeeId !== '0');
-  //  const activeStaff = staffMembers.filter(s => s.deleted !== 1);
- //   const activeStaffWithEmployeeId = staffMembers.filter(s => s.deleted !== 1 && s.employeeId && s.employeeId !== '0');
-    
-   /* console.log('[TimetableTab] Staff statistics:', {
-      total: staffMembers.length,
-      withEmployeeId: staffWithEmployeeId.length,
-      active: activeStaff.length,
-      activeWithEmployeeId: activeStaffWithEmployeeId.length,
-      willMakeRequests: activeStaffWithEmployeeId.length
-    }); */
-
-    // Показываем примеры сотрудников для которых будут делаться запросы
-  //  console.log('[TimetableTab] Sample staff members for server requests:');
-  /*  activeStaffWithEmployeeId.slice(0, 5).forEach((staff, index) => {
-      console.log(`[TimetableTab] Request ${index + 1} - ${staff.name}:`, {
-        employeeId: staff.employeeId,
-        employeeIdType: typeof staff.employeeId,
-        id: staff.id,
-        deleted: staff.deleted,
-        willRequest: true
-      });
-    }); */
-
-    // Показываем сотрудников которые будут пропущены
-  //  const skippedStaff = staffMembers.filter(s => 
-  //    s.deleted === 1 || !s.employeeId || s.employeeId === '0'
-  //  );
-    
-   /* if (skippedStaff.length > 0) {
-    //  console.log('[TimetableTab] Staff members that will be SKIPPED:');
-      skippedStaff.slice(0, 3).forEach((staff, index) => {
-        console.log(`[TimetableTab] Skipped ${index + 1} - ${staff.name}:`, {
-          employeeId: staff.employeeId,
-          deleted: staff.deleted,
-          reason: staff.deleted === 1 ? 'deleted' : 'no employeeId'
-        });
-      });
-    } */
-
-  }
+  const { staffMembers, departments } = useDataContext();
 
   // Инициализируем хуки состояния
   const {
@@ -223,6 +161,225 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
     }
   };
 
+  // Обработчик экспорта в Excel с ExcelJS
+  const handleExportToExcel = async (): Promise<void> => {
+    console.log('[TimetableTab] Export to Excel requested with ExcelJS');
+    
+    try {
+      // Проверяем наличие данных
+      if (state.weeksData.length === 0) {
+        console.warn('[TimetableTab] No data to export');
+        setState(prevState => ({
+          ...prevState,
+          errorStaffRecords: 'No data available for export'
+        }));
+        return;
+      }
+
+      // Находим название группы
+      const department = departments.find(d => d.ID.toString() === managingGroupId);
+      const groupName = department?.Title || `Group ${managingGroupId}`;
+      
+      console.log('[TimetableTab] Starting ExcelJS workbook creation...');
+      
+      // Создаем workbook с ExcelJS
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Timetable');
+      
+      // Получаем упорядоченные дни недели
+      const orderedDays = TimetableWeekCalculator.getOrderedDaysOfWeek(dayOfStartWeek || 7);
+      const dayNames = orderedDays.map(dayNum => TimetableWeekCalculator.getDayName(dayNum));
+      
+      // Устанавливаем ширину столбцов
+      const colWidths = [{ width: 20 }]; // Employee колонка
+      for (let i = 0; i < orderedDays.length; i++) {
+        colWidths.push({ width: 25 }); // Дни недели
+      }
+      worksheet.columns = colWidths.map((col, index) => ({
+        key: index.toString(),
+        width: col.width
+      }));
+      
+      let currentRow = 1;
+      
+      // Заголовок документа
+      const titleCell = worksheet.getCell(currentRow, 1);
+      titleCell.value = `Time table for Centre: ${groupName}`;
+      titleCell.style = {
+        font: { bold: true, size: 14 },
+        alignment: { horizontal: 'center' }
+      };
+      
+      // Объединяем ячейки для заголовка
+      worksheet.mergeCells(currentRow, 1, currentRow, orderedDays.length + 1);
+      currentRow += 2; // Пропускаем строку
+      
+      // Обрабатываем каждую неделю
+      state.weeksData.forEach((weekGroup, weekIndex) => {
+        const { weekInfo, staffRows } = weekGroup;
+        
+        // Строка заголовка недели + дни недели (СЕРЫЙ ФОН)
+        const weekTitle = `Week ${weekInfo.weekNum}: ${formatDateForExcel(weekInfo.weekStart)} - ${formatDateForExcel(weekInfo.weekEnd)}`;
+        
+        // Заполняем строку: Week title + дни недели
+        worksheet.getCell(currentRow, 1).value = weekTitle;
+        dayNames.forEach((dayName, dayIndex) => {
+          worksheet.getCell(currentRow, dayIndex + 2).value = dayName;
+        });
+        
+        // Применяем серый фон и стиль для всей строки заголовка недели
+        for (let col = 1; col <= orderedDays.length + 1; col++) {
+          const cell = worksheet.getCell(currentRow, col);
+          cell.style = {
+            font: { bold: true },
+            fill: {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: 'FFD9D9D9' } // Серый фон как в образце
+            },
+            alignment: { horizontal: 'center' },
+            border: {
+              top: { style: 'thin' },
+              bottom: { style: 'thin' },
+              left: { style: 'thin' },
+              right: { style: 'thin' }
+            }
+          };
+        }
+        currentRow++;
+        
+        // Строка Employee + даты (СВЕТЛО-СЕРЫЙ ФОН)
+        worksheet.getCell(currentRow, 1).value = 'Employee';
+        orderedDays.forEach((dayNum, dayIndex) => {
+          const dayDate = TimetableWeekCalculator.getDateForDayInWeek(weekInfo.weekStart, dayNum);
+          worksheet.getCell(currentRow, dayIndex + 2).value = formatDateForExcel(dayDate);
+        });
+        
+        // Применяем светло-серый фон для строки Employee + даты
+        for (let col = 1; col <= orderedDays.length + 1; col++) {
+          const cell = worksheet.getCell(currentRow, col);
+          cell.style = {
+            font: { bold: true },
+            fill: {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: 'FFF0F0F0' } // Светло-серый фон
+            },
+            alignment: { horizontal: 'center' },
+            border: {
+              top: { style: 'thin' },
+              bottom: { style: 'thin' },
+              left: { style: 'thin' },
+              right: { style: 'thin' }
+            }
+          };
+        }
+        currentRow++;
+        
+        // Данные сотрудников
+        staffRows.forEach((staffRow: any) => {
+          // Строка с именем сотрудника и данными по дням
+          const nameCell = worksheet.getCell(currentRow, 1);
+          nameCell.value = staffRow.staffName;
+          nameCell.style = {
+            font: { bold: true },
+            alignment: { horizontal: 'left', vertical: 'middle' },
+            border: {
+              top: { style: 'thin' },
+              bottom: { style: 'thin' },
+              left: { style: 'thin' },
+              right: { style: 'thin' }
+            }
+          };
+          
+          // Добавляем данные по дням
+          orderedDays.forEach((dayNum, dayIndex) => {
+            const dayData = staffRow.weekData.days[dayNum];
+            const cellContent = formatDayCell(dayData);
+            const dayCell = worksheet.getCell(currentRow, dayIndex + 2);
+            dayCell.value = cellContent;
+            dayCell.style = {
+              alignment: { 
+                horizontal: 'center',
+                vertical: 'middle',
+                wrapText: true 
+              },
+              border: {
+                top: { style: 'thin' },
+                bottom: { style: 'thin' },
+                left: { style: 'thin' },
+                right: { style: 'thin' }
+              }
+            };
+          });
+          currentRow++;
+          
+          // Строка с итогами недели
+          const totalCell = worksheet.getCell(currentRow, 1);
+          totalCell.value = staffRow.weekData.formattedWeekTotal.trim();
+          totalCell.style = {
+            font: { italic: true, bold: true },
+            alignment: { horizontal: 'right' },
+            border: {
+              top: { style: 'thin' },
+              bottom: { style: 'thin' },
+              left: { style: 'thin' },
+              right: { style: 'thin' }
+            }
+          };
+          
+          // Пустые ячейки с рамками для строки итогов
+          for (let col = 2; col <= orderedDays.length + 1; col++) {
+            const emptyCell = worksheet.getCell(currentRow, col);
+            emptyCell.style = {
+              border: {
+                top: { style: 'thin' },
+                bottom: { style: 'thin' },
+                left: { style: 'thin' },
+                right: { style: 'thin' }
+              }
+            };
+          }
+          currentRow++;
+        });
+        
+        // Пустая строка между неделями (кроме последней)
+        if (weekIndex < state.weeksData.length - 1) {
+          currentRow++;
+        }
+      });
+      
+      // Генерируем имя файла
+      const fileName = generateFileName(groupName, state.weeksData);
+      
+      // Создаем и сохраняем файл
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { 
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+      });
+      
+      // Создаем ссылку для скачивания
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      console.log('[TimetableTab] ExcelJS export completed successfully:', fileName);
+      
+    } catch (error) {
+      console.error('[TimetableTab] ExcelJS export failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown export error';
+      setState(prevState => ({
+        ...prevState,
+        errorStaffRecords: `Export failed: ${errorMessage}`
+      }));
+    }
+  };
+
   // Получаем статистику
   const statistics = useMemo(() => {
     const expandedCount = state.expandedWeeks.size;
@@ -293,7 +450,6 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
           Staff count: {statistics.staffCount} | 
           Records: {statistics.recordsCount}
         </p>
-       
       </div>
 
       {/* Панель настроек */}
@@ -370,6 +526,29 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
             }}
           >
             {state.isLoadingStaffRecords ? 'Loading...' : 'Refresh Data'}
+          </button>
+        </div>
+
+        {/* Кнопка экспорта в Excel с ExcelJS */}
+        <div>
+          <button
+            onClick={() => {
+              handleExportToExcel().catch(error => {
+                console.error('[TimetableTab] Export button error:', error);
+              });
+            }}
+            disabled={state.isLoadingStaffRecords || state.weeksData.length === 0}
+            style={{
+              padding: '6px 12px',
+              backgroundColor: state.isLoadingStaffRecords || state.weeksData.length === 0 ? '#f3f2f1' : '#107c10',
+              color: state.isLoadingStaffRecords || state.weeksData.length === 0 ? '#a19f9d' : 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: state.isLoadingStaffRecords || state.weeksData.length === 0 ? 'not-allowed' : 'pointer',
+              fontSize: '12px'
+            }}
+          >
+            {state.isLoadingStaffRecords ? 'Loading...' : 'Export to Excel'}
           </button>
         </div>
         
@@ -501,3 +680,75 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
     </div>
   );
 };
+
+// Вспомогательные функции для экспорта Excel с ExcelJS
+function formatDateForExcel(date: Date): string {
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  return `${day}/${month}`;
+}
+
+function formatDayCell(dayData: any): string {
+  if (!dayData || !dayData.hasData || dayData.shifts.length === 0) {
+    return '';
+  }
+  
+  if (dayData.shifts.length === 1) {
+    // Одна смена
+    const shift = dayData.shifts[0];
+    const startTime = formatTimeForExcel(shift.startTime);
+    const endTime = formatTimeForExcel(shift.endTime);
+    const duration = formatDurationForExcel(shift.workMinutes);
+    return `${startTime} - ${endTime} (${duration})`;
+  } else {
+    // Несколько смен
+    const shiftLines = dayData.shifts.map((shift: any) => {
+      const startTime = formatTimeForExcel(shift.startTime);
+      const endTime = formatTimeForExcel(shift.endTime);
+      const duration = formatDurationForExcel(shift.workMinutes);
+      return `${startTime} - ${endTime} (${duration})`;
+    });
+    
+    return shiftLines.join('\n');
+  }
+}
+
+function formatTimeForExcel(date: Date): string {
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
+function formatDurationForExcel(minutes: number): string {
+  if (minutes === 0) {
+    return '0 hrs';
+  }
+  
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  
+  if (remainingMinutes === 0) {
+    return `${hours} hrs`;
+  } else {
+    return `${hours}:${remainingMinutes.toString().padStart(2, '0')} hrs`;
+  }
+}
+
+function generateFileName(groupName: string, weeksData: any[]): string {
+  if (weeksData.length === 0) {
+    return `Timetable_${groupName.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
+  }
+  
+  const firstWeek = weeksData[0];
+  const lastWeek = weeksData[weeksData.length - 1];
+  
+  const startDate = firstWeek.weekInfo.weekStart;
+  const endDate = lastWeek.weekInfo.weekEnd;
+  
+  const startStr = formatDateForExcel(startDate).replace('/', '-');
+  const endStr = formatDateForExcel(endDate).replace('/', '-');
+  
+  const cleanGroupName = groupName.replace(/[^a-zA-Z0-9]/g, '_');
+  
+  return `Timetable_${cleanGroupName}_${startStr}_to_${endStr}.xlsx`;
+}
