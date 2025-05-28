@@ -1,6 +1,6 @@
 // src/webparts/kpfaplus/components/Tabs/TimetableTab/TimetableTab.tsx
 import * as React from 'react';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useCallback } from 'react';
 import { 
   DatePicker, 
   DayOfWeek, 
@@ -11,6 +11,7 @@ import {
 import { ITabProps } from '../../../models/types';
 import { useDataContext } from '../../../context';
 import { StaffRecordsService } from '../../../services/StaffRecordsService';
+import { TypeOfLeaveService, ITypeOfLeave } from '../../../services/TypeOfLeaveService';
 import { 
   IWeekInfo, 
   IWeekCalculationParams,
@@ -88,7 +89,11 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
     setWeeksData
   } = useTimetableTabState();
 
-  // Инициализируем сервис StaffRecords
+  // Состояние для типов отпусков
+  const [typesOfLeave, setTypesOfLeave] = React.useState<ITypeOfLeave[]>([]);
+  const [isLoadingTypesOfLeave, setIsLoadingTypesOfLeave] = React.useState<boolean>(false);
+
+  // Инициализируем сервисы
   const staffRecordsService = useMemo(() => {
     if (context) {
       console.log('[TimetableTab] Initializing StaffRecordsService for individual staff requests');
@@ -96,6 +101,58 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
     }
     return undefined;
   }, [context]);
+
+  const typeOfLeaveService = useMemo(() => {
+    if (context) {
+      console.log('[TimetableTab] Initializing TypeOfLeaveService');
+      return TypeOfLeaveService.getInstance(context);
+    }
+    return undefined;
+  }, [context]);
+
+  // Загружаем типы отпусков при инициализации
+  useEffect(() => {
+    const loadTypesOfLeave = async (): Promise<void> => {
+      if (!typeOfLeaveService) return;
+      
+      try {
+        setIsLoadingTypesOfLeave(true);
+        console.log('[TimetableTab] Loading types of leave...');
+        
+        const types = await typeOfLeaveService.getAllTypesOfLeave();
+        console.log('[TimetableTab] Loaded types of leave:', types.length);
+        
+        // Логируем примеры типов отпусков для отладки
+        types.slice(0, 3).forEach(type => {
+          console.log(`[TimetableTab] Leave type: ${type.title} (ID: ${type.id}) - Color: ${type.color}`);
+        });
+        
+        setTypesOfLeave(types);
+      } catch (error) {
+        console.error('[TimetableTab] Error loading types of leave:', error);
+      } finally {
+        setIsLoadingTypesOfLeave(false);
+      }
+    };
+
+    loadTypesOfLeave().catch(error => {
+      console.error('[TimetableTab] Failed to load types of leave:', error);
+    });
+  }, [typeOfLeaveService]);
+
+  // Функция для получения цвета типа отпуска
+  const getLeaveTypeColor = useCallback((typeOfLeaveId: string): string | undefined => {
+    if (!typeOfLeaveId || !typesOfLeave.length) return undefined;
+    
+    const leaveType = typesOfLeave.find(t => t.id === typeOfLeaveId);
+    const color = leaveType?.color;
+    
+    if (color) {
+      console.log(`[TimetableTab] Found color ${color} for leave type ID: ${typeOfLeaveId}`);
+    }
+    
+    return color;
+  }, [typesOfLeave]);
 
   // Рассчитываем недели для выбранного месяца
   const weeks: IWeekInfo[] = useMemo(() => {
@@ -161,9 +218,9 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
     }
   };
 
-  // Обработчик экспорта в Excel с ExcelJS
+  // Обработчик экспорта в Excel с ExcelJS и поддержкой цветов
   const handleExportToExcel = async (): Promise<void> => {
-    console.log('[TimetableTab] Export to Excel requested with ExcelJS');
+    console.log('[TimetableTab] Export to Excel requested with ExcelJS and leave colors');
     
     try {
       // Проверяем наличие данных
@@ -180,7 +237,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
       const department = departments.find(d => d.ID.toString() === managingGroupId);
       const groupName = department?.Title || `Group ${managingGroupId}`;
       
-      console.log('[TimetableTab] Starting ExcelJS workbook creation...');
+      console.log('[TimetableTab] Starting ExcelJS workbook creation with leave colors...');
       
       // Создаем workbook с ExcelJS
       const workbook = new ExcelJS.Workbook();
@@ -278,7 +335,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
         
         // Данные сотрудников
         staffRows.forEach((staffRow: any) => {
-          // ИСПРАВЛЕНО: Одна строка с именем сотрудника + часы в одной ячейке
+          // Строка с именем сотрудника и данными по дням
           const nameCell = worksheet.getCell(currentRow, 1);
           // Объединяем имя и часы в одной ячейке с переносом строки
           nameCell.value = `${staffRow.staffName}\n${staffRow.weekData.formattedWeekTotal.trim()}`;
@@ -293,13 +350,17 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
             }
           };
           
-          // Добавляем данные по дням в ту же строку
+          // Добавляем данные по дням с цветами отпусков
           orderedDays.forEach((dayNum, dayIndex) => {
             const dayData = staffRow.weekData.days[dayNum];
             const cellContent = formatDayCell(dayData);
             const dayCell = worksheet.getCell(currentRow, dayIndex + 2);
             dayCell.value = cellContent;
-            dayCell.style = {
+            
+            // Проверяем наличие отпуска и применяем цвет
+            const leaveTypeColor = getDayCellLeaveColor(dayData);
+            
+            const cellStyle: any = {
               alignment: { 
                 horizontal: 'center',
                 vertical: 'middle',
@@ -312,6 +373,18 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
                 right: { style: 'thin' }
               }
             };
+            
+            // Добавляем цвет фона если есть отпуск
+            if (leaveTypeColor) {
+              cellStyle.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: `FF${leaveTypeColor.replace('#', '')}` }
+              };
+              console.log(`[TimetableTab] Applied leave color ${leaveTypeColor} to cell`);
+            }
+            
+            dayCell.style = cellStyle;
           });
           currentRow++; // Переходим к следующему сотруднику
         });
@@ -341,7 +414,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
       
-      console.log('[TimetableTab] ExcelJS export completed successfully:', fileName);
+      console.log('[TimetableTab] ExcelJS export completed successfully with leave colors:', fileName);
       
     } catch (error) {
       console.error('[TimetableTab] ExcelJS export failed:', error);
@@ -351,6 +424,25 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
         errorStaffRecords: `Export failed: ${errorMessage}`
       }));
     }
+  };
+
+  // Функция для получения цвета ячейки дня на основе TypeOfLeave
+  const getDayCellLeaveColor = (dayData: any): string | undefined => {
+    if (!dayData || !dayData.shifts || dayData.shifts.length === 0) {
+      return undefined;
+    }
+    
+    // Ищем первую смену с TypeOfLeave
+    for (const shift of dayData.shifts) {
+      if (shift.typeOfLeaveId) {
+        const color = getLeaveTypeColor(shift.typeOfLeaveId);
+        if (color) {
+          return color;
+        }
+      }
+    }
+    
+    return undefined;
   };
 
   // Получаем статистику
@@ -398,15 +490,17 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
       staffRecordsCount: state.staffRecords.length,
       isLoading: state.isLoadingStaffRecords,
       hasError: !!state.errorStaffRecords,
+      typesOfLeaveCount: typesOfLeave.length,
       note: 'Data from individual server requests per staff member'
     });
-  }, [state]);
+  }, [state, typesOfLeave.length]);
 
   console.log('[TimetableTab] Final render state:', {
     hasWeeksData: state.weeksData.length > 0,
     isLoading: state.isLoadingStaffRecords,
     hasError: !!state.errorStaffRecords,
     statistics,
+    typesOfLeaveLoaded: typesOfLeave.length,
     filteringNote: 'Server-side filtering by StaffMember, Manager, and StaffGroup'
   });
 
@@ -421,7 +515,8 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
           Group ID: {managingGroupId} | Current User ID: {currentUserId} | 
           Week starts on day: {dayOfStartWeek} | 
           Staff count: {statistics.staffCount} | 
-          Records: {statistics.recordsCount}
+          Records: {statistics.recordsCount} | 
+          Leave types: {typesOfLeave.length}
         </p>
       </div>
 
@@ -452,7 +547,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
             strings={datePickerStringsEN}
             formatDate={formatDate}
             allowTextInput={false}
-            disabled={state.isLoadingStaffRecords}
+            disabled={state.isLoadingStaffRecords || isLoadingTypesOfLeave}
             showGoToToday={true}
             showMonthPickerAsOverlay={true}
             styles={{
@@ -487,18 +582,18 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
                 console.error('[TimetableTab] Manual refresh failed:', error);
               });
             }}
-            disabled={state.isLoadingStaffRecords}
+            disabled={state.isLoadingStaffRecords || isLoadingTypesOfLeave}
             style={{
               padding: '6px 12px',
-              backgroundColor: state.isLoadingStaffRecords ? '#f3f2f1' : '#0078d4',
-              color: state.isLoadingStaffRecords ? '#a19f9d' : 'white',
+              backgroundColor: state.isLoadingStaffRecords || isLoadingTypesOfLeave ? '#f3f2f1' : '#0078d4',
+              color: state.isLoadingStaffRecords || isLoadingTypesOfLeave ? '#a19f9d' : 'white',
               border: 'none',
               borderRadius: '4px',
-              cursor: state.isLoadingStaffRecords ? 'not-allowed' : 'pointer',
+              cursor: state.isLoadingStaffRecords || isLoadingTypesOfLeave ? 'not-allowed' : 'pointer',
               fontSize: '12px'
             }}
           >
-            {state.isLoadingStaffRecords ? 'Loading...' : 'Refresh Data'}
+            {state.isLoadingStaffRecords || isLoadingTypesOfLeave ? 'Loading...' : 'Refresh Data'}
           </button>
         </div>
 
@@ -510,25 +605,27 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
                 console.error('[TimetableTab] Export button error:', error);
               });
             }}
-            disabled={state.isLoadingStaffRecords || state.weeksData.length === 0}
+            disabled={state.isLoadingStaffRecords || state.weeksData.length === 0 || isLoadingTypesOfLeave}
             style={{
               padding: '6px 12px',
-              backgroundColor: state.isLoadingStaffRecords || state.weeksData.length === 0 ? '#f3f2f1' : '#107c10',
-              color: state.isLoadingStaffRecords || state.weeksData.length === 0 ? '#a19f9d' : 'white',
+              backgroundColor: state.isLoadingStaffRecords || state.weeksData.length === 0 || isLoadingTypesOfLeave ? '#f3f2f1' : '#107c10',
+              color: state.isLoadingStaffRecords || state.weeksData.length === 0 || isLoadingTypesOfLeave ? '#a19f9d' : 'white',
               border: 'none',
               borderRadius: '4px',
-              cursor: state.isLoadingStaffRecords || state.weeksData.length === 0 ? 'not-allowed' : 'pointer',
+              cursor: state.isLoadingStaffRecords || state.weeksData.length === 0 || isLoadingTypesOfLeave ? 'not-allowed' : 'pointer',
               fontSize: '12px'
             }}
           >
-            {state.isLoadingStaffRecords ? 'Loading...' : 'Export to Excel'}
+            {state.isLoadingStaffRecords || isLoadingTypesOfLeave ? 'Loading...' : 'Export to Excel'}
           </button>
         </div>
         
-        {state.isLoadingStaffRecords && (
+        {(state.isLoadingStaffRecords || isLoadingTypesOfLeave) && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Spinner size={1} />
-            <span style={{ fontSize: '12px', color: '#666' }}>Loading individual staff records...</span>
+            <span style={{ fontSize: '12px', color: '#666' }}>
+              {isLoadingTypesOfLeave ? 'Loading leave types...' : 'Loading individual staff records...'}
+            </span>
           </div>
         )}
       </div>
@@ -554,16 +651,22 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
 
       {/* Основное содержимое */}
       <div style={{ flex: 1, overflow: 'auto' }}>
-        {state.isLoadingStaffRecords ? (
+        {state.isLoadingStaffRecords || isLoadingTypesOfLeave ? (
           <div style={{ textAlign: 'center', padding: '40px' }}>
             <Spinner size={2} />
-            <p style={{ marginTop: '16px' }}>Loading staff timetable...</p>
-            <p style={{ fontSize: '12px', color: '#666', marginTop: '8px' }}>
-              Making individual server requests for {staffMembers.filter(s => s.deleted !== 1 && s.employeeId && s.employeeId !== '0').length} active staff members
+            <p style={{ marginTop: '16px' }}>
+              {isLoadingTypesOfLeave ? 'Loading leave types...' : 'Loading staff timetable...'}
             </p>
-            <p style={{ fontSize: '11px', color: '#888', marginTop: '4px' }}>
-              Each request filters by: StaffMember = employeeId, Manager = {currentUserId}, StaffGroup = {managingGroupId}
-            </p>
+            {state.isLoadingStaffRecords && (
+              <>
+                <p style={{ fontSize: '12px', color: '#666', marginTop: '8px' }}>
+                  Making individual server requests for {staffMembers.filter(s => s.deleted !== 1 && s.employeeId && s.employeeId !== '0').length} active staff members
+                </p>
+                <p style={{ fontSize: '11px', color: '#888', marginTop: '4px' }}>
+                  Each request filters by: StaffMember = employeeId, Manager = {currentUserId}, StaffGroup = {managingGroupId}
+                </p>
+              </>
+            )}
           </div>
         ) : state.weeksData.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px' }}>
@@ -592,6 +695,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
               <div>• Current User ID (Manager filter): {currentUserId || 'Not set'}</div>
               <div>• Context Available: {context ? 'Yes' : 'No'}</div>
               <div>• Staff Records Service: {staffRecordsService ? 'Available' : 'Not available'}</div>
+              <div>• Types of Leave Loaded: {typesOfLeave.length}</div>
               <div style={{ marginTop: '8px', fontStyle: 'italic' }}>
                 Each staff member gets individual request with: StaffMember = employeeId, Manager = currentUserId, StaffGroup = managingGroupId
               </div>
@@ -635,6 +739,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
               {statistics.weeksWithData} weeks have data | 
               Total records: {statistics.recordsCount} | 
               Week starts on: {TimetableWeekCalculator.getDayName(dayOfStartWeek || 7)} | 
+              Leave types loaded: {typesOfLeave.length} | 
               <span style={{ fontStyle: 'italic' }}>Data server-filtered by exact ID matches</span>
             </div>
             
@@ -645,6 +750,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
                 weekGroup={weekGroup}
                 dayOfStartWeek={dayOfStartWeek || 7}
                 onToggleExpand={toggleWeekExpand}
+                getLeaveTypeColor={getLeaveTypeColor}
               />
             ))}
           </div>

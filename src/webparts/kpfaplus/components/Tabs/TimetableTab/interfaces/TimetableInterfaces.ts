@@ -23,6 +23,10 @@ export interface IShiftInfo {
   timeForLunch: number;
   workMinutes: number;
   formattedShift: string; // "09:00 - 17:00 (8h 00m)"
+  // ДОБАВЛЕНО: Поля для типа отпуска
+  typeOfLeaveId?: string;     // ID типа отпуска из StaffRecord
+  typeOfLeaveTitle?: string;  // Название типа отпуска
+  typeOfLeaveColor?: string;  // Цвет типа отпуска в Hex формате
 }
 
 /**
@@ -35,6 +39,9 @@ export interface IDayInfo {
   totalMinutes: number;
   formattedContent: string; // Полный текст для ячейки
   hasData: boolean;
+  // ДОБАВЛЕНО: Поля для отображения цвета отпуска
+  leaveTypeColor?: string;    // Цвет фона ячейки если есть отпуск
+  hasLeave: boolean;          // Есть ли отпуск в этом дне
 }
 
 /**
@@ -154,6 +161,9 @@ export interface ITimetableDataParams {
   // Параметры для логирования и совместимости (данные уже отфильтрованы на сервере)
   currentUserId?: string;    // ID текущего пользователя (менеджера)
   managingGroupId?: string;  // ID управляющей группы
+  
+  // ДОБАВЛЕНО: Функция для получения цвета типа отпуска
+  getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined;
 }
 
 /**
@@ -163,6 +173,10 @@ export interface IShiftCalculationResult {
   workMinutes: number;
   formattedTime: string; // "8h 30m"
   formattedShift: string; // "09:00 - 17:00 (8h 30m)"
+  // ДОБАВЛЕНО: Информация о типе отпуска
+  typeOfLeaveId?: string;
+  typeOfLeaveTitle?: string;
+  typeOfLeaveColor?: string;
 }
 
 /**
@@ -174,6 +188,10 @@ export interface IShiftCalculationParams {
   lunchStart?: Date;
   lunchEnd?: Date;
   timeForLunch?: number;
+  // ДОБАВЛЕНО: Информация о типе отпуска из StaffRecord
+  typeOfLeaveId?: string;
+  typeOfLeaveTitle?: string;
+  typeOfLeaveColor?: string;
 }
 
 // ===== ИНТЕРФЕЙСЫ ДЛЯ КОМПОНЕНТОВ =====
@@ -185,6 +203,8 @@ export interface IWeekGroupProps {
   weekGroup: IWeekGroup;
   dayOfStartWeek: number;
   onToggleExpand: (weekNum: number) => void;
+  // ДОБАВЛЕНО: Функция для получения цвета типа отпуска
+  getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined;
 }
 
 /**
@@ -205,6 +225,8 @@ export interface IWeekGroupContentProps {
   staffRows: ITimetableStaffRow[];
   weekInfo: IWeekInfo;
   dayOfStartWeek: number;
+  // ДОБАВЛЕНО: Функция для получения цвета типа отпуска
+  getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined;
 }
 
 /**
