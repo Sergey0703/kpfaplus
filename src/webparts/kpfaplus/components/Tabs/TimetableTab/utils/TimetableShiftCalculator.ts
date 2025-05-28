@@ -106,7 +106,7 @@ export class TimetableShiftCalculator {
     
     // НОВЫЙ ФОРМАТ: "10:00 - 00:00(13:45)" вместо "10:00 - 00:00 (13h 45m)"
     const formattedWorkTime = this.formatMinutesToHoursMinutes(workMinutes);
-    const formattedShift = `${startTimeStr} - ${endTimeStr}(${formattedWorkTime})`;
+    const formattedShift = `${startTimeStr}-${endTimeStr}(${formattedWorkTime})`;
 
     console.log('[TimetableShiftCalculator] Calculated result:', {
       totalShiftMinutes,

@@ -293,9 +293,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
           Staff count: {statistics.staffCount} | 
           Records: {statistics.recordsCount}
         </p>
-        <p style={{ margin: '4px 0 0 0', color: '#888', fontSize: '12px' }}>
-          Data filtered server-side by StaffMember, Manager, and StaffGroup fields
-        </p>
+       
       </div>
 
       {/* Панель настроек */}
