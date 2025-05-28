@@ -68,7 +68,7 @@ export class RemoteSiteItemService {
              maxItems = 10000 // Увеличенный лимит для больших списков
            } = options;
 
-           let allItems: unknown[] = [];
+           let allItems: Record<string, unknown>[] = [];
            let request = graphClient
              .api(`/sites/${this._siteId}/lists/${listId}/items`)
              .header('Prefer', 'HonorNonIndexedQueriesWarningMayFailRandomly')
@@ -269,7 +269,7 @@ try {
   }
 
   // Извлекаем ВСЕ элементы из ответа Graph API
-  let allItems = response?.value || [];
+  let allItems: Record<string, unknown>[] = response?.value || [];
   const responseNextLink = response['@odata.nextLink'];
   
   console.log(`[DEBUG] Initial response: ${allItems.length} items, hasNextLink: ${!!responseNextLink}`);
@@ -312,7 +312,7 @@ try {
   /*if (!showDeleted) {
     // Фильтруем - показываем только неудаленные записи (Deleted = 0, null, undefined, или false)
     filteredItems = allItems.filter((item: Record<string, unknown>) => {
-      const deleted = (item.fields as any)?.Deleted;
+      const deleted = (item.fields as IRemoteListItemField)?.Deleted;
       // Считаем запись удаленной, если Deleted = 1 или '1' или true
       const isDeleted = deleted === 1 || deleted === '1' || deleted === true;
       return !isDeleted;
@@ -339,12 +339,12 @@ try {
   if (paginatedItems.length > 0) {
     console.log(`[DEBUG] First item on page - ID: ${paginatedItems[0].id}`);
     console.log(`[DEBUG] Last item on page - ID: ${paginatedItems[paginatedItems.length - 1].id}`);
-    //console.log(`[DEBUG] First item date: ${(paginatedItems[0].fields as any)?.Date}`);
+    //console.log(`[DEBUG] First item date: ${(paginatedItems[0].fields as IRemoteListItemField)?.Date}`);
     if (paginatedItems.length > 1) {
-    //  console.log(`[DEBUG] Second item date: ${(paginatedItems[1].fields as any)?.Date}`);
+    //  console.log(`[DEBUG] Second item date: ${(paginatedItems[1].fields as IRemoteListItemField)?.Date}`);
     }
     if (paginatedItems.length > 2) {
-   //   console.log(`[DEBUG] Third item date: ${(paginatedItems[2].fields as any)?.Date}`);
+   //   console.log(`[DEBUG] Third item date: ${(paginatedItems[2].fields as IRemoteListItemField)?.Date}`);
     }
   }
 
@@ -424,7 +424,7 @@ try {
      const pageSize = 1000; // Размер одной страницы для Graph API
      const maxTotalItems = 10000; // Защита от слишком больших наборов данных
      
-     let allItems: unknown[] = [];
+     let allItems: Record<string, unknown>[] = [];
      let currentPageNumber = 1;
      let hasMorePages = true;
      let nextLink: string | undefined = undefined;
@@ -532,14 +532,14 @@ console.log(`[DEBUG] Applied simple select/expand for ${listTitle} to avoid ODat
        console.log(`[DEBUG] Last item ID: ${formattedItems[formattedItems.length - 1].id}`);
        
        if (listTitle === 'StaffRecords') {
-         const firstDate = (formattedItems[0].fields as any)?.Date;
-         const lastDate = (formattedItems[formattedItems.length - 1].fields as any)?.Date;
+         const firstDate = (formattedItems[0].fields as IRemoteListItemField)?.Date;
+         const lastDate = (formattedItems[formattedItems.length - 1].fields as IRemoteListItemField)?.Date;
          console.log(`[DEBUG] Date range: ${firstDate} to ${lastDate}`);
          
          // Анализ уникальных StaffMemberLookupId
          const uniqueStaffIds = new Set();
          formattedItems.forEach(item => {
-           const staffId = (item.fields as any)?.StaffMemberLookupId;
+           const staffId = (item.fields as IRemoteListItemField)?.StaffMemberLookupId;
            if (staffId) uniqueStaffIds.add(staffId);
          });
          console.log(`[DEBUG] Unique staff members in data: ${uniqueStaffIds.size}`);

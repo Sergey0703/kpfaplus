@@ -6,7 +6,7 @@ import {
 } from "./StaffRecordsInterfaces";
 
 // Импортируем IRemotePaginatedItemsResponse из RemoteSiteInterfaces.ts
-import { IRemotePaginatedItemsResponse } from "./RemoteSiteInterfaces";
+import { IRemotePaginatedItemsResponse, IRemoteListItemResponse } from "./RemoteSiteInterfaces";
 
 // Определяем возвращаемый тип fetchStaffRecords как IRemotePaginatedItemsResponse
 type IFetchStaffRecordsResult = IRemotePaginatedItemsResponse;
@@ -192,7 +192,7 @@ export class StaffRecordsFetchService {
    */
   public async fetchAllStaffRecordsForTimetable(
     queryParams: Omit<IStaffRecordsQueryParams, 'skip' | 'top' | 'nextLink'>
-  ): Promise<{ items: any[], totalCount: number }> {
+  ): Promise<{ items: IRemoteListItemResponse[], totalCount: number }> {
     try {
       const {
         startDate,
@@ -259,7 +259,7 @@ export class StaffRecordsFetchService {
       // --- ИСПОЛЬЗУЕМ НОВЫЙ МЕТОД RemoteSiteService.getAllFilteredItemsFromList ---
       this.logInfo(`[DEBUG] НАЧИНАЕМ запрос к списку ${this._listName} БЕЗ пагинации через RemoteSiteService...`);
 
-      let fetchResult: { items: any[], totalCount: number };
+      let fetchResult: { items: IRemoteListItemResponse[], totalCount: number };
       try {
         // Вызываем новый метод RemoteSiteService.getAllFilteredItemsFromList
         fetchResult = await this._remoteSiteService.getAllFilteredItemsFromList(
@@ -489,12 +489,12 @@ export class StaffRecordsFetchService {
    * Логирует подробную информацию о полученных данных для диагностики
    * @param item Элемент данных для логирования
    */
-  private logDetailedDataInfo(item: IRawStaffRecord): void { // Принимаем IRawStaffRecord
+  private logDetailedDataInfo(item: IRemoteListItemResponse): void { // Изменен тип параметра
     this.logInfo(`[DEBUG] Пример ПЕРВОГО элемента (сырые данные): ${JSON.stringify(item, null, 2)}`);
 
     // Проверка наличия полей (используя оператор ?)
-    if (item) {
-      const fields = item; // В этом сервисе мы работаем с полями напрямую как IRawStaffRecord
+    if (item && item.fields) {
+      const fields = item.fields; // Используем поля из IRemoteListItemResponse
       this.logInfo(`[DEBUG] Поля первого элемента: ${Object.keys(fields).join(', ')}`);
 
       // Проверка полей Lookup
