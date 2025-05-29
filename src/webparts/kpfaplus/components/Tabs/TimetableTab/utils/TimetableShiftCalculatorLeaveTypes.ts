@@ -783,77 +783,76 @@ export class TimetableShiftCalculatorLeaveTypes {
     };
   }
 
-  /**
-   * НОВЫЙ МЕТОД: Анализирует день для Excel экспорта включая отметки без смен
-   * Версия 3.2: Полный анализ для корректного отображения в Excel
-   */
-  public static analyzeExcelDayData(
-    shifts: IShiftInfo[],
-    dayData?: IDayInfo,
-    getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined
-  ): {
-    hasAnyData: boolean;
-    hasWorkData: boolean;
-    hasHolidayData: boolean;
-    hasLeaveData: boolean;
-    displayText: string;
-    colorInfo: {
-      shouldApplyColor: boolean;
-      backgroundColor?: string;
-      textColor?: string;
-      priority: ColorPriority;
-    };
-  } {
-    console.log('[TimetableShiftCalculatorLeaveTypes] Analyzing day data for Excel export v3.2');
+// ИСПРАВЛЕННАЯ ВЕРСИЯ:
+public static analyzeExcelDayData(
+  shifts: IShiftInfo[],
+  dayData?: IDayInfo,
+  getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined
+): {
+  hasAnyData: boolean;
+  hasWorkData: boolean;
+  hasHolidayData: boolean;
+  hasLeaveData: boolean;
+  displayText: string;
+  colorInfo: {
+    shouldApplyColor: boolean;
+    backgroundColor?: string;
+    textColor?: string;
+    priority: ColorPriority;
+  };
+} {
+  console.log('[TimetableShiftCalculatorLeaveTypes] Analyzing day data for Excel export v3.2');
 
-    const hasWorkShifts = shifts.some(s => s.workMinutes > 0);
-    const hasHolidayInShifts = shifts.some(s => s.isHoliday);
-    const hasLeaveInShifts = shifts.some(s => s.typeOfLeaveId);
-    
-    // Анализ отметок без работы
-    const hasHolidayMarker = dayData?.hasHoliday && !hasWorkShifts;
-    const hasLeaveMarker = dayData?.hasLeave && !hasWorkShifts && !hasHolidayMarker;
-    
-    const hasAnyData = hasWorkShifts || hasHolidayMarker || hasLeaveMarker;
-    const hasWorkData = hasWorkShifts;
-    const hasHolidayData = hasHolidayInShifts || hasHolidayMarker;
-    const hasLeaveData = hasLeaveInShifts || hasLeaveMarker;
+  const hasWorkShifts = shifts.some(s => s.workMinutes > 0);
+  const hasHolidayInShifts = shifts.some(s => s.isHoliday);
+  const hasLeaveInShifts = shifts.some(s => s.typeOfLeaveId);
+  
+  // Анализ отметок без работы - ИСПРАВЛЕНО: Принудительное приведение к boolean
+  const hasHolidayMarker = !!(dayData?.hasHoliday && !hasWorkShifts);
+  const hasLeaveMarker = !!(dayData?.hasLeave && !hasWorkShifts && !hasHolidayMarker);
+  
+  // Все переменные теперь точно boolean
+  const hasAnyData = hasWorkShifts || hasHolidayMarker || hasLeaveMarker;
+  const hasWorkData = hasWorkShifts;
+  const hasHolidayData = hasHolidayInShifts || hasHolidayMarker;
+  const hasLeaveData = hasLeaveInShifts || hasLeaveMarker;
 
-    // Определяем текст для отображения
-    let displayText = '';
-    if (hasWorkShifts) {
-      // Есть рабочие смены - используем стандартное форматирование
-      displayText = this.formatShiftsForExcel(shifts);
-    } else if (hasHolidayMarker) {
-      // Только отметка праздника
-      displayText = 'Holiday';
-    } else if (hasLeaveMarker) {
-      // Только отметка отпуска
-      displayText = 'Leave';
-    }
-
-    // Определяем цветовую информацию
-    const cellStyles = this.createExcelCellStyles(shifts, getLeaveTypeColor, dayData);
-    
-    const colorInfo = {
-      shouldApplyColor: cellStyles.backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND,
-      backgroundColor: cellStyles.backgroundColor,
-      textColor: cellStyles.color,
-      priority: cellStyles.priority
-    };
-
-    const analysis = {
-      hasAnyData,
-      hasWorkData,
-      hasHolidayData,
-      hasLeaveData,
-      displayText,
-      colorInfo
-    };
-
-    console.log('[TimetableShiftCalculatorLeaveTypes] Excel day analysis result:', analysis);
-    return analysis;
+  // Определяем текст для отображения
+  let displayText = '';
+  if (hasWorkShifts) {
+    // Есть рабочие смены - используем стандартное форматирование
+    displayText = this.formatShiftsForExcel(shifts);
+  } else if (hasHolidayMarker) {
+    // Только отметка праздника
+    displayText = 'Holiday';
+  } else if (hasLeaveMarker) {
+    // Только отметка отпуска
+    displayText = 'Leave';
   }
+
+  // Определяем цветовую информацию
+  const cellStyles = this.createExcelCellStyles(shifts, getLeaveTypeColor, dayData);
+  
+  const colorInfo = {
+    shouldApplyColor: cellStyles.backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND,
+    backgroundColor: cellStyles.backgroundColor,
+    textColor: cellStyles.color,
+    priority: cellStyles.priority
+  };
+
+  const analysis = {
+    hasAnyData,
+    hasWorkData,
+    hasHolidayData,
+    hasLeaveData,
+    displayText,
+    colorInfo
+  };
+
+  console.log('[TimetableShiftCalculatorLeaveTypes] Excel day analysis result:', analysis);
+  return analysis;
+}
+
 
   /**
    * НОВЫЙ МЕТОД: Создает полное описание дня для Excel экспорта
