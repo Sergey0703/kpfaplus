@@ -11,6 +11,7 @@ import {
   TIMETABLE_COLORS
 } from '../interfaces/TimetableInterfaces';
 import { TimetableShiftCalculator } from './TimetableShiftCalculator';
+import { TimetableShiftCalculatorCore } from './TimetableShiftCalculatorCore';
 import { TimetableDataUtils } from './TimetableDataUtils';
 import { TimetableDataAnalytics } from './TimetableDataAnalytics';
 //import { TimetableWeekCalculator } from './TimetableWeekCalculator';
@@ -19,6 +20,7 @@ import { IStaffRecord } from '../../../../services/StaffRecordsService';
 /**
  * Основной процессор данных для таблицы расписания
  * Версия 3.2 - ИСПРАВЛЕНО: Показ праздников и отпусков даже без рабочих смен
+ * НОВОЕ: Добавлена специальная поддержка Excel экспорта
  * 
  * Этот класс является главным API для обработки данных расписания.
  * Он координирует работу утилит (TimetableDataUtils) и аналитики (TimetableDataAnalytics).
@@ -207,6 +209,108 @@ export class TimetableDataProcessor {
     return weekGroups;
   }
 
+  /**
+   * НОВЫЙ МЕТОД: Специальная обработка данных для экспорта в Excel
+   * Версия 3.2: Включает отметки праздников/отпусков даже без рабочих смен
+   */
+  public static processDataForExcelExport(params: ITimetableDataParams): IWeekGroup[] {
+    const { staffRecords, staffMembers, weeks, currentUserId, managingGroupId, getLeaveTypeColor, holidayColor } = params;
+
+    console.log('[TimetableDataProcessor] *** PROCESSING DATA FOR EXCEL EXPORT v3.2 ***');
+    console.log('[TimetableDataProcessor] Excel export processing with full Holiday/Leave markers support:', {
+      staffRecordsCount: staffRecords.length,
+      staffMembersCount: staffMembers.length,
+      weeksCount: weeks.length,
+      currentUserId,
+      managingGroupId,
+      hasLeaveTypeColorFunction: !!getLeaveTypeColor,
+      holidayColor: holidayColor || TIMETABLE_COLORS.HOLIDAY,
+      version: '3.2 - Full support for non-work Holiday/Leave markers in Excel export'
+    });
+
+    // Проверка входных данных
+    if (!staffRecords.length || !staffMembers.length || !weeks.length) {
+      console.warn('[TimetableDataProcessor] Missing essential data for Excel export - returning empty result');
+      return [];
+    }
+
+    // *** СОЗДАНИЕ ИНДЕКСОВ С ПОМОЩЬЮ УТИЛИТ ***
+    const startTime = performance.now();
+    
+    console.log('[TimetableDataProcessor] *** CREATING INDEXES FOR EXCEL EXPORT ***');
+    const recordsIndex = TimetableDataUtils.createStaffRecordsIndex(staffRecords);
+    //const weekRecordsIndex = TimetableDataUtils.createWeeksRecordsIndex(staffRecords, weeks);
+    //const leaveTypesIndex = TimetableDataUtils.createLeaveTypesIndex(staffRecords, getLeaveTypeColor);
+    
+    const indexTime = performance.now() - startTime;
+    console.log('[TimetableDataProcessor] *** INDEXES CREATED FOR EXCEL EXPORT ***', {
+      indexCreationTime: Math.round(indexTime) + 'ms',
+      utilsUsed: 'TimetableDataUtils for all indexing operations'
+    });
+
+    // *** ОБРАБОТКА НЕДЕЛЬ С ПОЛНОЙ ПОДДЕРЖКОЙ ОТМЕТОК ДЛЯ EXCEL ***
+    console.log('[TimetableDataProcessor] *** PROCESSING WEEKS FOR EXCEL WITH FULL MARKERS SUPPORT ***');
+    const weekGroups: IWeekGroup[] = [];
+
+    weeks.forEach((week, index) => {
+      console.log(`[TimetableDataProcessor] Processing week ${week.weekNum} for Excel export with full markers support`);
+
+      const staffRows: ITimetableStaffRow[] = [];
+      let weekHasData = false;
+
+      // Обрабатываем каждого сотрудника в этой неделе
+      staffMembers.forEach(staffMember => {
+        // Получаем записи сотрудника из индекса и фильтруем по неделе
+        const staffAllRecords = TimetableDataUtils.getStaffRecordsFromIndex(recordsIndex, staffMember);
+        const staffWeekRecords = TimetableDataUtils.filterRecordsByWeek(staffAllRecords, week);
+        
+        // *** КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Используем метод с полной поддержкой отметок для Excel ***
+        const weeklyData = this.processWeekDataForExcelWithFullMarkers(
+          staffWeekRecords, 
+          week, 
+          getLeaveTypeColor, 
+          holidayColor
+        );
+        
+        // Анализируем данные сотрудника
+        const staffAnalysis = TimetableDataAnalytics.analyzeStaffWeekData(weeklyData);
+        if (staffAnalysis.hasData) {
+          weekHasData = true;
+        }
+
+        const staffRow: ITimetableStaffRow = {
+          staffId: staffMember.id,
+          staffName: staffMember.name,
+          isDeleted: staffMember.deleted === 1,
+          hasPersonInfo: TimetableDataUtils.hasPersonInfo(staffMember),
+          weekData: weeklyData
+        };
+
+        staffRows.push(staffRow);
+      });
+
+      // Сортируем сотрудников в группе недели
+      const sortedStaffRows = TimetableDataUtils.sortStaffRowsInWeek(staffRows);
+
+      const weekGroup: IWeekGroup = {
+        weekInfo: week,
+        staffRows: sortedStaffRows,
+        isExpanded: true, // Для экспорта все недели "развернуты"
+        hasData: weekHasData
+      };
+
+      weekGroups.push(weekGroup);
+
+      console.log(`[TimetableDataProcessor] Week ${week.weekNum} processed for Excel export:`, {
+        staffCount: sortedStaffRows.length,
+        hasData: weekHasData
+      });
+    });
+
+    console.log('[TimetableDataProcessor] *** EXCEL EXPORT PROCESSING COMPLETED ***');
+    return weekGroups;
+  }
+
   // *** ПРИВАТНЫЕ МЕТОДЫ ОБРАБОТКИ ***
 
   /**
@@ -279,6 +383,51 @@ export class TimetableDataProcessor {
     // Обрабатываем каждый день недели (1-7) с поддержкой цветов отпусков и праздников
     for (let dayNum = 1; dayNum <= 7; dayNum++) {
       const dayInfo = this.processDayDataWithLeaveColorsAndHolidaysIncludingNonWorkDays(
+        weekRecords, 
+        dayNum, 
+        week.weekStart, 
+        week.weekEnd,
+        getLeaveTypeColor,
+        holidayColor
+      );
+      
+      weeklyData.days[dayNum] = dayInfo;
+      weeklyData.totalWeekMinutes += dayInfo.totalMinutes;
+    }
+
+    // Форматируем недельный итог
+    weeklyData.formattedWeekTotal = TimetableShiftCalculator.formatMinutesToHours(weeklyData.totalWeekMinutes);
+
+    return weeklyData;
+  }
+
+  /**
+   * НОВЫЙ МЕТОД: Обработка недельных данных специально для Excel экспорта
+   * Версия 3.2: Максимальная поддержка отметок праздников/отпусков
+   */
+  private static processWeekDataForExcelWithFullMarkers(
+    staffRecords: IStaffRecord[], 
+    week: IWeekInfo,
+    getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined,
+    holidayColor?: string
+  ): IWeeklyStaffData {
+    const weeklyData: IWeeklyStaffData = {
+      weekNum: week.weekNum,
+      weekStart: week.weekStart,
+      weekEnd: week.weekEnd,
+      days: {},
+      totalWeekMinutes: 0,
+      formattedWeekTotal: "0h 00m"
+    };
+
+    // Фильтруем записи по неделе
+    const weekRecords = TimetableDataUtils.filterRecordsByWeek(staffRecords, week);
+
+    console.log(`[TimetableDataProcessor] Processing week ${week.weekNum} for Excel with ${weekRecords.length} records (including full markers support)`);
+
+    // *** ОБРАБАТЫВАЕМ КАЖДЫЙ ДЕНЬ НЕДЕЛИ С МАКСИМАЛЬНОЙ ПОДДЕРЖКОЙ ОТМЕТОК ***
+    for (let dayNum = 1; dayNum <= 7; dayNum++) {
+      const dayInfo = this.processDayDataForExcelWithFullMarkers(
         weekRecords, 
         dayNum, 
         week.weekStart, 
@@ -514,6 +663,97 @@ export class TimetableDataProcessor {
   }
 
   /**
+   * НОВЫЙ МЕТОД: Обработка дневных данных специально для Excel экспорта
+   * Версия 3.2: Максимальная детализация праздников/отпусков для Excel
+   */
+  private static processDayDataForExcelWithFullMarkers(
+    weekRecords: IStaffRecord[],
+    dayNumber: number,
+    weekStart: Date,
+    weekEnd: Date,
+    getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined,
+    holidayColor?: string
+  ): IDayInfo {
+    // Находим дату для этого дня недели
+    const dayDate = TimetableDataUtils.getDateForDayInWeek(weekStart, dayNumber);
+    
+    console.log(`[TimetableDataProcessor] Processing day ${dayNumber} for Excel with full markers (${dayDate.toLocaleDateString()})`);
+
+    // *** ИСПОЛЬЗУЕМ МЕТОД С ПОЛНОЙ ПОДДЕРЖКОЙ ОТМЕТОК ИЗ CORE ***
+    const shifts = TimetableShiftCalculatorCore.getShiftsAndMarkersForDay(
+      weekRecords,
+      dayNumber,
+      weekStart,
+      weekEnd,
+      getLeaveTypeColor
+    );
+
+    // Рассчитываем общие минуты (только от смен с рабочим временем)
+    const totalMinutes = shifts.reduce((sum, shift) => {
+      // Исключаем отметки без рабочего времени из подсчета минут
+      return shift.workMinutes > 0 ? sum + shift.workMinutes : sum;
+    }, 0);
+    
+    // Форматируем содержимое
+    const formattedContent = TimetableShiftCalculator.formatDayContent(shifts);
+
+    // *** РАСШИРЕННЫЙ АНАЛИЗ ДЛЯ EXCEL ЭКСПОРТА ***
+    const hasWorkShifts = shifts.some(s => s.workMinutes > 0);
+    const hasHolidayMarkers = shifts.some(s => s.isHoliday && s.workMinutes === 0);
+    const hasLeaveMarkers = shifts.some(s => s.typeOfLeaveId && s.workMinutes === 0);
+    const hasHolidayInWorkShifts = shifts.some(s => s.isHoliday && s.workMinutes > 0);
+    const hasLeaveInWorkShifts = shifts.some(s => s.typeOfLeaveId && s.workMinutes > 0);
+
+    // Определяем цвета с системой приоритетов
+    const leaveTypeColor = TimetableShiftCalculator.getDominantLeaveColor(shifts);
+    const hasLeave = TimetableShiftCalculator.hasLeaveTypes(shifts);
+    const hasHoliday = TimetableShiftCalculator.hasHolidays ? 
+      TimetableShiftCalculator.hasHolidays(shifts) : 
+      shifts.some(s => s.isHoliday);
+    
+    const holidayColorFinal = holidayColor || TIMETABLE_COLORS.HOLIDAY;
+
+    // *** ФИНАЛЬНЫЙ ЦВЕТ ЯЧЕЙКИ ПО СИСТЕМЕ ПРИОРИТЕТОВ ДЛЯ EXCEL ***
+    let finalCellColor: string | undefined = undefined;
+    if (hasHoliday || hasHolidayMarkers || hasHolidayInWorkShifts) {
+      finalCellColor = holidayColorFinal; // Праздники имеют высший приоритет
+    } else if ((hasLeave || hasLeaveMarkers || hasLeaveInWorkShifts) && leaveTypeColor) {
+      finalCellColor = leaveTypeColor; // Типы отпусков имеют средний приоритет
+    }
+
+    // Логирование для Excel экспорта
+    if (shifts.length > 0 || hasHolidayMarkers || hasLeaveMarkers) {
+      console.log(`[TimetableDataProcessor] Day ${dayNumber} Excel export analysis:`, {
+        hasWorkShifts,
+        hasHolidayMarkers,
+        hasLeaveMarkers,
+        hasHolidayInWorkShifts,
+        hasLeaveInWorkShifts,
+        finalCellColor,
+        shiftsCount: shifts.length,
+        totalMinutes,
+        priorityApplied: hasHoliday || hasHolidayMarkers ? 'HOLIDAY' : 
+                         hasLeave || hasLeaveMarkers ? 'LEAVE_TYPE' : 'DEFAULT'
+      });
+    }
+
+    return {
+      dayNumber,
+      date: dayDate,
+      shifts,
+      totalMinutes,
+      formattedContent,
+      hasData: shifts.length > 0, // Есть любые данные (смены или отметки)
+      leaveTypeColor,
+      hasLeave: hasLeave || hasLeaveMarkers || hasLeaveInWorkShifts,
+      // Поддержка праздников
+      hasHoliday: hasHoliday || hasHolidayMarkers || hasHolidayInWorkShifts,
+      holidayColor: (hasHoliday || hasHolidayMarkers || hasHolidayInWorkShifts) ? holidayColorFinal : undefined,
+      finalCellColor
+    };
+  }
+
+  /**
    * НОВЫЙ МЕТОД: Подсчитывает количество праздников в недельных данных
    */
   private static countHolidaysInWeekData(weeklyData: IWeeklyStaffData): number {
@@ -681,6 +921,7 @@ export class TimetableDataProcessor {
         'Leave Colors Support',
         'Holiday Support with Priority System',
         'Non-work Days Holiday/Leave Marking',
+        'Excel Export with Full Markers Support',
         'Advanced Analytics',
         'Performance Optimization',
         'Data Validation',
@@ -733,12 +974,98 @@ export class TimetableDataProcessor {
         }
       });
     } else {
-      recommendations.push('Modular architecture is properly configured with Holiday support and non-work days marking');
+      recommendations.push('Modular architecture is properly configured with Holiday support, non-work days marking, and Excel export functionality');
     }
 
     return {
       isValid,
       modules,
+      recommendations
+    };
+  }
+
+  /**
+   * НОВЫЙ МЕТОД: Получает статистику по Excel экспорту
+   */
+  public static getExcelExportPreview(weekGroups: IWeekGroup[]): {
+    totalCells: number;
+    cellsWithData: number;
+    cellsWithHolidays: number;
+    cellsWithLeave: number;
+    coloredCells: number;
+    exportQuality: string;
+    recommendations: string[];
+  } {
+    let totalCells = 0;
+    let cellsWithData = 0;
+    let cellsWithHolidays = 0;
+    let cellsWithLeave = 0;
+    let coloredCells = 0;
+
+    weekGroups.forEach(weekGroup => {
+      weekGroup.staffRows.forEach(staffRow => {
+        // 7 дней в неделе
+        for (let dayNum = 1; dayNum <= 7; dayNum++) {
+          totalCells++;
+          const dayData = staffRow.weekData.days[dayNum];
+          
+          if (dayData && dayData.hasData) {
+            cellsWithData++;
+          }
+          
+          if (dayData && dayData.hasHoliday) {
+            cellsWithHolidays++;
+          }
+          
+          if (dayData && dayData.hasLeave) {
+            cellsWithLeave++;
+          }
+          
+          if (dayData && dayData.finalCellColor && dayData.finalCellColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND) {
+            coloredCells++;
+          }
+        }
+      });
+    });
+
+    const dataRatio = totalCells > 0 ? (cellsWithData / totalCells) * 100 : 0;
+    let exportQuality = 'UNKNOWN';
+    
+    if (dataRatio > 80) {
+      exportQuality = 'EXCELLENT';
+    } else if (dataRatio > 50) {
+      exportQuality = 'GOOD';
+    } else if (dataRatio > 20) {
+      exportQuality = 'FAIR';
+    } else {
+      exportQuality = 'POOR';
+    }
+
+    const recommendations: string[] = [];
+    
+    if (cellsWithHolidays === 0) {
+      recommendations.push('No holiday markers found - check Holiday field in source data');
+    }
+    
+    if (cellsWithLeave === 0) {
+      recommendations.push('No leave markers found - check TypeOfLeave configuration');
+    }
+    
+    if (coloredCells < (cellsWithHolidays + cellsWithLeave)) {
+      recommendations.push('Some holidays/leaves may not have proper colors assigned');
+    }
+    
+    if (dataRatio < 10) {
+      recommendations.push('Very low data coverage - consider expanding date range or checking filters');
+    }
+
+    return {
+      totalCells,
+      cellsWithData,
+      cellsWithHolidays,
+      cellsWithLeave,
+      coloredCells,
+      exportQuality,
       recommendations
     };
   }

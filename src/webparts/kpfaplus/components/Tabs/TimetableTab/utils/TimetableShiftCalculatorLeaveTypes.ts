@@ -3,15 +3,20 @@ import {
   IShiftInfo, 
   TIMETABLE_COLORS, 
   ColorPriority, 
-  IDayColorAnalysis
+  IDayColorAnalysis,
+  IDayInfo
 } from '../interfaces/TimetableInterfaces';
 
 /**
  * Работа с типами отпусков, праздниками и цветовыми схемами
  * Содержит функции для анализа отпусков, работы с цветами и визуализации
  * ОБНОВЛЕНО: Полная поддержка праздников с системой приоритетов цветов
+ * НОВОЕ: Специальная поддержка Excel экспорта с отметками без смен
+ * Версия 3.2 - Максимальная поддержка Excel экспорта
  */
 export class TimetableShiftCalculatorLeaveTypes {
+
+  // *** ОСНОВНЫЕ МЕТОДЫ АНАЛИЗА ЦВЕТОВ ***
 
   /**
    * ГЛАВНЫЙ МЕТОД: Определяет финальный цвет ячейки с учетом приоритетов
@@ -194,6 +199,8 @@ export class TimetableShiftCalculatorLeaveTypes {
     return dominantColor;
   }
 
+  // *** АНАЛИЗ ТИПОВ ОТПУСКОВ И ПРАЗДНИКОВ ***
+
   /**
    * НОВЫЙ МЕТОД: Получает все уникальные типы отпусков из смен (с учетом праздников)
    */
@@ -315,6 +322,9 @@ export class TimetableShiftCalculatorLeaveTypes {
       }
     };
   }
+
+  // *** ФОРМАТИРОВАНИЕ И ОТОБРАЖЕНИЕ ***
+
   /**
    * ОБНОВЛЕННЫЙ МЕТОД: Форматирует информацию о типах отпусков и праздниках в дне
    */
@@ -375,6 +385,8 @@ export class TimetableShiftCalculatorLeaveTypes {
   public static hasSpecificLeaveType(shifts: IShiftInfo[], leaveTypeId: string): boolean {
     return shifts.some(shift => shift.typeOfLeaveId === leaveTypeId);
   }
+
+  // *** ЦВЕТОВЫЕ СХЕМЫ И СТИЛИ ***
 
   /**
    * НОВЫЙ МЕТОД: Получает все цвета в дне с учетом приоритетов
@@ -475,6 +487,8 @@ export class TimetableShiftCalculatorLeaveTypes {
     return `linear-gradient(45deg, ${gradientStops})`;
   }
 
+  // *** СТАТИСТИКА И АНАЛИЗ ***
+
   /**
    * ОБНОВЛЕННЫЙ МЕТОД: Получает статистику по типам отпусков с учетом праздников
    */
@@ -526,6 +540,8 @@ export class TimetableShiftCalculatorLeaveTypes {
       }
     };
   }
+
+  // *** СТИЛИ ДЛЯ КОМПОНЕНТОВ ***
 
   /**
    * ОБНОВЛЕННЫЙ МЕТОД: Применяет цветовую схему с приоритетом праздников
@@ -588,34 +604,6 @@ export class TimetableShiftCalculatorLeaveTypes {
         }
       };
     });
-  }
-
-  /**
-   * ВСПОМОГАТЕЛЬНЫЙ МЕТОД: Конвертирует HEX цвет в RGB
-   */
-  private static hexToRgb(hex: string): { r: number; g: number; b: number } | null {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result ? {
-      r: parseInt(result[1], 16),
-      g: parseInt(result[2], 16),
-      b: parseInt(result[3], 16)
-    } : null;
-  }
-
-  /**
-   * ВСПОМОГАТЕЛЬНЫЙ МЕТОД: Затемняет HEX цвет на указанный процент
-   */
-  private static darkenHexColor(hex: string, percent: number): string {
-    const rgb = this.hexToRgb(hex);
-    if (!rgb) return hex;
-    
-    const darken = (color: number) => Math.max(0, Math.floor(color * (1 - percent)));
-    
-    const r = darken(rgb.r).toString(16).padStart(2, '0');
-    const g = darken(rgb.g).toString(16).padStart(2, '0');
-    const b = darken(rgb.b).toString(16).padStart(2, '0');
-    
-    return `#${r}${g}${b}`;
   }
 
   /**
@@ -683,5 +671,631 @@ export class TimetableShiftCalculatorLeaveTypes {
     // Убираем новые поля для совместимости
     const { priority, reason, ...compatibleStyles } = newStyles;
     return compatibleStyles;
+  }
+
+  // *** НОВЫЕ МЕТОДЫ ДЛЯ EXCEL ЭКСПОРТА ***
+
+  /**
+   * НОВЫЙ МЕТОД: Создает стили ячейки специально для Excel экспорта
+   * Версия 3.2: Поддержка отметок праздников/отпусков даже без рабочих смен
+   */
+  public static createExcelCellStyles(
+    shifts: IShiftInfo[], 
+    getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined,
+    dayData?: IDayInfo // Дополнительная информация о дне для анализа отметок
+  ): {
+    backgroundColor?: string;
+    color?: string;
+    border?: string;
+    borderRadius?: string;
+    textShadow?: string;
+    priority: ColorPriority;
+    reason: string;
+    excelFillPattern?: any;
+    excelFont?: any;
+  } {
+    console.log('[TimetableShiftCalculatorLeaveTypes] Creating Excel cell styles with full markers support v3.2');
+
+    // *** РАСШИРЕННЫЙ АНАЛИЗ ДЛЯ EXCEL ВКЛЮЧАЯ ДНИ БЕЗ СМЕН ***
+    const hasWorkShifts = shifts.some(s => s.workMinutes > 0);
+    const hasHolidayInShifts = shifts.some(s => s.isHoliday);
+    const hasLeaveInShifts = shifts.some(s => s.typeOfLeaveId);
+    
+    // *** НОВОЕ: Анализ отметок из dayData (дни без смен) ***
+    const hasHolidayMarker = dayData?.hasHoliday && !hasWorkShifts;
+    const hasLeaveMarker = dayData?.hasLeave && !hasWorkShifts && !hasHolidayMarker;
+    
+    const finalHasHoliday = hasHolidayInShifts || hasHolidayMarker;
+    const finalHasLeave = hasLeaveInShifts || hasLeaveMarker;
+
+    console.log('[TimetableShiftCalculatorLeaveTypes] Excel cell analysis:', {
+      hasWorkShifts,
+      hasHolidayInShifts,
+      hasLeaveInShifts,
+      hasHolidayMarker,
+      hasLeaveMarker,
+      finalHasHoliday,
+      finalHasLeave
+    });
+
+    let backgroundColor = TIMETABLE_COLORS.DEFAULT_BACKGROUND;
+    let priority = ColorPriority.DEFAULT;
+    let reason = 'Default styling';
+
+    // *** СИСТЕМА ПРИОРИТЕТОВ ДЛЯ EXCEL ***
+    if (finalHasHoliday) {
+      backgroundColor = TIMETABLE_COLORS.HOLIDAY;
+      priority = ColorPriority.HOLIDAY;
+      reason = hasHolidayInShifts ? 
+        'Holiday in work shifts (highest priority)' : 
+        'Holiday marker without work shifts (highest priority)';
+      
+      console.log(`[TimetableShiftCalculatorLeaveTypes] 🔴 Excel HOLIDAY color applied: ${backgroundColor}`);
+    } else if (finalHasLeave) {
+      // Определяем цвет отпуска
+      let leaveColor: string | undefined;
+      
+      if (hasLeaveInShifts && getLeaveTypeColor) {
+        // Цвет из смен с работой
+        leaveColor = this.getDominantLeaveColor(shifts, getLeaveTypeColor);
+      } else if (hasLeaveMarker && dayData?.leaveTypeColor) {
+        // Цвет из отметки дня без работы
+        leaveColor = dayData.leaveTypeColor;
+      }
+      
+      if (leaveColor) {
+        backgroundColor = leaveColor;
+        priority = ColorPriority.LEAVE_TYPE;
+        reason = hasLeaveInShifts ? 
+          'Leave type in work shifts' : 
+          'Leave type marker without work shifts';
+        
+        console.log(`[TimetableShiftCalculatorLeaveTypes] 🟡 Excel LEAVE color applied: ${backgroundColor}`);
+      }
+    }
+
+    // Определяем цвет текста
+    const textColor = this.getTextColorForBackground(backgroundColor);
+    const borderColor = this.darkenHexColor(backgroundColor, 0.2);
+
+    // *** СПЕЦИАЛЬНЫЕ СТИЛИ ДЛЯ EXCEL ***
+    const excelFillPattern = backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND ? {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: `FF${backgroundColor.replace('#', '')}` }
+    } : undefined;
+
+    const excelFont = backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND ? {
+      color: { argb: textColor === '#ffffff' ? 'FFFFFFFF' : 'FF000000' },
+      bold: priority === ColorPriority.HOLIDAY // Жирный шрифт для праздников
+    } : undefined;
+
+    return {
+      backgroundColor,
+      color: textColor,
+      border: backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND ? `1px solid ${borderColor}` : undefined,
+      borderRadius: '3px',
+      textShadow: textColor === '#ffffff' ? '0 1px 2px rgba(0,0,0,0.3)' : 'none',
+      priority,
+      reason,
+      excelFillPattern,
+      excelFont
+    };
+  }
+
+  /**
+   * НОВЫЙ МЕТОД: Анализирует день для Excel экспорта включая отметки без смен
+   * Версия 3.2: Полный анализ для корректного отображения в Excel
+   */
+  public static analyzeExcelDayData(
+    shifts: IShiftInfo[],
+    dayData?: IDayInfo,
+    getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined
+  ): {
+    hasAnyData: boolean;
+    hasWorkData: boolean;
+    hasHolidayData: boolean;
+    hasLeaveData: boolean;
+    displayText: string;
+    colorInfo: {
+      shouldApplyColor: boolean;
+      backgroundColor?: string;
+      textColor?: string;
+      priority: ColorPriority;
+    };
+  } {
+    console.log('[TimetableShiftCalculatorLeaveTypes] Analyzing day data for Excel export v3.2');
+
+    const hasWorkShifts = shifts.some(s => s.workMinutes > 0);
+    const hasHolidayInShifts = shifts.some(s => s.isHoliday);
+    const hasLeaveInShifts = shifts.some(s => s.typeOfLeaveId);
+    
+    // Анализ отметок без работы
+    const hasHolidayMarker = dayData?.hasHoliday && !hasWorkShifts;
+    const hasLeaveMarker = dayData?.hasLeave && !hasWorkShifts && !hasHolidayMarker;
+    
+    const hasAnyData = hasWorkShifts || hasHolidayMarker || hasLeaveMarker;
+    const hasWorkData = hasWorkShifts;
+    const hasHolidayData = hasHolidayInShifts || hasHolidayMarker;
+    const hasLeaveData = hasLeaveInShifts || hasLeaveMarker;
+
+    // Определяем текст для отображения
+    let displayText = '';
+    if (hasWorkShifts) {
+      // Есть рабочие смены - используем стандартное форматирование
+      displayText = this.formatShiftsForExcel(shifts);
+    } else if (hasHolidayMarker) {
+      // Только отметка праздника
+      displayText = 'Holiday';
+    } else if (hasLeaveMarker) {
+      // Только отметка отпуска
+      displayText = 'Leave';
+    }
+
+    // Определяем цветовую информацию
+    const cellStyles = this.createExcelCellStyles(shifts, getLeaveTypeColor, dayData);
+    
+    const colorInfo = {
+      shouldApplyColor: cellStyles.backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND,
+      backgroundColor: cellStyles.backgroundColor,
+      textColor: cellStyles.color,
+      priority: cellStyles.priority
+    };
+
+    const analysis = {
+      hasAnyData,
+      hasWorkData,
+      hasHolidayData,
+      hasLeaveData,
+      displayText,
+      colorInfo
+    };
+
+    console.log('[TimetableShiftCalculatorLeaveTypes] Excel day analysis result:', analysis);
+    return analysis;
+  }
+
+  /**
+   * НОВЫЙ МЕТОД: Создает полное описание дня для Excel экспорта
+   * Включает информацию о сменах, праздниках и отпусках
+   */
+  public static createExcelDayDescription(
+    shifts: IShiftInfo[],
+    dayData?: IDayInfo,
+    typesOfLeave?: Array<{ id: string; title: string; color?: string }>
+  ): {
+    primaryText: string;
+    additionalInfo: string[];
+    fullDescription: string;
+    hasMarkers: boolean;
+  } {
+    const analysis = this.analyzeExcelDayData(shifts, dayData);
+    
+    let primaryText = analysis.displayText;
+    const additionalInfo: string[] = [];
+    
+    // Добавляем дополнительную информацию
+    if (analysis.hasHolidayData) {
+      if (shifts.some(s => s.isHoliday && s.workMinutes > 0)) {
+        additionalInfo.push('Working Holiday');
+      } else {
+        additionalInfo.push('Holiday');
+      }
+    }
+    
+    if (analysis.hasLeaveData && typesOfLeave) {
+      const leaveTypes = new Set<string>();
+      
+      // Собираем типы отпусков из смен
+      shifts.forEach(shift => {
+        if (shift.typeOfLeaveId) {
+          const leaveType = typesOfLeave.find(lt => lt.id === shift.typeOfLeaveId);
+          if (leaveType) {
+            leaveTypes.add(leaveType.title);
+          }
+        }
+      });
+      
+      // Добавляем типы отпусков из отметок дня
+      if (dayData?.hasLeave && !analysis.hasWorkData) {
+        // Пытаемся определить тип отпуска по цвету
+        if (dayData.leaveTypeColor && typesOfLeave) {
+          const leaveType = typesOfLeave.find(lt => lt.color === dayData.leaveTypeColor);
+          if (leaveType) {
+            leaveTypes.add(leaveType.title);
+          }
+        }
+      }
+      
+      if (leaveTypes.size > 0) {
+        const leaveTypesArray: string[] = [];
+        leaveTypes.forEach(type => leaveTypesArray.push(type));
+        additionalInfo.push(`Leave: ${leaveTypesArray.join(', ')}`);
+      }
+    }
+    
+    // Формируем полное описание
+    let fullDescription = primaryText;
+    if (additionalInfo.length > 0) {
+      if (fullDescription) {
+        fullDescription += '\n' + additionalInfo.join('\n');
+      } else {
+        fullDescription = additionalInfo.join('\n');
+      }
+    }
+    
+    return {
+      primaryText,
+      additionalInfo,
+      fullDescription,
+      hasMarkers: additionalInfo.length > 0
+    };
+  }
+
+  /**
+   * НОВЫЙ МЕТОД: Форматирует смены для Excel экспорта
+   */
+  private static formatShiftsForExcel(shifts: IShiftInfo[]): string {
+    if (shifts.length === 0) {
+      return '';
+    }
+
+    if (shifts.length === 1) {
+      return shifts[0].formattedShift;
+    }
+
+    // Несколько смен - объединяем через новую строку
+    return shifts.map(shift => shift.formattedShift).join('\n');
+  }
+
+  /**
+   * ОБНОВЛЕННЫЙ МЕТОД: Получает статистику по Excel экспорту
+   * Включает информацию о отметках без смен
+   */
+  public static getExcelExportStatistics(
+    weeksData: Array<{
+      weekInfo: any;
+      staffRows: Array<{
+        staffName: string;
+        weekData: {
+          days: { [dayNumber: number]: IDayInfo };
+        };
+      }>;
+    }>
+  ): {
+    totalDays: number;
+    daysWithWorkShifts: number;
+    daysWithHolidayMarkers: number;
+    daysWithLeaveMarkers: number;
+    daysWithMixedData: number;
+    totalHolidayDays: number;
+    totalLeaveDays: number;
+    coloredCellsCount: number;
+    exportQuality: string;
+  } {
+    let totalDays = 0;
+    let daysWithWorkShifts = 0;
+    let daysWithHolidayMarkers = 0;
+    let daysWithLeaveMarkers = 0;
+    let daysWithMixedData = 0;
+    let totalHolidayDays = 0;
+    let totalLeaveDays = 0;
+    let coloredCellsCount = 0;
+
+    weeksData.forEach(weekGroup => {
+      weekGroup.staffRows.forEach(staffRow => {
+        Object.values(staffRow.weekData.days).forEach((dayData: IDayInfo) => {
+          totalDays++;
+          
+          const hasWorkShifts = dayData.shifts && dayData.shifts.some(s => s.workMinutes > 0);
+          const hasHolidayMarker = dayData.hasHoliday && !hasWorkShifts;
+          const hasLeaveMarker = dayData.hasLeave && !hasWorkShifts && !hasHolidayMarker;
+          const hasHolidayInWork = dayData.shifts && dayData.shifts.some(s => s.isHoliday && s.workMinutes > 0);
+          const hasLeaveInWork = dayData.shifts && dayData.shifts.some(s => s.typeOfLeaveId && s.workMinutes > 0);
+          
+          if (hasWorkShifts) {
+            daysWithWorkShifts++;
+          }
+          
+          if (hasHolidayMarker) {
+            daysWithHolidayMarkers++;
+          }
+          
+          if (hasLeaveMarker) {
+            daysWithLeaveMarkers++;
+          }
+          
+          if ((hasWorkShifts && (hasHolidayInWork || hasLeaveInWork)) || 
+              (hasHolidayMarker && hasLeaveMarker)) {
+            daysWithMixedData++;
+          }
+          
+          if (dayData.hasHoliday) {
+            totalHolidayDays++;
+          }
+          
+          if (dayData.hasLeave) {
+            totalLeaveDays++;
+          }
+          
+          // Подсчитываем цветные ячейки
+          if (dayData.finalCellColor && dayData.finalCellColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND) {
+            coloredCellsCount++;
+          }
+        });
+      });
+    });
+
+    let exportQuality = 'UNKNOWN';
+    const dataRatio = (daysWithWorkShifts + daysWithHolidayMarkers + daysWithLeaveMarkers) / totalDays;
+    
+    if (dataRatio > 0.8) {
+      exportQuality = 'EXCELLENT - High data coverage';
+    } else if (dataRatio > 0.5) {
+      exportQuality = 'GOOD - Moderate data coverage';
+    } else if (dataRatio > 0.2) {
+      exportQuality = 'FAIR - Limited data coverage';
+    } else {
+      exportQuality = 'POOR - Very limited data';
+    }
+
+    return {
+      totalDays,
+      daysWithWorkShifts,
+      daysWithHolidayMarkers,
+      daysWithLeaveMarkers,
+      daysWithMixedData,
+      totalHolidayDays,
+      totalLeaveDays,
+      coloredCellsCount,
+      exportQuality
+    };
+  }
+
+  /**
+   * НОВЫЙ МЕТОД: Создает сводку по цветам для Excel экспорта
+   */
+  public static createExcelColorLegend(
+    weeksData: Array<{
+      weekInfo: any;
+      staffRows: Array<{
+        staffName: string;
+        weekData: {
+          days: { [dayNumber: number]: IDayInfo };
+        };
+      }>;
+    }>,
+    typesOfLeave?: Array<{ id: string; title: string; color?: string }>
+  ): {
+    holidayColor: {
+      color: string;
+      name: string;
+      usage: number;
+    };
+    leaveColors: Array<{
+      color: string;
+      name: string;
+      usage: number;
+      typeId: string;
+    }>;
+    totalColoredCells: number;
+  } {
+    const leaveColorUsage = new Map<string, { name: string; usage: number; typeId: string }>();
+    let holidayUsage = 0;
+    let totalColoredCells = 0;
+
+    weeksData.forEach(weekGroup => {
+      weekGroup.staffRows.forEach(staffRow => {
+        Object.values(staffRow.weekData.days).forEach((dayData: IDayInfo) => {
+          if (dayData.finalCellColor && dayData.finalCellColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND) {
+            totalColoredCells++;
+            
+            if (dayData.hasHoliday) {
+              holidayUsage++;
+            } else if (dayData.hasLeave && dayData.leaveTypeColor) {
+              const color = dayData.leaveTypeColor;
+              const existing = leaveColorUsage.get(color);
+              
+              if (existing) {
+                existing.usage++;
+              } else {
+                // Находим название типа отпуска
+                let name = 'Unknown Leave Type';
+                let typeId = 'unknown';
+                
+                if (typesOfLeave) {
+                  const leaveType = typesOfLeave.find(lt => lt.color === color);
+                  if (leaveType) {
+                    name = leaveType.title;
+                    typeId = leaveType.id;
+                  }
+                }
+                
+                leaveColorUsage.set(color, { name, usage: 1, typeId });
+              }
+            }
+          }
+        });
+      });
+    });
+
+    // Конвертируем Map в массив
+    const leaveColors: Array<{
+      color: string;
+      name: string;
+      usage: number;
+      typeId: string;
+    }> = [];
+    
+    leaveColorUsage.forEach((data, color) => {
+      leaveColors.push({
+        color,
+        name: data.name,
+        usage: data.usage,
+        typeId: data.typeId
+      });
+    });
+    
+    // Сортируем по использованию
+    leaveColors.sort((a, b) => b.usage - a.usage);
+
+    return {
+      holidayColor: {
+        color: TIMETABLE_COLORS.HOLIDAY,
+        name: 'Holiday',
+        usage: holidayUsage
+      },
+      leaveColors,
+      totalColoredCells
+    };
+  }
+
+  // *** ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ***
+
+  /**
+   * ВСПОМОГАТЕЛЬНЫЙ МЕТОД: Конвертирует HEX цвет в RGB
+   */
+  private static hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : null;
+  }
+
+  /**
+   * ВСПОМОГАТЕЛЬНЫЙ МЕТОД: Затемняет HEX цвет на указанный процент
+   */
+  private static darkenHexColor(hex: string, percent: number): string {
+    const rgb = this.hexToRgb(hex);
+    if (!rgb) return hex;
+    
+    const darken = (color: number) => Math.max(0, Math.floor(color * (1 - percent)));
+    
+    const r = darken(rgb.r).toString(16).padStart(2, '0');
+    const g = darken(rgb.g).toString(16).padStart(2, '0');
+    const b = darken(rgb.b).toString(16).padStart(2, '0');
+    
+    return `#${r}${g}${b}`;
+  }
+
+  // *** ИНФОРМАЦИЯ О ВЕРСИИ И ВОЗМОЖНОСТЯХ ***
+
+  /**
+   * Получает информацию о возможностях класса
+   */
+  public static getCapabilities(): {
+    version: string;
+    supportedFeatures: string[];
+    holidaySupport: boolean;
+    excelExportSupport: boolean;
+    prioritySystem: string[];
+    compatibilityLevel: string;
+  } {
+    return {
+      version: '3.2',
+      supportedFeatures: [
+        'Holiday Priority System',
+        'Leave Type Colors',
+        'Non-work Day Markers',
+        'Excel Export Support',
+        'Color Priority Resolution',
+        'Advanced Statistics',
+        'Gradient Generation',
+        'Text Contrast Calculation'
+      ],
+      holidaySupport: true,
+      excelExportSupport: true,
+      prioritySystem: [
+        '1. Holiday (Red) - Highest Priority',
+        '2. Leave Types (Colored) - Medium Priority', 
+        '3. Default (White) - Lowest Priority'
+      ],
+      compatibilityLevel: 'Full backward compatibility with v2.x and v3.0/3.1'
+    };
+  }
+
+  /**
+   * Проверяет корректность конфигурации цветов
+   */
+  public static validateColorConfiguration(
+    shifts: IShiftInfo[],
+    getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined
+  ): {
+    isValid: boolean;
+    issues: string[];
+    recommendations: string[];
+    colorAnalysis: {
+      totalShifts: number;
+      shiftsWithHoliday: number;
+      shiftsWithLeaveType: number;
+      shiftsWithValidColors: number;
+      missingColors: string[];
+    };
+  } {
+    const issues: string[] = [];
+    const recommendations: string[] = [];
+    
+    const totalShifts = shifts.length;
+    const shiftsWithHoliday = shifts.filter(s => s.isHoliday).length;
+    const shiftsWithLeaveType = shifts.filter(s => s.typeOfLeaveId).length;
+    let shiftsWithValidColors = 0;
+    const missingColors = new Set<string>();
+
+    // Проверяем праздники
+    shifts.forEach(shift => {
+      if (shift.isHoliday && shift.holidayColor) {
+        shiftsWithValidColors++;
+      } else if (shift.isHoliday && !shift.holidayColor) {
+        issues.push(`Holiday shift ${shift.recordId} missing holiday color`);
+      }
+    });
+
+    // Проверяем типы отпусков
+    shifts.forEach(shift => {
+      if (shift.typeOfLeaveId) {
+        if (shift.typeOfLeaveColor) {
+          shiftsWithValidColors++;
+        } else if (getLeaveTypeColor) {
+          const color = getLeaveTypeColor(shift.typeOfLeaveId);
+          if (color) {
+            shiftsWithValidColors++;
+          } else {
+            missingColors.add(shift.typeOfLeaveId);
+          }
+        } else {
+          issues.push(`Leave shift ${shift.recordId} missing color function`);
+        }
+      }
+    });
+
+    // Рекомендации
+    if (shiftsWithHoliday === 0 && shiftsWithLeaveType === 0) {
+      recommendations.push('No special shifts found - colors will be default');
+    }
+    
+    if (missingColors.size > 0) {
+      recommendations.push(`Configure colors for leave types: ${Array.from(missingColors).join(', ')}`);
+    }
+    
+    if (shiftsWithHoliday > 0 && shiftsWithLeaveType > 0) {
+      recommendations.push('Holiday priority system active - leave colors will be overridden by holidays');
+    }
+
+    const isValid = issues.length === 0;
+
+    return {
+      isValid,
+      issues,
+      recommendations,
+      colorAnalysis: {
+        totalShifts,
+        shiftsWithHoliday,
+        shiftsWithLeaveType,
+        shiftsWithValidColors,
+        missingColors: Array.from(missingColors)
+      }
+    };
   }
 }
