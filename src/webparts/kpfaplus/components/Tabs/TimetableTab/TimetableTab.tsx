@@ -543,10 +543,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
           Week starts on day: {dayOfStartWeek} | 
           Staff count: {statistics.staffCount} | 
           Records: {statistics.recordsCount} | 
-          <span style={{ fontWeight: '500', color: '#d83b01' }}>
-            Holiday Priority System Active
-          </span>
-        </p>
+          </p>
       </div>
 
       {/* Панель настроек */}
@@ -831,7 +828,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
                   borderRadius: '3px',
                   fontWeight: '500'
                 }}>
-                  Holiday Priority System Active
+                  
                 </span>
               </div>
             </div>
@@ -897,9 +894,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
                   }}>
                     <strong style={{ color: '#856404' }}>System Info:</strong> 
                     <span style={{ color: '#666', marginLeft: '8px' }}>
-                      Holiday Priority System Active | 
                       Leave Types: {typesOfLeave.length} loaded | 
-                      Color Priority: Holiday - Leave Type - Default
                     </span>
                   </div>
                 </div>
