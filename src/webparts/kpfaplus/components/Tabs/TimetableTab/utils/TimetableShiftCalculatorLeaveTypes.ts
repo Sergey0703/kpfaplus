@@ -218,8 +218,11 @@ export class TimetableShiftCalculatorLeaveTypes {
    */
   public static createLeaveCellStyles(shifts: IShiftInfo[]): Omit<ReturnType<typeof TimetableShiftCalculatorLeaveTypesCore.createCellStyles>, 'priority' | 'reason'> {
     const newStyles = this.createCellStyles(shifts);
-    // Убираем новые поля для совместимости
-    const { priority: _priority, reason: _reason, ...compatibleStyles } = newStyles;
+    // Убираем новые поля для совместимости, но не используем их
+    const { priority, reason, ...compatibleStyles } = newStyles;
+    // Избегаем предупреждений о неиспользуемых переменных
+    void priority;
+    void reason;
     return compatibleStyles;
   }
 
@@ -330,21 +333,21 @@ export class TimetableShiftCalculatorLeaveTypes {
   /**
    * Быстрый доступ к Core модулю
    */
-  public static get Core() {
+  public static get Core(): typeof TimetableShiftCalculatorLeaveTypesCore {
     return TimetableShiftCalculatorLeaveTypesCore;
   }
 
   /**
    * Быстрый доступ к Excel модулю
    */
-  public static get Excel() {
+  public static get Excel(): typeof TimetableShiftCalculatorLeaveTypesExcel {
     return TimetableShiftCalculatorLeaveTypesExcel;
   }
 
   /**
    * Быстрый доступ к Utils модулю
    */
-  public static get Utils() {
+  public static get Utils(): typeof TimetableShiftCalculatorLeaveTypesUtils {
     return TimetableShiftCalculatorLeaveTypesUtils;
   }
 }
