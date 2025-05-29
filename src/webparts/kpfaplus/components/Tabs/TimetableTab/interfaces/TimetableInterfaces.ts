@@ -13,6 +13,7 @@ export interface IWeekInfo {
 
 /**
  * Интерфейс для информации о смене
+ * ОБНОВЛЕНО: Добавлена поддержка поля Holiday
  */
 export interface IShiftInfo {
   recordId: string;
@@ -23,14 +24,20 @@ export interface IShiftInfo {
   timeForLunch: number;
   workMinutes: number;
   formattedShift: string; // "09:00 - 17:00 (8h 00m)"
-  // ДОБАВЛЕНО: Поля для типа отпуска
+  
+  // СУЩЕСТВУЮЩИЕ: Поля для типа отпуска
   typeOfLeaveId?: string;     // ID типа отпуска из StaffRecord
   typeOfLeaveTitle?: string;  // Название типа отпуска
   typeOfLeaveColor?: string;  // Цвет типа отпуска в Hex формате
+  
+  // НОВЫЕ: Поля для праздников (Holiday = 1)
+  isHoliday?: boolean;        // Флаг праздника (true если Holiday = 1)
+  holidayColor?: string;      // Цвет праздника (#f44336 - красный)
 }
 
 /**
  * Интерфейс для информации о дне
+ * ОБНОВЛЕНО: Добавлена поддержка праздников с приоритетом над отпусками
  */
 export interface IDayInfo {
   dayNumber: number; // 1=Sunday, 2=Monday, etc.
@@ -39,9 +46,17 @@ export interface IDayInfo {
   totalMinutes: number;
   formattedContent: string; // Полный текст для ячейки
   hasData: boolean;
-  // ДОБАВЛЕНО: Поля для отображения цвета отпуска
+  
+  // СУЩЕСТВУЮЩИЕ: Поля для отображения цвета отпуска
   leaveTypeColor?: string;    // Цвет фона ячейки если есть отпуск
   hasLeave: boolean;          // Есть ли отпуск в этом дне
+  
+  // НОВЫЕ: Поля для праздников (высший приоритет цвета)
+  hasHoliday: boolean;        // Есть ли праздник в этом дне (Holiday = 1)
+  holidayColor?: string;      // Цвет праздника для дня (#f44336)
+  
+  // НОВОЕ: Финальный цвет ячейки с учетом приоритетов
+  finalCellColor?: string;    // Итоговый цвет: Holiday > TypeOfLeave > Default
 }
 
 /**
@@ -151,36 +166,46 @@ export interface IStaffMember {
 
 /**
  * Интерфейс для параметров обработки данных
- * Параметры currentUserId и managingGroupId оставлены для совместимости и логирования
+ * ОБНОВЛЕНО: Добавлена поддержка праздников
  */
 export interface ITimetableDataParams {
   staffRecords: IStaffRecord[];
-  staffMembers: IStaffMember[]; // FIXED: заменили 'any[]' на 'IStaffMember[]'
+  staffMembers: IStaffMember[];
   weeks: IWeekInfo[];
   
   // Параметры для логирования и совместимости (данные уже отфильтрованы на сервере)
   currentUserId?: string;    // ID текущего пользователя (менеджера)
   managingGroupId?: string;  // ID управляющей группы
   
-  // ДОБАВЛЕНО: Функция для получения цвета типа отпуска
+  // СУЩЕСТВУЮЩЕЕ: Функция для получения цвета типа отпуска
   getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined;
+  
+  // НОВОЕ: Константа цвета праздника
+  holidayColor?: string;     // Цвет праздника (по умолчанию #f44336)
 }
 
 /**
  * Интерфейс для результата расчета времени смены
+ * ОБНОВЛЕНО: Добавлена поддержка праздников
  */
 export interface IShiftCalculationResult {
   workMinutes: number;
   formattedTime: string; // "8h 30m"
   formattedShift: string; // "09:00 - 17:00 (8h 30m)"
-  // ДОБАВЛЕНО: Информация о типе отпуска
+  
+  // СУЩЕСТВУЮЩИЕ: Информация о типе отпуска
   typeOfLeaveId?: string;
   typeOfLeaveTitle?: string;
   typeOfLeaveColor?: string;
+  
+  // НОВЫЕ: Информация о празднике
+  isHoliday?: boolean;       // Флаг праздника
+  holidayColor?: string;     // Цвет праздника
 }
 
 /**
  * Интерфейс для параметров расчета смены
+ * ОБНОВЛЕНО: Добавлена поддержка праздников
  */
 export interface IShiftCalculationParams {
   startTime: Date;
@@ -188,23 +213,33 @@ export interface IShiftCalculationParams {
   lunchStart?: Date;
   lunchEnd?: Date;
   timeForLunch?: number;
-  // ДОБАВЛЕНО: Информация о типе отпуска из StaffRecord
+  
+  // СУЩЕСТВУЮЩИЕ: Информация о типе отпуска из StaffRecord
   typeOfLeaveId?: string;
   typeOfLeaveTitle?: string;
   typeOfLeaveColor?: string;
+  
+  // НОВЫЕ: Информация о празднике из StaffRecord
+  isHoliday?: boolean;       // Holiday = 1
+  holidayColor?: string;     // Цвет праздника (#f44336)
 }
 
 // ===== ИНТЕРФЕЙСЫ ДЛЯ КОМПОНЕНТОВ =====
 
 /**
  * Интерфейс для пропсов группы недели
+ * ОБНОВЛЕНО: Добавлена поддержка праздников
  */
 export interface IWeekGroupProps {
   weekGroup: IWeekGroup;
   dayOfStartWeek: number;
   onToggleExpand: (weekNum: number) => void;
-  // ДОБАВЛЕНО: Функция для получения цвета типа отпуска
+  
+  // СУЩЕСТВУЮЩЕЕ: Функция для получения цвета типа отпуска
   getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined;
+  
+  // НОВОЕ: Цвет праздника
+  holidayColor?: string;     // Цвет праздника (по умолчанию #f44336)
 }
 
 /**
@@ -220,13 +255,18 @@ export interface IWeekGroupHeaderProps {
 
 /**
  * Интерфейс для пропсов содержимого недели
+ * ОБНОВЛЕНО: Добавлена поддержка праздников
  */
 export interface IWeekGroupContentProps {
   staffRows: ITimetableStaffRow[];
   weekInfo: IWeekInfo;
   dayOfStartWeek: number;
-  // ДОБАВЛЕНО: Функция для получения цвета типа отпуска
+  
+  // СУЩЕСТВУЮЩЕЕ: Функция для получения цвета типа отпуска
   getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined;
+  
+  // НОВОЕ: Цвет праздника
+  holidayColor?: string;     // Цвет праздника (по умолчанию #f44336)
 }
 
 /**
@@ -238,3 +278,50 @@ export interface IExpandControlsProps {
   onExpandAll: () => void;
   onCollapseAll: () => void;
 }
+
+// ===== НОВЫЕ ИНТЕРФЕЙСЫ ДЛЯ ПРАЗДНИКОВ =====
+
+/**
+ * Константы цветов для системы
+ */
+export const TIMETABLE_COLORS = {
+  HOLIDAY: '#f44336',           // Красный цвет для праздников (высший приоритет)
+  DEFAULT_LEAVE: '#ffeb3b',     // Желтый цвет для отпусков по умолчанию
+  DEFAULT_BACKGROUND: '#ffffff' // Белый цвет по умолчанию
+} as const;
+
+/**
+ * Интерфейс для приоритетов цветов
+ */
+export interface IColorPriority {
+  priority: number;             // Приоритет (1 = высший)
+  color: string;               // Цвет в Hex формате
+  reason: string;              // Причина (Holiday, Leave Type, Default)
+}
+
+/**
+ * Перечисление приоритетов цветов
+ */
+export enum ColorPriority {
+  HOLIDAY = 1,                 // Праздник - высший приоритет
+  LEAVE_TYPE = 2,              // Тип отпуска - средний приоритет
+  DEFAULT = 3                  // По умолчанию - низший приоритет
+}
+
+/**
+ * Интерфейс для анализа цветов дня
+ */
+export interface IDayColorAnalysis {
+  finalColor: string;          // Итоговый цвет
+  appliedPriority: ColorPriority; // Примененный приоритет
+  reasons: string[];           // Список причин для отладки
+  hasHoliday: boolean;         // Есть ли праздник
+  hasLeave: boolean;           // Есть ли отпуск
+  holidayShiftsCount: number;  // Количество смен с праздником
+  leaveShiftsCount: number;    // Количество смен с отпуском
+}
+
+/**
+ * Тип для функции определения цвета ячейки
+ */
+export type CellColorResolver = (shifts: IShiftInfo[], getLeaveTypeColor?: (id: string) => string | undefined) => IDayColorAnalysis;

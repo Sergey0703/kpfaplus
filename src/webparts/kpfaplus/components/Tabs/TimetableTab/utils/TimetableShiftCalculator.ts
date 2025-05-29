@@ -233,6 +233,13 @@ export class TimetableShiftCalculator {
   }
 
   /**
+   * Проверяет, есть ли в сменах праздники
+   */
+  public static hasHolidays(shifts: IShiftInfo[]): boolean {
+    return TimetableShiftCalculatorLeaveTypes.hasHolidays(shifts);
+  }
+
+  /**
    * Получает доминирующий цвет отпуска для дня
    */
   public static getDominantLeaveColor(shifts: IShiftInfo[]): string | undefined {

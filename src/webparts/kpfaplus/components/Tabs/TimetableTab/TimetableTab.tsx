@@ -15,9 +15,12 @@ import { TypeOfLeaveService, ITypeOfLeave } from '../../../services/TypeOfLeaveS
 import { 
   IWeekInfo, 
   IWeekCalculationParams,
-  IDayInfo
+  IDayInfo,
+  TIMETABLE_COLORS,
+  ColorPriority
 } from './interfaces/TimetableInterfaces';
 import { TimetableWeekCalculator } from './utils/TimetableWeekCalculator';
+import { TimetableShiftCalculatorLeaveTypes } from './utils/TimetableShiftCalculatorLeaveTypes';
 import { useTimetableTabState } from './utils/useTimetableTabState';
 import { useTimetableStaffRecordsData } from './utils/useTimetableStaffRecordsData';
 import { 
@@ -93,10 +96,27 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
   const [typesOfLeave, setTypesOfLeave] = React.useState<ITypeOfLeave[]>([]);
   const [isLoadingTypesOfLeave, setIsLoadingTypesOfLeave] = React.useState<boolean>(false);
 
+  // НОВОЕ: Состояние для статистики праздников
+  const [holidayStatistics, setHolidayStatistics] = React.useState<{
+    totalRecords: number;
+    recordsWithHoliday: number;
+    recordsWithLeave: number;
+    recordsWithBoth: number;
+    holidayPercentage: number;
+    leavePercentage: number;
+  }>({
+    totalRecords: 0,
+    recordsWithHoliday: 0,
+    recordsWithLeave: 0,
+    recordsWithBoth: 0,
+    holidayPercentage: 0,
+    leavePercentage: 0
+  });
+
   // Инициализируем сервисы
   const staffRecordsService = useMemo(() => {
     if (context) {
-      console.log('[TimetableTab] Initializing StaffRecordsService for individual staff requests');
+      console.log('[TimetableTab] Initializing StaffRecordsService with Holiday support');
       return StaffRecordsService.getInstance(context);
     }
     return undefined;
@@ -140,6 +160,36 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
     });
   }, [typeOfLeaveService]);
 
+  // НОВОЕ: Анализируем статистику праздников при изменении данных
+  useEffect(() => {
+    if (state.staffRecords.length > 0) {
+      const totalRecords = state.staffRecords.length;
+      const recordsWithHoliday = state.staffRecords.filter(r => r.Holiday === 1).length;
+      const recordsWithLeave = state.staffRecords.filter(r => r.TypeOfLeaveID).length;
+      const recordsWithBoth = state.staffRecords.filter(r => r.Holiday === 1 && r.TypeOfLeaveID).length;
+      
+      const holidayPercentage = totalRecords > 0 ? Math.round((recordsWithHoliday / totalRecords) * 100) : 0;
+      const leavePercentage = totalRecords > 0 ? Math.round((recordsWithLeave / totalRecords) * 100) : 0;
+
+      const stats = {
+        totalRecords,
+        recordsWithHoliday,
+        recordsWithLeave,
+        recordsWithBoth,
+        holidayPercentage,
+        leavePercentage
+      };
+
+      setHolidayStatistics(stats);
+
+      console.log('[TimetableTab] Holiday statistics updated:', {
+        ...stats,
+        prioritySystem: 'Holiday > Leave Type > Default',
+        holidayColor: TIMETABLE_COLORS.HOLIDAY
+      });
+    }
+  }, [state.staffRecords]);
+
   // Функция для получения цвета типа отпуска
   const getLeaveTypeColor = useCallback((typeOfLeaveId: string): string | undefined => {
     if (!typeOfLeaveId || !typesOfLeave.length) return undefined;
@@ -148,7 +198,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
     const color = leaveType?.color;
     
     if (color) {
-      console.log(`[TimetableTab] Found color ${color} for leave type ID: ${typeOfLeaveId}`);
+      console.log(`[TimetableTab] Found color ${color} for leave type ID: ${typeOfLeaveId} (Holiday priority system active)`);
     }
     
     return color;
@@ -163,7 +213,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
 
     const calculatedWeeks = TimetableWeekCalculator.calculateWeeksForMonth(weekCalculationParams);
     
-    console.log('[TimetableTab] Calculated weeks for server requests:', {
+    console.log('[TimetableTab] Calculated weeks for server requests with Holiday support:', {
       selectedMonth: state.selectedDate.toLocaleDateString(),
       startWeekDay: dayOfStartWeek,
       weeksCount: calculatedWeeks.length,
@@ -171,11 +221,8 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
         start: calculatedWeeks[0]?.weekStart.toLocaleDateString(),
         end: calculatedWeeks[calculatedWeeks.length - 1]?.weekEnd.toLocaleDateString()
       },
-      weekRanges: calculatedWeeks.map(w => ({
-        weekNum: w.weekNum,
-        start: w.weekStart.toLocaleDateString(),
-        end: w.weekEnd.toLocaleDateString()
-      }))
+      holidaySupport: 'Enabled with red color priority system',
+      colorPriority: 'Holiday (#f44336) > Leave Type > Default'
     });
 
     return calculatedWeeks;
@@ -184,7 +231,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
   // Обновляем состояние недель при их пересчете
   useEffect(() => {
     if (weeks.length > 0 && weeks.length !== state.weeks.length) {
-      console.log('[TimetableTab] Updating weeks in state for server requests:', weeks.length);
+      console.log('[TimetableTab] Updating weeks in state for server requests with Holiday support:', weeks.length);
       setWeeks(weeks);
     }
   }, [weeks, state.weeks.length, setWeeks]);
@@ -208,7 +255,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
   const handleMonthChange = (date: Date | null | undefined): void => {
     if (date) {
       console.log('[TimetableTab] Month changed to:', formatDate(date));
-      console.log('[TimetableTab] This will trigger new server requests for all active staff');
+      console.log('[TimetableTab] This will trigger new server requests for all active staff with Holiday support');
       
       // Обновляем выбранную дату через setState
       setState(prevState => ({
@@ -218,9 +265,9 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
     }
   };
 
-  // Обработчик экспорта в Excel с ExcelJS и поддержкой цветов
+  // ОБНОВЛЕННЫЙ обработчик экспорта в Excel с поддержкой праздников
   const handleExportToExcel = async (): Promise<void> => {
-    console.log('[TimetableTab] Export to Excel requested with ExcelJS and leave colors');
+    console.log('[TimetableTab] Export to Excel requested with ExcelJS and Holiday support');
     
     try {
       // Проверяем наличие данных
@@ -237,7 +284,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
       const department = departments.find(d => d.ID.toString() === managingGroupId);
       const groupName = department?.Title || `Group ${managingGroupId}`;
       
-      console.log('[TimetableTab] Starting ExcelJS workbook creation with leave colors...');
+      console.log('[TimetableTab] Starting ExcelJS workbook creation with Holiday support and color priority system...');
       
       // Создаем workbook с ExcelJS
       const workbook = new ExcelJS.Workbook();
@@ -268,6 +315,16 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
       };
       
       // Объединяем ячейки для заголовка
+      worksheet.mergeCells(currentRow, 1, currentRow, orderedDays.length + 1);
+      currentRow += 1;
+
+      // НОВОЕ: Добавляем информацию о статистике праздников
+      const statsCell = worksheet.getCell(currentRow, 1);
+      statsCell.value = `Holiday Statistics: ${holidayStatistics.recordsWithHoliday} holidays (${holidayStatistics.holidayPercentage}%), ${holidayStatistics.recordsWithLeave} leaves (${holidayStatistics.leavePercentage}%)`;
+      statsCell.style = {
+        font: { size: 10, italic: true },
+        alignment: { horizontal: 'center' }
+      };
       worksheet.mergeCells(currentRow, 1, currentRow, orderedDays.length + 1);
       currentRow += 2; // Пропускаем строку
       
@@ -350,16 +407,19 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
             }
           };
           
-          // Добавляем данные по дням с цветами отпусков
+          // Добавляем данные по дням с цветами ПРАЗДНИКОВ И ОТПУСКОВ
           orderedDays.forEach((dayNum, dayIndex) => {
             const dayData = staffRow.weekData.days[dayNum];
             const cellContent = formatDayCell(dayData);
             const dayCell = worksheet.getCell(currentRow, dayIndex + 2);
             dayCell.value = cellContent;
             
-            // Проверяем наличие отпуска и применяем цвет
-            const leaveTypeColor = getDayCellLeaveColor(dayData);
-            
+            // *** НОВОЕ: СИСТЕМА ПРИОРИТЕТОВ ЦВЕТОВ ДЛЯ EXCEL ***
+            const cellStyles = TimetableShiftCalculatorLeaveTypes.createCellStyles(
+              dayData?.shifts || [], 
+              getLeaveTypeColor
+            );
+
             const cellStyle: any = {
               alignment: { 
                 horizontal: 'center',
@@ -374,14 +434,25 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
               }
             };
             
-            // Добавляем цвет фона если есть отпуск
-            if (leaveTypeColor) {
+            // *** ПРИМЕНЯЕМ ЦВЕТ ПО СИСТЕМЕ ПРИОРИТЕТОВ ***
+            if (cellStyles.backgroundColor && cellStyles.backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND) {
+              const hexColor = cellStyles.backgroundColor.replace('#', '');
               cellStyle.fill = {
                 type: 'pattern',
                 pattern: 'solid',
-                fgColor: { argb: `FF${leaveTypeColor.replace('#', '')}` }
+                fgColor: { argb: `FF${hexColor}` }
               };
-              console.log(`[TimetableTab] Applied leave color ${leaveTypeColor} to cell`);
+              
+              // Определяем цвет текста для читаемости
+              if (cellStyles.priority === ColorPriority.HOLIDAY) {
+                cellStyle.font = { color: { argb: 'FFFFFFFF' }, bold: true }; // Белый жирный текст для праздников
+                console.log(`[TimetableTab] Applied HOLIDAY color ${cellStyles.backgroundColor} to Excel cell for ${staffRow.staffName}, day ${dayNum}`);
+              } else if (cellStyles.priority === ColorPriority.LEAVE_TYPE) {
+                // Определяем контрастный цвет для типов отпусков
+                const textColor = TimetableShiftCalculatorLeaveTypes.getTextColorForBackground(cellStyles.backgroundColor);
+                cellStyle.font = { color: { argb: textColor === '#ffffff' ? 'FFFFFFFF' : 'FF000000' } };
+                console.log(`[TimetableTab] Applied LEAVE TYPE color ${cellStyles.backgroundColor} to Excel cell for ${staffRow.staffName}, day ${dayNum}`);
+              }
             }
             
             dayCell.style = cellStyle;
@@ -414,7 +485,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
       
-      console.log('[TimetableTab] ExcelJS export completed successfully with leave colors:', fileName);
+      console.log('[TimetableTab] ExcelJS export completed successfully with Holiday support and color priority system:', fileName);
       
     } catch (error) {
       console.error('[TimetableTab] ExcelJS export failed:', error);
@@ -426,25 +497,6 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
     }
   };
 
-  // Функция для получения цвета ячейки дня на основе TypeOfLeave
-  const getDayCellLeaveColor = (dayData: any): string | undefined => {
-    if (!dayData || !dayData.shifts || dayData.shifts.length === 0) {
-      return undefined;
-    }
-    
-    // Ищем первую смену с TypeOfLeave
-    for (const shift of dayData.shifts) {
-      if (shift.typeOfLeaveId) {
-        const color = getLeaveTypeColor(shift.typeOfLeaveId);
-        if (color) {
-          return color;
-        }
-      }
-    }
-    
-    return undefined;
-  };
-
   // Получаем статистику
   const statistics = useMemo(() => {
     const expandedCount = state.expandedWeeks.size;
@@ -454,16 +506,22 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
     // Подсчитываем общее количество сотрудников и записей
     let staffCount = 0;
     let recordsCount = 0;
+    let holidayRecordsCount = 0;
+    let leaveRecordsCount = 0;
     
     if (state.weeksData.length > 0) {
       // Берем количество сотрудников из первой недели (состав одинаков)
       staffCount = state.weeksData[0].staffRows.length;
       
-      // Подсчитываем общее количество записей
+      // Подсчитываем общее количество записей с анализом праздников и отпусков
       state.weeksData.forEach(weekGroup => {
         weekGroup.staffRows.forEach(staffRow => {
           Object.values(staffRow.weekData.days).forEach((day: IDayInfo) => {
             recordsCount += day.shifts ? day.shifts.length : 0;
+            if (day.shifts) {
+              holidayRecordsCount += day.shifts.filter(s => s.isHoliday).length;
+              leaveRecordsCount += day.shifts.filter(s => s.typeOfLeaveId).length;
+            }
           });
         });
       });
@@ -474,16 +532,23 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
       totalWeeks,
       weeksWithData,
       staffCount,
-      recordsCount
+      recordsCount,
+      holidayRecordsCount,
+      leaveRecordsCount
     };
     
-    console.log('[TimetableTab] Current statistics from server-filtered data:', stats);
+    console.log('[TimetableTab] Current statistics with Holiday support:', {
+      ...stats,
+      holidayPercentage: recordsCount > 0 ? Math.round((holidayRecordsCount / recordsCount) * 100) : 0,
+      leavePercentage: recordsCount > 0 ? Math.round((leaveRecordsCount / recordsCount) * 100) : 0,
+      prioritySystem: 'Holiday > Leave Type > Default'
+    });
     return stats;
   }, [state.expandedWeeks.size, state.weeksData, state.staffRecords.length]);
 
   // Логируем изменения состояния
   useEffect(() => {
-    console.log('[TimetableTab] State updated:', {
+    console.log('[TimetableTab] State updated with Holiday support:', {
       selectedDate: state.selectedDate.toLocaleDateString(),
       weeksCount: state.weeks.length,
       weeksDataCount: state.weeksData.length,
@@ -491,16 +556,23 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
       isLoading: state.isLoadingStaffRecords,
       hasError: !!state.errorStaffRecords,
       typesOfLeaveCount: typesOfLeave.length,
-      note: 'Data from individual server requests per staff member'
+      holidayStatistics: holidayStatistics,
+      colorSystem: {
+        holidayColor: TIMETABLE_COLORS.HOLIDAY,
+        priority: 'Holiday > Leave Type > Default'
+      },
+      note: 'Data processed with Holiday priority system'
     });
-  }, [state, typesOfLeave.length]);
+  }, [state, typesOfLeave.length, holidayStatistics]);
 
-  console.log('[TimetableTab] Final render state:', {
+  console.log('[TimetableTab] Final render state with Holiday support:', {
     hasWeeksData: state.weeksData.length > 0,
     isLoading: state.isLoadingStaffRecords,
     hasError: !!state.errorStaffRecords,
     statistics,
     typesOfLeaveLoaded: typesOfLeave.length,
+    holidayStatistics,
+    holidaySupport: 'Fully integrated with red color priority',
     filteringNote: 'Server-side filtering by StaffMember, Manager, and StaffGroup'
   });
 
@@ -509,14 +581,17 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
       {/* Заголовок */}
       <div style={{ marginBottom: '20px' }}>
         <h2 style={{ margin: '0 0 10px 0' }}>
-          Staff Timetable - Week Groups View
+          Staff Timetable - Week Groups View with Holiday Support
         </h2>
         <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>
           Group ID: {managingGroupId} | Current User ID: {currentUserId} | 
           Week starts on day: {dayOfStartWeek} | 
           Staff count: {statistics.staffCount} | 
           Records: {statistics.recordsCount} | 
-          Leave types: {typesOfLeave.length}
+          Leave types: {typesOfLeave.length} |{' '}
+          <span style={{ color: TIMETABLE_COLORS.HOLIDAY, fontWeight: 'bold' }}>
+            🔴 Holidays: {statistics.holidayRecordsCount} ({holidayStatistics.holidayPercentage}%)
+          </span>
         </p>
       </div>
 
@@ -566,18 +641,29 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
           />
         </div>
         
-        {/* Информация о периоде и статистика */}
+        {/* Информация о периоде и статистика с праздниками */}
         <div style={{ fontSize: '12px', color: '#666' }}>
           <div>Selected month: {state.selectedDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</div>
           <div>{statistics.totalWeeks} weeks | {statistics.weeksWithData} with data</div>
           <div>Expanded: {statistics.expandedCount} weeks</div>
+          <div style={{ color: TIMETABLE_COLORS.HOLIDAY }}>
+            🔴 Holidays: {statistics.holidayRecordsCount} | 🟡 Leaves: {statistics.leaveRecordsCount}
+          </div>
+        </div>
+        
+        {/* НОВОЕ: Статистика приоритетов цветов */}
+        <div style={{ fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
+          <div>Color Priority System:</div>
+          <div>1. <span style={{ color: TIMETABLE_COLORS.HOLIDAY }}>🔴 Holiday</span> (Highest)</div>
+          <div>2. 🟡 Leave Type (Medium)</div>
+          <div>3. ⚪ Default (Lowest)</div>
         </div>
         
         {/* Кнопка обновления данных */}
         <div>
           <button
             onClick={() => {
-              console.log('[TimetableTab] Manual refresh requested - will make new server requests for all staff');
+              console.log('[TimetableTab] Manual refresh requested - will make new server requests for all staff with Holiday support');
               refreshTimetableData().catch(error => {
                 console.error('[TimetableTab] Manual refresh failed:', error);
               });
@@ -597,7 +683,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
           </button>
         </div>
 
-        {/* Кнопка экспорта в Excel с ExcelJS */}
+        {/* ОБНОВЛЕННАЯ кнопка экспорта в Excel с поддержкой праздников */}
         <div>
           <button
             onClick={() => {
@@ -615,8 +701,9 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
               cursor: state.isLoadingStaffRecords || state.weeksData.length === 0 || isLoadingTypesOfLeave ? 'not-allowed' : 'pointer',
               fontSize: '12px'
             }}
+            title="Export with Holiday colors: Red for holidays, colored for leave types"
           >
-            {state.isLoadingStaffRecords || isLoadingTypesOfLeave ? 'Loading...' : 'Export to Excel'}
+            {state.isLoadingStaffRecords || isLoadingTypesOfLeave ? 'Loading...' : 'Export to Excel (Holiday Colors)'}
           </button>
         </div>
         
@@ -624,7 +711,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Spinner size={1} />
             <span style={{ fontSize: '12px', color: '#666' }}>
-              {isLoadingTypesOfLeave ? 'Loading leave types...' : 'Loading individual staff records...'}
+              {isLoadingTypesOfLeave ? 'Loading leave types...' : 'Loading individual staff records with Holiday support...'}
             </span>
           </div>
         )}
@@ -636,6 +723,37 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
           <MessageBar messageBarType={MessageBarType.error}>
             {state.errorStaffRecords}
           </MessageBar>
+        </div>
+      )}
+
+      {/* НОВОЕ: Информационная панель о статистике праздников */}
+      {holidayStatistics.totalRecords > 0 && (holidayStatistics.recordsWithHoliday > 0 || holidayStatistics.recordsWithLeave > 0) && (
+        <div style={{
+          marginBottom: '15px',
+          padding: '12px',
+          backgroundColor: '#fff8e1',
+          borderRadius: '4px',
+          border: '1px solid #ffeb3b'
+        }}>
+          <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: '#f57c00' }}>
+            📊 Color Priority Statistics
+          </div>
+          <div style={{ display: 'flex', gap: '20px', fontSize: '12px', color: '#666' }}>
+            <div>
+              <span style={{ color: TIMETABLE_COLORS.HOLIDAY, fontWeight: 'bold' }}>🔴 Holidays:</span> {holidayStatistics.recordsWithHoliday} records ({holidayStatistics.holidayPercentage}%)
+            </div>
+            <div>
+              <span style={{ color: '#ff9800', fontWeight: 'bold' }}>🟡 Leave Types:</span> {holidayStatistics.recordsWithLeave} records ({holidayStatistics.leavePercentage}%)
+            </div>
+            {holidayStatistics.recordsWithBoth > 0 && (
+              <div>
+                <span style={{ fontWeight: 'bold' }}>🔄 Both:</span> {holidayStatistics.recordsWithBoth} records (Holiday priority applied)
+              </div>
+            )}
+          </div>
+          <div style={{ fontSize: '11px', color: '#f57c00', marginTop: '4px', fontStyle: 'italic' }}>
+            Color Priority: Holidays override leave types | Red color ({TIMETABLE_COLORS.HOLIDAY}) has highest priority
+          </div>
         </div>
       )}
 
@@ -655,7 +773,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
           <div style={{ textAlign: 'center', padding: '40px' }}>
             <Spinner size={2} />
             <p style={{ marginTop: '16px' }}>
-              {isLoadingTypesOfLeave ? 'Loading leave types...' : 'Loading staff timetable...'}
+              {isLoadingTypesOfLeave ? 'Loading leave types...' : 'Loading staff timetable with Holiday support...'}
             </p>
             {state.isLoadingStaffRecords && (
               <>
@@ -663,7 +781,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
                   Making individual server requests for {staffMembers.filter(s => s.deleted !== 1 && s.employeeId && s.employeeId !== '0').length} active staff members
                 </p>
                 <p style={{ fontSize: '11px', color: '#888', marginTop: '4px' }}>
-                  Each request filters by: StaffMember = employeeId, Manager = {currentUserId}, StaffGroup = {managingGroupId}
+                  Processing Holiday field for red color priority system | Each request filters by: StaffMember = employeeId, Manager = {currentUserId}, StaffGroup = {managingGroupId}
                 </p>
               </>
             )}
@@ -694,12 +812,15 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
               <div style={{ marginTop: '8px', fontStyle: 'italic', color: '#f57c00' }}>
                 This may be normal if no schedule data exists for the selected period.
               </div>
+              <div style={{ marginTop: '8px', fontWeight: 'bold', color: TIMETABLE_COLORS.HOLIDAY }}>
+                Holiday support: 🔴 Red color system ready for Holiday=1 records
+              </div>
             </div>
             
             {weeks.length > 0 && statistics.staffCount >= 0 && (
               <button 
                 onClick={() => {
-                  console.log('[TimetableTab] Manual refresh requested from no-data state');
+                  console.log('[TimetableTab] Manual refresh requested from no-data state with Holiday support');
                   refreshTimetableData().catch(error => {
                     console.error('[TimetableTab] Manual refresh failed:', error);
                   });
@@ -720,7 +841,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
           </div>
         ) : (
           <div>
-            {/* Информация о данных */}
+            {/* ОБНОВЛЕННАЯ информация о данных с праздниками */}
             <div style={{ 
               fontSize: '12px', 
               color: '#666', 
@@ -733,12 +854,16 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
               Showing {statistics.totalWeeks} weeks for {statistics.staffCount} staff members | 
               {statistics.weeksWithData} weeks have data | 
               Total records: {statistics.recordsCount} | 
+              <span style={{ color: TIMETABLE_COLORS.HOLIDAY, fontWeight: 'bold' }}>
+                🔴 Holidays: {statistics.holidayRecordsCount}
+              </span> | 
+              🟡 Leaves: {statistics.leaveRecordsCount} | 
               Week starts on: {TimetableWeekCalculator.getDayName(dayOfStartWeek || 7)} | 
               Leave types loaded: {typesOfLeave.length} | 
-              <span style={{ fontStyle: 'italic' }}>Data server-filtered by exact ID matches</span>
+              <span style={{ fontStyle: 'italic' }}>Holiday priority system active with red color ({TIMETABLE_COLORS.HOLIDAY})</span>
             </div>
             
-            {/* Группы недель */}
+            {/* Группы недель с поддержкой праздников */}
             {state.weeksData.map(weekGroup => (
               <TimetableWeekGroup
                 key={weekGroup.weekInfo.weekNum}
@@ -746,6 +871,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
                 dayOfStartWeek={dayOfStartWeek || 7}
                 onToggleExpand={toggleWeekExpand}
                 getLeaveTypeColor={getLeaveTypeColor}
+                holidayColor={TIMETABLE_COLORS.HOLIDAY} // НОВОЕ: Передаем цвет праздника
               />
             ))}
           </div>
@@ -755,7 +881,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
   );
 };
 
-// Вспомогательные функции для экспорта Excel с ExcelJS
+// Вспомогательные функции для экспорта Excel с ExcelJS и поддержкой праздников
 function formatDateForExcel(date: Date): string {
   const day = date.getDate().toString().padStart(2, '0');
   const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -773,14 +899,24 @@ function formatDayCell(dayData: any): string {
     const startTime = formatTimeForExcel(shift.startTime);
     const endTime = formatTimeForExcel(shift.endTime);
     const duration = formatDurationForExcel(shift.workMinutes);
-    return `${startTime} - ${endTime} (${duration})`;
+    
+    // НОВОЕ: Добавляем индикатор праздника в текст
+    const holidayIndicator = shift.isHoliday ? ' 🔴H' : '';
+    const leaveIndicator = shift.typeOfLeaveTitle && !shift.isHoliday ? ` [${shift.typeOfLeaveTitle}]` : '';
+    
+    return `${startTime} - ${endTime} (${duration})${holidayIndicator}${leaveIndicator}`;
   } else {
     // Несколько смен
     const shiftLines = dayData.shifts.map((shift: any) => {
       const startTime = formatTimeForExcel(shift.startTime);
       const endTime = formatTimeForExcel(shift.endTime);
       const duration = formatDurationForExcel(shift.workMinutes);
-      return `${startTime} - ${endTime} (${duration})`;
+      
+      // НОВОЕ: Добавляем индикаторы для каждой смены
+      const holidayIndicator = shift.isHoliday ? ' 🔴H' : '';
+      const leaveIndicator = shift.typeOfLeaveTitle && !shift.isHoliday ? ` [${shift.typeOfLeaveTitle}]` : '';
+      
+      return `${startTime} - ${endTime} (${duration})${holidayIndicator}${leaveIndicator}`;
     });
     
     return shiftLines.join('\n');
@@ -810,7 +946,7 @@ function formatDurationForExcel(minutes: number): string {
 
 function generateFileName(groupName: string, weeksData: any[]): string {
   if (weeksData.length === 0) {
-    return `Timetable_${groupName.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
+    return `Timetable_${groupName.replace(/[^a-zA-Z0-9]/g, '_')}_with_Holidays.xlsx`;
   }
   
   const firstWeek = weeksData[0];
@@ -824,5 +960,5 @@ function generateFileName(groupName: string, weeksData: any[]): string {
   
   const cleanGroupName = groupName.replace(/[^a-zA-Z0-9]/g, '_');
   
-  return `Timetable_${cleanGroupName}_${startStr}_to_${endStr}.xlsx`;
+  return `Timetable_${cleanGroupName}_${startStr}_to_${endStr}_with_Holidays.xlsx`;
 }
