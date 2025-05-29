@@ -27,18 +27,18 @@ interface ITimetableStaffRowWithKey extends ITimetableStaffRow {
 /**
  * Компонент содержимого группы недели
  * ИСПРАВЛЕНО: Отключена виртуализация для решения проблемы с рендерингом после Noel Murphy
- * ОБНОВЛЕНО: Убраны индикаторы праздников и типов отпусков с экрана (только цвета фона)
+ * ОБНОВЛЕНО: Версия 3.2 - Показ праздников и отпусков даже без рабочих смен
  */
 export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (props) => {
   const { staffRows, weekInfo, dayOfStartWeek, getLeaveTypeColor, holidayColor } = props;
 
-  console.log('[TimetableWeekGroupContent] Rendering content for week with Holiday support:', {
+  console.log('[TimetableWeekGroupContent] Rendering content for week with Holiday support v3.2:', {
     weekNum: weekInfo.weekNum,
     staffRowsCount: staffRows.length,
     dayOfStartWeek,
     hasLeaveTypeColorFunction: !!getLeaveTypeColor,
     holidayColor: holidayColor || TIMETABLE_COLORS.HOLIDAY,
-    features: ['Holiday Priority System', 'Leave Type Colors', 'Color Priority Resolution']
+    features: ['Holiday Priority System', 'Leave Type Colors', 'Non-work Day Markers', 'Clean UI']
   });
 
   // Создаем уникальные ключи для каждой строки
@@ -56,12 +56,12 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
   
   React.useEffect(() => {
     setForceRenderKey(prev => prev + 1);
-    console.log(`[TimetableWeekGroupContent] Force re-render triggered for week ${weekInfo.weekNum} with Holiday support`);
+    console.log(`[TimetableWeekGroupContent] Force re-render triggered for week ${weekInfo.weekNum} with Holiday support v3.2`);
   }, [weekInfo.weekNum, staffRows.length]);
 
   // Создаем колонки для таблицы
   const columns = React.useMemo((): IColumn[] => {
-    console.log(`[TimetableWeekGroupContent] Creating columns for week ${weekInfo.weekNum} with Holiday priority system`);
+    console.log(`[TimetableWeekGroupContent] Creating columns for week ${weekInfo.weekNum} with Holiday priority system v3.2`);
 
     const cols: IColumn[] = [
       // КОЛОНКА ИМЕН СОТРУДНИКОВ С ЧАСАМИ
@@ -195,7 +195,8 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
 
             const dayData = staffRowWithKey.weekData.days[dayNumber];
             
-            if (!dayData || !dayData.hasData) {
+            // *** ОБНОВЛЕНО v3.2: Показываем данные даже если нет смен, но есть отметки ***
+            if (!dayData || (!dayData.hasData && !dayData.hasHoliday && !dayData.hasLeave)) {
               return (
                 <div style={{ 
                   color: '#a19f9d', 
@@ -210,36 +211,51 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
 
             // *** СИСТЕМА ПРИОРИТЕТОВ ЦВЕТОВ ДЛЯ ЯЧЕЕК (БЕЗ ТЕКСТОВЫХ ИНДИКАТОРОВ) ***
             console.log(`[TimetableWeekGroupContent] Resolving cell color for ${staffRowWithKey.staffName}, day ${dayNumber}:`, {
-              shiftsCount: dayData.shifts.length,
-              holidayShifts: dayData.shifts.filter(s => s.isHoliday).length,
-              leaveShifts: dayData.shifts.filter(s => s.typeOfLeaveId).length
+              shiftsCount: dayData.shifts?.length || 0,
+              holidayShifts: dayData.shifts?.filter(s => s.isHoliday).length || 0,
+              leaveShifts: dayData.shifts?.filter(s => s.typeOfLeaveId).length || 0,
+              hasHoliday: dayData.hasHoliday,
+              hasLeave: dayData.hasLeave,
+              hasData: dayData.hasData
             });
 
             // Используем систему приоритетов для определения цвета фона
             const cellStyles = TimetableShiftCalculatorLeaveTypes.createCellStyles(
-              dayData.shifts, 
+              dayData.shifts || [], 
               getLeaveTypeColor
             );
 
-            console.log(`[TimetableWeekGroupContent] Cell styles resolved:`, {
-              staffName: staffRowWithKey.staffName,
-              day: dayNumber,
-              backgroundColor: cellStyles.backgroundColor,
-              priority: cellStyles.priority,
-              reason: cellStyles.reason
-            });
-
-            // *** ПРИМЕНЯЕМ ТОЛЬКО ЦВЕТ ФОНА (БЕЗ ИНДИКАТОРОВ) ***
+            // *** НОВОЕ v3.2: Если нет смен, но есть отметки праздника/отпуска - определяем цвет ***
             let backgroundColor: string | undefined = cellStyles.backgroundColor;
             let borderRadius: string | undefined = cellStyles.borderRadius;
             let border: string | undefined = cellStyles.border;
             let textShadow: string | undefined = cellStyles.textShadow;
+            let priority = cellStyles.priority;
 
-            // Логирование применяемого цвета
-            if (cellStyles.priority === ColorPriority.HOLIDAY) {
-              console.log(`[TimetableWeekGroupContent] 🔴 HOLIDAY COLOR applied to ${staffRowWithKey.staffName}, day ${dayNumber}: ${backgroundColor}`);
-            } else if (cellStyles.priority === ColorPriority.LEAVE_TYPE) {
-              console.log(`[TimetableWeekGroupContent] 🟡 LEAVE COLOR applied to ${staffRowWithKey.staffName}, day ${dayNumber}: ${backgroundColor}`);
+            // Если нет смен, но есть отметки - определяем цвет напрямую
+            if ((!dayData.shifts || dayData.shifts.length === 0) && (dayData.hasHoliday || dayData.hasLeave)) {
+              if (dayData.hasHoliday) {
+                backgroundColor = TIMETABLE_COLORS.HOLIDAY;
+                priority = ColorPriority.HOLIDAY;
+                borderRadius = '3px';
+                border = `1px solid ${TIMETABLE_COLORS.HOLIDAY}`;
+                textShadow = '0 1px 2px rgba(0,0,0,0.3)';
+                console.log(`[TimetableWeekGroupContent] 🔴 NON-WORK HOLIDAY COLOR applied to ${staffRowWithKey.staffName}, day ${dayNumber}: ${backgroundColor}`);
+              } else if (dayData.hasLeave && dayData.leaveTypeColor) {
+                backgroundColor = dayData.leaveTypeColor;
+                priority = ColorPriority.LEAVE_TYPE;
+                borderRadius = '3px';
+                border = `1px solid ${dayData.leaveTypeColor}`;
+                textShadow = 'none';
+                console.log(`[TimetableWeekGroupContent] 🟡 NON-WORK LEAVE COLOR applied to ${staffRowWithKey.staffName}, day ${dayNumber}: ${backgroundColor}`);
+              }
+            } else {
+              // Логирование применяемого цвета для смен
+              if (cellStyles.priority === ColorPriority.HOLIDAY) {
+                console.log(`[TimetableWeekGroupContent] 🔴 WORK HOLIDAY COLOR applied to ${staffRowWithKey.staffName}, day ${dayNumber}: ${backgroundColor}`);
+              } else if (cellStyles.priority === ColorPriority.LEAVE_TYPE) {
+                console.log(`[TimetableWeekGroupContent] 🟡 WORK LEAVE COLOR applied to ${staffRowWithKey.staffName}, day ${dayNumber}: ${backgroundColor}`);
+              }
             }
             
             return (
@@ -254,39 +270,58 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
                   border: border,
                   textShadow: textShadow
                 }}
-                title={`${staffRowWithKey.staffName} - ${dayName} ${formattedDate}`} // Упрощенная подсказка без приоритетов
+                title={`${staffRowWithKey.staffName} - ${dayName} ${formattedDate}`} // Упрощенная подсказка
               >
-                {dayData.shifts.map((shift: IShiftInfo, shiftIndex: number) => {
-                  // Определяем стиль текста смены
-                  let shiftTextStyle: React.CSSProperties = {
-                    color: '#323130',
-                    fontWeight: dayData.shifts.length === 1 ? 'bold' : 'normal',
-                    fontSize: '11px',
-                    marginBottom: shiftIndex < dayData.shifts.length - 1 ? '1px' : '0'
-                  };
+                {/* *** НОВОЕ v3.2: Показываем содержимое в зависимости от типа дня *** */}
+                {dayData.shifts && dayData.shifts.length > 0 ? (
+                  // ДЕНЬ С РАБОЧИМИ СМЕНАМИ
+                  dayData.shifts.map((shift: IShiftInfo, shiftIndex: number) => {
+                    // Определяем стиль текста смены
+                    let shiftTextStyle: React.CSSProperties = {
+                      color: '#323130',
+                      fontWeight: dayData.shifts!.length === 1 ? 'bold' : 'normal',
+                      fontSize: '11px',
+                      marginBottom: shiftIndex < dayData.shifts!.length - 1 ? '1px' : '0'
+                    };
 
-                  // Улучшаем читаемость текста на цветном фоне
-                  if (backgroundColor && backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND) {
-                    shiftTextStyle.textShadow = textShadow || '0 0 2px rgba(255,255,255,0.8)';
-                    
-                    // Если применен holiday цвет, делаем текст белым для контраста
-                    if (cellStyles.priority === ColorPriority.HOLIDAY) {
-                      shiftTextStyle.color = '#ffffff';
-                      shiftTextStyle.fontWeight = 'bold';
+                    // Улучшаем читаемость текста на цветном фоне
+                    if (backgroundColor && backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND) {
+                      shiftTextStyle.textShadow = textShadow || '0 0 2px rgba(255,255,255,0.8)';
+                      
+                      // Если применен holiday цвет, делаем текст белым для контраста
+                      if (priority === ColorPriority.HOLIDAY) {
+                        shiftTextStyle.color = '#ffffff';
+                        shiftTextStyle.fontWeight = 'bold';
+                      }
                     }
-                  }
 
-                  return (
-                    <div 
-                      key={`${staffRowWithKey.uniqueKey}-day${dayNumber}-shift${shiftIndex}`} 
-                      style={shiftTextStyle}
-                    >
-                      {shift.formattedShift}
-                      {/* УБРАНО: Индикаторы праздников и типов отпусков */}
-                    </div>
-                  );
-                })}
-                {dayData.shifts.length > 1 && (
+                    return (
+                      <div 
+                        key={`${staffRowWithKey.uniqueKey}-day${dayNumber}-shift${shiftIndex}`} 
+                        style={shiftTextStyle}
+                      >
+                        {shift.formattedShift}
+                        {/* УБРАНО: Индикаторы праздников и типов отпусков */}
+                      </div>
+                    );
+                  })
+                ) : (
+                  // *** НОВОЕ v3.2: ДЕНЬ БЕЗ СМЕН, НО С ОТМЕТКАМИ ***
+                  <div style={{
+                    color: backgroundColor && backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND ? 
+                      '#ffffff' : '#323130',
+                    fontWeight: 'bold',
+                    fontSize: '11px',
+                    textAlign: 'center',
+                    textShadow: backgroundColor && backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND ? 
+                      '0 0 2px rgba(0,0,0,0.8)' : 'none'
+                  }}>
+                    {dayData.hasHoliday ? 'Holiday' : dayData.hasLeave ? 'Leave' : '-'}
+                  </div>
+                )}
+
+                {/* Показываем Total только если есть несколько смен */}
+                {dayData.shifts && dayData.shifts.length > 1 && (
                   <div style={{ 
                     color: backgroundColor && backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND ? 
                       '#ffffff' : '#323130',
@@ -312,7 +347,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
       console.error(`[TimetableWeekGroupContent] Error creating columns:`, error);
     }
 
-    console.log(`[TimetableWeekGroupContent] Created ${cols.length} columns for week ${weekInfo.weekNum} with Holiday support`);
+    console.log(`[TimetableWeekGroupContent] Created ${cols.length} columns for week ${weekInfo.weekNum} with Holiday support v3.2`);
     return cols;
   }, [weekInfo, dayOfStartWeek, forceRenderKey, getLeaveTypeColor, holidayColor]);
 
@@ -331,7 +366,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
     );
   }
 
-  console.log(`[TimetableWeekGroupContent] About to render DetailsList for week ${weekInfo.weekNum} with ${staffRowsWithKeys.length} items and Holiday support`);
+  console.log(`[TimetableWeekGroupContent] About to render DetailsList for week ${weekInfo.weekNum} with ${staffRowsWithKeys.length} items and Holiday support v3.2`);
 
   return (
     <div style={{ padding: '0' }}>
@@ -546,7 +581,7 @@ export const TimetableExpandControls: React.FC<{
 /**
  * Компонент группы недели с заголовком и содержимым
  * ИСПРАВЛЕН ТИП: weekGroup теперь IWeekGroup вместо any
- * ОБНОВЛЕНО: Убраны текстовые индикаторы с экрана (оставлены только цвета)
+ * ОБНОВЛЕНО: Версия 3.2 - Показ праздников и отпусков даже без рабочих смен
  */
 export const TimetableWeekGroup: React.FC<{
   weekGroup: IWeekGroup;
@@ -557,17 +592,17 @@ export const TimetableWeekGroup: React.FC<{
 }> = (props) => {
   const { weekGroup, dayOfStartWeek, onToggleExpand, getLeaveTypeColor, holidayColor } = props;
 
-  console.log('[TimetableWeekGroup] Rendering week group with Holiday support (clean UI):', {
+  console.log('[TimetableWeekGroup] Rendering week group with Holiday support v3.2:', {
     weekNum: weekGroup.weekInfo.weekNum,
     isExpanded: weekGroup.isExpanded,
     hasData: weekGroup.hasData,
     staffCount: weekGroup.staffRows.length,
     holidayColor: holidayColor || TIMETABLE_COLORS.HOLIDAY,
-    features: ['Holiday Priority', 'Leave Type Colors', 'Clean UI (no text indicators)']
+    features: ['Holiday Priority', 'Leave Type Colors', 'Non-work Day Markers', 'Clean UI']
   });
 
   const handleToggle = (): void => {
-    console.log(`[TimetableWeekGroup] Toggling week ${weekGroup.weekInfo.weekNum} - this will trigger DetailsList re-render with Holiday support`);
+    console.log(`[TimetableWeekGroup] Toggling week ${weekGroup.weekInfo.weekNum} - this will trigger DetailsList re-render with Holiday support v3.2`);
     onToggleExpand(weekGroup.weekInfo.weekNum);
   };
 

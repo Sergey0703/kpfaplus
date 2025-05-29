@@ -10,7 +10,7 @@ import { IStaffRecord } from '../../../../services/StaffRecordsService';
 /**
  * Основные функции расчета смен и времени
  * Содержит базовую логику для расчета рабочих минут и обработки смен
- * ОБНОВЛЕНО: Полная поддержка поля Holiday с красным цветом
+ * ОБНОВЛЕНО: Версия 3.2 - Полная поддержка записей без смен (только праздники/отпуска)
  */
 export class TimetableShiftCalculatorCore {
 
@@ -183,7 +183,7 @@ export class TimetableShiftCalculatorCore {
   /**
    * Обрабатывает записи StaffRecord в IShiftInfo
    * Реплицирует логику сортировки и обработки смен из Power Apps
-   * ОБНОВЛЕНО: Поддержка информации о типах отпусков и ПРАЗДНИКАХ
+   * ОБНОВЛЕНО: Версия 3.2 - Поддержка записей без смен (только праздники/отпуска)
    */
   public static processStaffRecordsToShifts(
     records: IStaffRecord[],
@@ -193,12 +193,16 @@ export class TimetableShiftCalculatorCore {
       return [];
     }
 
-    console.log('[TimetableShiftCalculatorCore] Processing records with Holiday support:', {
+    console.log('[TimetableShiftCalculatorCore] Processing records with Holiday support (v3.2 - including non-work records):', {
       totalRecords: records.length,
-      supportedFeatures: ['Leave Types', 'Holiday Field (red color)', 'Priority System']
+      supportedFeatures: ['Leave Types', 'Holiday Field (red color)', 'Priority System', 'Non-work Records']
     });
 
-    // Фильтруем и сортируем записи (аналогично SortByColumns в Power Apps)
+    // *** НОВОЕ: Анализируем записи на наличие отметок без рабочего времени ***
+    const recordsAnalysis = this.analyzeRecordsForNonWorkMarkers(records);
+    console.log('[TimetableShiftCalculatorCore] Records analysis:', recordsAnalysis);
+
+    // Фильтруем записи с рабочим временем (для создания смен)
     const validRecords = records.filter(record => {
       // Исключаем записи без времен или с нулевыми временами
       if (!record.ShiftDate1 || !record.ShiftDate2) {
@@ -218,24 +222,26 @@ export class TimetableShiftCalculatorCore {
       const startStr = this.formatTime(start);
       const endStr = this.formatTime(end);
 
-      // Исключаем записи где оба времени 00:00
+      // Исключаем записи где оба времени 00:00 (это могут быть отметки праздников/отпусков без работы)
       if (startStr === "00:00" && endStr === "00:00") {
-        console.log(`[TimetableShiftCalculatorCore] Skipping record ${record.ID}: both times are 00:00`);
+        console.log(`[TimetableShiftCalculatorCore] Skipping record ${record.ID}: both times are 00:00 (likely non-work marker)`);
         return false;
       }
 
       return true;
     });
 
-    console.log(`[TimetableShiftCalculatorCore] Valid records: ${validRecords.length}/${records.length}`);
+    console.log(`[TimetableShiftCalculatorCore] Valid work records: ${validRecords.length}/${records.length}`);
 
     if (validRecords.length === 0) {
+      // *** НОВОЕ: Даже если нет рабочих смен, могут быть отметки праздников/отпусков ***
+      console.log(`[TimetableShiftCalculatorCore] No work shifts found, but may have holiday/leave markers`);
       return [];
     }
 
-    // Анализируем Holiday поля в записях
-    const holidayAnalysis = this.analyzeHolidayRecords(validRecords);
-    console.log('[TimetableShiftCalculatorCore] Holiday analysis:', holidayAnalysis);
+    // Анализируем Holiday поля в записях (включая записи без рабочего времени)
+    const holidayAnalysis = this.analyzeHolidayRecords(records); // Анализируем ВСЕ записи, не только с рабочим временем
+    console.log('[TimetableShiftCalculatorCore] Holiday analysis (all records):', holidayAnalysis);
 
     // Сортируем по времени начала (аналогично "ShiftDate1", "Ascending")
     const sortedRecords = validRecords.sort((a, b) => {
@@ -361,7 +367,61 @@ export class TimetableShiftCalculatorCore {
   }
 
   /**
-   * НОВЫЙ МЕТОД: Анализирует записи на наличие праздников
+   * НОВЫЙ МЕТОД: Анализирует записи на наличие отметок без рабочего времени
+   * Версия 3.2: Помогает определить записи с только праздниками/отпусками
+   */
+  private static analyzeRecordsForNonWorkMarkers(records: IStaffRecord[]): {
+    totalRecords: number;
+    recordsWithWorkTime: number;
+    recordsWithoutWorkTime: number;
+    nonWorkHolidayRecords: number;
+    nonWorkLeaveRecords: number;
+    nonWorkRecordsWithBoth: number;
+  } {
+    const totalRecords = records.length;
+    let recordsWithWorkTime = 0;
+    let recordsWithoutWorkTime = 0;
+    let nonWorkHolidayRecords = 0;
+    let nonWorkLeaveRecords = 0;
+    let nonWorkRecordsWithBoth = 0;
+
+    records.forEach(record => {
+      // Проверяем есть ли рабочее время
+      const hasWorkTime = record.ShiftDate1 && record.ShiftDate2 && 
+        !(record.ShiftDate1.getHours() === 0 && record.ShiftDate1.getMinutes() === 0 && 
+          record.ShiftDate2.getHours() === 0 && record.ShiftDate2.getMinutes() === 0);
+
+      if (hasWorkTime) {
+        recordsWithWorkTime++;
+      } else {
+        recordsWithoutWorkTime++;
+
+        // Анализируем записи без рабочего времени на предмет отметок
+        const isHoliday = record.Holiday === 1;
+        const hasLeave = record.TypeOfLeaveID && record.TypeOfLeaveID !== '0';
+
+        if (isHoliday && hasLeave) {
+          nonWorkRecordsWithBoth++;
+        } else if (isHoliday) {
+          nonWorkHolidayRecords++;
+        } else if (hasLeave) {
+          nonWorkLeaveRecords++;
+        }
+      }
+    });
+
+    return {
+      totalRecords,
+      recordsWithWorkTime,
+      recordsWithoutWorkTime,
+      nonWorkHolidayRecords,
+      nonWorkLeaveRecords,
+      nonWorkRecordsWithBoth
+    };
+  }
+
+  /**
+   * ОБНОВЛЕННЫЙ МЕТОД: Анализирует записи на наличие праздников (включая записи без рабочего времени)
    */
   private static analyzeHolidayRecords(records: IStaffRecord[]): {
     totalRecords: number;
@@ -369,6 +429,8 @@ export class TimetableShiftCalculatorCore {
     recordsWithLeaveType: number;
     recordsWithBoth: number;
     holidayPercentage: number;
+    workHolidayRecords: number;
+    nonWorkHolidayRecords: number;
   } {
     const totalRecords = records.length;
     const recordsWithHoliday = records.filter(r => r.Holiday === 1).length;
@@ -376,12 +438,30 @@ export class TimetableShiftCalculatorCore {
     const recordsWithBoth = records.filter(r => r.Holiday === 1 && r.TypeOfLeaveID).length;
     const holidayPercentage = totalRecords > 0 ? Math.round((recordsWithHoliday / totalRecords) * 100) : 0;
 
+    // *** НОВОЕ: Разделяем записи с праздниками на рабочие и нерабочие ***
+    let workHolidayRecords = 0;
+    let nonWorkHolidayRecords = 0;
+
+    records.filter(r => r.Holiday === 1).forEach(record => {
+      const hasWorkTime = record.ShiftDate1 && record.ShiftDate2 && 
+        !(record.ShiftDate1.getHours() === 0 && record.ShiftDate1.getMinutes() === 0 && 
+          record.ShiftDate2.getHours() === 0 && record.ShiftDate2.getMinutes() === 0);
+
+      if (hasWorkTime) {
+        workHolidayRecords++;
+      } else {
+        nonWorkHolidayRecords++;
+      }
+    });
+
     return {
       totalRecords,
       recordsWithHoliday,
       recordsWithLeaveType,
       recordsWithBoth,
-      holidayPercentage
+      holidayPercentage,
+      workHolidayRecords,
+      nonWorkHolidayRecords
     };
   }
 
@@ -506,6 +586,44 @@ export class TimetableShiftCalculatorCore {
   }
 
   /**
+   * НОВЫЙ МЕТОД: Получает ВСЕ записи для конкретного дня недели (включая без рабочего времени)
+   * Версия 3.2: Для анализа записей без смен, но с отметками праздников/отпусков
+   */
+  public static getAllRecordsForDay(
+    records: IStaffRecord[],
+    dayNumber: number,
+    weekStart: Date,
+    weekEnd: Date
+  ): IStaffRecord[] {
+    // Фильтруем ВСЕ записи для конкретного дня недели в указанной неделе
+    const dayRecords = records.filter(record => {
+      const recordDate = new Date(record.Date);
+      
+      if (isNaN(recordDate.getTime())) {
+        console.warn(`[TimetableShiftCalculatorCore] Invalid date in record ${record.ID}`);
+        return false;
+      }
+
+      const recordDayNumber = this.getDayNumber(recordDate);
+      
+      const isInWeek = recordDate >= weekStart && recordDate <= weekEnd;
+      const isCorrectDay = recordDayNumber === dayNumber;
+      
+      if (isCorrectDay && isInWeek) {
+        const hasWorkTime = record.ShiftDate1 && record.ShiftDate2 && 
+          !(record.ShiftDate1.getHours() === 0 && record.ShiftDate1.getMinutes() === 0 && 
+            record.ShiftDate2.getHours() === 0 && record.ShiftDate2.getMinutes() === 0);
+        
+        console.log(`[TimetableShiftCalculatorCore] Found ALL record for day ${dayNumber}: ${record.ID} on ${recordDate.toLocaleDateString()} ${record.Holiday === 1 ? '🔴 HOLIDAY' : ''} ${!hasWorkTime ? '(NO WORK TIME)' : ''}`);
+      }
+      
+      return isCorrectDay && isInWeek;
+    });
+
+    return dayRecords;
+  }
+
+  /**
    * Получает номер дня недели для даты (1=Sunday, 2=Monday, etc.)
    */
   public static getDayNumber(date: Date): number {
@@ -521,5 +639,217 @@ export class TimetableShiftCalculatorCore {
   public static getDayName(dayNumber: number): string {
     const dayNames = ['', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     return dayNames[dayNumber] || 'Unknown';
+  }
+
+  /**
+   * НОВЫЙ МЕТОД: Анализирует записи дня на предмет праздников/отпусков без рабочего времени
+   * Версия 3.2: Помогает определить дни с только отметками (без смен)
+   */
+  public static analyzeNonWorkMarkersForDay(
+    dayRecords: IStaffRecord[]
+  ): {
+    hasNonWorkHoliday: boolean;
+    hasNonWorkLeave: boolean;
+    nonWorkLeaveTypeId?: string;
+    nonWorkHolidayRecords: number;
+    nonWorkLeaveRecords: number;
+  } {
+    let hasNonWorkHoliday = false;
+    let hasNonWorkLeave = false;
+    let nonWorkLeaveTypeId: string | undefined = undefined;
+    let nonWorkHolidayRecords = 0;
+    let nonWorkLeaveRecords = 0;
+
+    dayRecords.forEach(record => {
+      // Проверяем есть ли рабочее время в этой записи
+      const hasWorkTime = record.ShiftDate1 && record.ShiftDate2 && 
+        !(record.ShiftDate1.getHours() === 0 && record.ShiftDate1.getMinutes() === 0 && 
+          record.ShiftDate2.getHours() === 0 && record.ShiftDate2.getMinutes() === 0);
+
+      // Если нет рабочего времени, но есть отметки
+      if (!hasWorkTime) {
+        const isHoliday = record.Holiday === 1;
+        const hasLeaveType = record.TypeOfLeaveID && record.TypeOfLeaveID !== '0';
+
+        if (isHoliday) {
+          hasNonWorkHoliday = true;
+          nonWorkHolidayRecords++;
+          console.log(`[TimetableShiftCalculatorCore] Found non-work holiday: Record ${record.ID}`);
+        }
+        
+        if (hasLeaveType) {
+          hasNonWorkLeave = true;
+          nonWorkLeaveRecords++;
+          nonWorkLeaveTypeId = record.TypeOfLeaveID;
+          console.log(`[TimetableShiftCalculatorCore] Found non-work leave: Record ${record.ID}, Type: ${nonWorkLeaveTypeId}`);
+        }
+      }
+    });
+
+    return {
+      hasNonWorkHoliday,
+      hasNonWorkLeave,
+      nonWorkLeaveTypeId,
+      nonWorkHolidayRecords,
+      nonWorkLeaveRecords
+    };
+  }
+
+  /**
+   * НОВЫЙ МЕТОД: Создает "пустую" смену для отметки праздника без рабочего времени
+   * Версия 3.2: Для отображения праздничных дней без смен
+   */
+  public static createNonWorkHolidayMarker(
+    recordId: string,
+    date: Date,
+    holidayColor?: string
+  ): IShiftInfo {
+    // Создаем фиктивные времена 00:00
+    const zeroTime = new Date(date);
+    zeroTime.setHours(0, 0, 0, 0);
+
+    return {
+      recordId: recordId,
+      startTime: zeroTime,
+      endTime: zeroTime,
+      lunchStart: undefined,
+      lunchEnd: undefined,
+      timeForLunch: 0,
+      workMinutes: 0,
+      formattedShift: "Holiday", // Вместо времени показываем "Holiday"
+      typeOfLeaveId: undefined,
+      typeOfLeaveTitle: undefined,
+      typeOfLeaveColor: undefined,
+      // Отмечаем как праздник
+      isHoliday: true,
+      holidayColor: holidayColor || TIMETABLE_COLORS.HOLIDAY
+    };
+  }
+
+  /**
+   * НОВЫЙ МЕТОД: Создает "пустую" смену для отметки отпуска без рабочего времени
+   * Версия 3.2: Для отображения дней отпуска без смен
+   */
+  public static createNonWorkLeaveMarker(
+    recordId: string,
+    date: Date,
+    leaveTypeId: string,
+    leaveTypeTitle?: string,
+    leaveTypeColor?: string
+  ): IShiftInfo {
+    // Создаем фиктивные времена 00:00
+    const zeroTime = new Date(date);
+    zeroTime.setHours(0, 0, 0, 0);
+
+    return {
+      recordId: recordId,
+      startTime: zeroTime,
+      endTime: zeroTime,
+      lunchStart: undefined,
+      lunchEnd: undefined,
+      timeForLunch: 0,
+      workMinutes: 0,
+      formattedShift: "Leave", // Вместо времени показываем "Leave"
+      typeOfLeaveId: leaveTypeId,
+      typeOfLeaveTitle: leaveTypeTitle || leaveTypeId,
+      typeOfLeaveColor: leaveTypeColor,
+      // НЕ праздник
+      isHoliday: false,
+      holidayColor: undefined
+    };
+  }
+
+  /**
+   * НОВЫЙ МЕТОД: Получает смены И отметки для дня (включая дни без рабочего времени)
+   * Версия 3.2: Объединяет рабочие смены с отметками праздников/отпусков
+   */
+  public static getShiftsAndMarkersForDay(
+    records: IStaffRecord[],
+    dayNumber: number,
+    weekStart: Date,
+    weekEnd: Date,
+    getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined
+  ): IShiftInfo[] {
+    // Получаем все записи дня
+    const allDayRecords = this.getAllRecordsForDay(records, dayNumber, weekStart, weekEnd);
+    
+    if (allDayRecords.length === 0) {
+      return [];
+    }
+
+    console.log(`[TimetableShiftCalculatorCore] Processing day ${dayNumber} with ${allDayRecords.length} total records (including markers)`);
+
+    // Получаем обычные смены (с рабочим временем)
+    const workShifts = this.getShiftsForDay(records, dayNumber, weekStart, weekEnd, getLeaveTypeColor);
+
+    // Анализируем записи без рабочего времени
+    const nonWorkAnalysis = this.analyzeNonWorkMarkersForDay(allDayRecords);
+
+    const allShiftsAndMarkers: IShiftInfo[] = [...workShifts];
+
+    // Добавляем отметки праздников без рабочего времени
+    if (nonWorkAnalysis.hasNonWorkHoliday && workShifts.length === 0) {
+      // Создаем отметку праздника только если нет рабочих смен
+      const holidayRecord = allDayRecords.find(r => r.Holiday === 1 && 
+        !(r.ShiftDate1 && r.ShiftDate2 && 
+          !(r.ShiftDate1.getHours() === 0 && r.ShiftDate1.getMinutes() === 0 && 
+            r.ShiftDate2.getHours() === 0 && r.ShiftDate2.getMinutes() === 0)));
+      
+      if (holidayRecord) {
+        const dayDate = this.getDateForDayInWeek(weekStart, dayNumber);
+        const holidayMarker = this.createNonWorkHolidayMarker(
+          holidayRecord.ID, 
+          dayDate,
+          TIMETABLE_COLORS.HOLIDAY
+        );
+        allShiftsAndMarkers.push(holidayMarker);
+        console.log(`[TimetableShiftCalculatorCore] Added holiday marker for day ${dayNumber}`);
+      }
+    }
+
+    // Добавляем отметки отпусков без рабочего времени
+    if (nonWorkAnalysis.hasNonWorkLeave && workShifts.length === 0 && !nonWorkAnalysis.hasNonWorkHoliday) {
+      // Создаем отметку отпуска только если нет рабочих смен и нет праздника
+      const leaveRecord = allDayRecords.find(r => r.TypeOfLeaveID && r.TypeOfLeaveID !== '0' &&
+        !(r.ShiftDate1 && r.ShiftDate2 && 
+          !(r.ShiftDate1.getHours() === 0 && r.ShiftDate1.getMinutes() === 0 && 
+            r.ShiftDate2.getHours() === 0 && r.ShiftDate2.getMinutes() === 0)));
+      
+      if (leaveRecord && nonWorkAnalysis.nonWorkLeaveTypeId) {
+        const dayDate = this.getDateForDayInWeek(weekStart, dayNumber);
+        const leaveTypeColor = getLeaveTypeColor ? getLeaveTypeColor(nonWorkAnalysis.nonWorkLeaveTypeId) : undefined;
+        const leaveTypeTitle = leaveRecord.TypeOfLeave?.Title || nonWorkAnalysis.nonWorkLeaveTypeId;
+        
+        const leaveMarker = this.createNonWorkLeaveMarker(
+          leaveRecord.ID,
+          dayDate,
+          nonWorkAnalysis.nonWorkLeaveTypeId,
+          leaveTypeTitle,
+          leaveTypeColor
+        );
+        allShiftsAndMarkers.push(leaveMarker);
+        console.log(`[TimetableShiftCalculatorCore] Added leave marker for day ${dayNumber}, type: ${nonWorkAnalysis.nonWorkLeaveTypeId}`);
+      }
+    }
+
+    console.log(`[TimetableShiftCalculatorCore] Day ${dayNumber} result: ${workShifts.length} work shifts + ${allShiftsAndMarkers.length - workShifts.length} markers = ${allShiftsAndMarkers.length} total`);
+
+    return allShiftsAndMarkers;
+  }
+
+  /**
+   * ВСПОМОГАТЕЛЬНЫЙ МЕТОД: Получает дату для дня недели в рамках недели
+   */
+  private static getDateForDayInWeek(weekStart: Date, dayNumber: number): Date {
+    const date = new Date(weekStart);
+    const startDayNumber = this.getDayNumber(weekStart);
+    
+    let offset = dayNumber - startDayNumber;
+    if (offset < 0) {
+      offset += 7;
+    }
+    
+    date.setDate(weekStart.getDate() + offset);
+    return date;
   }
 }

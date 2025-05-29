@@ -13,11 +13,12 @@ import {
 import { TimetableShiftCalculator } from './TimetableShiftCalculator';
 import { TimetableDataUtils } from './TimetableDataUtils';
 import { TimetableDataAnalytics } from './TimetableDataAnalytics';
+//import { TimetableWeekCalculator } from './TimetableWeekCalculator';
 import { IStaffRecord } from '../../../../services/StaffRecordsService';
 
 /**
  * Основной процессор данных для таблицы расписания
- * Версия 3.1 - Модульная архитектура с полной поддержкой цветов отпусков и праздников
+ * Версия 3.2 - ИСПРАВЛЕНО: Показ праздников и отпусков даже без рабочих смен
  * 
  * Этот класс является главным API для обработки данных расписания.
  * Он координирует работу утилит (TimetableDataUtils) и аналитики (TimetableDataAnalytics).
@@ -41,7 +42,7 @@ export class TimetableDataProcessor {
       managingGroupId,
       hasLeaveTypeColorFunction: !!getLeaveTypeColor,
       holidayColor: holidayColor || TIMETABLE_COLORS.HOLIDAY,
-      version: '3.1 - Modular architecture with Holiday support'
+      version: '3.2 - Shows holidays/leaves even without work shifts'
     });
 
     const rows: ITimetableRow[] = [];
@@ -86,12 +87,12 @@ export class TimetableDataProcessor {
   /**
    * ГЛАВНЫЙ МЕТОД: Обработка данных с группировкой по неделям
    * Преобразует входные данные в структуру IWeekGroup[]
-   * Версия 3.1: Использует модульную архитектуру с TimetableDataUtils и TimetableDataAnalytics + Holiday support
+   * Версия 3.2: ИСПРАВЛЕНО - показ праздников/отпусков даже без рабочих смен
    */
   public static processDataByWeeks(params: ITimetableDataParams): IWeekGroup[] {
     const { staffRecords, staffMembers, weeks, currentUserId, managingGroupId, getLeaveTypeColor, holidayColor } = params;
 
-    console.log('[TimetableDataProcessor] *** PROCESSING DATA BY WEEKS v3.1 (MODULAR + HOLIDAYS) ***');
+    console.log('[TimetableDataProcessor] *** PROCESSING DATA BY WEEKS v3.2 (HOLIDAYS/LEAVES WITHOUT SHIFTS) ***');
     console.log('[TimetableDataProcessor] Using modular architecture with utilities, analytics and Holiday support:', {
       staffRecordsCount: staffRecords.length,
       staffMembersCount: staffMembers.length,
@@ -100,7 +101,7 @@ export class TimetableDataProcessor {
       managingGroupId,
       hasLeaveTypeColorFunction: !!getLeaveTypeColor,
       holidayColor: holidayColor || TIMETABLE_COLORS.HOLIDAY,
-      architecture: 'Modular v3.1 - Utils + Analytics + Holiday Priority System'
+      architecture: 'Modular v3.2 - Utils + Analytics + Holiday Priority System + Non-work days'
     });
 
     // Проверка входных данных
@@ -129,11 +130,11 @@ export class TimetableDataProcessor {
     console.log('[TimetableDataProcessor] Data analysis results from utils:', dataAnalysis);
 
     // *** ЭТАП 3: ОБРАБОТКА НЕДЕЛЬ С ЦВЕТАМИ ОТПУСКОВ И ПРАЗДНИКАМИ ***
-    console.log('[TimetableDataProcessor] *** STAGE 3: Processing weeks with leave colors and Holiday support ***');
+    console.log('[TimetableDataProcessor] *** STAGE 3: Processing weeks with leave colors and Holiday support (including non-work days) ***');
     const weekGroups: IWeekGroup[] = [];
 
     weeks.forEach((week, index) => {
-      console.log(`[TimetableDataProcessor] Processing week ${week.weekNum} (${index + 1}/${weeks.length}) with Holiday support`);
+      console.log(`[TimetableDataProcessor] Processing week ${week.weekNum} (${index + 1}/${weeks.length}) with Holiday support and non-work days`);
 
       const staffRows: ITimetableStaffRow[] = [];
       let weekHasData = false;
@@ -146,8 +147,13 @@ export class TimetableDataProcessor {
         const staffAllRecords = TimetableDataUtils.getStaffRecordsFromIndex(recordsIndex, staffMember);
         const staffWeekRecords = TimetableDataUtils.filterRecordsByWeek(staffAllRecords, week);
         
-        // Обрабатываем недельные данные с полной поддержкой цветов отпусков и праздников
-        const weeklyData = this.processWeekDataWithLeaveColorsAndHolidays(staffWeekRecords, week, getLeaveTypeColor, holidayColor);
+        // ИСПРАВЛЕНО: Обрабатываем недельные данные с полной поддержкой цветов отпусков и праздников (включая дни без смен)
+        const weeklyData = this.processWeekDataWithLeaveColorsAndHolidaysIncludingNonWorkDays(
+          staffWeekRecords, 
+          week, 
+          getLeaveTypeColor, 
+          holidayColor
+        );
         
         // Анализируем данные сотрудника с помощью аналитики
         const staffAnalysis = TimetableDataAnalytics.analyzeStaffWeekData(weeklyData);
@@ -196,7 +202,7 @@ export class TimetableDataProcessor {
     // *** ЭТАП 4: ФИНАЛЬНАЯ СТАТИСТИКА С ПОМОЩЬЮ АНАЛИТИКИ ***
     console.log('[TimetableDataProcessor] *** STAGE 4: Final statistics using TimetableDataAnalytics ***');
     const finalStats = TimetableDataAnalytics.generateFinalStatistics(weekGroups, staffRecords, leaveTypesIndex);
-    console.log('[TimetableDataProcessor] *** PROCESSING COMPLETED v3.1 (MODULAR + HOLIDAYS) ***', finalStats);
+    console.log('[TimetableDataProcessor] *** PROCESSING COMPLETED v3.2 (HOLIDAYS/LEAVES WITHOUT SHIFTS) ***', finalStats);
 
     return weekGroups;
   }
@@ -228,6 +234,51 @@ export class TimetableDataProcessor {
     // Обрабатываем каждый день недели (1-7) с поддержкой цветов отпусков и праздников
     for (let dayNum = 1; dayNum <= 7; dayNum++) {
       const dayInfo = this.processDayDataWithLeaveColorsAndHolidays(
+        weekRecords, 
+        dayNum, 
+        week.weekStart, 
+        week.weekEnd,
+        getLeaveTypeColor,
+        holidayColor
+      );
+      
+      weeklyData.days[dayNum] = dayInfo;
+      weeklyData.totalWeekMinutes += dayInfo.totalMinutes;
+    }
+
+    // Форматируем недельный итог
+    weeklyData.formattedWeekTotal = TimetableShiftCalculator.formatMinutesToHours(weeklyData.totalWeekMinutes);
+
+    return weeklyData;
+  }
+
+  /**
+   * НОВЫЙ МЕТОД: Обрабатывает недельные данные включая дни без смен, но с отметками праздников/отпусков
+   * Версия 3.2: ИСПРАВЛЕНО - показ праздников/отпусков даже без рабочих смен
+   */
+  private static processWeekDataWithLeaveColorsAndHolidaysIncludingNonWorkDays(
+    staffRecords: IStaffRecord[], 
+    week: IWeekInfo,
+    getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined,
+    holidayColor?: string
+  ): IWeeklyStaffData {
+    const weeklyData: IWeeklyStaffData = {
+      weekNum: week.weekNum,
+      weekStart: week.weekStart,
+      weekEnd: week.weekEnd,
+      days: {},
+      totalWeekMinutes: 0,
+      formattedWeekTotal: "0h 00m"
+    };
+
+    // Фильтруем записи по неделе используя утилиты
+    const weekRecords = TimetableDataUtils.filterRecordsByWeek(staffRecords, week);
+
+    console.log(`[TimetableDataProcessor] Processing week ${week.weekNum} with ${weekRecords.length} records (including non-work holiday/leave markers)`);
+
+    // Обрабатываем каждый день недели (1-7) с поддержкой цветов отпусков и праздников
+    for (let dayNum = 1; dayNum <= 7; dayNum++) {
+      const dayInfo = this.processDayDataWithLeaveColorsAndHolidaysIncludingNonWorkDays(
         weekRecords, 
         dayNum, 
         week.weekStart, 
@@ -329,6 +380,140 @@ export class TimetableDataProcessor {
   }
 
   /**
+   * НОВЫЙ МЕТОД: Обрабатывает дневные данные включая дни без смен, но с отметками праздников/отпусков
+   * Версия 3.2: ИСПРАВЛЕНО - показ праздников/отпусков даже без рабочих смен
+   */
+  private static processDayDataWithLeaveColorsAndHolidaysIncludingNonWorkDays(
+    weekRecords: IStaffRecord[],
+    dayNumber: number,
+    weekStart: Date,
+    weekEnd: Date,
+    getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined,
+    holidayColor?: string
+  ): IDayInfo {
+    // Находим дату для этого дня недели используя утилиты
+    const dayDate = TimetableDataUtils.getDateForDayInWeek(weekStart, dayNumber);
+    
+    console.log(`[TimetableDataProcessor] Processing day ${dayNumber} (${dayDate.toLocaleDateString()}) including non-work holiday/leave markers`);
+
+    // *** НОВОЕ: Ищем ВСЕ записи для этого дня (включая без рабочего времени) ***
+    const allDayRecords = weekRecords.filter(record => {
+      const recordDate = new Date(record.Date);
+      const recordDayNumber = TimetableShiftCalculator.getDayNumber(recordDate);
+      const isCorrectDay = recordDayNumber === dayNumber;
+      const isInWeek = recordDate >= weekStart && recordDate <= weekEnd;
+      
+      return isCorrectDay && isInWeek;
+    });
+
+    console.log(`[TimetableDataProcessor] Found ${allDayRecords.length} records for day ${dayNumber}`);
+
+    // Получаем смены только для записей с рабочим временем
+    const shifts = TimetableShiftCalculator.getShiftsForDay(
+      weekRecords,
+      dayNumber,
+      weekStart,
+      weekEnd,
+      getLeaveTypeColor
+    );
+
+    // *** НОВОЕ: Анализируем ВСЕ записи дня (включая без смен) на предмет праздников/отпусков ***
+    let hasNonWorkHoliday = false;
+    let hasNonWorkLeave = false;
+    let nonWorkLeaveTypeId: string | undefined = undefined;
+    let nonWorkLeaveTypeColor: string | undefined = undefined;
+
+    allDayRecords.forEach(record => {
+      const isHoliday = record.Holiday === 1;
+      const hasLeaveType = record.TypeOfLeaveID && record.TypeOfLeaveID !== '0';
+      
+      // Проверяем есть ли рабочее время в этой записи
+      const hasWorkTime = record.ShiftDate1 && record.ShiftDate2 && 
+        !(record.ShiftDate1.getHours() === 0 && record.ShiftDate1.getMinutes() === 0 && 
+          record.ShiftDate2.getHours() === 0 && record.ShiftDate2.getMinutes() === 0);
+
+      console.log(`[TimetableDataProcessor] Record ${record.ID}: Holiday=${record.Holiday}, LeaveType=${record.TypeOfLeaveID}, HasWorkTime=${hasWorkTime}`);
+
+      // Если нет рабочего времени, но есть отметки - это отпуск/праздник без работы
+      if (!hasWorkTime) {
+        if (isHoliday) {
+          hasNonWorkHoliday = true;
+          console.log(`[TimetableDataProcessor] Found non-work holiday on day ${dayNumber}`);
+        }
+        
+        if (hasLeaveType) {
+          hasNonWorkLeave = true;
+          nonWorkLeaveTypeId = record.TypeOfLeaveID;
+          
+          // Получаем цвет типа отпуска
+          if (getLeaveTypeColor && nonWorkLeaveTypeId) {
+            nonWorkLeaveTypeColor = getLeaveTypeColor(nonWorkLeaveTypeId);
+            console.log(`[TimetableDataProcessor] Found non-work leave type ${nonWorkLeaveTypeId} with color ${nonWorkLeaveTypeColor} on day ${dayNumber}`);
+          }
+        }
+      }
+    });
+
+    // Рассчитываем общие минуты (только от смен с рабочим временем)
+    const totalMinutes = shifts.reduce((sum, shift) => sum + shift.workMinutes, 0);
+    
+    // Форматируем содержимое (только смены с рабочим временем)
+    let formattedContent = TimetableShiftCalculator.formatDayContent(shifts);
+
+    // *** НОВОЕ: Добавляем информацию о праздниках/отпусках без смен ***
+    if (!shifts.length && (hasNonWorkHoliday || hasNonWorkLeave)) {
+      if (hasNonWorkHoliday) {
+        formattedContent = "Holiday";
+      } else if (hasNonWorkLeave) {
+        formattedContent = "Leave";
+      }
+    }
+
+    // ОБНОВЛЕНО: Определяем цвет ячейки включая дни без смен
+    const workShiftsLeaveColor = TimetableShiftCalculator.getDominantLeaveColor(shifts);
+    const hasWorkShiftsLeave = TimetableShiftCalculator.hasLeaveTypes(shifts);
+    const hasWorkShiftsHoliday = TimetableShiftCalculator.hasHolidays ? TimetableShiftCalculator.hasHolidays(shifts) : shifts.some(s => s.isHoliday);
+    
+    // Объединяем информацию о праздниках и отпусках (из смен и из отдельных записей)
+    const hasHoliday = hasWorkShiftsHoliday || hasNonWorkHoliday;
+    const hasLeave = hasWorkShiftsLeave || hasNonWorkLeave;
+    
+    const holidayColorFinal = holidayColor || TIMETABLE_COLORS.HOLIDAY;
+
+    // НОВОЕ: Определяем финальный цвет ячейки по системе приоритетов (включая дни без смен)
+    let finalCellColor: string | undefined = undefined;
+    let leaveTypeColor: string | undefined = undefined;
+    
+    if (hasHoliday) {
+      // Праздники имеют высший приоритет
+      finalCellColor = holidayColorFinal;
+      console.log(`[TimetableDataProcessor] Day ${dayNumber}: Applied HOLIDAY color (including non-work)`);
+    } else if (hasLeave) {
+      // Приоритет: цвет из смен, затем цвет из отдельных записей
+      leaveTypeColor = workShiftsLeaveColor || nonWorkLeaveTypeColor;
+      if (leaveTypeColor) {
+        finalCellColor = leaveTypeColor;
+        console.log(`[TimetableDataProcessor] Day ${dayNumber}: Applied LEAVE color ${leaveTypeColor} (including non-work)`);
+      }
+    }
+
+    return {
+      dayNumber,
+      date: dayDate,
+      shifts,
+      totalMinutes,
+      formattedContent,
+      hasData: shifts.length > 0 || hasNonWorkHoliday || hasNonWorkLeave, // ИСПРАВЛЕНО: Считаем данными и дни без смен, но с отметками
+      leaveTypeColor,
+      hasLeave,
+      // НОВЫЕ поля для праздников
+      hasHoliday,
+      holidayColor: hasHoliday ? holidayColorFinal : undefined,
+      finalCellColor
+    };
+  }
+
+  /**
    * НОВЫЙ МЕТОД: Подсчитывает количество праздников в недельных данных
    */
   private static countHolidaysInWeekData(weeklyData: IWeeklyStaffData): number {
@@ -337,6 +522,10 @@ export class TimetableDataProcessor {
     Object.values(weeklyData.days).forEach((day: IDayInfo) => {
       if (day.hasHoliday) {
         holidaysCount += day.shifts.filter(s => s.isHoliday).length;
+        // Если есть праздники без смен, тоже считаем (день помечен как праздничный)
+        if (day.shifts.length === 0 && day.hasHoliday) {
+          holidaysCount += 1;
+        }
       }
     });
     
@@ -481,7 +670,7 @@ export class TimetableDataProcessor {
     compatibility: string;
   } {
     return {
-      version: '3.1',
+      version: '3.2',
       architecture: 'Modular',
       modules: [
         'TimetableDataProcessor (Main API)',
@@ -491,12 +680,13 @@ export class TimetableDataProcessor {
       features: [
         'Leave Colors Support',
         'Holiday Support with Priority System',
+        'Non-work Days Holiday/Leave Marking',
         'Advanced Analytics',
         'Performance Optimization',
         'Data Validation',
         'Comprehensive Reporting'
       ],
-      compatibility: 'Fully backward compatible with v2.x and v3.0'
+      compatibility: 'Fully backward compatible with v2.x, v3.0 and v3.1'
     };
   }
 
@@ -543,7 +733,7 @@ export class TimetableDataProcessor {
         }
       });
     } else {
-      recommendations.push('Modular architecture is properly configured with Holiday support');
+      recommendations.push('Modular architecture is properly configured with Holiday support and non-work days marking');
     }
 
     return {
