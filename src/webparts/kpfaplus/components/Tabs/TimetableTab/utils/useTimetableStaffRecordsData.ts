@@ -3,16 +3,12 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { WebPartContext } from '@microsoft/sp-webpart-base';
 import { StaffRecordsService, IStaffRecord } from '../../../../services/StaffRecordsService';
-//import { /* IStaffRecordsResult, */ IStaffRecordsQueryParams } from '../../../../services/StaffRecordsInterfaces';
 import { 
   IWeekInfo, 
   IWeekGroup,
-  IStaffMember,
-  ITimetableStaffRow,
-  IDayInfo
+  IStaffMember
 } from '../interfaces/TimetableInterfaces';
-import { TimetableDataProcessor } from './TimetableDataProcessor';
-import { TimetableWeekCalculator } from './TimetableWeekCalculator';
+import { processAndSetResults } from './useTimetableStaffRecordsDataHelpers';
 
 interface UseTimetableStaffRecordsDataProps {
   context?: WebPartContext;
@@ -121,309 +117,6 @@ export const useTimetableStaffRecordsData = (
     }
 
     return result.records;
-  };
-
-  /**
-   * Обработка и установка результатов с детальной диагностикой
-   */
-  const processAndSetResults = async (
-    allRecords: IStaffRecord[], 
-    activeStaffMembers: IStaffMember[], 
-    weeks: IWeekInfo[],
-    strategy: string
-  ): Promise<void> => {
-    console.log(`[useTimetableStaffRecordsData] *** PROCESSING RESULTS FROM ${strategy.toUpperCase()} STRATEGY WITH DIAGNOSTICS ***`);
-    
-    // Создаем Set с employeeId активных сотрудников для быстрой фильтрации
-    const activeEmployeeIds = new Set(
-      activeStaffMembers
-        .map(staff => staff.employeeId?.toString())
-        .filter(id => id && id !== '0')
-    );
-
-    console.log('[useTimetableStaffRecordsData] Active employee IDs for filtering:', Array.from(activeEmployeeIds));
-
-    // *** ДЕТАЛЬНАЯ ДИАГНОСТИКА ВХОДЯЩИХ ДАННЫХ (ПОСЛЕ ЗАГРУЗКИ ВСЕХ ЗАПИСЕЙ) ***
-    console.log('[useTimetableStaffRecordsData] *** RAW DATA ANALYSIS (ALL RECORDS LOADED) ***');
-    
-    const recordsByStaffId: Record<string, number> = {};
-    const recordsByDate: Record<string, number> = {};
-    const uniqueStaffIdsInRecords = new Set<string>();
-    
-    allRecords.forEach(record => {
-      const staffId = record.StaffMemberLookupId?.toString() || 'Unknown';
-      const dateStr = record.Date.toLocaleDateString();
-      
-      recordsByStaffId[staffId] = (recordsByStaffId[staffId] || 0) + 1;
-      recordsByDate[dateStr] = (recordsByDate[dateStr] || 0) + 1;
-      uniqueStaffIdsInRecords.add(staffId);
-    });
-
-    console.log('[useTimetableStaffRecordsData] Raw data analysis (ALL RECORDS):', {
-      totalRecordsFromServer: allRecords.length,
-      uniqueStaffIdsInRecords: uniqueStaffIdsInRecords.size,
-      staffIdsInRecords: Array.from(uniqueStaffIdsInRecords).slice(0, 10), // Показываем первые 10
-      activeStaffCount: activeStaffMembers.length,
-      activeEmployeeIds: Array.from(activeEmployeeIds),
-      uniqueDatesCount: Object.keys(recordsByDate).length,
-      monthSpan: Object.keys(recordsByDate).length > 20 ? 
-        'GOOD: Data spans full month' : 
-        'WARNING: Limited date range'
-    });
-
-    // *** КРИТИЧЕСКАЯ ДИАГНОСТИКА: Проверяем даты записей ***
-    console.log('[useTimetableStaffRecordsData] *** CRITICAL DATE ANALYSIS (ALL RECORDS) ***');
-
-    // Анализируем даты всех записей
-    const dateAnalysis: Record<string, { count: number; recordIds: string[] }> = {};
-    const monthYearAnalysis: Record<string, number> = {};
-
-    allRecords.forEach(record => {
-      const recordDate = new Date(record.Date);
-      const dateStr = recordDate.toLocaleDateString('en-GB');
-      const monthYear = recordDate.toLocaleDateString('en-GB', { month: '2-digit', year: 'numeric' });
-      
-      if (!dateAnalysis[dateStr]) {
-        dateAnalysis[dateStr] = { count: 0, recordIds: [] };
-      }
-      dateAnalysis[dateStr].count++;
-      dateAnalysis[dateStr].recordIds.push(record.ID);
-      
-      monthYearAnalysis[monthYear] = (monthYearAnalysis[monthYear] || 0) + 1;
-    });
-
-    // Сортируем даты для анализа
-    const sortedDates = Object.keys(dateAnalysis).sort((a, b) => 
-      new Date(a.split('/').reverse().join('-')).getTime() - 
-      new Date(b.split('/').reverse().join('-')).getTime()
-    );
-
-    console.log('[useTimetableStaffRecordsData] Date distribution analysis (ALL RECORDS):', {
-      totalUniqueDates: sortedDates.length,
-      dateRange: sortedDates.length > 0 ? `${sortedDates[0]} to ${sortedDates[sortedDates.length - 1]}` : 'No dates',
-      monthYearDistribution: monthYearAnalysis,
-      first10Dates: sortedDates.slice(0, 10).map(date => ({
-        date,
-        count: dateAnalysis[date].count
-      })),
-      last10Dates: sortedDates.slice(-10).map(date => ({
-        date,
-        count: dateAnalysis[date].count
-      })),
-      dataQuality: sortedDates.length > 20 ? 'EXCELLENT: Full month coverage' : 'POOR: Limited coverage'
-    });
-
-    // *** ПРОВЕРЯЕМ ЗАПРОШЕННЫЙ ДИАПАЗОН VS ПОЛУЧЕННЫЕ ДАННЫЕ ***
-    const startDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
-    const endDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0);
-
-    console.log('[useTimetableStaffRecordsData] *** REQUEST VS RECEIVED DATA ANALYSIS ***');
-    console.log('[useTimetableStaffRecordsData] Request parameters:', {
-      requestedMonth: selectedDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }),
-      requestedStartDate: startDate.toLocaleDateString('en-GB'),
-      requestedEndDate: endDate.toLocaleDateString('en-GB'),
-      requestedRange: `${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`
-    });
-
-    // Проверяем, попадают ли записи в запрошенный диапазон
-    const recordsInRange = allRecords.filter(record => {
-      const recordDate = new Date(record.Date);
-      return recordDate >= startDate && recordDate <= endDate;
-    });
-
-    const recordsOutsideRange = allRecords.filter(record => {
-      const recordDate = new Date(record.Date);
-      return recordDate < startDate || recordDate > endDate;
-    });
-
-    console.log('[useTimetableStaffRecordsData] Records vs requested range:', {
-      totalRecords: allRecords.length,
-      recordsInRequestedRange: recordsInRange.length,
-      recordsOutsideRange: recordsOutsideRange.length,
-      percentageInRange: Math.round((recordsInRange.length / allRecords.length) * 100) + '%',
-      result: recordsOutsideRange.length === 0 ? 'PERFECT: All records in range' : 'ISSUE: Some records outside range'
-    });
-
-    if (recordsOutsideRange.length > 0) {
-      console.error('[useTimetableStaffRecordsData] 🚨 RECORDS OUTSIDE RANGE DETECTED:', {
-        count: recordsOutsideRange.length,
-        examples: recordsOutsideRange.slice(0, 5).map(record => ({
-          id: record.ID,
-          date: record.Date.toLocaleDateString('en-GB'),
-          staffId: record.StaffMemberLookupId
-        }))
-      });
-    }
-
-    // *** ПРОВЕРЯЕМ РАСПРЕДЕЛЕНИЕ ПО НЕДЕЛЯМ (КЛЮЧЕВАЯ ДИАГНОСТИКА) ***
-    const firstWeek = weeks[0];
-    if (firstWeek) {
-      const weekDistribution: Record<number, number> = {};
-      
-      allRecords.forEach(record => {
-        const recordDate = new Date(record.Date);
-        const matchingWeek = weeks.find(week => 
-          TimetableWeekCalculator.isDateInWeek(recordDate, week.weekStart, week.weekEnd)
-        );
-        
-        if (matchingWeek) {
-          weekDistribution[matchingWeek.weekNum] = (weekDistribution[matchingWeek.weekNum] || 0) + 1;
-        }
-      });
-      
-      console.log('[useTimetableStaffRecordsData] *** WEEK DISTRIBUTION ANALYSIS (CRITICAL) ***');
-      console.log('[useTimetableStaffRecordsData] Records distribution by weeks:', {
-        weekDistribution,
-        totalWeeks: weeks.length,
-        weeksWithData: Object.keys(weekDistribution).length,
-        isFirstWeekDominant: weekDistribution[1] && weekDistribution[1] > (allRecords.length * 0.8) ? 
-          '🚨 CRITICAL: >80% records in week 1!' : 
-          '✅ GOOD: Normal distribution',
-        distributionBalance: Object.keys(weekDistribution).length > 1 ? 
-          'EXCELLENT: Multi-week data' : 
-          'CRITICAL: Single week concentration',
-        
-        // Детальная статистика по неделям
-        weekBreakdown: weeks.map(week => ({
-          weekNum: week.weekNum,
-          weekRange: `${week.weekStart.toLocaleDateString('en-GB')} - ${week.weekEnd.toLocaleDateString('en-GB')}`,
-          recordsCount: weekDistribution[week.weekNum] || 0,
-          percentage: Math.round(((weekDistribution[week.weekNum] || 0) / allRecords.length) * 100) + '%'
-        }))
-      });
-
-      // *** ФИНАЛЬНАЯ ДИАГНОСТИКА ПРОБЛЕМЫ ***
-      const singleWeekConcentration = Object.keys(weekDistribution).length === 1 && weekDistribution[1];
-      if (singleWeekConcentration) {
-        console.error('[useTimetableStaffRecordsData] 🚨🚨🚨 PROBLEM IDENTIFIED 🚨🚨🚨');
-        console.error('[useTimetableStaffRecordsData] ISSUE: All records concentrated in Week 1');
-        console.error('[useTimetableStaffRecordsData] SOLUTION IMPLEMENTED: Using getAllStaffRecordsForTimetable should fix this');
-        console.error('[useTimetableStaffRecordsData] If problem persists, check server-side filtering in RemoteSiteItemService.getAllFilteredItemsForTimetable');
-      } else {
-        console.log('[useTimetableStaffRecordsData] ✅ SUCCESS: Records properly distributed across weeks');
-      }
-    }
-
-    // *** АНАЛИЗ СОВПАДЕНИЙ ПО СОТРУДНИКАМ ***
-    const matchingStaffIds = Array.from(uniqueStaffIdsInRecords).filter(id => activeEmployeeIds.has(id));
-    const nonMatchingStaffIds = Array.from(uniqueStaffIdsInRecords).filter(id => !activeEmployeeIds.has(id));
-    
-    console.log('[useTimetableStaffRecordsData] Staff ID matching analysis:', {
-      matchingStaffIds: matchingStaffIds,
-      nonMatchingStaffIds: nonMatchingStaffIds.slice(0, 3), // Показываем только первые 3
-      matchingCount: matchingStaffIds.length,
-      nonMatchingCount: nonMatchingStaffIds.length,
-      coverageQuality: matchingStaffIds.length > nonMatchingStaffIds.length ? 
-        'GOOD: More matching than non-matching' : 
-        'ISSUE: More non-matching IDs'
-    });
-
-    // Фильтруем полученные записи по нашим активным сотрудникам
-    const filteredRecords = allRecords.filter(record => {
-      const recordStaffMemberId = record.StaffMemberLookupId?.toString();
-      return recordStaffMemberId && activeEmployeeIds.has(recordStaffMemberId);
-    });
-
-    console.log('[useTimetableStaffRecordsData] *** CLIENT-SIDE FILTERING COMPLETED ***');
-    console.log('[useTimetableStaffRecordsData] Filtering results:', {
-      totalRecordsFromServer: allRecords.length,
-      filteredRecordsForOurStaff: filteredRecords.length,
-      filteringEfficiency: `${Math.round((filteredRecords.length / allRecords.length) * 100)}% records matched our staff`,
-      activeStaffCount: activeStaffMembers.length,
-      result: filteredRecords.length > 0 ? 'SUCCESS: Found matching records' : 'PROBLEM: No matching records'
-    });
-
-    // *** КРИТИЧЕСКАЯ ПРОВЕРКА РАСПРЕДЕЛЕНИЯ ПО НЕДЕЛЯМ (ПОСЛЕ ФИЛЬТРАЦИИ) ***
-    const recordsByWeek: Record<number, number> = {};
-    
-    filteredRecords.forEach(record => {
-      const recordDate = new Date(record.Date);
-      
-      // Находим неделю для этой записи
-      const matchingWeek = weeks.find(week => 
-        TimetableWeekCalculator.isDateInWeek(recordDate, week.weekStart, week.weekEnd)
-      );
-      
-      if (matchingWeek) {
-        recordsByWeek[matchingWeek.weekNum] = (recordsByWeek[matchingWeek.weekNum] || 0) + 1;
-      } else {
-        console.warn(`[useTimetableStaffRecordsData] ⚠️ Record ${record.ID} (${recordDate.toLocaleDateString()}) does not match any calculated week!`);
-      }
-    });
-
-    console.log('[useTimetableStaffRecordsData] *** FINAL RECORDS DISTRIBUTION BY WEEKS (AFTER FILTERING) ***', {
-      weeklyDistribution: recordsByWeek,
-      totalWeeks: weeks.length,
-      weeksWithData: Object.keys(recordsByWeek).length,
-      avgRecordsPerWeek: Object.keys(recordsByWeek).length > 0 ? 
-        Math.round(filteredRecords.length / Object.keys(recordsByWeek).length) : 0,
-      finalResult: Object.keys(recordsByWeek).length > 1 ? 
-        '🎉 SUCCESS: Multi-week data distribution achieved!' : 
-        '❌ STILL FAILED: Single week concentration persists',
-      
-      // Показываем финальное распределение
-      finalWeekBreakdown: weeks.map(week => ({
-        weekNum: week.weekNum,
-        recordsCount: recordsByWeek[week.weekNum] || 0,
-        percentage: filteredRecords.length > 0 ? 
-          Math.round(((recordsByWeek[week.weekNum] || 0) / filteredRecords.length) * 100) + '%' : '0%'
-      }))
-    });
-
-    // Сохраняем отфильтрованные записи
-    console.log('[useTimetableStaffRecordsData] *** SETTING FILTERED STAFF RECORDS IN STATE ***');
-    setStaffRecords(filteredRecords);
-
-    // Обрабатываем данные в структуру групп недель
-    console.log('[useTimetableStaffRecordsData] *** CALLING TimetableDataProcessor.processDataByWeeks ***');
-    const weeksData = TimetableDataProcessor.processDataByWeeks({
-      staffRecords: filteredRecords,
-      staffMembers: activeStaffMembers,
-      weeks: weeks,
-      currentUserId: currentUserId,
-      managingGroupId: managingGroupId
-    });
-
-    console.log(`[useTimetableStaffRecordsData] *** PROCESSOR COMPLETED ***`);
-    console.log(`[useTimetableStaffRecordsData] Processed ${weeksData.length} week groups using ${strategy} strategy`);
-    
-    // Логируем статистику по неделям
-    weeksData.forEach((weekGroup: IWeekGroup) => {
-      const staffWithData = weekGroup.staffRows.filter((row: ITimetableStaffRow) =>
-        Object.values(row.weekData.days).some((day: IDayInfo) => day.hasData)
-      ).length;
-      
-      console.log(`[useTimetableStaffRecordsData] Week ${weekGroup.weekInfo.weekNum}: ${staffWithData}/${weekGroup.staffRows.length} staff have data`);
-    });
-
-    // Общая статистика
-    const totalStaffRows = weeksData.reduce((sum, week) => sum + week.staffRows.length, 0);
-    const weeksWithData = weeksData.filter(week => week.hasData).length;
-    
-    console.log('[useTimetableStaffRecordsData] *** NEW TIMETABLE STRATEGY PERFORMANCE SUMMARY ***');
-    console.log('[useTimetableStaffRecordsData] Final processing summary:', {
-      strategy: strategy,
-      totalWeeks: weeksData.length,
-      weeksWithData,
-      totalStaffRows,
-      averageStaffPerWeek: Math.round(totalStaffRows / (weeksData.length || 1)),
-      totalRecordsProcessed: filteredRecords.length,
-      dataQuality: weeksWithData > 1 ? 
-        '🎉 EXCELLENT: Multi-week data achieved with new strategy!' : 
-        '❌ STILL FAILED: Single week concentration - need to investigate server filtering',
-      expectedImprovement: 'Should load all 477 records and distribute across 5 weeks'
-    });
-
-    setWeeksData(weeksData);
-
-    // Проверяем если есть проблемы с данными
-    if (filteredRecords.length === 0 && activeStaffMembers.length > 0) {
-      console.warn('[useTimetableStaffRecordsData] Warning: No records found for any active staff members');
-      setErrorStaffRecords('No schedule records found for active staff members in selected period');
-    } else if (weeksWithData <= 1 && filteredRecords.length > 10) {
-      console.warn('[useTimetableStaffRecordsData] Warning: Data concentration in single week despite using new strategy');
-      setErrorStaffRecords('Data appears to be concentrated in single week. Check server-side filtering.');
-    }
   };
 
   const loadTimetableData = useCallback(async (overrideDate?: Date): Promise<void> => {
@@ -571,8 +264,16 @@ export const useTimetableStaffRecordsData = (
         nextStep: 'Processing and distributing across weeks'
       });
 
-      // Общая обработка результатов с диагностикой
-      await processAndSetResults(allRecords, activeStaffMembers, weeks, loadingStrategy);
+      // Общая обработка результатов с диагностикой - ВЫНЕСЕНО В ОТДЕЛЬНЫЙ ФАЙЛ
+      await processAndSetResults(
+        allRecords, 
+        activeStaffMembers, 
+        weeks, 
+        loadingStrategy,
+        selectedDate,
+        setStaffRecords,
+        setWeeksData
+      );
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -671,7 +372,7 @@ export const useTimetableStaffRecordsData = (
     staffMembers.length,
     managingGroupId,
     currentUserId,
-    // НЕ включаем loadTimetableData в зависимости - это может вызвать бесконечные ререндеры
+    // НЕ включаем loadTimetableData в зависимость - это может вызвать бесконечные ререндеры
   ]);
 
   return {

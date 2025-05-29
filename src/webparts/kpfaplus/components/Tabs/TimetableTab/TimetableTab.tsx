@@ -670,34 +670,29 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
           </div>
         ) : state.weeksData.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px' }}>
-            <p>No data available for the selected period.</p>
-            <p style={{ fontSize: '12px', color: '#666', marginTop: '8px' }}>
-              Group: {managingGroupId} | User: {currentUserId} | Weeks calculated: {weeks.length} | Staff: {statistics.staffCount}
-            </p>
+            <MessageBar messageBarType={MessageBarType.warning} style={{ marginBottom: '20px' }}>
+              No schedule records found for active staff members in selected period
+            </MessageBar>
             
-            {/* Отладочная информация для серверной фильтрации */}
             <div style={{ 
               marginTop: '20px', 
               padding: '15px', 
-              backgroundColor: '#f8f9fa', 
+              backgroundColor: '#fff8e1', 
               borderRadius: '4px',
               textAlign: 'left',
-              fontSize: '11px',
+              fontSize: '12px',
               color: '#666'
             }}>
-              <div style={{ fontWeight: 'bold', marginBottom: '10px' }}>Server-Side Filtering Debug Information:</div>
+              <div style={{ fontWeight: 'bold', marginBottom: '10px', color: '#f57c00' }}>Information:</div>
               <div>• Total Staff Records Loaded: {state.staffRecords.length}</div>
               <div>• Weeks Calculated: {weeks.length}</div>
               <div>• Total Staff Members: {staffMembers.length}</div>
               <div>• Active Staff Members: {staffMembers.filter(s => s.deleted !== 1).length}</div>
               <div>• Active Staff with Employee ID: {staffMembers.filter(s => s.deleted !== 1 && s.employeeId && s.employeeId !== '0').length}</div>
-              <div>• Managing Group ID (StaffGroup filter): {managingGroupId || 'Not set'}</div>
-              <div>• Current User ID (Manager filter): {currentUserId || 'Not set'}</div>
-              <div>• Context Available: {context ? 'Yes' : 'No'}</div>
-              <div>• Staff Records Service: {staffRecordsService ? 'Available' : 'Not available'}</div>
-              <div>• Types of Leave Loaded: {typesOfLeave.length}</div>
-              <div style={{ marginTop: '8px', fontStyle: 'italic' }}>
-                Each staff member gets individual request with: StaffMember = employeeId, Manager = currentUserId, StaffGroup = managingGroupId
+              <div>• Managing Group ID: {managingGroupId || 'Not set'}</div>
+              <div>• Current User ID: {currentUserId || 'Not set'}</div>
+              <div style={{ marginTop: '8px', fontStyle: 'italic', color: '#f57c00' }}>
+                This may be normal if no schedule data exists for the selected period.
               </div>
             </div>
             
@@ -712,14 +707,14 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
                 style={{
                   marginTop: '16px',
                   padding: '8px 16px',
-                  backgroundColor: '#0078d4',
+                  backgroundColor: '#ff9800',
                   color: 'white',
                   border: 'none',
                   borderRadius: '4px',
                   cursor: 'pointer'
                 }}
               >
-                Refresh Data (Make Server Requests)
+                Refresh Data
               </button>
             )}
           </div>

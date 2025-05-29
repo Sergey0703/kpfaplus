@@ -61,7 +61,8 @@ export class TimetableDataAnalytics {
     // Анализируем все недели
     weekGroups.forEach(weekGroup => {
       weekGroup.staffRows.forEach(staffRow => {
-        Object.values(staffRow.weekData.days).forEach((day: IDayInfo) => {
+        Object.values(staffRow.weekData.days).forEach((dayData) => {
+          const day = dayData as IDayInfo;
           totalRecords += day.shifts.length;
           totalShifts += day.shifts.length;
           totalWorkMinutes += day.totalMinutes;
@@ -128,7 +129,8 @@ export class TimetableDataAnalytics {
     // Собираем статистику по цветам
     weekGroups.forEach(weekGroup => {
       weekGroup.staffRows.forEach(staffRow => {
-        Object.values(staffRow.weekData.days).forEach((day: IDayInfo) => {
+        Object.values(staffRow.weekData.days).forEach((dayData) => {
+          const day = dayData as IDayInfo;
           if (day.hasLeave && day.leaveTypeColor) {
             totalDaysWithLeave++;
             
@@ -209,13 +211,22 @@ export class TimetableDataAnalytics {
     leaveTypesCount: number;
     totalMinutes: number;
   } {
-    const daysWithData = Object.values(weeklyData.days).filter((day: any) => day.hasData);
+    const daysWithData = Object.values(weeklyData.days).filter((dayData: any) => {
+      const day = dayData as IDayInfo;
+      return day.hasData;
+    });
     const totalDaysWithData = daysWithData.length;
-    const totalShifts = daysWithData.reduce((sum: number, day: any) => sum + day.shifts.length, 0);
+    
+    let totalShifts = 0;
+    daysWithData.forEach((dayData: any) => {
+      const day = dayData as IDayInfo;
+      totalShifts += day.shifts.length;
+    });
     
     // Подсчитываем уникальные типы отпусков (исправлено для совместимости с ES5)
     const allShifts: IShiftInfo[] = [];
-    daysWithData.forEach((day: any) => {
+    daysWithData.forEach((dayData: any) => {
+      const day = dayData as IDayInfo;
       day.shifts.forEach((shift: IShiftInfo) => {
         allShifts.push(shift);
       });
@@ -251,7 +262,11 @@ export class TimetableDataAnalytics {
     const weeksWithData = weekGroups.filter(w => w.hasData).length;
     const totalStaffProcessed = weekGroups.length > 0 ? weekGroups[0].staffRows.length : 0;
     const totalLeaveTypes = Object.keys(leaveTypesIndex).length;
-    const recordsWithLeave = Object.values(leaveTypesIndex).reduce((sum, lt) => sum + lt.count, 0);
+    
+    let recordsWithLeave = 0;
+    Object.values(leaveTypesIndex).forEach(lt => {
+      recordsWithLeave += lt.count;
+    });
     
     let processingQuality = 'UNKNOWN';
     let leaveColorsCoverage = 'NONE';
@@ -288,107 +303,7 @@ export class TimetableDataAnalytics {
     };
   }
 
-  // *** ЭКСПОРТ И ОТЧЕТНОСТЬ ***
-
-  /**
-   * Экспортирует данные с цветами отпусков в структурированном формате
-   */
-  public static exportWeeksDataWithLeaveColors(weekGroups: IWeekGroup[]): {
-    metadata: {
-      exportDate: string;
-      totalWeeks: number;
-      totalStaff: number;
-      totalRecords: number;
-      leaveColorsCount: number;
-    };
-    weeks: Array<{
-      weekNum: number;
-      weekStart: string;
-      weekEnd: string;
-      staff: Array<{
-        staffId: string;
-        staffName: string;
-        totalHours: number;
-        days: Array<{
-          dayNumber: number;
-          date: string;
-          dayName: string;
-          shifts: Array<{
-            startTime: string;
-            endTime: string;
-            workMinutes: number;
-            leaveType?: {
-              id: string;
-              title: string;
-              color: string;
-            };
-          }>;
-          totalMinutes: number;
-          leaveColor?: string;
-          hasLeave: boolean;
-        }>;
-      }>;
-    }>;
-    leaveColorsLegend: Array<{
-      color: string;
-      associatedTypes: string[];
-      usageCount: number;
-    }>;
-  } {
-    const leaveColorsAnalysis = this.analyzeLeaveColorsUsage(weekGroups);
-    
-    const exportData = {
-      metadata: {
-        exportDate: new Date().toISOString(),
-        totalWeeks: weekGroups.length,
-        totalStaff: weekGroups.length > 0 ? weekGroups[0].staffRows.length : 0,
-        totalRecords: 0,
-        leaveColorsCount: leaveColorsAnalysis.uniqueLeaveColors
-      },
-      weeks: weekGroups.map(weekGroup => ({
-        weekNum: weekGroup.weekInfo.weekNum,
-        weekStart: weekGroup.weekInfo.weekStart.toISOString(),
-        weekEnd: weekGroup.weekInfo.weekEnd.toISOString(),
-        staff: weekGroup.staffRows.map(staffRow => ({
-          staffId: staffRow.staffId,
-          staffName: staffRow.staffName,
-          totalHours: Math.round(staffRow.weekData.totalWeekMinutes / 60 * 100) / 100,
-          days: Object.entries(staffRow.weekData.days).map(([dayNum, day]) => ({
-            dayNumber: parseInt(dayNum),
-            date: day.date.toISOString(),
-            dayName: TimetableWeekCalculator.getDayName(parseInt(dayNum)),
-            shifts: day.shifts.map(shift => ({
-              startTime: shift.startTime.toISOString(),
-              endTime: shift.endTime.toISOString(),
-              workMinutes: shift.workMinutes,
-              leaveType: shift.typeOfLeaveId ? {
-                id: shift.typeOfLeaveId,
-                title: shift.typeOfLeaveTitle || shift.typeOfLeaveId,
-                color: shift.typeOfLeaveColor || '#cccccc'
-              } : undefined
-            })),
-            totalMinutes: day.totalMinutes,
-            leaveColor: day.leaveTypeColor,
-            hasLeave: day.hasLeave
-          }))
-        }))
-      })),
-      leaveColorsLegend: leaveColorsAnalysis.leaveColorBreakdown.map(item => ({
-        color: item.color,
-        associatedTypes: item.associatedTypes,
-        usageCount: item.count
-      }))
-    };
-
-    // Подсчитываем общее количество записей
-    exportData.metadata.totalRecords = exportData.weeks.reduce((sum, week) => 
-      sum + week.staff.reduce((staffSum, staff) => 
-        staffSum + staff.days.reduce((daySum, day) => daySum + day.shifts.length, 0), 0), 0);
-
-    return exportData;
-  }
-
-  // *** ДЕТАЛЬНАЯ АНАЛИТИКА ***
+  // *** АНАЛИЗ ПРОДУКТИВНОСТИ ***
 
   /**
    * Анализирует продуктивность и использование времени
@@ -452,11 +367,16 @@ export class TimetableDataAnalytics {
     const staffUtilizationRate = staffHours.length > 0 ? 
       Math.round((activeStaff / staffHours.length) * 100) : 0;
     
-    // Среднее количество смен в день
-    const totalShifts = weekGroups.reduce((sum, week) => 
-      sum + week.staffRows.reduce((weekSum, staff) => 
-        weekSum + Object.values(staff.weekData.days).reduce((daySum: number, dayInfo) => 
-          daySum + (dayInfo as IDayInfo).shifts.length, 0), 0), 0);
+    // Среднее количество смен в день - ИСПРАВЛЕНО для TypeScript
+    let totalShifts = 0;
+    weekGroups.forEach(week => {
+      week.staffRows.forEach(staff => {
+        Object.values(staff.weekData.days).forEach((dayValue) => {
+          const dayInfo = dayValue as IDayInfo;
+          totalShifts += dayInfo.shifts.length;
+        });
+      });
+    });
     
     const totalDays = weekGroups.length * 7;
     const averageShiftsPerDay = totalDays > 0 ? Math.round((totalShifts / totalDays) * 100) / 100 : 0;
@@ -492,6 +412,8 @@ export class TimetableDataAnalytics {
     };
   }
 
+  // *** АНАЛИЗ ПАТТЕРНОВ ОТПУСКОВ ***
+
   /**
    * Анализирует паттерны использования отпусков
    */
@@ -517,8 +439,9 @@ export class TimetableDataAnalytics {
       weekGroup.staffRows.forEach(staffRow => {
         let staffLeaveCount = 0;
         
-        Object.entries(staffRow.weekData.days).forEach(([dayNum, day]) => {
-          (day as IDayInfo).shifts.forEach(shift => {
+        Object.entries(staffRow.weekData.days).forEach(([dayNum, dayData]) => {
+          const day = dayData as IDayInfo;
+          day.shifts.forEach(shift => {
             if (shift.typeOfLeaveId) {
               totalLeaveRequests++;
               weekLeaveCount++;
@@ -601,6 +524,109 @@ export class TimetableDataAnalytics {
       averageLeavePerStaff,
       leaveDistributionQuality
     };
+  }
+
+  // *** ЭКСПОРТ И ОТЧЕТНОСТЬ ***
+
+  /**
+   * Экспортирует данные с цветами отпусков в структурированном формате
+   */
+  public static exportWeeksDataWithLeaveColors(weekGroups: IWeekGroup[]): {
+    metadata: {
+      exportDate: string;
+      totalWeeks: number;
+      totalStaff: number;
+      totalRecords: number;
+      leaveColorsCount: number;
+    };
+    weeks: Array<{
+      weekNum: number;
+      weekStart: string;
+      weekEnd: string;
+      staff: Array<{
+        staffId: string;
+        staffName: string;
+        totalHours: number;
+        days: Array<{
+          dayNumber: number;
+          date: string;
+          dayName: string;
+          shifts: Array<{
+            startTime: string;
+            endTime: string;
+            workMinutes: number;
+            leaveType?: {
+              id: string;
+              title: string;
+              color: string;
+            };
+          }>;
+          totalMinutes: number;
+          leaveColor?: string;
+          hasLeave: boolean;
+        }>;
+      }>;
+    }>;
+    leaveColorsLegend: Array<{
+      color: string;
+      associatedTypes: string[];
+      usageCount: number;
+    }>;
+  } {
+    const leaveColorsAnalysis = this.analyzeLeaveColorsUsage(weekGroups);
+    
+    const exportData = {
+      metadata: {
+        exportDate: new Date().toISOString(),
+        totalWeeks: weekGroups.length,
+        totalStaff: weekGroups.length > 0 ? weekGroups[0].staffRows.length : 0,
+        totalRecords: 0,
+        leaveColorsCount: leaveColorsAnalysis.uniqueLeaveColors
+      },
+      weeks: weekGroups.map(weekGroup => ({
+        weekNum: weekGroup.weekInfo.weekNum,
+        weekStart: weekGroup.weekInfo.weekStart.toISOString(),
+        weekEnd: weekGroup.weekInfo.weekEnd.toISOString(),
+        staff: weekGroup.staffRows.map(staffRow => ({
+          staffId: staffRow.staffId,
+          staffName: staffRow.staffName,
+          totalHours: Math.round(staffRow.weekData.totalWeekMinutes / 60 * 100) / 100,
+          days: Object.entries(staffRow.weekData.days).map(([dayNum, dayData]) => {
+            const day = dayData as IDayInfo;
+            return {
+              dayNumber: parseInt(dayNum),
+              date: day.date.toISOString(),
+              dayName: TimetableWeekCalculator.getDayName(parseInt(dayNum)),
+              shifts: day.shifts.map(shift => ({
+                startTime: shift.startTime.toISOString(),
+                endTime: shift.endTime.toISOString(),
+                workMinutes: shift.workMinutes,
+                leaveType: shift.typeOfLeaveId ? {
+                  id: shift.typeOfLeaveId,
+                  title: shift.typeOfLeaveTitle || shift.typeOfLeaveId,
+                  color: shift.typeOfLeaveColor || '#cccccc'
+                } : undefined
+              })),
+              totalMinutes: day.totalMinutes,
+              leaveColor: day.leaveTypeColor,
+              hasLeave: day.hasLeave
+            };
+          })
+        }))
+      })),
+      leaveColorsLegend: leaveColorsAnalysis.leaveColorBreakdown.map(item => ({
+        color: item.color,
+        associatedTypes: item.associatedTypes,
+        usageCount: item.count
+      }))
+    };
+
+    // Подсчитываем общее количество записей
+    exportData.metadata.totalRecords = exportData.weeks.reduce((sum, week) => 
+      sum + week.staff.reduce((staffSum, staff) => 
+        staffSum + staff.days.reduce((daySum, day) => daySum + day.shifts.length, 0), 0), 0);
+
+    return exportData;
   }
 
   /**
