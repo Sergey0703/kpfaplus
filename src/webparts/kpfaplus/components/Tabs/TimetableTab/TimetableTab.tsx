@@ -519,8 +519,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
           Group ID: {managingGroupId} | Current User ID: {currentUserId} | 
           Week starts on day: {dayOfStartWeek} | 
           Staff count: {statistics.staffCount} | 
-          Records: {statistics.recordsCount} | 
-          Leave types: {typesOfLeave.length}
+          Records: {statistics.recordsCount} 
         </p>
       </div>
 
