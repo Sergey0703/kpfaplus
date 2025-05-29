@@ -49,13 +49,7 @@ export class TimetableShiftCalculatorLeaveTypes {
   /**
    * Получает все уникальные типы отпусков из смен
    */
-  public static getUniqueLeaveTypes(shifts: IShiftInfo[]): Array<{
-    id: string;
-    title: string;
-    color: string;
-    count: number;
-    isOverriddenByHoliday: boolean;
-  }> {
+  public static getUniqueLeaveTypes(shifts: IShiftInfo[]): ReturnType<typeof TimetableShiftCalculatorLeaveTypesCore.getUniqueLeaveTypes> {
     return TimetableShiftCalculatorLeaveTypesCore.getUniqueLeaveTypes(shifts);
   }
 
@@ -76,7 +70,7 @@ export class TimetableShiftCalculatorLeaveTypes {
   /**
    * Получает статистику по праздникам и отпускам
    */
-  public static getHolidayAndLeaveStatistics(shifts: IShiftInfo[]) {
+  public static getHolidayAndLeaveStatistics(shifts: IShiftInfo[]): ReturnType<typeof TimetableShiftCalculatorLeaveTypesCore.getHolidayAndLeaveStatistics> {
     return TimetableShiftCalculatorLeaveTypesCore.getHolidayAndLeaveStatistics(shifts);
   }
 
@@ -86,7 +80,7 @@ export class TimetableShiftCalculatorLeaveTypes {
   public static createCellStyles(
     shifts: IShiftInfo[], 
     getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined
-  ) {
+  ): ReturnType<typeof TimetableShiftCalculatorLeaveTypesCore.createCellStyles> {
     return TimetableShiftCalculatorLeaveTypesCore.createCellStyles(shifts, getLeaveTypeColor);
   }
 
@@ -106,7 +100,7 @@ export class TimetableShiftCalculatorLeaveTypes {
     shifts: IShiftInfo[], 
     getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined,
     dayData?: IDayInfo
-  ) {
+  ): ReturnType<typeof TimetableShiftCalculatorLeaveTypesExcel.createExcelCellStyles> {
     return TimetableShiftCalculatorLeaveTypesExcel.createExcelCellStyles(shifts, getLeaveTypeColor, dayData);
   }
 
@@ -117,21 +111,21 @@ export class TimetableShiftCalculatorLeaveTypes {
     shifts: IShiftInfo[],
     dayData?: IDayInfo,
     getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined
-  ) {
+  ): ReturnType<typeof TimetableShiftCalculatorLeaveTypesExcel.analyzeExcelDayData> {
     return TimetableShiftCalculatorLeaveTypesExcel.analyzeExcelDayData(shifts, dayData, getLeaveTypeColor);
   }
 
   /**
    * Получает статистику по Excel экспорту
    */
-  public static getExcelExportStatistics(weeksData: any[]) {
+  public static getExcelExportStatistics(weeksData: Parameters<typeof TimetableShiftCalculatorLeaveTypesExcel.getExcelExportStatistics>[0]): ReturnType<typeof TimetableShiftCalculatorLeaveTypesExcel.getExcelExportStatistics> {
     return TimetableShiftCalculatorLeaveTypesExcel.getExcelExportStatistics(weeksData);
   }
 
   /**
    * Создает сводку по цветам для Excel экспорта
    */
-  public static createExcelColorLegend(weeksData: any[], typesOfLeave?: any[]) {
+  public static createExcelColorLegend(weeksData: Parameters<typeof TimetableShiftCalculatorLeaveTypesExcel.createExcelColorLegend>[0], typesOfLeave?: Parameters<typeof TimetableShiftCalculatorLeaveTypesExcel.createExcelColorLegend>[1]): ReturnType<typeof TimetableShiftCalculatorLeaveTypesExcel.createExcelColorLegend> {
     return TimetableShiftCalculatorLeaveTypesExcel.createExcelColorLegend(weeksData, typesOfLeave);
   }
 
@@ -175,7 +169,7 @@ export class TimetableShiftCalculatorLeaveTypes {
   /**
    * Получает все цвета в дне с учетом приоритетов
    */
-  public static getAllColorsWithPriority(shifts: IShiftInfo[]) {
+  public static getAllColorsWithPriority(shifts: IShiftInfo[]): ReturnType<typeof TimetableShiftCalculatorLeaveTypesUtils.getAllColorsWithPriority> {
     return TimetableShiftCalculatorLeaveTypesUtils.getAllColorsWithPriority(shifts);
   }
 
@@ -196,14 +190,14 @@ export class TimetableShiftCalculatorLeaveTypes {
   /**
    * Получает статистику по типам отпусков для группы смен
    */
-  public static getLeaveTypesStatistics(shifts: IShiftInfo[]) {
+  public static getLeaveTypesStatistics(shifts: IShiftInfo[]): ReturnType<typeof TimetableShiftCalculatorLeaveTypesUtils.getLeaveTypesStatistics> {
     return TimetableShiftCalculatorLeaveTypesUtils.getLeaveTypesStatistics(shifts);
   }
 
   /**
    * Применяет цветовую схему к списку смен
    */
-  public static applyColorSchemeToShifts(shifts: IShiftInfo[]) {
+  public static applyColorSchemeToShifts(shifts: IShiftInfo[]): ReturnType<typeof TimetableShiftCalculatorLeaveTypesUtils.applyColorSchemeToShifts> {
     return TimetableShiftCalculatorLeaveTypesUtils.applyColorSchemeToShifts(shifts);
   }
 
@@ -213,7 +207,7 @@ export class TimetableShiftCalculatorLeaveTypes {
   public static validateColorConfiguration(
     shifts: IShiftInfo[],
     getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined
-  ) {
+  ): ReturnType<typeof TimetableShiftCalculatorLeaveTypesUtils.validateColorConfiguration> {
     return TimetableShiftCalculatorLeaveTypesUtils.validateColorConfiguration(shifts, getLeaveTypeColor);
   }
 
@@ -222,10 +216,10 @@ export class TimetableShiftCalculatorLeaveTypes {
   /**
    * @deprecated Используйте createCellStyles вместо этого метода
    */
-  public static createLeaveCellStyles(shifts: IShiftInfo[]) {
+  public static createLeaveCellStyles(shifts: IShiftInfo[]): Omit<ReturnType<typeof TimetableShiftCalculatorLeaveTypesCore.createCellStyles>, 'priority' | 'reason'> {
     const newStyles = this.createCellStyles(shifts);
     // Убираем новые поля для совместимости
-    const { priority, reason, ...compatibleStyles } = newStyles;
+    const { priority: _priority, reason: _reason, ...compatibleStyles } = newStyles;
     return compatibleStyles;
   }
 
@@ -327,7 +321,7 @@ export class TimetableShiftCalculatorLeaveTypes {
   /**
    * Получает информацию о возможностях системы
    */
-  public static getCapabilities() {
+  public static getCapabilities(): ReturnType<typeof TimetableShiftCalculatorLeaveTypesUtils.getCapabilities> {
     return TimetableShiftCalculatorLeaveTypesUtils.getCapabilities();
   }
 
