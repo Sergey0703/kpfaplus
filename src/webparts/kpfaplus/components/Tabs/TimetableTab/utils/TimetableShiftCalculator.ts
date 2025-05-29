@@ -1,15 +1,23 @@
 // src/webparts/kpfaplus/components/Tabs/TimetableTab/utils/TimetableShiftCalculator.ts
-import { 
-  IShiftCalculationParams, 
-  IShiftCalculationResult, 
-  IShiftInfo 
+import {
+  IShiftCalculationParams,
+  IShiftCalculationResult,
+  IShiftInfo
 } from '../interfaces/TimetableInterfaces';
 import { IStaffRecord } from '../../../../services/StaffRecordsService';
+import { TimetableTimeUtils } from './TimetableTimeUtils'; // Import time utilities
+import { TimetableLeaveUtils } from './TimetableLeaveUtils'; // Import leave/styling utilities
+import * as React from 'react'; // Import React for CSSProperties
 
 /**
  * Калькулятор смен и рабочего времени
  * Реплицирует логику из Power Apps формул FormatDayShifts, CalculateDayMinutes и др.
  * ОБНОВЛЕНО: Поддержка цветов отпусков
+ *
+ * Этот файл содержит основную логику расчета смен и их обработки.
+ * Вспомогательные функции по работе с датой/временем и отпусками вынесены в отдельные утилиты.
+ * Все публичные методы из утилит переэкспортируются классом TimetableShiftCalculator
+ * для сохранения обратной совместимости API.
  */
 export class TimetableShiftCalculator {
 
@@ -19,15 +27,15 @@ export class TimetableShiftCalculator {
    * ОБНОВЛЕНО: Поддержка информации о типе отпуска
    */
   public static calculateShiftMinutes(params: IShiftCalculationParams): IShiftCalculationResult {
-    const { 
-      startTime, 
-      endTime, 
-      lunchStart, 
-      lunchEnd, 
-      timeForLunch, 
-      typeOfLeaveId, 
-      typeOfLeaveTitle, 
-      typeOfLeaveColor 
+    const {
+      startTime,
+      endTime,
+      lunchStart,
+      lunchEnd,
+      timeForLunch,
+      typeOfLeaveId,
+      typeOfLeaveTitle,
+      typeOfLeaveColor
     } = params;
 
     console.log('[TimetableShiftCalculator] Calculating shift:', {
@@ -41,125 +49,86 @@ export class TimetableShiftCalculator {
     });
 
     // Проверяем на нулевые времена (00:00)
-    const startHour = startTime.getHours();
-    const startMinute = startTime.getMinutes();
-    const endHour = endTime.getHours();
-    const endMinute = endTime.getMinutes();
-
-    const isStartZero = startHour === 0 && startMinute === 0;
-    const isEndZero = endHour === 0 && endMinute === 0;
+    const isStartZero = TimetableTimeUtils.isTimeZero(startTime);
+    const isEndZero = TimetableTimeUtils.isTimeZero(endTime);
 
     // Если оба времени нулевые, нет рабочего времени
     if (isStartZero && isEndZero) {
       return {
         workMinutes: 0,
-        formattedTime: "0h 00m",
-        formattedShift: "00:00 - 00:00(0:00)",
+        formattedTime: TimetableTimeUtils.formatMinutesToHours(0), // Should be "0h 00m" for total line
+        formattedShift: "00:00-00:00(0:00)",
         typeOfLeaveId,
         typeOfLeaveTitle,
         typeOfLeaveColor
       };
     }
 
-    // Конвертируем времена в минуты
-    const startMinutes = startHour * 60 + startMinute;
-    const endMinutes = endHour * 60 + endMinute;
-
     // Рассчитываем общее время смены с учетом перехода через полночь
-    let totalShiftMinutes = 0;
+    const totalShiftMinutes = TimetableTimeUtils.calculateDurationMinutes(startTime, endTime);
 
-    if (endMinutes <= startMinutes && endMinutes > 0) {
-      // Переход через полночь
-      totalShiftMinutes = endMinutes + (24 * 60) - startMinutes;
-    } else if (endMinutes === 0) {
-      // Конец смены в 00:00 (полночь следующего дня)
-      totalShiftMinutes = (24 * 60) - startMinutes;
-    } else {
-      // Обычная смена в пределах одних суток
-      totalShiftMinutes = endMinutes - startMinutes;
-    }
 
     // Рассчитываем время обеда
     let lunchMinutes = 0;
 
-    // Приоритет у timeForLunch если доступно
+    // Приоритет у timeForLunch если доступно и больше 0
     if (timeForLunch && timeForLunch > 0) {
       lunchMinutes = timeForLunch;
       console.log('[TimetableShiftCalculator] Using timeForLunch:', timeForLunch);
     } else if (lunchStart && lunchEnd) {
       // Рассчитываем время обеда из ShiftDate3 и ShiftDate4
-      const lunchStartHour = lunchStart.getHours();
-      const lunchStartMinute = lunchStart.getMinutes();
-      const lunchEndHour = lunchEnd.getHours();
-      const lunchEndMinute = lunchEnd.getMinutes();
-
-      // Проверяем, не являются ли времена обеда нулевыми
-      const isLunchStartZero = lunchStartHour === 0 && lunchStartMinute === 0;
-      const isLunchEndZero = lunchEndHour === 0 && lunchEndMinute === 0;
+      const isLunchStartZero = TimetableTimeUtils.isTimeZero(lunchStart);
+      const isLunchEndZero = TimetableTimeUtils.isTimeZero(lunchEnd);
 
       if (!isLunchStartZero || !isLunchEndZero) {
-        const lunchStartMinutes = lunchStartHour * 60 + lunchStartMinute;
-        const lunchEndMinutes = lunchEndHour * 60 + lunchEndMinute;
-        
-        if (lunchEndMinutes > lunchStartMinutes) {
-          lunchMinutes = lunchEndMinutes - lunchStartMinutes;
-          console.log('[TimetableShiftCalculator] Using calculated lunch time:', lunchMinutes);
-        } else if (lunchEndMinutes < lunchStartMinutes) {
-          // Обед через полночь (редкий случай)
-          lunchMinutes = lunchEndMinutes + (24 * 60) - lunchStartMinutes;
-          console.log('[TimetableShiftCalculator] Using calculated lunch time (overnight):', lunchMinutes);
-        }
+         // Calculate lunch duration. Assuming lunch is always within a single day cycle.
+         const lunchStartMinutes = lunchStart.getHours() * 60 + lunchStart.getMinutes();
+         const lunchEndMinutes = lunchEnd.getHours() * 60 + lunchEnd.getMinutes();
+
+         if (lunchEndMinutes >= lunchStartMinutes) {
+             lunchMinutes = lunchEndMinutes - lunchStartMinutes;
+              console.log('[TimetableShiftCalculator] Using calculated lunch time:', lunchMinutes);
+         } else if (lunchEndMinutes < lunchStartMinutes) {
+             // Lunch ends before it starts on the same day - this is likely an error in source data
+             console.warn('[TimetableShiftCalculator] Lunch ends before it starts (treated as 0 minutes):', {lunchStart, lunchEnd});
+             lunchMinutes = 0; // Treat as 0 minutes rather than assuming overnight lunch
+         }
       }
     }
 
     // Вычитаем время обеда из общего времени смены
     const workMinutes = Math.max(0, totalShiftMinutes - lunchMinutes);
 
-    // Форматируем результат
-    const formattedTime = this.formatMinutesToHours(workMinutes); // Для Total - остается как есть
-    const startTimeStr = this.formatTime(startTime);
-    const endTimeStr = this.formatTime(endTime);
-    
-    // НОВЫЙ ФОРМАТ: "10:00 - 00:00(13:45)" вместо "10:00 - 00:00 (13h 45m)"
-    const formattedWorkTime = this.formatMinutesToHoursMinutes(workMinutes);
+    // formattedTime is typically used for the "Total" line,
+    // which should be in the old "Hh MMm" format.
+    const formattedTotalLineTime = TimetableTimeUtils.formatMinutesToHours(workMinutes);
+
+     // formattedShift is for the individual shift display (e.g., "10:00-18:00(8:00)")
+    const startTimeStr = TimetableTimeUtils.formatTime(startTime);
+    const endTimeStr = TimetableTimeUtils.formatTime(endTime);
+     // Use HH:MM format for shift duration
+    const formattedWorkTime = TimetableTimeUtils.formatMinutesToHoursMinutes(workMinutes);
     const formattedShift = `${startTimeStr}-${endTimeStr}(${formattedWorkTime})`;
+
 
     console.log('[TimetableShiftCalculator] Calculated result:', {
       totalShiftMinutes,
       lunchMinutes,
       workMinutes,
-      formattedTime,
+      formattedTotalLineTime, // Renamed for clarity
       formattedShift,
       typeOfLeaveColor
     });
 
+
     return {
       workMinutes,
-      formattedTime,
+      formattedTime: formattedTotalLineTime, // Keep the old name in the interface for backward compatibility if needed
       formattedShift,
       typeOfLeaveId,
       typeOfLeaveTitle,
       typeOfLeaveColor
     };
-  }
-
-  /**
-   * НОВЫЙ МЕТОД: Форматирует минуты в формат HH:MM для смен
-   * Используется только для отдельных смен, НЕ для Total
-   */
-  public static formatMinutesToHoursMinutes(totalMinutes: number): string {
-    if (totalMinutes === 0) {
-      return "0:00";
-    }
-
-    if (totalMinutes < 0) {
-      return "0:00"; // Защита от отрицательных значений
-    }
-
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    
-    return `${hours}:${minutes.toString().padStart(2, '0')}`;
   }
 
   /**
@@ -171,7 +140,7 @@ export class TimetableShiftCalculator {
     records: IStaffRecord[],
     getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined
   ): IShiftInfo[] {
-    if (records.length === 0) {
+     if (records.length === 0) {
       return [];
     }
 
@@ -185,21 +154,30 @@ export class TimetableShiftCalculator {
 
       const start = new Date(record.ShiftDate1);
       const end = new Date(record.ShiftDate2);
-      
+
       // Проверяем валидность дат
       if (isNaN(start.getTime()) || isNaN(end.getTime())) {
         console.log(`[TimetableShiftCalculator] Skipping record ${record.ID}: invalid dates`);
         return false;
       }
-      
-      const startStr = this.formatTime(start);
-      const endStr = this.formatTime(end);
 
-      // Исключаем записи где оба времени 00:00
+      const startStr = TimetableTimeUtils.formatTime(start);
+      const endStr = TimetableTimeUtils.formatTime(end);
+
+      // Исключаем записи где оба времени 00:00 (считаем это отсутствием смены)
       if (startStr === "00:00" && endStr === "00:00") {
         console.log(`[TimetableShiftCalculator] Skipping record ${record.ID}: both times are 00:00`);
         return false;
       }
+
+       // Ensure ShiftDate1 and ShiftDate2 are not the same date AND time unless they are 00:00 (handled above).
+       // A shift must have duration. Allowing same start/end time (like 10:00 - 10:00) is 0 duration.
+       // Let's check this condition too for validity.
+        if (start.getTime() === end.getTime()) {
+             console.log(`[TimetableShiftCalculator] Skipping record ${record.ID}: Start and end times are the same (${startStr}).`);
+             return false;
+        }
+
 
       return true;
     });
@@ -210,8 +188,12 @@ export class TimetableShiftCalculator {
       return [];
     }
 
-    // Сортируем по времени начала (аналогично "ShiftDate1", "Ascending")
+    // Soring by ShiftDate1 ascending (analogous to Power Apps SortByColumns)
+    // Note: If ShiftDate1 includes date+time, this sorts correctly.
+    // If ShiftDate1 is just time, sorting needs to be on time value only.
+    // Assuming ShiftDate1 is date+time and sorting by full datetime is intended.
     const sortedRecords = validRecords.sort((a, b) => {
+      // Assuming ShiftDate1 are valid Date strings/objects after filtering
       const aStart = new Date(a.ShiftDate1!).getTime();
       const bStart = new Date(b.ShiftDate1!).getTime();
       return aStart - bStart;
@@ -219,19 +201,24 @@ export class TimetableShiftCalculator {
 
     // Преобразуем в IShiftInfo
     const shifts: IShiftInfo[] = sortedRecords.map(record => {
+       // Ensure these are treated as Dates, which they should be if valid
       const startTime = new Date(record.ShiftDate1!);
       const endTime = new Date(record.ShiftDate2!);
       const lunchStart = record.ShiftDate3 ? new Date(record.ShiftDate3) : undefined;
       const lunchEnd = record.ShiftDate4 ? new Date(record.ShiftDate4) : undefined;
       const timeForLunch = record.TimeForLunch || 0;
 
-      // Проверяем валидность дат обеда
-      if (lunchStart && isNaN(lunchStart.getTime())) {
-        console.warn(`[TimetableShiftCalculator] Invalid ShiftDate3 in record ${record.ID}`);
+       // Check lunch dates validity and nullify if invalid
+      const validLunchStart = (lunchStart && !isNaN(lunchStart.getTime())) ? lunchStart : undefined;
+      const validLunchEnd = (lunchEnd && !isNaN(lunchEnd.getTime())) ? lunchEnd : undefined;
+
+      if (lunchStart && !validLunchStart) {
+         console.warn(`[TimetableShiftCalculator] Invalid ShiftDate3 in record ${record.ID}: ${record.ShiftDate3}`);
       }
-      if (lunchEnd && isNaN(lunchEnd.getTime())) {
-        console.warn(`[TimetableShiftCalculator] Invalid ShiftDate4 in record ${record.ID}`);
+       if (lunchEnd && !validLunchEnd) {
+         console.warn(`[TimetableShiftCalculator] Invalid ShiftDate4 in record ${record.ID}: ${record.ShiftDate4}`);
       }
+
 
       // ДОБАВЛЕНО: Обработка типа отпуска
       let typeOfLeaveId: string | undefined = undefined;
@@ -240,27 +227,36 @@ export class TimetableShiftCalculator {
 
       if (record.TypeOfLeaveID) {
         typeOfLeaveId = record.TypeOfLeaveID;
-        
+
         // Получаем цвет типа отпуска если доступна функция
         if (getLeaveTypeColor) {
           typeOfLeaveColor = getLeaveTypeColor(typeOfLeaveId);
         }
-        
+
         // Получаем название типа отпуска если доступно
-        if (record.TypeOfLeave) {
+        // TypeOfLeave is a lookup field, expecting TypeOfLeave.Title
+        // Check if TypeOfLeave is an object and has a Title property
+        if (record.TypeOfLeave && typeof record.TypeOfLeave === 'object' && 'Title' in record.TypeOfLeave && record.TypeOfLeave.Title) {
           typeOfLeaveTitle = record.TypeOfLeave.Title;
+        } else if (typeOfLeaveId) {
+             // Sometimes the lookup might just be the ID string if not expanded,
+             // or the Title might be missing/null even if the lookup object exists.
+             // Use a fallback title if ID is present but title is not found clearly.
+             console.warn(`[TimetableShiftCalculator] TypeOfLeave title missing for record ${record.ID} with TypeOfLeaveID ${typeOfLeaveId}. Full TypeOfLeave value:`, record.TypeOfLeave);
+             typeOfLeaveTitle = `Leave ID ${typeOfLeaveId}`; // Fallback title
         }
+
 
         if (typeOfLeaveColor) {
           console.log(`[TimetableShiftCalculator] Applied leave type ${typeOfLeaveId} with color ${typeOfLeaveColor} to shift ${record.ID}`);
         }
       }
 
-      const calculation = this.calculateShiftMinutes({
+      const calculation = TimetableShiftCalculator.calculateShiftMinutes({
         startTime,
         endTime,
-        lunchStart: lunchStart && !isNaN(lunchStart.getTime()) ? lunchStart : undefined,
-        lunchEnd: lunchEnd && !isNaN(lunchEnd.getTime()) ? lunchEnd : undefined,
+        lunchStart: validLunchStart, // Pass validated dates
+        lunchEnd: validLunchEnd,     // Pass validated dates
         timeForLunch,
         typeOfLeaveId,
         typeOfLeaveTitle,
@@ -271,8 +267,8 @@ export class TimetableShiftCalculator {
         recordId: record.ID,
         startTime,
         endTime,
-        lunchStart,
-        lunchEnd,
+        lunchStart: validLunchStart, // Store validated dates
+        lunchEnd: validLunchEnd,     // Store validated dates
         timeForLunch,
         workMinutes: calculation.workMinutes,
         formattedShift: calculation.formattedShift,
@@ -283,8 +279,8 @@ export class TimetableShiftCalculator {
     });
 
     console.log('[TimetableShiftCalculator] Processed shifts:', shifts.length);
-    
-    // Логируем несколько примеров для отладки
+
+    // Log sample shifts for debugging
     if (shifts.length > 0) {
       console.log('[TimetableShiftCalculator] Sample shifts:');
       shifts.slice(0, 3).forEach((shift, index) => {
@@ -296,245 +292,210 @@ export class TimetableShiftCalculator {
   }
 
   /**
-   * Форматирует содержимое дня (аналогично FormatDayShifts в Power Apps)
+   * Formats the content for a single day cell.
+   * Replicates FormatDayShifts logic from Power Apps.
    */
   public static formatDayContent(shifts: IShiftInfo[]): string {
-    if (shifts.length === 0) {
+     if (shifts.length === 0) {
       return "";
     }
 
-    // Формируем строки смен (аналогично Concat в Power Apps)
+    // Format shift lines (analogous to Concat in Power Apps)
     const shiftLines = shifts.map(shift => shift.formattedShift);
-    
+
     let content = shiftLines.join(";\n");
 
-    // Если несколько смен, добавляем общий итог
-    if (shifts.length > 1) {
-      const totalMinutes = shifts.reduce((sum, shift) => sum + shift.workMinutes, 0);
-      const totalFormatted = this.formatMinutesToHours(totalMinutes); // Total остается в старом формате
-      content += `\nTotal: ${totalFormatted}`;
+    // If there are shifts, add the total line.
+    if (shifts.length > 0) {
+        const totalMinutes = shifts.reduce((sum, shift) => sum + shift.workMinutes, 0);
+        // Use the format specifically for totals (Hh MMm)
+        const totalFormatted = TimetableTimeUtils.formatMinutesToHours(totalMinutes);
+        // Add a newline before "Total:" only if there are multiple shifts,
+        // otherwise append directly after the single shift line.
+        content += `${shifts.length > 1 ? '\n' : ''}Total: ${totalFormatted}`;
     }
 
     return content;
   }
 
+
   /**
-   * Рассчитывает недельные часы для сотрудника
-   * Реплицирует CalculateWeeklyHours из Power Apps
+   * Calculates total weekly hours for an employee.
+   * Replicates CalculateWeeklyHours from Power Apps.
    */
   public static calculateWeeklyHours(
     allShifts: IShiftInfo[]
   ): { totalMinutes: number; formattedTotal: string } {
     const totalMinutes = allShifts.reduce((sum, shift) => sum + shift.workMinutes, 0);
-    const formattedTotal = this.formatMinutesToHours(totalMinutes); // Total остается в старом формате
-    
+     // Use the format specifically for totals (Hh MMm)
+    const formattedTotal = TimetableTimeUtils.formatMinutesToHours(totalMinutes);
+
     return {
       totalMinutes,
-      formattedTotal: ` ${formattedTotal}` // Пробел в начале как в Power Apps
+      formattedTotal: ` ${formattedTotal}` // Add leading space like in Power Apps
     };
   }
 
   /**
-   * Форматирует минуты в часы и минуты (аналогично FormatMinutesToHours в Power Apps)
-   * ИСПОЛЬЗУЕТСЯ ТОЛЬКО ДЛЯ TOTAL - остается в формате "26h 30m"
-   */
-  public static formatMinutesToHours(totalMinutes: number): string {
-    if (totalMinutes === 0) {
-      return "0h 00m";
-    }
-
-    if (totalMinutes < 0) {
-      return "0h 00m"; // Защита от отрицательных значений
-    }
-
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    
-    return `${hours}h ${minutes.toString().padStart(2, '0')}m`;
-  }
-
-  /**
-   * Форматирует время в формате HH:mm
-   */
-  public static formatTime(date: Date): string {
-    if (isNaN(date.getTime())) {
-      return "00:00"; // Защита от невалидных дат
-    }
-
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    return `${hours}:${minutes}`;
-  }
-
-  /**
-   * Форматирует время в формате HH:mm:ss
-   */
-  public static formatTimeWithSeconds(date: Date): string {
-    if (isNaN(date.getTime())) {
-      return "00:00:00";
-    }
-
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    const seconds = date.getSeconds().toString().padStart(2, '0');
-    return `${hours}:${minutes}:${seconds}`;
-  }
-
-  /**
-   * Парсит строку времени в формате HH:mm в минуты
-   */
-  public static parseTimeStringToMinutes(timeString: string): number {
-    if (!timeString || typeof timeString !== 'string') {
-      return 0;
-    }
-
-    const parts = timeString.split(':');
-    if (parts.length !== 2) {
-      return 0;
-    }
-
-    const hours = parseInt(parts[0], 10);
-    const minutes = parseInt(parts[1], 10);
-
-    if (isNaN(hours) || isNaN(minutes)) {
-      return 0;
-    }
-
-    return hours * 60 + minutes;
-  }
-
-  /**
-   * Создает дату с заданным временем для конкретного дня
-   */
-  public static createTimeForDate(baseDate: Date, hours: number, minutes: number): Date {
-    const result = new Date(baseDate);
-    result.setHours(hours, minutes, 0, 0);
-    return result;
-  }
-
-  /**
-   * Проверяет, является ли время нулевым (00:00)
-   */
-  public static isTimeZero(date: Date): boolean {
-    if (isNaN(date.getTime())) {
-      return true;
-    }
-    return date.getHours() === 0 && date.getMinutes() === 0;
-  }
-
-  /**
-   * Проверяет, является ли время валидным рабочим временем
-   */
-  public static isValidWorkTime(startTime: Date, endTime: Date): boolean {
-    if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
-      return false;
-    }
-
-    // Проверяем, что оба времени не 00:00
-    if (this.isTimeZero(startTime) && this.isTimeZero(endTime)) {
-      return false;
-    }
-
-    return true;
-  }
-
-  /**
-   * Получает все смены для конкретного дня недели из записей
-   * ОБНОВЛЕНО: Поддержка функции получения цвета типа отпуска
+   * Retrieves shifts for a specific day of the week within a given week range from records.
+   * UPDATED: Supports getting leave type color.
    */
   public static getShiftsForDay(
     records: IStaffRecord[],
-    dayNumber: number,
+    dayNumber: number, // 1=Sunday, 2=Monday, etc.
     weekStart: Date,
     weekEnd: Date,
     getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined
   ): IShiftInfo[] {
-    // Фильтруем записи для конкретного дня недели в указанной неделе
+    // Normalize weekStart and weekEnd to start/end of day for robust comparison
+    // This normalization is helpful for filtering records based on Date field which might have time components
+    const startOfWeek = new Date(weekStart);
+    startOfWeek.setHours(0, 0, 0, 0);
+    const endOfWeek = new Date(weekEnd);
+    endOfWeek.setHours(23, 59, 59, 999);
+
+
+    // Filter records for the specific day number within the given week range
     const dayRecords = records.filter(record => {
+      if (!record.Date) {
+         console.warn(`[TimetableShiftCalculator] Skipping record ${record.ID}: missing Date field.`);
+         return false;
+      }
       const recordDate = new Date(record.Date);
-      
+
       if (isNaN(recordDate.getTime())) {
-        console.warn(`[TimetableShiftCalculator] Invalid date in record ${record.ID}`);
+        console.warn(`[TimetableShiftCalculator] Invalid date in record ${record.ID}: ${record.Date}`);
         return false;
       }
 
-      const recordDayNumber = this.getDayNumber(recordDate);
-      
-      const isInWeek = recordDate >= weekStart && recordDate <= weekEnd;
+      const recordDayNumber = TimetableTimeUtils.getDayNumber(recordDate);
+
+      // Check if the record date is within the week range (inclusive)
+      const isInWeek = recordDate >= startOfWeek && recordDate <= endOfWeek;
       const isCorrectDay = recordDayNumber === dayNumber;
-      
+
       if (isCorrectDay && isInWeek) {
-        console.log(`[TimetableShiftCalculator] Found record for day ${dayNumber}: ${record.ID} on ${recordDate.toLocaleDateString()}`);
+        // console.log(`[TimetableShiftCalculator] Found record for day ${TimetableTimeUtils.getDayName(dayNumber)} (${dayNumber}): ${record.ID} on ${recordDate.toLocaleDateString()}`);
+      } else {
+         // Optional: Log why a record was excluded
+         // console.log(`[TimetableShiftCalculator] Skipping record for day ${TimetableTimeUtils.getDayName(dayNumber)} (${dayNumber}): ${record.ID} on ${recordDate.toLocaleDateString()} - IsCorrectDay: ${isCorrectDay}, IsInWeek: ${isInWeek}`);
       }
-      
+
       return isCorrectDay && isInWeek;
     });
 
-    return this.processStaffRecordsToShifts(dayRecords, getLeaveTypeColor);
+     console.log(`[TimetableShiftCalculator] Found ${dayRecords.length} records for day ${TimetableTimeUtils.getDayName(dayNumber)} (${dayNumber}) within week ${weekStart.toLocaleDateString()} - ${weekEnd.toLocaleDateString()}`);
+
+    // Process the filtered records to get IShiftInfo objects
+    return TimetableShiftCalculator.processStaffRecordsToShifts(dayRecords, getLeaveTypeColor);
   }
 
-  /**
-   * Получает номер дня недели для даты (1=Sunday, 2=Monday, etc.)
-   */
+
+  // --- RE-EXPORTED METHODS FROM UTILITIES ---
+  // These methods simply proxy the calls to the correct utility class
+  // to maintain the original public API of TimetableShiftCalculator.
+
+  // Re-exporting TimetableTimeUtils methods
+  public static formatMinutesToHoursMinutes(totalMinutes: number): string {
+    return TimetableTimeUtils.formatMinutesToHoursMinutes(totalMinutes);
+  }
+
+  public static formatMinutesToHours(totalMinutes: number): string {
+    return TimetableTimeUtils.formatMinutesToHours(totalMinutes);
+  }
+
+  public static formatTime(date: Date): string {
+    return TimetableTimeUtils.formatTime(date);
+  }
+
+  public static formatTimeWithSeconds(date: Date): string {
+    return TimetableTimeUtils.formatTimeWithSeconds(date);
+  }
+
+  public static parseTimeStringToMinutes(timeString: string): number {
+    return TimetableTimeUtils.parseTimeStringToMinutes(timeString);
+  }
+
+  public static createTimeForDate(baseDate: Date, hours: number, minutes: number): Date {
+    return TimetableTimeUtils.createTimeForDate(baseDate, hours, minutes);
+  }
+
+  public static isTimeZero(date: Date): boolean {
+    return TimetableTimeUtils.isTimeZero(date);
+  }
+
+  public static isValidWorkTime(startTime: Date, endTime: Date): boolean {
+    return TimetableTimeUtils.isValidWorkTime(startTime, endTime);
+  }
+
   public static getDayNumber(date: Date): number {
-    if (isNaN(date.getTime())) {
-      return 1; // По умолчанию воскресенье
-    }
-    return date.getDay() + 1; // JS: 0=Sunday -> наш формат: 1=Sunday
+    return TimetableTimeUtils.getDayNumber(date);
   }
 
-  /**
-   * Получает название дня недели по номеру
-   */
   public static getDayName(dayNumber: number): string {
-    const dayNames = ['', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    return dayNames[dayNumber] || 'Unknown';
+    return TimetableTimeUtils.getDayName(dayNumber);
   }
 
-  /**
-   * Вычисляет продолжительность между двумя временами в минутах
-   */
   public static calculateDurationMinutes(startTime: Date, endTime: Date): number {
-    if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
-      return 0;
-    }
-
-    const startMinutes = startTime.getHours() * 60 + startTime.getMinutes();
-    const endMinutes = endTime.getHours() * 60 + endTime.getMinutes();
-
-    if (endMinutes >= startMinutes) {
-      return endMinutes - startMinutes;
-    } else {
-      // Переход через полночь
-      return (24 * 60) - startMinutes + endMinutes;
-    }
+    return TimetableTimeUtils.calculateDurationMinutes(startTime, endTime);
   }
 
-  /**
-   * Форматирует продолжительность в удобочитаемый формат
-   */
-  public static formatDuration(minutes: number): string {
-    if (minutes <= 0) {
-      return "0 min";
+   public static formatDuration(minutes: number): string {
+       return TimetableTimeUtils.formatDuration(minutes);
+   }
+
+    public static minutesToDecimalHours(minutes: number): number {
+        return TimetableTimeUtils.minutesToDecimalHours(minutes);
     }
 
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-
-    if (hours === 0) {
-      return `${remainingMinutes} min`;
-    } else if (remainingMinutes === 0) {
-      return `${hours}h`;
-    } else {
-      return `${hours}h ${remainingMinutes}m`;
+    public static decimalHoursToMinutes(hours: number): number {
+        return TimetableTimeUtils.decimalHoursToMinutes(hours);
     }
+
+     public static formatTime12Hour(date: Date): string {
+        return TimetableTimeUtils.formatTime12Hour(date);
+     }
+
+
+  // Re-exporting TimetableLeaveUtils methods
+  public static getUniqueLeaveTypes(shifts: IShiftInfo[]): Array<{
+    id: string;
+    title: string; // Corrected signature here too
+    color: string;
+    count: number;
+  }> {
+    return TimetableLeaveUtils.getUniqueLeaveTypes(shifts);
   }
 
-  /**
-   * Получает статистику по сменам
-   * ОБНОВЛЕНО: Добавлена статистика по типам отпусков
-   */
-  public static getShiftsStatistics(shifts: IShiftInfo[]): {
+  public static hasLeaveTypes(shifts: IShiftInfo[]): boolean {
+    return TimetableLeaveUtils.hasLeaveTypes(shifts);
+  }
+
+  public static getDominantLeaveColor(shifts: IShiftInfo[]): string | undefined {
+    return TimetableLeaveUtils.getDominantLeaveColor(shifts);
+  }
+
+  public static formatLeaveInfo(shifts: IShiftInfo[]): string {
+    return TimetableLeaveUtils.formatLeaveInfo(shifts);
+  }
+
+  public static getFirstLeaveColor(shifts: IShiftInfo[]): string | undefined {
+    return TimetableLeaveUtils.getFirstLeaveColor(shifts);
+  }
+
+  public static hasSpecificLeaveType(shifts: IShiftInfo[], leaveTypeId: string): boolean {
+    return TimetableLeaveUtils.hasSpecificLeaveType(shifts, leaveTypeId);
+  }
+
+  public static getAllLeaveColors(shifts: IShiftInfo[]): string[] {
+    return TimetableLeaveUtils.getAllLeaveColors(shifts);
+  }
+
+   public static createLeaveColorsGradient(shifts: IShiftInfo[]): string | undefined {
+        return TimetableLeaveUtils.createLeaveColorsGradient(shifts);
+   }
+
+  public static getLeaveTypesStatistics(shifts: IShiftInfo[]): {
     totalShifts: number;
     totalWorkMinutes: number;
     averageShiftMinutes: number;
@@ -544,409 +505,66 @@ export class TimetableShiftCalculator {
     shiftsWithLeave: number;
     leaveTypes: string[];
   } {
-    if (shifts.length === 0) {
-      return {
-        totalShifts: 0,
-        totalWorkMinutes: 0,
-        averageShiftMinutes: 0,
-        shortestShiftMinutes: 0,
-        longestShiftMinutes: 0,
-        formattedStatistics: "No shifts",
-        shiftsWithLeave: 0,
-        leaveTypes: []
-      };
-    }
-
+     // Recalculate main statistics here (or call a combined utility if one existed)
+    const totalShifts = shifts.length;
     const workMinutes = shifts.map(s => s.workMinutes);
     const totalWorkMinutes = workMinutes.reduce((sum, min) => sum + min, 0);
-    const averageShiftMinutes = Math.round(totalWorkMinutes / shifts.length);
-    const shortestShiftMinutes = Math.min(...workMinutes);
-    const longestShiftMinutes = Math.max(...workMinutes);
+    const averageShiftMinutes = totalShifts > 0 ? Math.round(totalWorkMinutes / totalShifts) : 0;
+    const shortestShiftMinutes = totalShifts > 0 ? Math.min(...workMinutes) : 0;
+    const longestShiftMinutes = totalShifts > 0 ? Math.max(...workMinutes) : 0;
 
-    // ДОБАВЛЕНО: Статистика по типам отпусков
-    const shiftsWithLeave = shifts.filter(s => s.typeOfLeaveId).length;
-    const leaveTypesSet = new Set<string>();
-    shifts.forEach(s => {
-      if (s.typeOfLeaveTitle) {
-        leaveTypesSet.add(s.typeOfLeaveTitle);
-      }
-    });
-    const leaveTypes: string[] = [];
-    leaveTypesSet.forEach(type => leaveTypes.push(type));
+
+    // Get leave specific stats from the utility
+    const leaveStats = TimetableLeaveUtils.getLeaveTypesStatistics(shifts);
 
     const formattedStatistics = [
-      `${shifts.length} shifts`,
-      `Total: ${this.formatMinutesToHours(totalWorkMinutes)}`,
-      `Avg: ${this.formatMinutesToHours(averageShiftMinutes)}`,
-      `Range: ${this.formatMinutesToHours(shortestShiftMinutes)} - ${this.formatMinutesToHours(longestShiftMinutes)}`,
-      shiftsWithLeave > 0 ? `Leave: ${shiftsWithLeave}` : ''
+      `${totalShifts} shifts`,
+      `Total: ${TimetableTimeUtils.formatMinutesToHours(totalWorkMinutes)}`,
+      `Avg: ${TimetableTimeUtils.formatMinutesToHours(averageShiftMinutes)}`,
+      totalShifts > 0 ? `Range: ${TimetableTimeUtils.formatMinutesToHours(shortestShiftMinutes)} - ${TimetableTimeUtils.formatMinutesToHours(longestShiftMinutes)}` : '',
+      leaveStats.totalShiftsWithLeave > 0 ? `Leave: ${leaveStats.totalShiftsWithLeave}` : ''
     ].filter(s => s).join(', ');
 
+
     return {
-      totalShifts: shifts.length,
+      totalShifts,
       totalWorkMinutes,
       averageShiftMinutes,
       shortestShiftMinutes,
       longestShiftMinutes,
       formattedStatistics,
-      shiftsWithLeave,
-      leaveTypes
+      shiftsWithLeave: leaveStats.totalShiftsWithLeave,
+       // Fix noImplicitAny by typing 'lt'
+      leaveTypes: leaveStats.leaveTypeBreakdown.map((lt: { title: string }) => lt.title) // Return just titles in this array
     };
   }
 
-  /**
-   * Проверяет, пересекаются ли две смены по времени
-   */
+
   public static doShiftsOverlap(shift1: IShiftInfo, shift2: IShiftInfo): boolean {
-    // Сравниваем только время, не даты
-    const start1Minutes = shift1.startTime.getHours() * 60 + shift1.startTime.getMinutes();
-    const end1Minutes = shift1.endTime.getHours() * 60 + shift1.endTime.getMinutes();
-    const start2Minutes = shift2.startTime.getHours() * 60 + shift2.startTime.getMinutes();
-    const end2Minutes = shift2.endTime.getHours() * 60 + shift2.endTime.getMinutes();
-
-    // Простая проверка пересечения (без учета перехода через полночь)
-    return (start1Minutes < end2Minutes) && (end1Minutes > start2Minutes);
+      return TimetableLeaveUtils.doShiftsOverlap(shift1, shift2);
   }
 
-  /**
-   * Находит пересекающиеся смены в списке
-   */
   public static findOverlappingShifts(shifts: IShiftInfo[]): IShiftInfo[][] {
-    const overlapping: IShiftInfo[][] = [];
+       return TimetableLeaveUtils.findOverlappingShifts(shifts);
+  }
 
-    for (let i = 0; i < shifts.length; i++) {
-      for (let j = i + 1; j < shifts.length; j++) {
-        if (this.doShiftsOverlap(shifts[i], shifts[j])) {
-          overlapping.push([shifts[i], shifts[j]]);
-        }
-      }
+   // The return type here must match TimetableLeaveUtils.createLeaveCellStyles
+   public static createLeaveCellStyles(shifts: IShiftInfo[]): React.CSSProperties {
+        return TimetableLeaveUtils.createLeaveCellStyles(shifts);
+   }
+
+    public static getTextColorForBackground(backgroundColor: string): string {
+        return TimetableLeaveUtils.getTextColorForBackground(backgroundColor);
     }
 
-    return overlapping;
-  }
-
-  /**
-   * Конвертирует минуты в десятичные часы
-   */
-  public static minutesToDecimalHours(minutes: number): number {
-    return Math.round((minutes / 60) * 100) / 100; // Округляем до 2 знаков
-  }
-
-  /**
-   * Конвертирует десятичные часы в минуты
-   */
-  public static decimalHoursToMinutes(hours: number): number {
-    return Math.round(hours * 60);
-  }
-
-  /**
-   * Форматирует время в 12-часовом формате (AM/PM)
-   */
-  public static formatTime12Hour(date: Date): string {
-    if (isNaN(date.getTime())) {
-      return "12:00 AM";
-    }
-
-    const hours = date.getHours();
-    const minutes = date.getMinutes();
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    const displayHours = hours % 12 || 12;
-
-    return `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-  }
-
-  /**
-   * НОВЫЙ МЕТОД: Получает все уникальные типы отпусков из смен
-   */
-  public static getUniqueLeaveTypes(shifts: IShiftInfo[]): Array<{
-    id: string;
-    title: string;
-    color: string;
-    count: number;
-  }> {
-    const leaveTypesMap = new Map<string, {
-      id: string;
-      title: string;
-      color: string;
-      count: number;
-    }>();
-
-    shifts.forEach(shift => {
-      if (shift.typeOfLeaveId && shift.typeOfLeaveColor) {
-        const existing = leaveTypesMap.get(shift.typeOfLeaveId);
-        if (existing) {
-          existing.count++;
-        } else {
-          leaveTypesMap.set(shift.typeOfLeaveId, {
-            id: shift.typeOfLeaveId,
-            title: shift.typeOfLeaveTitle || shift.typeOfLeaveId,
-            color: shift.typeOfLeaveColor,
-            count: 1
-          });
-        }
-      }
-    });
-
-    return Array.from(leaveTypesMap.values()).sort((a, b) => b.count - a.count);
-  }
-
-  /**
-   * НОВЫЙ МЕТОД: Проверяет, есть ли в сменах отпуска
-   */
-  public static hasLeaveTypes(shifts: IShiftInfo[]): boolean {
-    return shifts.some(shift => shift.typeOfLeaveId);
-  }
-
-  /**
-   * НОВЫЙ МЕТОД: Получает доминирующий цвет отпуска для дня (если есть несколько смен с разными типами отпусков)
-   */
-  public static getDominantLeaveColor(shifts: IShiftInfo[]): string | undefined {
-    if (shifts.length === 0) {
-      return undefined;
-    }
-
-    // Считаем количество смен каждого типа отпуска
-    const leaveColorCounts = new Map<string, number>();
-    
-    shifts.forEach(shift => {
-      if (shift.typeOfLeaveColor) {
-        const existing = leaveColorCounts.get(shift.typeOfLeaveColor);
-        leaveColorCounts.set(shift.typeOfLeaveColor, (existing || 0) + 1);
-      }
-    });
-
-    if (leaveColorCounts.size === 0) {
-      return undefined;
-    }
-
-    // Возвращаем цвет с наибольшим количеством смен
-    let dominantColor: string | undefined = undefined;
-    let maxCount = 0;
-
-    leaveColorCounts.forEach((count, color) => {
-      if (count > maxCount) {
-        maxCount = count;
-        dominantColor = color;
-      }
-    });
-
-    return dominantColor;
-  }
-
-  /**
-   * НОВЫЙ МЕТОД: Форматирует информацию о типах отпусков в дне
-   */
-  public static formatLeaveInfo(shifts: IShiftInfo[]): string {
-    const leaveTypes = this.getUniqueLeaveTypes(shifts);
-    
-    if (leaveTypes.length === 0) {
-      return '';
-    }
-
-    if (leaveTypes.length === 1) {
-      return leaveTypes[0].title;
-    }
-
-    return leaveTypes.map(lt => `${lt.title} (${lt.count})`).join(', ');
-  }
-
-  /**
-   * НОВЫЙ МЕТОД: Получает цвет для первого типа отпуска в списке смен
-   */
-  public static getFirstLeaveColor(shifts: IShiftInfo[]): string | undefined {
-    const shiftWithLeave = shifts.find(shift => shift.typeOfLeaveColor);
-    return shiftWithLeave?.typeOfLeaveColor;
-  }
-
-  /**
-   * НОВЫЙ МЕТОД: Проверяет, содержит ли день определенный тип отпуска
-   */
-  public static hasSpecificLeaveType(shifts: IShiftInfo[], leaveTypeId: string): boolean {
-    return shifts.some(shift => shift.typeOfLeaveId === leaveTypeId);
-  }
-
-  /**
-   * НОВЫЙ МЕТОД: Получает все цвета отпусков в дне
-   */
-  public static getAllLeaveColors(shifts: IShiftInfo[]): string[] {
-    const colorsSet = new Set<string>();
-    shifts.forEach(shift => {
-      if (shift.typeOfLeaveColor) {
-        colorsSet.add(shift.typeOfLeaveColor);
-      }
-    });
-    
-    // Возвращаем уникальные цвета (исправлено для совместимости с ES5)
-    const colors: string[] = [];
-    colorsSet.forEach(color => colors.push(color));
-    return colors;
-  }
-
-  /**
-   * НОВЫЙ МЕТОД: Создает градиент из нескольких цветов отпусков (для случая когда в дне несколько типов отпусков)
-   */
-  public static createLeaveColorsGradient(shifts: IShiftInfo[]): string | undefined {
-    const colors = this.getAllLeaveColors(shifts);
-    
-    if (colors.length === 0) {
-      return undefined;
-    }
-    
-    if (colors.length === 1) {
-      return colors[0];
-    }
-    
-    // Создаем CSS градиент для нескольких цветов
-    const gradientStops = colors.map((color, index) => {
-      const percentage = (index / (colors.length - 1)) * 100;
-      return `${color} ${percentage}%`;
-    }).join(', ');
-    
-    return `linear-gradient(45deg, ${gradientStops})`;
-  }
-
-  /**
-   * НОВЫЙ МЕТОД: Получает статистику по типам отпусков для группы смен
-   */
-  public static getLeaveTypesStatistics(shifts: IShiftInfo[]): {
-    totalShiftsWithLeave: number;
-    uniqueLeaveTypes: number;
-    leaveTypeBreakdown: Array<{
-      id: string;
-      title: string;
-      color: string;
-      count: number;
-      percentage: number;
-    }>;
-    mostCommonLeaveType?: {
-      id: string;
-      title: string;
-      color: string;
-      count: number;
-    };
-  } {
-    const leaveTypes = this.getUniqueLeaveTypes(shifts);
-    const totalShiftsWithLeave = shifts.filter(s => s.typeOfLeaveId).length;
-    
-    const leaveTypeBreakdown = leaveTypes.map(lt => ({
-      ...lt,
-      percentage: totalShiftsWithLeave > 0 ? Math.round((lt.count / totalShiftsWithLeave) * 100) : 0
-    }));
-    
-    const mostCommonLeaveType = leaveTypes.length > 0 ? leaveTypes[0] : undefined;
-    
-    return {
-      totalShiftsWithLeave,
-      uniqueLeaveTypes: leaveTypes.length,
-      leaveTypeBreakdown,
-      mostCommonLeaveType
-    };
-  }
-
-  /**
-   * НОВЫЙ МЕТОД: Применяет цветовую схему к списку смен (для отладки и визуализации)
-   */
-  public static applyColorSchemeToShifts(shifts: IShiftInfo[]): Array<IShiftInfo & { 
+    // This method proxies the call to the public static method in TimetableLeaveUtils.
+   public static applyColorSchemeToShifts(shifts: IShiftInfo[]): Array<IShiftInfo & {
     colorScheme: {
       backgroundColor: string;
       textColor: string;
       borderColor: string;
-    } 
-  }> {
-    return shifts.map(shift => {
-      let backgroundColor = '#ffffff';
-      let textColor = '#000000';
-      let borderColor = '#cccccc';
-      
-      if (shift.typeOfLeaveColor) {
-        backgroundColor = shift.typeOfLeaveColor;
-        
-        // Определяем цвет текста на основе яркости фона
-        const rgb = this.hexToRgb(shift.typeOfLeaveColor);
-        if (rgb) {
-          const brightness = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
-          textColor = brightness > 128 ? '#000000' : '#ffffff';
-        }
-        
-        borderColor = this.darkenHexColor(shift.typeOfLeaveColor, 0.2);
-      }
-      
-      return {
-        ...shift,
-        colorScheme: {
-          backgroundColor,
-          textColor,
-          borderColor
-        }
-      };
-    });
-  }
-
-  /**
-   * ВСПОМОГАТЕЛЬНЫЙ МЕТОД: Конвертирует HEX цвет в RGB
-   */
-  private static hexToRgb(hex: string): { r: number; g: number; b: number } | null {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result ? {
-      r: parseInt(result[1], 16),
-      g: parseInt(result[2], 16),
-      b: parseInt(result[3], 16)
-    } : null;
-  }
-
-  /**
-   * ВСПОМОГАТЕЛЬНЫЙ МЕТОД: Затемняет HEX цвет на указанный процент
-   */
-  private static darkenHexColor(hex: string, percent: number): string {
-    const rgb = this.hexToRgb(hex);
-    if (!rgb) return hex;
-    
-    const darken = (color: number) => Math.max(0, Math.floor(color * (1 - percent)));
-    
-    const r = darken(rgb.r).toString(16).padStart(2, '0');
-    const g = darken(rgb.g).toString(16).padStart(2, '0');
-    const b = darken(rgb.b).toString(16).padStart(2, '0');
-    
-    return `#${r}${g}${b}`;
-  }
-
-  /**
-   * НОВЫЙ МЕТОД: Проверяет контрастность цвета для читаемости текста
-   */
-  public static getTextColorForBackground(backgroundColor: string): string {
-    const rgb = this.hexToRgb(backgroundColor);
-    if (!rgb) return '#000000';
-    
-    // Используем формулу относительной яркости
-    const brightness = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
-    return brightness > 128 ? '#000000' : '#ffffff';
-  }
-
-  /**
-   * НОВЫЙ МЕТОД: Создает CSS стили для ячейки с отпуском
-   */
-  public static createLeaveCellStyles(shifts: IShiftInfo[]): {
-    backgroundColor?: string;
-    color?: string;
-    border?: string;
-    borderRadius?: string;
-    textShadow?: string;
-  } {
-    const dominantColor = this.getDominantLeaveColor(shifts);
-    
-    if (!dominantColor) {
-      return {};
     }
-    
-    const textColor = this.getTextColorForBackground(dominantColor);
-    const borderColor = this.darkenHexColor(dominantColor, 0.2);
-    
-    return {
-      backgroundColor: dominantColor,
-      color: textColor,
-      border: `1px solid ${borderColor}`,
-      borderRadius: '3px',
-      textShadow: textColor === '#ffffff' ? '0 1px 2px rgba(0,0,0,0.3)' : 'none'
-    };
-  }
+  }> {
+       return TimetableLeaveUtils.applyColorSchemeToShifts(shifts);
+   }
 }
