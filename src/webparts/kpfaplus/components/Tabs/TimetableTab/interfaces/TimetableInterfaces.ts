@@ -283,12 +283,13 @@ export interface IExpandControlsProps {
 
 /**
  * Константы цветов для системы
+ * ИСПРАВЛЕНО: Убрана as const для избежания ошибок TypeScript
  */
 export const TIMETABLE_COLORS = {
   HOLIDAY: '#f44336',           // Красный цвет для праздников (высший приоритет)
   DEFAULT_LEAVE: '#ffeb3b',     // Желтый цвет для отпусков по умолчанию
   DEFAULT_BACKGROUND: '#ffffff' // Белый цвет по умолчанию
-} as const;
+};
 
 /**
  * Интерфейс для приоритетов цветов
