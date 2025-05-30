@@ -309,6 +309,171 @@ export class StaffRecordsFetchService {
     }
   }
 
+
+/**
+   * --- НОВЫЙ МЕТОД ДЛЯ TIMETABLE С ФИЛЬТРАЦИЕЙ УДАЛЕННЫХ ЗАПИСЕЙ ---
+   * Получает ВСЕ активные записи расписания персонала за период БЕЗ ПАГИНАЦИИ.
+   * Исключает записи с Deleted=1.
+   * Использует getAllFilteredItemsFromList вместо getPaginatedItemsFromList.
+   *
+   * @param queryParams Параметры запроса (без skip/top - не нужны)
+   * @returns Promise с объектом содержащим ВСЕ активные записи и общее количество
+   */
+  public async fetchAllActiveStaffRecordsForTimetable(
+    queryParams: Omit<IStaffRecordsQueryParams, 'skip' | 'top' | 'nextLink'>
+  ): Promise<{ items: IRemoteListItemResponse[], totalCount: number }> {
+    try {
+      const {
+        startDate,
+        endDate,
+        currentUserID,
+        staffGroupID,
+        employeeID,
+        timeTableID
+      } = queryParams;
+
+      // Расширенное логирование параметров запроса
+      this.logInfo(
+        `[DEBUG] fetchAllActiveStaffRecordsForTimetable ВЫЗВАН С ПАРАМЕТРАМИ:` +
+        `\n  startDate: ${startDate.toISOString()}` +
+        `\n  endDate: ${endDate.toISOString()}` +
+        `\n  currentUserID: ${currentUserID} (тип: ${typeof currentUserID})` +
+        `\n  staffGroupID: ${staffGroupID} (тип: ${typeof staffGroupID})` +
+        `\n  employeeID: ${employeeID} (тип: ${typeof employeeID})` +
+        `\n  timeTableID: ${timeTableID || "не указан"} (тип: ${typeof timeTableID})` +
+        `\n  NOTE: БЕЗ ПАГИНАЦИИ - загружаем ВСЕ АКТИВНЫЕ данные за период (исключая Deleted=1)`
+      );
+
+      // Проверяем наличие RemoteSiteService
+      if (!this._remoteSiteService) {
+        this.logError("[ОШИБКА] RemoteSiteService не инициализирован");
+        return { items: [], totalCount: 0 };
+      }
+
+      // Проверка имени списка
+      if (!this._listName) {
+        const errorMsg = "Имя списка не определено";
+        this.logError(`[ОШИБКА] ${errorMsg}`);
+        throw new Error(errorMsg);
+      }
+
+      // Форматирование дат для фильтрации
+      const startDateStr = this.formatDateForFilter(startDate);
+      const endDateStr = this.formatDateForFilter(endDate);
+      this.logInfo(
+        `[DEBUG] Форматированные даты для запроса: ${startDateStr} - ${endDateStr}`
+      );
+
+      // Проверка валидности дат после форматирования
+      if (startDateStr === '' || endDateStr === '') {
+        const errorMsg = "Некорректные даты начала/окончания периода";
+        this.logError(`[ОШИБКА] ${errorMsg}`);
+        throw new Error(errorMsg);
+      }
+
+      // Строим фильтр для запроса к SharePoint с исключением удаленных записей
+      const filter = this.buildFilterExpressionExcludingDeleted(
+        startDateStr,
+        endDateStr,
+        employeeID,
+        staffGroupID,
+        currentUserID,
+        timeTableID
+      );
+      this.logInfo(`[DEBUG] ИТОГОВЫЙ ФИЛЬТР С ИСКЛЮЧЕНИЕМ DELETED=1: ${filter}`);
+
+      // Определяем параметры сортировки по умолчанию (по дате)
+      const orderBy = { field: "fields/Date", ascending: true };
+
+      // --- ИСПОЛЬЗУЕМ НОВЫЙ МЕТОД RemoteSiteService.getAllFilteredItemsFromList ---
+      this.logInfo(`[DEBUG] НАЧИНАЕМ запрос к списку ${this._listName} БЕЗ пагинации и БЕЗ DELETED записей через RemoteSiteService...`);
+
+      let fetchResult: { items: IRemoteListItemResponse[], totalCount: number };
+      try {
+        // Вызываем новый метод RemoteSiteService.getAllFilteredItemsFromList
+        fetchResult = await this._remoteSiteService.getAllFilteredItemsFromList(
+          this._listName,
+          filter,
+          orderBy
+        );
+
+        this.logInfo(
+          `[DEBUG] ПОЛУЧЕН ответ от RemoteSiteService.getAllFilteredItemsFromList: ${fetchResult.items.length} АКТИВНЫХ элементов, ОБЩЕЕ количество: ${fetchResult.totalCount}`
+        );
+      } catch (requestError) {
+        this.logError(
+          `[ОШИБКА] Ошибка при запросе ко всем активным элементам списка через RemoteSiteService: ${JSON.stringify(requestError)}`
+        );
+        throw requestError;
+      }
+
+      // Логирование результата запроса
+      this.logInfo(
+        `Получено ${fetchResult.items.length} АКТИВНЫХ элементов расписания из SharePoint (исключены Deleted=1)`
+      );
+      if (fetchResult.items.length > 0) {
+        // Логируем первый элемент сырых данных
+        this.logDetailedDataInfo(fetchResult.items[0]);
+      } else {
+        this.logInfo(
+          `[DEBUG] Нет активных элементов в ответе от сервера для фильтра: ${filter}`
+        );
+      }
+
+      // Возвращаем объект с ВСЕ активными записями и общим количеством
+      return {
+        items: fetchResult.items,
+        totalCount: fetchResult.totalCount
+      };
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logError(
+        `[КРИТИЧЕСКАЯ ОШИБКА] Не удалось получить все активные записи расписания: ${errorMessage}`
+      );
+      console.error(`[${this._logSource}] [DEBUG] Подробности ошибки:`, error);
+
+      // В случае ошибки, пробрасываем ее дальше
+      throw new Error(`Failed to fetch all active staff records: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * ВСПОМОГАТЕЛЬНЫЙ МЕТОД: Строит выражение фильтра с исключением удаленных записей (Deleted=1)
+   *
+   * @param startDateStr Отформатированная строка даты начала
+   * @param endDateStr Отформатированная строка даты окончания
+   * @param employeeID ID сотрудника
+   * @param staffGroupID ID группы
+   * @param currentUserID ID текущего пользователя
+   * @param timeTableID ID недельного расписания (опционально)
+   * @returns Строка фильтра для запроса с исключением Deleted=1
+   */
+  private buildFilterExpressionExcludingDeleted(
+    startDateStr: string,
+    endDateStr: string,
+    employeeID: string | number,
+    staffGroupID: string | number,
+    currentUserID: string | number,
+    timeTableID?: string | number
+  ): string {
+    // Используем существующий метод для построения базового фильтра
+    let filter = this.buildFilterExpression(
+      startDateStr,
+      endDateStr,
+      employeeID,
+      staffGroupID,
+      currentUserID,
+      timeTableID
+    );
+
+    // Добавляем исключение удаленных записей
+    filter += ` and fields/Deleted ne 1`;
+    this.logInfo(`[DEBUG] Добавлено условие исключения удаленных записей: fields/Deleted ne 1`);
+
+    return filter;
+  }
+
   /**
    * Получает одну запись расписания по ID
    * Использует публичный метод RemoteSiteService.getListItem

@@ -34,7 +34,7 @@ export class TimetableShiftCalculatorCore {
       holidayColor
     } = params;
 
-    console.log('[TimetableShiftCalculatorCore] Calculating shift with Holiday support:', {
+  /*  console.log('[TimetableShiftCalculatorCore] Calculating shift with Holiday support:', {
       startTime: startTime.toISOString(),
       endTime: endTime.toISOString(),
       lunchStart: lunchStart?.toISOString(),
@@ -46,7 +46,7 @@ export class TimetableShiftCalculatorCore {
       isHoliday,
       holidayColor: holidayColor || TIMETABLE_COLORS.HOLIDAY,
       priorityNote: isHoliday ? 'HOLIDAY has highest priority over leave types' : 'Normal leave type priority'
-    });
+    }); */
 
     // Проверяем на нулевые времена (00:00)
     const startHour = startTime.getHours();
@@ -96,7 +96,7 @@ export class TimetableShiftCalculatorCore {
     // Приоритет у timeForLunch если доступно
     if (timeForLunch && timeForLunch > 0) {
       lunchMinutes = timeForLunch;
-      console.log('[TimetableShiftCalculatorCore] Using timeForLunch:', timeForLunch);
+  //    console.log('[TimetableShiftCalculatorCore] Using timeForLunch:', timeForLunch);
     } else if (lunchStart && lunchEnd) {
       // Рассчитываем время обеда из ShiftDate3 и ShiftDate4
       const lunchStartHour = lunchStart.getHours();
@@ -114,11 +114,11 @@ export class TimetableShiftCalculatorCore {
         
         if (lunchEndMinutes > lunchStartMinutes) {
           lunchMinutes = lunchEndMinutes - lunchStartMinutes;
-          console.log('[TimetableShiftCalculatorCore] Using calculated lunch time:', lunchMinutes);
+     //     console.log('[TimetableShiftCalculatorCore] Using calculated lunch time:', lunchMinutes);
         } else if (lunchEndMinutes < lunchStartMinutes) {
           // Обед через полночь (редкий случай)
           lunchMinutes = lunchEndMinutes + (24 * 60) - lunchStartMinutes;
-          console.log('[TimetableShiftCalculatorCore] Using calculated lunch time (overnight):', lunchMinutes);
+   //       console.log('[TimetableShiftCalculatorCore] Using calculated lunch time (overnight):', lunchMinutes);
         }
       }
     }
@@ -135,7 +135,7 @@ export class TimetableShiftCalculatorCore {
     const formattedWorkTime = this.formatMinutesToHoursMinutes(workMinutes);
     const formattedShift = `${startTimeStr}-${endTimeStr}(${formattedWorkTime})`;
 
-    console.log('[TimetableShiftCalculatorCore] Calculated result with Holiday support:', {
+   /* console.log('[TimetableShiftCalculatorCore] Calculated result with Holiday support:', {
       totalShiftMinutes,
       lunchMinutes,
       workMinutes,
@@ -146,7 +146,7 @@ export class TimetableShiftCalculatorCore {
       isHoliday,
       holidayColor: holidayColor || TIMETABLE_COLORS.HOLIDAY,
       finalColorPriority: isHoliday ? 'HOLIDAY (highest)' : typeOfLeaveColor ? 'LEAVE_TYPE' : 'DEFAULT'
-    });
+    }); */
 
     return {
       workMinutes,
@@ -193,10 +193,10 @@ export class TimetableShiftCalculatorCore {
       return [];
     }
 
-    console.log('[TimetableShiftCalculatorCore] Processing records with Holiday support (v3.2 - including non-work records):', {
+ /*   console.log('[TimetableShiftCalculatorCore] Processing records with Holiday support (v3.2 - including non-work records):', {
       totalRecords: records.length,
       supportedFeatures: ['Leave Types', 'Holiday Field (red color)', 'Priority System', 'Non-work Records']
-    });
+    }); */
 
     // *** НОВОЕ: Анализируем записи на наличие отметок без рабочего времени ***
     const recordsAnalysis = this.analyzeRecordsForNonWorkMarkers(records);
@@ -206,7 +206,7 @@ export class TimetableShiftCalculatorCore {
     const validRecords = records.filter(record => {
       // Исключаем записи без времен или с нулевыми временами
       if (!record.ShiftDate1 || !record.ShiftDate2) {
-        console.log(`[TimetableShiftCalculatorCore] Skipping record ${record.ID}: missing ShiftDate1 or ShiftDate2`);
+    //    console.log(`[TimetableShiftCalculatorCore] Skipping record ${record.ID}: missing ShiftDate1 or ShiftDate2`);
         return false;
       }
 
@@ -215,7 +215,7 @@ export class TimetableShiftCalculatorCore {
       
       // Проверяем валидность дат
       if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-        console.log(`[TimetableShiftCalculatorCore] Skipping record ${record.ID}: invalid dates`);
+       // console.log(`[TimetableShiftCalculatorCore] Skipping record ${record.ID}: invalid dates`);
         return false;
       }
       
@@ -224,18 +224,18 @@ export class TimetableShiftCalculatorCore {
 
       // Исключаем записи где оба времени 00:00 (это могут быть отметки праздников/отпусков без работы)
       if (startStr === "00:00" && endStr === "00:00") {
-        console.log(`[TimetableShiftCalculatorCore] Skipping record ${record.ID}: both times are 00:00 (likely non-work marker)`);
+      //  console.log(`[TimetableShiftCalculatorCore] Skipping record ${record.ID}: both times are 00:00 (likely non-work marker)`);
         return false;
       }
 
       return true;
     });
 
-    console.log(`[TimetableShiftCalculatorCore] Valid work records: ${validRecords.length}/${records.length}`);
+   // console.log(`[TimetableShiftCalculatorCore] Valid work records: ${validRecords.length}/${records.length}`);
 
     if (validRecords.length === 0) {
       // *** НОВОЕ: Даже если нет рабочих смен, могут быть отметки праздников/отпусков ***
-      console.log(`[TimetableShiftCalculatorCore] No work shifts found, but may have holiday/leave markers`);
+   //   console.log(`[TimetableShiftCalculatorCore] No work shifts found, but may have holiday/leave markers`);
       return [];
     }
 
@@ -260,10 +260,10 @@ export class TimetableShiftCalculatorCore {
 
       // Проверяем валидность дат обеда
       if (lunchStart && isNaN(lunchStart.getTime())) {
-        console.warn(`[TimetableShiftCalculatorCore] Invalid ShiftDate3 in record ${record.ID}`);
+    //    console.warn(`[TimetableShiftCalculatorCore] Invalid ShiftDate3 in record ${record.ID}`);
       }
       if (lunchEnd && isNaN(lunchEnd.getTime())) {
-        console.warn(`[TimetableShiftCalculatorCore] Invalid ShiftDate4 in record ${record.ID}`);
+    //    console.warn(`[TimetableShiftCalculatorCore] Invalid ShiftDate4 in record ${record.ID}`);
       }
 
       // СУЩЕСТВУЮЩАЯ ОБРАБОТКА: Типы отпусков
@@ -296,20 +296,20 @@ export class TimetableShiftCalculatorCore {
       if (record.Holiday === 1) {
         isHoliday = true;
         holidayColor = TIMETABLE_COLORS.HOLIDAY;
-        console.log(`[TimetableShiftCalculatorCore] 🔴 HOLIDAY DETECTED: Record ${record.ID} has Holiday=1, applying red color ${holidayColor}`);
+    //    console.log(`[TimetableShiftCalculatorCore] 🔴 HOLIDAY DETECTED: Record ${record.ID} has Holiday=1, applying red color ${holidayColor}`);
       }
 
       // Определяем финальный приоритет цвета
-      let finalColorInfo = '';
+     /* let finalColorInfo = '';
       if (isHoliday) {
         finalColorInfo = `Priority: HOLIDAY (${holidayColor}) > Leave Type`;
       } else if (typeOfLeaveColor) {
         finalColorInfo = `Priority: Leave Type (${typeOfLeaveColor}) > Default`;
       } else {
         finalColorInfo = 'Priority: Default (no special color)';
-      }
+      }*/
 
-      console.log(`[TimetableShiftCalculatorCore] Record ${record.ID} color priority: ${finalColorInfo}`);
+      //console.log(`[TimetableShiftCalculatorCore] Record ${record.ID} color priority: ${finalColorInfo}`);
 
       const calculation = this.calculateShiftMinutes({
         startTime,
@@ -343,16 +343,16 @@ export class TimetableShiftCalculatorCore {
       };
     });
 
-    console.log('[TimetableShiftCalculatorCore] Processed shifts with Holiday support:', {
+  /*  console.log('[TimetableShiftCalculatorCore] Processed shifts with Holiday support:', {
       totalShifts: shifts.length,
       shiftsWithHoliday: shifts.filter(s => s.isHoliday).length,
       shiftsWithLeave: shifts.filter(s => s.typeOfLeaveId).length,
       shiftsWithBoth: shifts.filter(s => s.isHoliday && s.typeOfLeaveId).length
-    });
+    }); */
     
     // Логируем несколько примеров для отладки
     if (shifts.length > 0) {
-      console.log('[TimetableShiftCalculatorCore] Sample shifts with Holiday support:');
+   //   console.log('[TimetableShiftCalculatorCore] Sample shifts with Holiday support:');
       shifts.slice(0, 3).forEach((shift, index) => {
         const colorInfo = shift.isHoliday ? 
           `🔴 HOLIDAY: ${shift.holidayColor}` : 
@@ -576,7 +576,7 @@ export class TimetableShiftCalculatorCore {
       const isCorrectDay = recordDayNumber === dayNumber;
       
       if (isCorrectDay && isInWeek) {
-        console.log(`[TimetableShiftCalculatorCore] Found record for day ${dayNumber}: ${record.ID} on ${recordDate.toLocaleDateString()} ${record.Holiday === 1 ? '🔴 HOLIDAY' : ''}`);
+  //      console.log(`[TimetableShiftCalculatorCore] Found record for day ${dayNumber}: ${record.ID} on ${recordDate.toLocaleDateString()} ${record.Holiday === 1 ? '🔴 HOLIDAY' : ''}`);
       }
       
       return isCorrectDay && isInWeek;
@@ -600,7 +600,7 @@ export class TimetableShiftCalculatorCore {
       const recordDate = new Date(record.Date);
       
       if (isNaN(recordDate.getTime())) {
-        console.warn(`[TimetableShiftCalculatorCore] Invalid date in record ${record.ID}`);
+     //   console.warn(`[TimetableShiftCalculatorCore] Invalid date in record ${record.ID}`);
         return false;
       }
 
@@ -674,14 +674,14 @@ export class TimetableShiftCalculatorCore {
         if (isHoliday) {
           hasNonWorkHoliday = true;
           nonWorkHolidayRecords++;
-          console.log(`[TimetableShiftCalculatorCore] Found non-work holiday: Record ${record.ID}`);
+       //   console.log(`[TimetableShiftCalculatorCore] Found non-work holiday: Record ${record.ID}`);
         }
         
         if (hasLeaveType) {
           hasNonWorkLeave = true;
           nonWorkLeaveRecords++;
           nonWorkLeaveTypeId = record.TypeOfLeaveID;
-          console.log(`[TimetableShiftCalculatorCore] Found non-work leave: Record ${record.ID}, Type: ${nonWorkLeaveTypeId}`);
+       //   console.log(`[TimetableShiftCalculatorCore] Found non-work leave: Record ${record.ID}, Type: ${nonWorkLeaveTypeId}`);
         }
       }
     });
@@ -777,7 +777,7 @@ export class TimetableShiftCalculatorCore {
       return [];
     }
 
-    console.log(`[TimetableShiftCalculatorCore] Processing day ${dayNumber} with ${allDayRecords.length} total records (including markers)`);
+   // console.log(`[TimetableShiftCalculatorCore] Processing day ${dayNumber} with ${allDayRecords.length} total records (including markers)`);
 
     // Получаем обычные смены (с рабочим временем)
     const workShifts = this.getShiftsForDay(records, dayNumber, weekStart, weekEnd, getLeaveTypeColor);
@@ -803,7 +803,7 @@ export class TimetableShiftCalculatorCore {
           TIMETABLE_COLORS.HOLIDAY
         );
         allShiftsAndMarkers.push(holidayMarker);
-        console.log(`[TimetableShiftCalculatorCore] Added holiday marker for day ${dayNumber}`);
+   //     console.log(`[TimetableShiftCalculatorCore] Added holiday marker for day ${dayNumber}`);
       }
     }
 
@@ -828,11 +828,11 @@ export class TimetableShiftCalculatorCore {
           leaveTypeColor
         );
         allShiftsAndMarkers.push(leaveMarker);
-        console.log(`[TimetableShiftCalculatorCore] Added leave marker for day ${dayNumber}, type: ${nonWorkAnalysis.nonWorkLeaveTypeId}`);
+       // console.log(`[TimetableShiftCalculatorCore] Added leave marker for day ${dayNumber}, type: ${nonWorkAnalysis.nonWorkLeaveTypeId}`);
       }
     }
 
-    console.log(`[TimetableShiftCalculatorCore] Day ${dayNumber} result: ${workShifts.length} work shifts + ${allShiftsAndMarkers.length - workShifts.length} markers = ${allShiftsAndMarkers.length} total`);
+   // console.log(`[TimetableShiftCalculatorCore] Day ${dayNumber} result: ${workShifts.length} work shifts + ${allShiftsAndMarkers.length - workShifts.length} markers = ${allShiftsAndMarkers.length} total`);
 
     return allShiftsAndMarkers;
   }

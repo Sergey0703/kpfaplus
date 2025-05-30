@@ -293,6 +293,85 @@ export class StaffRecordsService {
       };
     }
   }
+//////////////////////
+/**
+   * НОВЫЙ МЕТОД ДЛЯ TIMETABLE: Получает ВСЕ АКТИВНЫЕ записи расписания (исключает Deleted=1)
+   * Использует новый fetchAllActiveStaffRecordsForTimetable из StaffRecordsFetchService
+   */
+/**
+   * НОВЫЙ МЕТОД ДЛЯ TIMETABLE: Получает ВСЕ АКТИВНЫЕ записи расписания (исключает Deleted=1)
+   * Использует новый fetchAllActiveStaffRecordsForTimetable из StaffRecordsFetchService
+   */
+  public async getAllActiveStaffRecordsForTimetable(
+    queryParams: Omit<IStaffRecordsQueryParams, 'skip' | 'top' | 'nextLink'>
+  ): Promise<{ records: IStaffRecord[]; totalCount: number; error?: string }> {
+    try {
+      this.logInfo('[DEBUG] getAllActiveStaffRecordsForTimetable ВЫЗВАН С ПАРАМЕТРАМИ:');
+      this.logInfo(`        startDate: ${queryParams.startDate.toISOString()}`);
+      this.logInfo(`        endDate: ${queryParams.endDate.toISOString()}`);
+      this.logInfo(`        currentUserID: ${queryParams.currentUserID}`);
+      this.logInfo(`        staffGroupID: ${queryParams.staffGroupID}`);
+      this.logInfo(`        employeeID: ${queryParams.employeeID}`);
+      this.logInfo(`        timeTableID: ${queryParams.timeTableID || 'не указан'}`);
+      this.logInfo(`        NOTE: ЗАГРУЖАЕМ ВСЕ АКТИВНЫЕ ДАННЫЕ БЕЗ ПАГИНАЦИИ (исключая Deleted=1)`);
+
+      if (!this._fetchService) {
+        const errorMsg = 'StaffRecordsFetchService не инициализирован';
+        this.logError(`[ОШИБКА] ${errorMsg}`);
+        return { records: [], totalCount: 0, error: errorMsg };
+      }
+
+      // Получаем ВСЕ активные элементы через новый метод fetchService
+      const fetchResult = await this._fetchService.fetchAllActiveStaffRecordsForTimetable(queryParams);
+      
+      // Проверяем наличие ошибки в fetchResult
+      if (!fetchResult || fetchResult.items === undefined || fetchResult.totalCount === undefined) {
+        const errorMsg = "Получены некорректные данные от fetchService.fetchAllActiveStaffRecordsForTimetable";
+        this.logError(`[ОШИБКА] ${errorMsg}`);
+        return { records: [], totalCount: 0, error: errorMsg };
+      }
+
+      this.logInfo(`[DEBUG] Получены ВСЕ активные данные: ${fetchResult.items.length} записей, общее количество: ${fetchResult.totalCount}`);
+
+      // Преобразуем СЫРЫЕ данные (ВСЕ активные записи) в формат IStaffRecord
+      const mappedRecords = this._mapperService.mapToStaffRecords(fetchResult.items);
+
+      // Рассчитываем рабочее время для каждой записи
+      const recordsWithWorkTime = mappedRecords.map(record =>
+        this._calculationService.calculateWorkTime(record)
+      );
+
+      // Сортируем записи согласно опциям по умолчанию (сортируем ВСЕ активные записи)
+      const defaultSortOptions: ISortOptions = {
+        type: StaffRecordsSortType.ByDate,
+        ascending: true
+      };
+
+      const sortedRecords = this._calculationService.sortStaffRecords(
+        recordsWithWorkTime,
+        defaultSortOptions
+      );
+
+      this.logInfo(`[DEBUG] Получено и обработано ${sortedRecords.length} активных записей расписания (исключены Deleted=1).`);
+      this.logInfo(`[DEBUG] Общее количество активных записей (согласно серверу): ${fetchResult.totalCount}`);
+
+      return {
+        records: sortedRecords,
+        totalCount: fetchResult.totalCount
+      };
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logError(`[КРИТИЧЕСКАЯ ОШИБКА] Не удалось получить активные записи расписания: ${errorMessage}`);
+      console.error(`[${this._logSource}] [DEBUG] Подробности ошибки:`, error);
+
+      return {
+        records: [],
+        totalCount: 0,
+        error: `Failed to get active staff records: ${errorMessage}`
+      };
+    }
+  }
 
   /**
  * Обновляет запись расписания
