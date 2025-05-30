@@ -2,10 +2,12 @@
 import { 
   IDayInfo, 
   IWeekGroup,
-  IShiftInfo
+  IShiftInfo,
+  IWeeklyStaffData
 } from '../interfaces/TimetableInterfaces';
 import { TimetableWeekCalculator } from './TimetableWeekCalculator';
 import { TimetableShiftCalculator } from './TimetableShiftCalculator';
+import { IStaffRecord } from '../../../../services/StaffRecordsService';
 
 /**
  * Аналитика и статистика для данных расписания
@@ -204,28 +206,28 @@ export class TimetableDataAnalytics {
   /**
    * Анализирует недельные данные сотрудника
    */
-  public static analyzeStaffWeekData(weeklyData: any): {
+  public static analyzeStaffWeekData(weeklyData: IWeeklyStaffData): {
     hasData: boolean;
     totalDaysWithData: number;
     totalShifts: number;
     leaveTypesCount: number;
     totalMinutes: number;
   } {
-    const daysWithData = Object.values(weeklyData.days).filter((dayData: any) => {
+    const daysWithData = Object.values(weeklyData.days).filter((dayData) => {
       const day = dayData as IDayInfo;
       return day.hasData;
     });
     const totalDaysWithData = daysWithData.length;
     
     let totalShifts = 0;
-    daysWithData.forEach((dayData: any) => {
+    daysWithData.forEach((dayData) => {
       const day = dayData as IDayInfo;
       totalShifts += day.shifts.length;
     });
     
     // Подсчитываем уникальные типы отпусков (исправлено для совместимости с ES5)
     const allShifts: IShiftInfo[] = [];
-    daysWithData.forEach((dayData: any) => {
+    daysWithData.forEach((dayData) => {
       const day = dayData as IDayInfo;
       day.shifts.forEach((shift: IShiftInfo) => {
         allShifts.push(shift);
@@ -247,7 +249,7 @@ export class TimetableDataAnalytics {
    */
   public static generateFinalStatistics(
     weekGroups: IWeekGroup[],
-    staffRecords: any[],
+    staffRecords: IStaffRecord[],
     leaveTypesIndex: Record<string, { count: number; color?: string; title?: string }>
   ): {
     totalWeeksProcessed: number;
