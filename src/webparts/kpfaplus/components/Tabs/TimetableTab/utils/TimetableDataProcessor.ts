@@ -5,21 +5,16 @@ import {
   IWeekGroup,
   ITimetableStaffRow,
   IStaffMember,
-  IWeekInfo, // Added for optimizeProcessingPerformance
-  TIMETABLE_COLORS // Added for default holidayColor
+  IWeekInfo,
+  TIMETABLE_COLORS
 } from '../interfaces/TimetableInterfaces';
-// Removed unused: IWeeklyStaffData, IDayInfo
-// import { TimetableShiftCalculator } from './TimetableShiftCalculator'; // No longer directly used here
-// import { TimetableShiftCalculatorCore } from './TimetableShiftCalculatorCore'; // No longer directly used here
 import { TimetableDataUtils } from './TimetableDataUtils';
 import { TimetableDataAnalytics } from './TimetableDataAnalytics';
-//import { TimetableWeekCalculator } from './TimetableWeekCalculator';
 import { IStaffRecord } from '../../../../services/StaffRecordsService';
 
 // Import new core and meta modules
 import { TimetableDataProcessorCore } from './TimetableDataProcessorCore';
 import { TimetableDataProcessorMeta } from './TimetableDataProcessorMeta';
-
 
 /**
  * Основной процессор данных для таблицы расписания
@@ -282,24 +277,13 @@ export class TimetableDataProcessor {
     return weekGroups;
   }
 
-  // *** ПРИВАТНЫЕ МЕТОДЫ ОБРАБОТКИ - MOVED TO TimetableDataProcessorCore.ts ***
-  // processWeekDataWithLeaveColorsAndHolidays
-  // processWeekDataWithLeaveColorsAndHolidaysIncludingNonWorkDays
-  // processWeekDataForExcelWithFullMarkers
-  // processDayDataWithLeaveColorsAndHolidays
-  // processDayDataWithLeaveColorsAndHolidaysIncludingNonWorkDays
-  // processDayDataForExcelWithFullMarkers
-  // countHolidaysInWeekData
-  // sortStaffRows (now public in Core, used by processData)
-
-
   // *** ДЕЛЕГИРОВАНИЕ К УТИЛИТАМ И АНАЛИТИКЕ (REMAINS AS PUBLIC API OF PROCESSOR) ***
 
-  public static getAdvancedDataSummary(weekGroups: IWeekGroup[]) {
+  public static getAdvancedDataSummary(weekGroups: IWeekGroup[]): ReturnType<typeof TimetableDataAnalytics.getAdvancedDataSummary> {
     return TimetableDataAnalytics.getAdvancedDataSummary(weekGroups);
   }
 
-  public static analyzeLeaveColorsUsage(weekGroups: IWeekGroup[]) {
+  public static analyzeLeaveColorsUsage(weekGroups: IWeekGroup[]): ReturnType<typeof TimetableDataAnalytics.analyzeLeaveColorsUsage> {
     return TimetableDataAnalytics.analyzeLeaveColorsUsage(weekGroups);
   }
 
@@ -317,11 +301,11 @@ export class TimetableDataProcessor {
       showOnlyWithHoliday?: boolean;
       hideHolidays?: boolean;
     }
-  ) {
+  ): ReturnType<typeof TimetableDataUtils.filterWeeksDataAdvanced> {
     return TimetableDataUtils.filterWeeksDataAdvanced(weekGroups, filters);
   }
 
-  public static exportWeeksDataWithLeaveColors(weekGroups: IWeekGroup[]) {
+  public static exportWeeksDataWithLeaveColors(weekGroups: IWeekGroup[]): ReturnType<typeof TimetableDataAnalytics.exportWeeksDataWithLeaveColors> {
     return TimetableDataAnalytics.exportWeeksDataWithLeaveColors(weekGroups);
   }
 
@@ -329,7 +313,7 @@ export class TimetableDataProcessor {
     staffRecords: IStaffRecord[],
     staffMembers: IStaffMember[],
     getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined
-  ) {
+  ): ReturnType<typeof TimetableDataUtils.validateDataIntegrityWithLeaveColors> {
     return TimetableDataUtils.validateDataIntegrityWithLeaveColors(
       staffRecords,
       staffMembers,
@@ -341,44 +325,44 @@ export class TimetableDataProcessor {
     staffRecords: IStaffRecord[],
     staffMembers: IStaffMember[],
     weeks: IWeekInfo[]
-  ) {
+  ): ReturnType<typeof TimetableDataUtils.optimizeProcessingPerformance> {
     return TimetableDataUtils.optimizeProcessingPerformance(staffRecords, staffMembers, weeks);
   }
 
-  public static analyzeProductivityMetrics(weekGroups: IWeekGroup[]) {
+  public static analyzeProductivityMetrics(weekGroups: IWeekGroup[]): ReturnType<typeof TimetableDataAnalytics.analyzeProductivityMetrics> {
     return TimetableDataAnalytics.analyzeProductivityMetrics(weekGroups);
   }
 
-  public static analyzeLeavePatterns(weekGroups: IWeekGroup[]) {
+  public static analyzeLeavePatterns(weekGroups: IWeekGroup[]): ReturnType<typeof TimetableDataAnalytics.analyzeLeavePatterns> {
     return TimetableDataAnalytics.analyzeLeavePatterns(weekGroups);
   }
 
-  public static generateComprehensiveReport(weekGroups: IWeekGroup[]) {
+  public static generateComprehensiveReport(weekGroups: IWeekGroup[]): ReturnType<typeof TimetableDataAnalytics.generateComprehensiveReport> {
     return TimetableDataAnalytics.generateComprehensiveReport(weekGroups);
   }
 
   // *** СТАТИЧЕСКИЕ МЕТОДЫ ДЛЯ БЫСТРОГО ДОСТУПА ***
 
-  public static get Utils() {
+  public static get Utils(): typeof TimetableDataUtils {
     return TimetableDataUtils;
   }
 
-  public static get Analytics() {
+  public static get Analytics(): typeof TimetableDataAnalytics {
     return TimetableDataAnalytics;
   }
 
   // *** ИНФОРМАЦИЯ О ВЕРСИИ И META-МЕТОДЫ - DELEGATE TO TimetableDataProcessorMeta.ts ***
 
-  public static getVersionInfo() {
+  public static getVersionInfo(): ReturnType<typeof TimetableDataProcessorMeta.getVersionInfo> {
     return TimetableDataProcessorMeta.getVersionInfo();
   }
 
-  public static validateModularArchitecture() {
+  public static validateModularArchitecture(): ReturnType<typeof TimetableDataProcessorMeta.validateModularArchitecture> {
     // We can enhance this by passing the actual Core and Meta classes if needed for deeper validation
     return TimetableDataProcessorMeta.validateModularArchitecture();
   }
 
-  public static getExcelExportPreview(weekGroups: IWeekGroup[]) {
+  public static getExcelExportPreview(weekGroups: IWeekGroup[]): ReturnType<typeof TimetableDataProcessorMeta.getExcelExportPreview> {
     return TimetableDataProcessorMeta.getExcelExportPreview(weekGroups);
   }
 }
