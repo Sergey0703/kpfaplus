@@ -6,14 +6,21 @@ import {
 import { TimetableWeekCalculator } from './TimetableWeekCalculator';
 import { IDepartment } from '../../../../models/types';
 
-// Динамический импорт XLSX
-let XLSX: any = null;
+// FIXED: Changed 'any' to proper XLSX module type and added atomic check
+let XLSX: typeof import('xlsx') | null = null;
 
-async function loadXLSX(): Promise<any> {
+// FIXED: Added webpack chunk name comment and atomic update protection
+async function loadXLSX(): Promise<typeof import('xlsx')> {
   if (!XLSX) {
     try {
-      // Пробуем разные варианты импорта
-      XLSX = await import('xlsx');
+      // FIXED: Added webpackChunkName comment as required by SPFx
+      /* webpackChunkName: 'xlsx-library' */
+      const xlsxModule = await import('xlsx');
+      
+      // FIXED: Atomic update to prevent race conditions
+      if (!XLSX) {
+        XLSX = xlsxModule;
+      }
     } catch (error) {
       console.error('Failed to load XLSX library:', error);
       throw new Error('Excel export library not available');
@@ -84,8 +91,8 @@ export class TimetableExcelExporter {
     weeksData: IWeekGroup[], 
     groupName: string, 
     dayOfStartWeek: number
-  ): any[][] {
-    const data: any[][] = [];
+  ): Array<Array<string | number>> {
+    const data: Array<Array<string | number>> = [];
     
     // Заголовок документа
     data.push([`Time table for Centre: ${groupName}`]);
@@ -104,11 +111,11 @@ export class TimetableExcelExporter {
       data.push([weekTitle]);
       
       // Заголовки столбцов
-      const headerRow = ['Employee', ...dayNames];
+      const headerRow: Array<string | number> = ['Employee', ...dayNames];
       data.push(headerRow);
       
       // Строка с датами
-      const datesRow = [''];
+      const datesRow: Array<string | number> = [''];
       orderedDays.forEach(dayNum => {
         const dayDate = TimetableWeekCalculator.getDateForDayInWeek(weekInfo.weekStart, dayNum);
         datesRow.push(this.formatDate(dayDate));
@@ -118,7 +125,7 @@ export class TimetableExcelExporter {
       // Данные сотрудников
       staffRows.forEach(staffRow => {
         // Строка с именем сотрудника
-        const staffNameRow = [staffRow.staffName];
+        const staffNameRow: Array<string | number> = [staffRow.staffName];
         
         // Добавляем данные по дням
         orderedDays.forEach(dayNum => {
@@ -130,7 +137,7 @@ export class TimetableExcelExporter {
         data.push(staffNameRow);
         
         // Строка с итогами недели
-        const weekTotalRow = [staffRow.weekData.formattedWeekTotal.trim()];
+        const weekTotalRow: Array<string | number> = [staffRow.weekData.formattedWeekTotal.trim()];
         // Пустые ячейки для дней
         for (let i = 0; i < orderedDays.length; i++) {
           weekTotalRow.push('');
@@ -179,10 +186,12 @@ export class TimetableExcelExporter {
    * Применяет форматирование к worksheet
    */
   private static applyWorksheetFormatting(
-    worksheet: any, 
+    // FIXED: Changed 'any' to specific XLSX WorkSheet type
+    worksheet: import('xlsx').WorkSheet, 
     weeksData: IWeekGroup[], 
     dayOfStartWeek: number,
-    XLSXLib: any
+    // FIXED: Changed 'any' to specific XLSX module type
+    XLSXLib: typeof import('xlsx')
   ): void {
     // Устанавливаем ширину столбцов
     const orderedDays = TimetableWeekCalculator.getOrderedDaysOfWeek(dayOfStartWeek);
@@ -197,7 +206,7 @@ export class TimetableExcelExporter {
     worksheet['!cols'] = colWidths;
     
     // Применяем объединение ячеек для заголовков недель
-    const merges: any[] = [];
+    const merges: Array<import('xlsx').Range> = [];
     let currentRow = 0;
     
     // Заголовок документа
@@ -238,10 +247,12 @@ export class TimetableExcelExporter {
    * Применяет стили к ячейкам
    */
   private static applyCellStyles(
-    worksheet: any, 
+    // FIXED: Changed 'any' to specific XLSX WorkSheet type
+    worksheet: import('xlsx').WorkSheet, 
     weeksData: IWeekGroup[], 
     dayOfStartWeek: number,
-    XLSXLib: any
+    // FIXED: Changed 'any' to specific XLSX module type
+    XLSXLib: typeof import('xlsx')
   ): void {
     const orderedDays = TimetableWeekCalculator.getOrderedDaysOfWeek(dayOfStartWeek);
     let currentRow = 0;
