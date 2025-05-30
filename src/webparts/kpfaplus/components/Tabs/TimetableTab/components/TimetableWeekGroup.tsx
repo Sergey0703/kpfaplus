@@ -183,6 +183,9 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
           // ИСПРАВЛЕННАЯ ЛОГИКА РЕНДЕРИНГА для TimetableWeekGroup.tsx
 // Заменить логику в onRender для дневных колонок
 
+// ИСПРАВЛЕННАЯ ЛОГИКА РЕНДЕРИНГА для TimetableWeekGroup.tsx
+// Заменить логику в onRender для дневных колонок
+
 onRender: (staffRowWithKey: ITimetableStaffRowWithKey): JSX.Element => {
   if (!staffRowWithKey || !staffRowWithKey.weekData || !staffRowWithKey.weekData.days) {
     return (
@@ -226,7 +229,7 @@ onRender: (staffRowWithKey: ITimetableStaffRowWithKey): JSX.Element => {
     );
   }
 
-  console.log(`[TimetableWeekGroupContent] *** PROCESSING DAY ${dayNumber} WITH COMPLETE FIX v3.5 ***`, {
+  console.log(`[TimetableWeekGroupContent] *** FIXED v3.6: PROCESSING DAY ${dayNumber} ***`, {
     hasData: dayData.hasData,
     hasLeave: dayData.hasLeave,
     hasHoliday: dayData.hasHoliday,
@@ -234,7 +237,7 @@ onRender: (staffRowWithKey: ITimetableStaffRowWithKey): JSX.Element => {
     finalCellColor: dayData.finalCellColor,
     shiftsCount: dayData.shifts?.length || 0,
     formattedContent: dayData.formattedContent,
-    solution: 'Using finalCellColor directly from dayData'
+    currentlyShows: dayData.formattedContent?.startsWith('Type ') ? 'ID instead of name' : 'correct name'
   });
 
   // *** КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Используем finalCellColor напрямую из dayData ***
@@ -251,14 +254,15 @@ onRender: (staffRowWithKey: ITimetableStaffRowWithKey): JSX.Element => {
       border = `3px solid ${backgroundColor}`;
       textShadow = '0 1px 3px rgba(0,0,0,0.4)';
     }
-    console.log(`[TimetableWeekGroupContent] *** HOLIDAY COLOR APPLIED: ${backgroundColor} ***`);
+    console.log(`[TimetableWeekGroupContent] *** FIXED v3.6: HOLIDAY COLOR APPLIED: ${backgroundColor} ***`);
   } else if (dayData.hasLeave && backgroundColor) {
     priority = ColorPriority.LEAVE_TYPE;
     border = `3px solid ${backgroundColor}`;
     textShadow = 'none';
-    console.log(`[TimetableWeekGroupContent] *** LEAVE COLOR APPLIED: ${backgroundColor} ***`, {
+    console.log(`[TimetableWeekGroupContent] *** FIXED v3.6: LEAVE COLOR APPLIED: ${backgroundColor} ***`, {
       leaveTypeTitle: dayData.formattedContent,
-      colorSource: 'dayData.finalCellColor'
+      colorSource: 'dayData.finalCellColor',
+      currentDisplay: dayData.formattedContent?.startsWith('Type ') ? 'Shows ID (needs fix)' : 'Shows name (good)'
     });
   }
 
@@ -267,10 +271,10 @@ onRender: (staffRowWithKey: ITimetableStaffRowWithKey): JSX.Element => {
     backgroundColor = dayData.leaveTypeColor;
     priority = ColorPriority.LEAVE_TYPE;
     border = `3px solid ${backgroundColor}`;
-    console.log(`[TimetableWeekGroupContent] *** FALLBACK: Using leaveTypeColor: ${backgroundColor} ***`);
+    console.log(`[TimetableWeekGroupContent] *** FIXED v3.6: FALLBACK: Using leaveTypeColor: ${backgroundColor} ***`);
   }
 
-  // *** ИСПРАВЛЕНО: Определяем текст для отображения ***
+  // *** ИСПРАВЛЕНО: Определяем текст для отображения с правильными названиями типов отпусков ***
   let displayText = '';
   
   if (dayData.shifts && dayData.shifts.length > 0) {
@@ -281,13 +285,35 @@ onRender: (staffRowWithKey: ITimetableStaffRowWithKey): JSX.Element => {
     if (dayData.hasHoliday) {
       displayText = 'Holiday';
     } else if (dayData.hasLeave) {
-      // *** КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Используем formattedContent который содержит полное название ***
+      // *** КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Обработка названий типов отпусков ***
       if (dayData.formattedContent && 
           dayData.formattedContent !== 'Leave' && 
           dayData.formattedContent !== '' &&
           dayData.formattedContent !== '-') {
-        displayText = dayData.formattedContent;
-        console.log(`[TimetableWeekGroupContent] *** DISPLAY TEXT FROM FORMATTED CONTENT: ${displayText} ***`);
+        
+        // Проверяем, если показывается ID вместо названия (например "Type 2")
+        if (dayData.formattedContent.startsWith('Type ')) {
+          // Пытаемся найти полное название через getLeaveTypeColor функцию
+          const leaveTypeId = dayData.formattedContent; // "Type 2", "Type 13" и т.д.
+          
+          // Ищем в сменах информацию о типе отпуска
+          const leaveShift = dayData.shifts?.find(shift => 
+            shift.typeOfLeaveId === leaveTypeId || shift.typeOfLeaveTitle
+          );
+          
+          if (leaveShift && leaveShift.typeOfLeaveTitle) {
+            displayText = leaveShift.typeOfLeaveTitle;
+            console.log(`[TimetableWeekGroupContent] *** FIXED v3.6: CONVERTED ID TO NAME: ${leaveTypeId} → ${displayText} ***`);
+          } else {
+            // Если не можем найти название, показываем ID
+            displayText = dayData.formattedContent;
+            console.log(`[TimetableWeekGroupContent] *** FIXED v3.6: KEEPING ID (no name found): ${displayText} ***`);
+          }
+        } else {
+          // Уже правильное название
+          displayText = dayData.formattedContent;
+          console.log(`[TimetableWeekGroupContent] *** FIXED v3.6: USING FORMATTED CONTENT: ${displayText} ***`);
+        }
       } else {
         // Если formattedContent не содержит название, пытаемся найти в сменах
         const leaveShift = dayData.shifts?.find(shift => shift.typeOfLeaveTitle || shift.typeOfLeaveId);
@@ -296,7 +322,7 @@ onRender: (staffRowWithKey: ITimetableStaffRowWithKey): JSX.Element => {
         } else {
           displayText = 'Leave'; // Последний резерв
         }
-        console.log(`[TimetableWeekGroupContent] *** FALLBACK DISPLAY TEXT: ${displayText} ***`);
+        console.log(`[TimetableWeekGroupContent] *** FIXED v3.6: FALLBACK DISPLAY TEXT: ${displayText} ***`);
       }
     } else {
       displayText = '-';

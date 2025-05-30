@@ -2,7 +2,8 @@
 import { 
   IShiftCalculationParams, 
   IShiftCalculationResult, 
-  IShiftInfo 
+  IShiftInfo,
+  ColorPriority
 } from '../interfaces/TimetableInterfaces';
 import { IStaffRecord } from '../../../../services/StaffRecordsService';
 
@@ -14,7 +15,7 @@ import { TimetableShiftCalculatorLeaveTypes } from './TimetableShiftCalculatorLe
 /**
  * Главный калькулятор смен и рабочего времени
  * Реплицирует логику из Power Apps формул FormatDayShifts, CalculateDayMinutes и др.
- * ОБНОВЛЕНО: Поддержка цветов отпусков
+ * ОБНОВЛЕНО: Версия 3.6 - Поддержка цветов отпусков с правильной передачей функций
  * РАЗДЕЛЕНО: На три модуля для лучшей организации кода
  * 
  * Этот файл служит как главный API и делегирует функции соответствующим модулям:
@@ -240,10 +241,21 @@ export class TimetableShiftCalculator {
   }
 
   /**
-   * Получает доминирующий цвет отпуска для дня
+   * ИСПРАВЛЕННЫЙ МЕТОД v3.6: Получает доминирующий цвет отпуска для дня (устаревший - без функции)
+   * @deprecated Используйте getDominantLeaveColorWithFunction для передачи функции getLeaveTypeColor
    */
   public static getDominantLeaveColor(shifts: IShiftInfo[]): string | undefined {
     return TimetableShiftCalculatorLeaveTypes.getDominantLeaveColor(shifts);
+  }
+
+  /**
+   * НОВЫЙ МЕТОД v3.6: Получает доминирующий цвет отпуска с функцией getLeaveTypeColor
+   */
+  public static getDominantLeaveColorWithFunction(
+    shifts: IShiftInfo[], 
+    getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined
+  ): string | undefined {
+    return TimetableShiftCalculatorLeaveTypes.getDominantLeaveColor(shifts, getLeaveTypeColor);
   }
 
   /**
@@ -337,6 +349,126 @@ export class TimetableShiftCalculator {
     return TimetableShiftCalculatorLeaveTypes.createLeaveCellStyles(shifts);
   }
 
+  // *** НОВЫЕ МЕТОДЫ v3.6 ДЛЯ УЛУЧШЕННОЙ ПОДДЕРЖКИ ФУНКЦИЙ ***
+
+  /**
+   * НОВЫЙ МЕТОД v3.6: Получает доминирующий цвет с улучшенной поддержкой функции
+   * Этот метод автоматически определяет, какую версию использовать
+   */
+  public static getDominantLeaveColorSmart(
+    shifts: IShiftInfo[], 
+    getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined
+  ): string | undefined {
+    if (getLeaveTypeColor) {
+      console.log('[TimetableShiftCalculator] *** v3.6: Using getDominantLeaveColorWithFunction ***');
+      return this.getDominantLeaveColorWithFunction(shifts, getLeaveTypeColor);
+    } else {
+      console.log('[TimetableShiftCalculator] *** v3.6: Using legacy getDominantLeaveColor ***');
+      return this.getDominantLeaveColor(shifts);
+    }
+  }
+
+  /**
+   * НОВЫЙ МЕТОД v3.6: Создает стили ячейки с улучшенной поддержкой функции
+   */
+  public static createCellStylesWithFunction(
+    shifts: IShiftInfo[], 
+    getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined
+  ): {
+    backgroundColor?: string;
+    color?: string;
+    border?: string;
+    borderRadius?: string;
+    textShadow?: string;
+    priority?: string;
+    reason?: string;
+  } {
+    console.log('[TimetableShiftCalculator] *** v3.6: Creating cell styles with function support ***');
+    const result = TimetableShiftCalculatorLeaveTypes.createCellStyles(shifts, getLeaveTypeColor);
+    
+    // Конвертируем ColorPriority enum в string для совместимости
+    let priorityString: string | undefined = undefined;
+    if (result.priority !== undefined) {
+      // Простая конвертация enum в строку
+      switch (result.priority) {
+        case ColorPriority.HOLIDAY:
+          priorityString = 'HOLIDAY';
+          break;
+        case ColorPriority.LEAVE_TYPE:
+          priorityString = 'LEAVE_TYPE';
+          break;
+        case ColorPriority.DEFAULT:
+          priorityString = 'DEFAULT';
+          break;
+        default:
+          priorityString = 'UNKNOWN';
+          break;
+      }
+    }
+    
+    return {
+      backgroundColor: result.backgroundColor,
+      color: result.color,
+      border: result.border,
+      borderRadius: result.borderRadius,
+      textShadow: result.textShadow,
+      priority: priorityString,
+      reason: result.reason
+    };
+  }
+
+  /**
+   * НОВЫЙ МЕТОД v3.6: Анализирует смены с полной поддержкой функций
+   */
+  public static analyzeShiftsWithFunction(
+    shifts: IShiftInfo[],
+    getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined
+  ): {
+    hasWorkShifts: boolean;
+    hasLeaveShifts: boolean;
+    hasHolidayShifts: boolean;
+    dominantColor?: string;
+    leaveTypesCount: number;
+    holidayTypesCount: number;
+    totalWorkMinutes: number;
+    analysis: string;
+  } {
+    const hasWorkShifts = shifts.some(s => s.workMinutes > 0);
+    const hasLeaveShifts = shifts.some(s => s.typeOfLeaveId);
+    const hasHolidayShifts = shifts.some(s => s.isHoliday);
+    const dominantColor = this.getDominantLeaveColorSmart(shifts, getLeaveTypeColor);
+    const leaveTypes = this.getUniqueLeaveTypes(shifts);
+    const totalWorkMinutes = shifts.reduce((sum, s) => sum + s.workMinutes, 0);
+
+    let analysis = 'No special markers';
+    if (hasHolidayShifts && hasLeaveShifts) {
+      analysis = 'Mixed: Holiday priority overrides leave types';
+    } else if (hasHolidayShifts) {
+      analysis = 'Holiday shifts detected';
+    } else if (hasLeaveShifts) {
+      analysis = `Leave shifts: ${leaveTypes.length} unique type(s)`;
+    }
+
+    console.log('[TimetableShiftCalculator] *** v3.6: Shift analysis completed ***', {
+      hasWorkShifts,
+      hasLeaveShifts,
+      hasHolidayShifts,
+      dominantColor,
+      analysis
+    });
+
+    return {
+      hasWorkShifts,
+      hasLeaveShifts,
+      hasHolidayShifts,
+      dominantColor,
+      leaveTypesCount: leaveTypes.length,
+      holidayTypesCount: hasHolidayShifts ? 1 : 0,
+      totalWorkMinutes,
+      analysis
+    };
+  }
+
   // *** ИНФОРМАЦИЯ О МОДУЛЬНОЙ АРХИТЕКТУРЕ ***
 
   /**
@@ -349,6 +481,7 @@ export class TimetableShiftCalculator {
     leaveTypesModule: string;
     totalMethods: number;
     architecture: string;
+    version: string;
   } {
     return {
       mainModule: 'TimetableShiftCalculator (Main API)',
@@ -358,7 +491,8 @@ export class TimetableShiftCalculator {
       totalMethods: Object.getOwnPropertyNames(TimetableShiftCalculator)
         .filter(name => typeof TimetableShiftCalculator[name as keyof typeof TimetableShiftCalculator] === 'function')
         .length,
-      architecture: 'Modular delegation pattern'
+      architecture: 'Modular delegation pattern v3.6',
+      version: '3.6'
     };
   }
 
@@ -373,6 +507,7 @@ export class TimetableShiftCalculator {
       methods: number;
     }>;
     issues: string[];
+    version: string;
   } {
     const modules = [
       {
@@ -413,13 +548,151 @@ export class TimetableShiftCalculator {
     });
 
     if (isValid) {
-      issues.push('All modules are properly loaded and functional');
+      issues.push('All modules are properly loaded and functional with Holiday support v3.6');
+      issues.push('New v3.6 features: Enhanced function parameter support, smart color resolution');
     }
 
     return {
       isValid,
       modules,
-      issues
+      issues,
+      version: '3.6'
+    };
+  }
+
+  // *** МЕТОДЫ ДЛЯ ОТЛАДКИ И ДИАГНОСТИКИ v3.6 ***
+
+  /**
+   * НОВЫЙ МЕТОД v3.6: Диагностика обработки смен
+   */
+  public static diagnoseShiftProcessing(
+    records: IStaffRecord[],
+    getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined
+  ): {
+    inputRecords: number;
+    validRecords: number;
+    invalidRecords: number;
+    recordsWithLeave: number;
+    recordsWithHoliday: number;
+    recordsWithBoth: number;
+    processedShifts: number;
+    shiftsWithColors: number;
+    shiftsWithTitles: number;
+    hasColorFunction: boolean;
+    colorResolutionRate: number;
+    issues: string[];
+    recommendations: string[];
+  } {
+    const inputRecords = records.length;
+    let validRecords = 0;
+    let invalidRecords = 0;
+    let recordsWithLeave = 0;
+    let recordsWithHoliday = 0;
+    let recordsWithBoth = 0;
+
+    records.forEach(record => {
+      const isValid = record.ShiftDate1 && record.ShiftDate2;
+      if (isValid) {
+        validRecords++;
+      } else {
+        invalidRecords++;
+      }
+
+      if (record.TypeOfLeaveID) recordsWithLeave++;
+      if (record.Holiday === 1) recordsWithHoliday++;
+      if (record.TypeOfLeaveID && record.Holiday === 1) recordsWithBoth++;
+    });
+
+    const processedShifts = this.processStaffRecordsToShifts(records, getLeaveTypeColor);
+    const shiftsWithColors = processedShifts.filter(s => s.typeOfLeaveColor || s.holidayColor).length;
+    const shiftsWithTitles = processedShifts.filter(s => s.typeOfLeaveTitle).length;
+    const colorResolutionRate = recordsWithLeave > 0 ? 
+      Math.round((shiftsWithColors / recordsWithLeave) * 100) : 0;
+
+    const issues: string[] = [];
+    const recommendations: string[] = [];
+
+    if (invalidRecords > 0) {
+      issues.push(`${invalidRecords} records have invalid shift dates`);
+    }
+    if (recordsWithLeave > 0 && !getLeaveTypeColor) {
+      issues.push('Leave records found but no color function provided');
+      recommendations.push('Provide getLeaveTypeColor function for proper color resolution');
+    }
+    if (colorResolutionRate < 50) {
+      issues.push(`Low color resolution rate: ${colorResolutionRate}%`);
+      recommendations.push('Check TypeOfLeave configuration and color mappings');
+    }
+    if (shiftsWithTitles < recordsWithLeave) {
+      issues.push(`Some leave records missing titles: ${recordsWithLeave - shiftsWithTitles}`);
+      recommendations.push('Ensure TypeOfLeave objects have Title field populated');
+    }
+
+    return {
+      inputRecords,
+      validRecords,
+      invalidRecords,
+      recordsWithLeave,
+      recordsWithHoliday,
+      recordsWithBoth,
+      processedShifts: processedShifts.length,
+      shiftsWithColors,
+      shiftsWithTitles,
+      hasColorFunction: !!getLeaveTypeColor,
+      colorResolutionRate,
+      issues,
+      recommendations
+    };
+  }
+
+  /**
+   * НОВЫЙ МЕТОД v3.6: Получает сводку возможностей системы
+   */
+  public static getCapabilitiesSummary(): {
+    version: string;
+    coreFeatures: string[];
+    leaveTypeFeatures: string[];
+    holidayFeatures: string[];
+    newInV36: string[];
+    supportedFormats: string[];
+    compatibilityLevel: string;
+  } {
+    return {
+      version: '3.6',
+      coreFeatures: [
+        'Shift time calculations with lunch breaks',
+        'Multiple shift formats (HH:MM and Hh MMm)',
+        'Work minutes calculation',
+        'Weekly hours summation',
+        'Shift validation and error handling'
+      ],
+      leaveTypeFeatures: [
+        'Leave type color resolution',
+        'Dominant color calculation',
+        'Leave type statistics',
+        'Custom color schemes',
+        'Color contrast optimization'
+      ],
+      holidayFeatures: [
+        'Holiday priority system (red color)',
+        'Holiday override of leave types',
+        'Holiday statistics tracking',
+        'Mixed holiday/leave handling'
+      ],
+      newInV36: [
+        'Enhanced function parameter support',
+        'Smart color resolution methods',
+        'Improved diagnostics and validation',
+        'Better error handling for missing functions',
+        'Enhanced shift analysis capabilities'
+      ],
+      supportedFormats: [
+        'Power Apps time format replication',
+        'Excel export compatibility',
+        'UI display optimization',
+        'Multiple shift display modes'
+      ],
+      compatibilityLevel: 'Full backward compatibility with v2.x, v3.0-3.5'
     };
   }
 }

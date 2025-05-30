@@ -41,8 +41,6 @@ export const formatDate = (date?: Date): string => {
   return `${day}.${month}.${year}`;
 };
 
-
-
 /**
  * Форматирует дату для Excel в формате dd/mm
  */
@@ -84,7 +82,7 @@ export function formatDurationForExcel(minutes: number): string {
  */
 export function generateFileName(groupName: string, weeksData: Array<{ weekInfo: { weekStart: Date; weekEnd: Date } }>): string {
   if (weeksData.length === 0) {
-    return `Timetable_${groupName.replace(/[^a-zA-Z0-9]/g, '_')}_v3.3.xlsx`;
+    return `Timetable_${groupName.replace(/[^a-zA-Z0-9]/g, '_')}_v3.6.xlsx`;
   }
   
   const firstWeek = weeksData[0];
@@ -102,22 +100,23 @@ export function generateFileName(groupName: string, weeksData: Array<{ weekInfo:
 }
 
 /**
- * UPDATED FUNCTION: Форматирует ячейку дня с поддержкой отметок праздников/отпусков
- * FIXED v3.4: Правильное отображение названий типов отпусков вместо "Leave"
+ * UPDATED FUNCTION v3.6: Форматирует ячейку дня с поддержкой отметок праздников/отпусков
+ * FIXED: Правильное отображение названий типов отпусков вместо ID (Type 2, Type 13 и т.д.)
  */
 export function formatDayCellWithMarkers(dayData: IDayInfo | undefined, typesOfLeave: ITypeOfLeave[]): string {
   if (!dayData) {
     return '';
   }
   
-  console.log('[formatDayCellWithMarkers] Processing day cell with LEAVE TYPE NAMES support v3.4:', {
+  console.log('[formatDayCellWithMarkers] *** FIXED v3.6: Processing day cell with LEAVE TYPE NAMES support ***:', {
     hasShifts: dayData.shifts?.length > 0,
     hasData: dayData.hasData,
     hasHoliday: dayData.hasHoliday,
     hasLeave: dayData.hasLeave,
     shiftsCount: dayData.shifts?.length || 0,
     formattedContent: dayData.formattedContent,
-    leaveTypeColor: dayData.leaveTypeColor
+    leaveTypeColor: dayData.leaveTypeColor,
+    currentlyShows: dayData.formattedContent?.startsWith('Type ') ? 'ID instead of name (needs conversion)' : 'proper content'
   });
   
   const hasWorkShifts = dayData.shifts && dayData.shifts.length > 0;
@@ -136,23 +135,24 @@ export function formatDayCellWithMarkers(dayData: IDayInfo | undefined, typesOfL
       
       // *** NEW: Skip showing 00:00 - 00:00 times, only show markers ***
       if (startTime === "00:00" && endTime === "00:00" && shift.workMinutes === 0) {
-        console.log('[formatDayCellWithMarkers] Skipping 00:00-00:00 time display, showing only markers');
+        console.log('[formatDayCellWithMarkers] *** FIXED v3.6: Skipping 00:00-00:00 time display, showing only markers ***');
         
         // Show holiday first (highest priority)
         if (shift.isHoliday) {
           return 'Holiday';
         }
         
-        // *** ИСПРАВЛЕНО: Показываем название типа отпуска вместо [Leave] ***
+        // *** ИСПРАВЛЕНО: Показываем название типа отпуска вместо ID ***
         if (shift.typeOfLeaveId && typesOfLeave.length > 0) {
           const leaveType = typesOfLeave.find(lt => lt.id === shift.typeOfLeaveId);
           if (leaveType && leaveType.title) {
-            console.log(`[formatDayCellWithMarkers] *** FOUND LEAVE TYPE NAME: ${leaveType.title} ***`);
+            console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: FOUND LEAVE TYPE NAME: ${leaveType.title} (was: ${shift.typeOfLeaveId}) ***`);
             return leaveType.title; // Возвращаем название без скобок
           } else if (shift.typeOfLeaveTitle) {
-            console.log(`[formatDayCellWithMarkers] *** USING SHIFT LEAVE TITLE: ${shift.typeOfLeaveTitle} ***`);
+            console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: USING SHIFT LEAVE TITLE: ${shift.typeOfLeaveTitle} ***`);
             return shift.typeOfLeaveTitle; // Возвращаем название без скобок
           } else {
+            console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: FALLBACK: No name found, keeping ID: ${shift.typeOfLeaveId} ***`);
             return shift.typeOfLeaveId; // Fallback к ID
           }
         }
@@ -167,7 +167,7 @@ export function formatDayCellWithMarkers(dayData: IDayInfo | undefined, typesOfL
       let leaveIndicator = '';
       if (shift.isHoliday) {
         leaveIndicator = ' [Holiday]';
-        console.log(`[formatDayCellWithMarkers] Applied holiday indicator (priority over leave type)`);
+        console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: Applied holiday indicator (priority over leave type) ***`);
       } else if (shift.typeOfLeaveId && typesOfLeave.length > 0) {
         // *** ИСПРАВЛЕНО: Улучшенное определение названия типа отпуска ***
         const leaveType = typesOfLeave.find(lt => lt.id === shift.typeOfLeaveId);
@@ -175,14 +175,17 @@ export function formatDayCellWithMarkers(dayData: IDayInfo | undefined, typesOfL
         
         if (leaveType && leaveType.title) {
           leaveName = leaveType.title;
+          console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: Found full leave name: ${leaveName} (for ID: ${shift.typeOfLeaveId}) ***`);
         } else if (shift.typeOfLeaveTitle) {
           leaveName = shift.typeOfLeaveTitle;
+          console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: Using shift title: ${leaveName} ***`);
         } else {
           leaveName = shift.typeOfLeaveId;
+          console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: Fallback to ID: ${leaveName} ***`);
         }
         
         leaveIndicator = ` [${leaveName}]`;
-        console.log(`[formatDayCellWithMarkers] *** Applied leave indicator with name: ${leaveName} ***`);
+        console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: Applied leave indicator with name: ${leaveName} ***`);
       }
       
       return `${startTime} - ${endTime} (${duration})${leaveIndicator}`;
@@ -219,6 +222,7 @@ export function formatDayCellWithMarkers(dayData: IDayInfo | undefined, typesOfL
             // *** ИСПРАВЛЕНО: Улучшенное определение названия типа отпуска для множественных смен ***
             const leaveType = typesOfLeave.find(lt => lt.id === shift.typeOfLeaveId);
             if (leaveType && leaveType.title) {
+              console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: Multiple shifts - found leave name: ${leaveType.title} ***`);
               return leaveType.title; // Без скобок для marker-only смен
             } else if (shift.typeOfLeaveTitle) {
               return shift.typeOfLeaveTitle;
@@ -260,29 +264,47 @@ export function formatDayCellWithMarkers(dayData: IDayInfo | undefined, typesOfL
   
   // *** ИСПРАВЛЕНО: NON-WORK MARKERS с правильными названиями типов отпусков ***
   if (hasHolidayMarker && !hasWorkShifts) {
-    console.log(`[formatDayCellWithMarkers] Showing holiday marker without work shifts`);
+    console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: Showing holiday marker without work shifts ***`);
     return 'Holiday';
   }
   
   if (hasLeaveMarker && !hasWorkShifts && !hasHolidayMarker) {
-    console.log(`[formatDayCellWithMarkers] Showing leave marker without work shifts`);
+    console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: Showing leave marker without work shifts ***`);
     
     // *** ИСПРАВЛЕНО: Попытка найти название типа отпуска разными способами ***
     
-    // Способ 1: Используем formattedContent если оно содержит название (не "Leave")
+    // Способ 1: Используем formattedContent если оно содержит название (не "Leave" и не ID)
     if (dayData.formattedContent && 
         dayData.formattedContent !== 'Leave' && 
         dayData.formattedContent !== '' &&
         dayData.formattedContent !== '-') {
-      console.log(`[formatDayCellWithMarkers] *** Using formattedContent: ${dayData.formattedContent} ***`);
-      return dayData.formattedContent;
+      
+      // *** НОВОЕ: Проверяем если это ID типа отпуска (Type 2, Type 13 и т.д.) ***
+      if (dayData.formattedContent.startsWith('Type ')) {
+        console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: Found leave type ID in formattedContent: ${dayData.formattedContent} - converting to name ***`);
+        
+        // Пытаемся найти полное название по ID
+        const leaveTypeId = dayData.formattedContent;
+        const leaveType = typesOfLeave.find(lt => lt.id === leaveTypeId);
+        if (leaveType && leaveType.title) {
+          console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: SUCCESS: Converted ID to name: ${leaveTypeId} → ${leaveType.title} ***`);
+          return leaveType.title;
+        } else {
+          console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: WARNING: Could not find name for ID: ${leaveTypeId} ***`);
+          return dayData.formattedContent; // Возвращаем ID если название не найдено
+        }
+      } else {
+        // Уже содержит правильное название
+        console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: Using formattedContent as is: ${dayData.formattedContent} ***`);
+        return dayData.formattedContent;
+      }
     }
     
     // Способ 2: Ищем по цвету отпуска
     if (dayData.leaveTypeColor && typesOfLeave.length > 0) {
       const leaveType = typesOfLeave.find(lt => lt.color === dayData.leaveTypeColor);
       if (leaveType && leaveType.title) {
-        console.log(`[formatDayCellWithMarkers] *** Found leave type by color: ${leaveType.title} ***`);
+        console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: Found leave type by color: ${leaveType.title} ***`);
         return leaveType.title;
       }
     }
@@ -292,12 +314,12 @@ export function formatDayCellWithMarkers(dayData: IDayInfo | undefined, typesOfL
       const leaveShift = dayData.shifts.find(shift => shift.typeOfLeaveId);
       if (leaveShift) {
         if (leaveShift.typeOfLeaveTitle) {
-          console.log(`[formatDayCellWithMarkers] *** Found leave title in shifts: ${leaveShift.typeOfLeaveTitle} ***`);
+          console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: Found leave title in shifts: ${leaveShift.typeOfLeaveTitle} ***`);
           return leaveShift.typeOfLeaveTitle;
         } else if (leaveShift.typeOfLeaveId && typesOfLeave.length > 0) {
           const leaveType = typesOfLeave.find(lt => lt.id === leaveShift.typeOfLeaveId);
           if (leaveType && leaveType.title) {
-            console.log(`[formatDayCellWithMarkers] *** Found leave type by ID in shifts: ${leaveType.title} ***`);
+            console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: Found leave type by ID in shifts: ${leaveType.title} ***`);
             return leaveType.title;
           }
         }
@@ -305,7 +327,7 @@ export function formatDayCellWithMarkers(dayData: IDayInfo | undefined, typesOfL
     }
     
     // Fallback: показываем общее "Leave"
-    console.log(`[formatDayCellWithMarkers] *** Fallback to generic 'Leave' - could not determine specific type ***`);
+    console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: Fallback to generic 'Leave' - could not determine specific type ***`);
     return 'Leave';
   }
   
