@@ -277,7 +277,8 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
                   // ДЕНЬ С РАБОЧИМИ СМЕНАМИ
                   dayData.shifts.map((shift: IShiftInfo, shiftIndex: number) => {
                     // Определяем стиль текста смены
-                    let shiftTextStyle: React.CSSProperties = {
+                    // FIXED: Changed 'let' to 'const' since shiftTextStyle is never reassigned
+                    const shiftTextStyle: React.CSSProperties = {
                       color: '#323130',
                       fontWeight: dayData.shifts!.length === 1 ? 'bold' : 'normal',
                       fontSize: '11px',

@@ -29,7 +29,29 @@ export interface ITimetableLogicProps extends ITabProps {
   // Дополнительные пропсы, если понадобятся для логики
 }
 
-export const useTimetableLogic = (props: ITimetableLogicProps) => {
+// FIXED: Added explicit return type for the hook
+export const useTimetableLogic = (props: ITimetableLogicProps): {
+  state: ReturnType<typeof useTimetableTabState>['state'];
+  setState: ReturnType<typeof useTimetableTabState>['setState'];
+  typesOfLeave: ITypeOfLeave[];
+  isLoadingTypesOfLeave: boolean;
+  getLeaveTypeColor: (typeOfLeaveId: string) => string | undefined;
+  weeks: IWeekInfo[];
+  refreshTimetableData: () => Promise<void>;
+  handleMonthChange: (date: Date | undefined) => void;
+  handleExportToExcel: () => Promise<void>;
+  statistics: {
+    expandedCount: number;
+    totalWeeks: number;
+    weeksWithData: number;
+    staffCount: number;
+    recordsCount: number;
+  };
+  toggleWeekExpand: (weekNum: number) => void;
+  expandAllWeeks: () => void;
+  collapseAllWeeks: () => void;
+  staffMembers: ReturnType<typeof useDataContext>['staffMembers'];
+} => {
   const { managingGroupId, currentUserId, dayOfStartWeek, context } = props;
   const { staffMembers, departments } = useDataContext();
 
@@ -130,7 +152,7 @@ export const useTimetableLogic = (props: ITimetableLogicProps) => {
     setErrorStaffRecords
   });
 
-  const handleMonthChange = (date: Date | null | undefined): void => {
+  const handleMonthChange = (date: Date | undefined): void => {
     if (date) {
       console.log('[useTimetableLogic] Month changed to:', formatDate(date));
       setState(prevState => ({ ...prevState, selectedDate: date }));
@@ -233,7 +255,8 @@ export const useTimetableLogic = (props: ITimetableLogicProps) => {
               dayData
             );
 
-            const cellStyle: any = {
+            // FIXED: Changed 'any' to specific ExcelJS.CellStyle type
+            const cellStyle: Partial<ExcelJS.Style> = {
               alignment: { horizontal: 'center', vertical: 'middle', wrapText: true },
               border: { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } }
             };

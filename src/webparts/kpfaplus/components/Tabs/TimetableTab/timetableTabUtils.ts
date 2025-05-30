@@ -1,6 +1,6 @@
 // src/webparts/kpfaplus/components/Tabs/TimetableTab/timetableTabUtils.ts
 import { ITypeOfLeave } from '../../../services/TypeOfLeaveService';
-import { IDayInfo } from './interfaces/TimetableInterfaces';
+import { IDayInfo, IShiftInfo } from './interfaces/TimetableInterfaces';
 
 // Константы
 export const calendarMinWidth = '655px';
@@ -88,7 +88,8 @@ export function formatDayCellWithMarkers(dayData: IDayInfo | undefined, typesOfL
       
       return `${startTime} - ${endTime} (${duration})${leaveIndicator}`;
     } else {
-      const shiftLines = dayData.shifts.map((shift: any) => {
+      // FIXED: Changed 'any' to 'IShiftInfo' for proper typing
+      const shiftLines = dayData.shifts.map((shift: IShiftInfo) => {
         const startTime = formatTimeForExcel(shift.startTime);
         const endTime = formatTimeForExcel(shift.endTime);
         const duration = formatDurationForExcel(shift.workMinutes);
@@ -170,7 +171,8 @@ export function formatDurationForExcel(minutes: number): string {
 /**
  * Генерирует имя файла для Excel экспорта
  */
-export function generateFileName(groupName: string, weeksData: any[]): string {
+// FIXED: Changed 'any[]' to 'Array<{ weekInfo: { weekStart: Date; weekEnd: Date } }>' for proper typing
+export function generateFileName(groupName: string, weeksData: Array<{ weekInfo: { weekStart: Date; weekEnd: Date } }>): string {
   if (weeksData.length === 0) {
     return `Timetable_${groupName.replace(/[^a-zA-Z0-9]/g, '_')}_v3.2.xlsx`;
   }
