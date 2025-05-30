@@ -27,19 +27,19 @@ interface ITimetableStaffRowWithKey extends ITimetableStaffRow {
 /**
  * Компонент содержимого группы недели
  * ИСПРАВЛЕНО: Отключена виртуализация для решения проблемы с рендерингом после Noel Murphy
- * ОБНОВЛЕНО: Версия 3.3 - ИСПРАВЛЕНО отображение цветов и названий отпусков - ПОИСК В ИСХОДНЫХ ЗАПИСЯХ
- * НОВОЕ: Расширенная цветная область ячеек для лучшего отображения + поиск типа отпуска в staffRecords
+ * ОБНОВЛЕНО: Версия 3.3 - ИСПРАВЛЕНО отображение цветов и названий отпусков - УБРАН HARDCODE
+ * НОВОЕ: Расширенная цветная область ячеек для лучшего отображения + реальные данные о типах отпусков
  */
 export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (props) => {
   const { staffRows, weekInfo, dayOfStartWeek, getLeaveTypeColor, holidayColor } = props;
 
-  console.log('[TimetableWeekGroupContent] Rendering content for week with SEARCH IN STAFF RECORDS v3.3:', {
+  console.log('[TimetableWeekGroupContent] Rendering content for week with REAL LEAVE TYPE DATA v3.3:', {
     weekNum: weekInfo.weekNum,
     staffRowsCount: staffRows.length,
     dayOfStartWeek,
     hasLeaveTypeColorFunction: !!getLeaveTypeColor,
     holidayColor: holidayColor || TIMETABLE_COLORS.HOLIDAY,
-    features: ['Holiday Priority System', 'Leave Type Colors', 'Non-work Day Markers', 'Expanded Color Areas', 'Clean UI', 'SEARCH: Find leave info in original staffRecords']
+    features: ['Holiday Priority System', 'Leave Type Colors', 'Non-work Day Markers', 'Expanded Color Areas', 'Clean UI', 'REAL LEAVE TYPE DATA - NO HARDCODE']
   });
 
   // Создаем уникальные ключи для каждой строки
@@ -57,12 +57,12 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
   
   React.useEffect(() => {
     setForceRenderKey(prev => prev + 1);
-    console.log(`[TimetableWeekGroupContent] Force re-render triggered for week ${weekInfo.weekNum} with UNIFIED COLOR ALGORITHM v3.3`);
+    console.log(`[TimetableWeekGroupContent] Force re-render triggered for week ${weekInfo.weekNum} with REAL LEAVE TYPE DATA v3.3`);
   }, [weekInfo.weekNum, staffRows.length]);
 
   // Создаем колонки для таблицы
   const columns = React.useMemo((): IColumn[] => {
-    console.log(`[TimetableWeekGroupContent] Creating columns for week ${weekInfo.weekNum} with UNIFIED COLOR ALGORITHM v3.3`);
+    console.log(`[TimetableWeekGroupContent] Creating columns for week ${weekInfo.weekNum} with REAL LEAVE TYPE DATA v3.3`);
 
     const cols: IColumn[] = [
       // КОЛОНКА ИМЕН СОТРУДНИКОВ С ЧАСАМИ
@@ -180,7 +180,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
             );
           },
           
-          // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: ЕДИНЫЙ АЛГОРИТМ для всех ячеек с отпусками ***
+          // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: РЕАЛЬНЫЕ ДАННЫЕ О ТИПАХ ОТПУСКОВ ИЗ dayData ***
           onRender: (staffRowWithKey: ITimetableStaffRowWithKey): JSX.Element => {
             if (!staffRowWithKey || !staffRowWithKey.weekData || !staffRowWithKey.weekData.days) {
               return (
@@ -224,95 +224,81 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
               );
             }
 
-            // *** НОВЫЙ ПОДХОД: Ищем информацию о типе отпуска в контексте недели ***
-            
-            // Функция для поиска информации о типе отпуска для конкретного дня
-            const findLeaveInfoForDay = (dayNumber: number, staffId: string): {
-              leaveTypeId?: string;
-              leaveTypeTitle?: string; 
-              leaveTypeColor?: string;
-            } => {
-              // ВРЕМЕННОЕ РЕШЕНИЕ: Используем данные из консоли
-              // TypeOfLeaveLookupId: "15" из первого элемента
-              if (dayData.hasLeave && (!dayData.shifts || dayData.shifts.length === 0)) {
-                const leaveTypeId = "15"; // Из консоли: TypeOfLeaveLookupId: "15"
-                const leaveTypeColor = getLeaveTypeColor ? getLeaveTypeColor(leaveTypeId) : undefined;
-                
-                return {
-                  leaveTypeId: leaveTypeId,
-                  leaveTypeTitle: leaveTypeId, // Пока используем ID как название
-                  leaveTypeColor: leaveTypeColor
-                };
-              }
-              return {};
-            };
+            // *** ИСПРАВЛЕНО: УБРАНА ФУНКЦИЯ findLeaveInfoForDay() - ИСПОЛЬЗУЕМ РЕАЛЬНЫЕ ДАННЫЕ ИЗ dayData ***
+            console.log(`[TimetableWeekGroupContent] *** PROCESSING DAY ${dayNumber} WITH REAL DATA v3.3 ***`, {
+              hasData: dayData.hasData,
+              hasLeave: dayData.hasLeave,
+              hasHoliday: dayData.hasHoliday,
+              leaveTypeColor: dayData.leaveTypeColor,
+              shiftsCount: dayData.shifts?.length || 0,
+              solution: 'Using real leave type data from dayData instead of hardcode'
+            });
 
-            // *** ИСПРАВЛЕНО: Сначала основной алгоритм, потом дополнение для дней без смен ***
+            // *** СИСТЕМА ПРИОРИТЕТОВ ЦВЕТОВ С РЕАЛЬНЫМИ ДАННЫМИ ***
             const cellStyles = TimetableShiftCalculatorLeaveTypes.createCellStyles(
               dayData.shifts || [], 
               getLeaveTypeColor
             );
 
-            // *** ПОЛУЧАЕМ информацию о типе отпуска для отображения названия ***
-            let leaveTypeTitle: string | undefined = undefined;
-            
-            // Проверяем, есть ли отпуск в этом дне (независимо от наличия смен)
-            if (dayData.hasLeave) {
-              // Сначала ищем в сменах (если есть)
-              const leaveShift = dayData.shifts?.find(shift => shift.typeOfLeaveId);
-              if (leaveShift?.typeOfLeaveTitle) {
-                leaveTypeTitle = leaveShift.typeOfLeaveTitle;
-              } else if (leaveShift?.typeOfLeaveId) {
-                leaveTypeTitle = leaveShift.typeOfLeaveId; // Fallback к ID
-              } else {
-                // *** НОВОЕ: Если в shifts нет данных, ищем через нашу функцию ***
-                const leaveInfo = findLeaveInfoForDay(dayNumber, staffRowWithKey.staffId);
-                if (leaveInfo.leaveTypeTitle) {
-                  leaveTypeTitle = leaveInfo.leaveTypeTitle;
-                }
-              }
-            }
-
-            // Начинаем с результатов основного алгоритма
+            // Determine final background color with priority system
             let backgroundColor: string | undefined = cellStyles.backgroundColor;
             let borderRadius: string | undefined = cellStyles.borderRadius;
             let border: string | undefined = cellStyles.border;
             let textShadow: string | undefined = cellStyles.textShadow;
             let priority = cellStyles.priority;
 
-            // *** ДОПОЛНЕНИЕ: Только для дней БЕЗ смен, но с отметками отпусков/праздников ***
-            // Если основной алгоритм не дал цвета (белый), но есть отметки
-            if (backgroundColor === TIMETABLE_COLORS.DEFAULT_BACKGROUND && 
-                (!dayData.shifts || dayData.shifts.length === 0) && 
-                (dayData.hasHoliday || dayData.hasLeave)) {
-              
+            // *** ИСПРАВЛЕНО: Обработка дней без смен с реальными данными о типах отпусков ***
+            if ((!dayData.shifts || dayData.shifts.length === 0) && (dayData.hasHoliday || dayData.hasLeave)) {
               if (dayData.hasHoliday) {
                 backgroundColor = TIMETABLE_COLORS.HOLIDAY;
                 priority = ColorPriority.HOLIDAY;
                 borderRadius = '6px';
                 border = `3px solid ${TIMETABLE_COLORS.HOLIDAY}`;
                 textShadow = '0 1px 3px rgba(0,0,0,0.4)';
-              } else if (dayData.hasLeave) {
-                // *** НОВОЕ: Используем нашу функцию для поиска цвета отпуска ***
-                let leaveColor = dayData.leaveTypeColor;
                 
-                // Если цвет не определен в dayData, ищем через нашу функцию
-                if (!leaveColor) {
-                  const leaveInfo = findLeaveInfoForDay(dayNumber, staffRowWithKey.staffId);
-                  leaveColor = leaveInfo.leaveTypeColor;
-                  
-                  // Также обновляем название если его не было
-                  if (!leaveTypeTitle && leaveInfo.leaveTypeTitle) {
-                    leaveTypeTitle = leaveInfo.leaveTypeTitle;
-                  }
-                }
+                console.log(`[TimetableWeekGroupContent] *** APPLIED HOLIDAY COLOR FOR DAY ${dayNumber} ***`);
+              } else if (dayData.hasLeave && dayData.leaveTypeColor) {
+                // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: ИСПОЛЬЗУЕМ РЕАЛЬНЫЙ ЦВЕТ ИЗ dayData ***
+                backgroundColor = dayData.leaveTypeColor;
+                priority = ColorPriority.LEAVE_TYPE;
+                borderRadius = '6px';
+                border = `3px solid ${dayData.leaveTypeColor}`;
+                textShadow = 'none';
                 
-                if (leaveColor) {
-                  backgroundColor = leaveColor;
-                  priority = ColorPriority.LEAVE_TYPE;
-                  borderRadius = '6px';
-                  border = `3px solid ${leaveColor}`;
-                  textShadow = 'none';
+                console.log(`[TimetableWeekGroupContent] *** APPLIED REAL LEAVE COLOR FOR DAY ${dayNumber} ***`, {
+                  leaveTypeColor: dayData.leaveTypeColor,
+                  source: 'dayData.leaveTypeColor (extracted from records)',
+                  noMoreHardcode: true
+                });
+              }
+            }
+
+            // *** ИСПРАВЛЕНО: ПОЛУЧАЕМ РЕАЛЬНОЕ НАЗВАНИЕ ТИПА ОТПУСКА ***
+            let leaveTypeTitle: string | undefined = undefined;
+            
+            if (dayData.hasLeave) {
+              // Сначала ищем в сменах (если есть)
+              const leaveShift = dayData.shifts?.find(shift => shift.typeOfLeaveId);
+              if (leaveShift?.typeOfLeaveTitle) {
+                leaveTypeTitle = leaveShift.typeOfLeaveTitle;
+                console.log(`[TimetableWeekGroupContent] *** FOUND LEAVE TITLE IN SHIFTS: ${leaveTypeTitle} ***`);
+              } else if (leaveShift?.typeOfLeaveId) {
+                leaveTypeTitle = leaveShift.typeOfLeaveId; // Fallback к ID
+                console.log(`[TimetableWeekGroupContent] *** USING LEAVE ID AS TITLE: ${leaveTypeTitle} ***`);
+              } else {
+                // *** ИСПРАВЛЕНО: Для дней без смен пытаемся найти информацию из других источников ***
+                // В dayData должна быть сохранена информация о типе отпуска благодаря нашим исправлениям
+                // Если данные все еще отсутствуют, это означает что нужно дополнительно исследовать
+                console.log(`[TimetableWeekGroupContent] *** WARNING: Leave type info not found in shifts for day ${dayNumber} ***`, {
+                  hasLeave: dayData.hasLeave,
+                  leaveTypeColor: dayData.leaveTypeColor,
+                  shiftsCount: dayData.shifts?.length || 0,
+                  note: 'This should be fixed by TimetableDataProcessorCore extractLeaveInfoFromNonWorkRecords'
+                });
+                
+                // Временное решение для отладки - показываем что у нас есть цвет
+                if (dayData.leaveTypeColor) {
+                  leaveTypeTitle = 'Leave'; // Общее название пока не найдем конкретное
                 }
               }
             }
@@ -342,7 +328,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
                 }}
                 title={`${staffRowWithKey.staffName} - ${dayName} ${formattedDate}`}
               >
-                {/* Content rendering - ЕДИНЫЙ ПОДХОД */}
+                {/* Content rendering - ЕДИНЫЙ ПОДХОД С РЕАЛЬНЫМИ ДАННЫМИ */}
                 {dayData.shifts && dayData.shifts.length > 0 ? (
                   // DAY WITH WORK SHIFTS
                   dayData.shifts.map((shift: IShiftInfo, shiftIndex: number) => {
@@ -376,7 +362,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
                     );
                   })
                 ) : (
-                  // *** ИСПРАВЛЕНО: DAY WITHOUT SHIFTS - используем цвет и название отпуска ***
+                  // *** ИСПРАВЛЕНО: DAY WITHOUT SHIFTS - используем реальные данные о типе отпуска ***
                   <div style={{
                     color: backgroundColor && backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND ? 
                       '#ffffff' : '#323130',
@@ -424,7 +410,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
       console.error(`[TimetableWeekGroupContent] Error creating columns:`, error);
     }
 
-    console.log(`[TimetableWeekGroupContent] Created ${cols.length} columns for week ${weekInfo.weekNum} with UNIFIED COLOR ALGORITHM v3.3`);
+    console.log(`[TimetableWeekGroupContent] Created ${cols.length} columns for week ${weekInfo.weekNum} with REAL LEAVE TYPE DATA v3.3`);
     return cols;
   }, [weekInfo, dayOfStartWeek, forceRenderKey, getLeaveTypeColor, holidayColor]);
 
@@ -443,7 +429,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
     );
   }
 
-  console.log(`[TimetableWeekGroupContent] About to render DetailsList for week ${weekInfo.weekNum} with ${staffRowsWithKeys.length} items, UNIFIED COLOR ALGORITHM v3.3`);
+  console.log(`[TimetableWeekGroupContent] About to render DetailsList for week ${weekInfo.weekNum} with ${staffRowsWithKeys.length} items, REAL LEAVE TYPE DATA v3.3`);
 
   return (
     <div style={{ padding: '0' }}>
@@ -492,6 +478,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
     </div>
   );
 };
+
 
 /**
  * Компонент заголовка группы недели
@@ -663,8 +650,8 @@ export const TimetableExpandControls: React.FC<{
 /**
  * Компонент группы недели с заголовком и содержимым
  * ИСПРАВЛЕН ТИП: weekGroup теперь IWeekGroup вместо any
- * ОБНОВЛЕНО: Версия 3.3 - ИСПРАВЛЕНО отображение цветов и названий отпусков - ЕДИНЫЙ АЛГОРИТМ
- * НОВОЕ: Расширена цветная область ячеек + единая логика цветов для всех ячеек с отпусками
+ * ОБНОВЛЕНО: Версия 3.3 - ИСПРАВЛЕНО отображение цветов и названий отпусков - УБРАН HARDCODE
+ * НОВОЕ: Расширена цветная область ячеек + реальные данные о типах отпусков
  */
 export const TimetableWeekGroup: React.FC<{
   weekGroup: IWeekGroup;
@@ -675,17 +662,17 @@ export const TimetableWeekGroup: React.FC<{
 }> = (props) => {
   const { weekGroup, dayOfStartWeek, onToggleExpand, getLeaveTypeColor, holidayColor } = props;
 
-  console.log('[TimetableWeekGroup] Rendering week group with UNIFIED COLOR ALGORITHM v3.3:', {
+  console.log('[TimetableWeekGroup] Rendering week group with REAL LEAVE TYPE DATA v3.3:', {
     weekNum: weekGroup.weekInfo.weekNum,
     isExpanded: weekGroup.isExpanded,
     hasData: weekGroup.hasData,
     staffCount: weekGroup.staffRows.length,
     holidayColor: holidayColor || TIMETABLE_COLORS.HOLIDAY,
-    features: ['Holiday Priority', 'Leave Type Colors', 'Non-work Day Markers', 'Expanded Color Areas', 'Clean UI', 'UNIFIED: Same algorithm for all leave cells']
+    features: ['Holiday Priority', 'Leave Type Colors', 'Non-work Day Markers', 'Expanded Color Areas', 'Clean UI', 'REAL LEAVE TYPE DATA - NO HARDCODE']
   });
 
   const handleToggle = (): void => {
-    console.log(`[TimetableWeekGroup] Toggling week ${weekGroup.weekInfo.weekNum} - this will trigger DetailsList re-render with UNIFIED COLOR ALGORITHM v3.3`);
+    console.log(`[TimetableWeekGroup] Toggling week ${weekGroup.weekInfo.weekNum} - this will trigger DetailsList re-render with REAL LEAVE TYPE DATA v3.3`);
     onToggleExpand(weekGroup.weekInfo.weekNum);
   };
 
@@ -704,6 +691,7 @@ export const TimetableWeekGroup: React.FC<{
         onToggle={handleToggle}
       />
       
+           
       {weekGroup.isExpanded && (
         <TimetableWeekGroupContent
           staffRows={weekGroup.staffRows}

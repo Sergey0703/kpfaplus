@@ -18,7 +18,7 @@ import { TimetableDataProcessorMeta } from './TimetableDataProcessorMeta';
 
 /**
  * Основной процессор данных для таблицы расписания
- * Версия 3.2 - ИСПРАВЛЕНО: Показ праздников и отпусков даже без рабочих смен
+ * Версия 3.3 - ИСПРАВЛЕНО: Показ праздников и отпусков даже без рабочих смен + сохранение информации о типах отпусков
  * НОВОЕ: Добавлена специальная поддержка Excel экспорта
  *
  * Этот класс является главным API для обработки данных расписания.
@@ -36,7 +36,7 @@ export class TimetableDataProcessor {
   public static processData(params: ITimetableDataParams): ITimetableRow[] {
     const { staffRecords, staffMembers, weeks, currentUserId, managingGroupId, getLeaveTypeColor, holidayColor } = params;
 
-    console.log('[TimetableDataProcessor] Processing data (legacy format with leave colors and Holiday support):', {
+    console.log('[TimetableDataProcessor] Processing data (legacy format with leave colors and Holiday support v3.3):', {
       staffRecordsCount: staffRecords.length,
       staffMembersCount: staffMembers.length,
       weeksCount: weeks.length,
@@ -44,7 +44,7 @@ export class TimetableDataProcessor {
       managingGroupId,
       hasLeaveTypeColorFunction: !!getLeaveTypeColor,
       holidayColor: holidayColor || TIMETABLE_COLORS.HOLIDAY,
-      version: '3.2 - Shows holidays/leaves even without work shifts'
+      version: '3.3 - Shows holidays/leaves even without work shifts + preserves leave type info'
     });
 
     const rows: ITimetableRow[] = [];
@@ -84,20 +84,20 @@ export class TimetableDataProcessor {
     // Delegate sorting to TimetableDataProcessorCore
     const sortedRows = TimetableDataProcessorCore.sortStaffRows(rows);
 
-    console.log(`[TimetableDataProcessor] Processed ${sortedRows.length} staff rows using modular architecture with Holiday support`);
+    console.log(`[TimetableDataProcessor] Processed ${sortedRows.length} staff rows using modular architecture with Holiday support v3.3`);
     return sortedRows;
   }
 
   /**
    * ГЛАВНЫЙ МЕТОД: Обработка данных с группировкой по неделям
    * Преобразует входные данные в структуру IWeekGroup[]
-   * Версия 3.2: ИСПРАВЛЕНО - показ праздников/отпусков даже без рабочих смен
+   * Версия 3.3: ИСПРАВЛЕНО - показ праздников/отпусков даже без рабочих смен + сохранение информации о типах отпусков
    */
   public static processDataByWeeks(params: ITimetableDataParams): IWeekGroup[] {
     const { staffRecords, staffMembers, weeks, currentUserId, managingGroupId, getLeaveTypeColor, holidayColor } = params;
 
-    console.log('[TimetableDataProcessor] *** PROCESSING DATA BY WEEKS v3.2 (HOLIDAYS/LEAVES WITHOUT SHIFTS) ***');
-    console.log('[TimetableDataProcessor] Using modular architecture with utilities, analytics and Holiday support:', {
+    console.log('[TimetableDataProcessor] *** PROCESSING DATA BY WEEKS v3.3 (HOLIDAYS/LEAVES WITHOUT SHIFTS + LEAVE TYPE INFO PRESERVATION) ***');
+    console.log('[TimetableDataProcessor] Using modular architecture with utilities, analytics and Holiday support v3.3:', {
       staffRecordsCount: staffRecords.length,
       staffMembersCount: staffMembers.length,
       weeksCount: weeks.length,
@@ -105,7 +105,7 @@ export class TimetableDataProcessor {
       managingGroupId,
       hasLeaveTypeColorFunction: !!getLeaveTypeColor,
       holidayColor: holidayColor || TIMETABLE_COLORS.HOLIDAY,
-      architecture: 'Modular v3.2 - Utils + Analytics + Core + Meta + Holiday Priority System + Non-work days'
+      architecture: 'Modular v3.3 - Utils + Analytics + Core + Meta + Holiday Priority System + Non-work days + Leave Type Info Preservation'
     });
 
     if (!staffRecords.length || !staffMembers.length || !weeks.length) {
@@ -128,11 +128,11 @@ export class TimetableDataProcessor {
     const dataAnalysis = TimetableDataUtils.analyzeDataDistribution(staffRecords, staffMembers, weeks, weekRecordsIndex);
     console.log('[TimetableDataProcessor] Data analysis results from utils:', dataAnalysis);
 
-    console.log('[TimetableDataProcessor] *** STAGE 3: Processing weeks with leave colors and Holiday support (including non-work days) ***');
+    console.log('[TimetableDataProcessor] *** STAGE 3: Processing weeks with leave colors and Holiday support v3.3 (including non-work days + leave type preservation) ***');
     const weekGroups: IWeekGroup[] = [];
 
     weeks.forEach((week, index) => {
-      console.log(`[TimetableDataProcessor] Processing week ${week.weekNum} (${index + 1}/${weeks.length}) with Holiday support and non-work days`);
+      console.log(`[TimetableDataProcessor] Processing week ${week.weekNum} (${index + 1}/${weeks.length}) with Holiday support v3.3 and leave type preservation`);
       const staffRows: ITimetableStaffRow[] = [];
       let weekHasData = false;
       let weekLeaveTypesCount = 0;
@@ -142,7 +142,7 @@ export class TimetableDataProcessor {
         const staffAllRecords = TimetableDataUtils.getStaffRecordsFromIndex(recordsIndex, staffMember);
         const staffWeekRecords = TimetableDataUtils.filterRecordsByWeek(staffAllRecords, week);
 
-        // Delegate to TimetableDataProcessorCore
+        // Delegate to TimetableDataProcessorCore with FIXED leave type preservation
         const weeklyData = TimetableDataProcessorCore.processWeekDataWithLeaveColorsAndHolidaysIncludingNonWorkDays(
           staffWeekRecords,
           week,
@@ -177,30 +177,31 @@ export class TimetableDataProcessor {
       };
       weekGroups.push(weekGroup);
 
-      console.log(`[TimetableDataProcessor] Week ${week.weekNum} completed:`, {
+      console.log(`[TimetableDataProcessor] Week ${week.weekNum} completed v3.3:`, {
         staffCount: sortedStaffRows.length,
         hasData: weekHasData,
         leaveTypesFound: weekLeaveTypesCount > 0 ? weekLeaveTypesCount : 'none',
-        holidaysFound: weekHolidaysCount > 0 ? weekHolidaysCount : 'none'
+        holidaysFound: weekHolidaysCount > 0 ? weekHolidaysCount : 'none',
+        improvement: 'Leave type information now preserved in dayData'
       });
     });
 
     console.log('[TimetableDataProcessor] *** STAGE 4: Final statistics using TimetableDataAnalytics ***');
     const finalStats = TimetableDataAnalytics.generateFinalStatistics(weekGroups, staffRecords, leaveTypesIndex);
-    console.log('[TimetableDataProcessor] *** PROCESSING COMPLETED v3.2 (HOLIDAYS/LEAVES WITHOUT SHIFTS) ***', finalStats);
+    console.log('[TimetableDataProcessor] *** PROCESSING COMPLETED v3.3 (HOLIDAYS/LEAVES WITHOUT SHIFTS + LEAVE TYPE INFO PRESERVATION) ***', finalStats);
 
     return weekGroups;
   }
 
   /**
    * НОВЫЙ МЕТОД: Специальная обработка данных для экспорта в Excel
-   * Версия 3.2: Включает отметки праздников/отпусков даже без рабочих смен
+   * Версия 3.3: Включает отметки праздников/отпусков даже без рабочих смен + сохранение информации о типах отпусков
    */
   public static processDataForExcelExport(params: ITimetableDataParams): IWeekGroup[] {
     const { staffRecords, staffMembers, weeks, currentUserId, managingGroupId, getLeaveTypeColor, holidayColor } = params;
 
-    console.log('[TimetableDataProcessor] *** PROCESSING DATA FOR EXCEL EXPORT v3.2 ***');
-    console.log('[TimetableDataProcessor] Excel export processing with full Holiday/Leave markers support:', {
+    console.log('[TimetableDataProcessor] *** PROCESSING DATA FOR EXCEL EXPORT v3.3 ***');
+    console.log('[TimetableDataProcessor] Excel export processing with full Holiday/Leave markers support + leave type preservation v3.3:', {
       staffRecordsCount: staffRecords.length,
       staffMembersCount: staffMembers.length,
       weeksCount: weeks.length,
@@ -208,7 +209,7 @@ export class TimetableDataProcessor {
       managingGroupId,
       hasLeaveTypeColorFunction: !!getLeaveTypeColor,
       holidayColor: holidayColor || TIMETABLE_COLORS.HOLIDAY,
-      version: '3.2 - Full support for non-work Holiday/Leave markers in Excel export'
+      version: '3.3 - Full support for non-work Holiday/Leave markers in Excel export + leave type info preservation'
     });
 
     if (!staffRecords.length || !staffMembers.length || !weeks.length) {
@@ -225,11 +226,11 @@ export class TimetableDataProcessor {
       utilsUsed: 'TimetableDataUtils for all indexing operations'
     });
 
-    console.log('[TimetableDataProcessor] *** PROCESSING WEEKS FOR EXCEL WITH FULL MARKERS SUPPORT ***');
+    console.log('[TimetableDataProcessor] *** PROCESSING WEEKS FOR EXCEL WITH FULL MARKERS SUPPORT + LEAVE TYPE PRESERVATION ***');
     const weekGroups: IWeekGroup[] = [];
 
     weeks.forEach((week, index) => {
-      console.log(`[TimetableDataProcessor] Processing week ${week.weekNum} for Excel export with full markers support`);
+      console.log(`[TimetableDataProcessor] Processing week ${week.weekNum} for Excel export with full markers support + leave type preservation v3.3`);
       const staffRows: ITimetableStaffRow[] = [];
       let weekHasData = false;
 
@@ -237,7 +238,7 @@ export class TimetableDataProcessor {
         const staffAllRecords = TimetableDataUtils.getStaffRecordsFromIndex(recordsIndex, staffMember);
         const staffWeekRecords = TimetableDataUtils.filterRecordsByWeek(staffAllRecords, week);
 
-        // Delegate to TimetableDataProcessorCore
+        // Delegate to TimetableDataProcessorCore with FIXED leave type preservation
         const weeklyData = TimetableDataProcessorCore.processWeekDataForExcelWithFullMarkers(
           staffWeekRecords,
           week,
@@ -267,16 +268,16 @@ export class TimetableDataProcessor {
       };
       weekGroups.push(weekGroup);
 
-      console.log(`[TimetableDataProcessor] Week ${week.weekNum} processed for Excel export:`, {
+      console.log(`[TimetableDataProcessor] Week ${week.weekNum} processed for Excel export v3.3:`, {
         staffCount: sortedStaffRows.length,
-        hasData: weekHasData
+        hasData: weekHasData,
+        improvement: 'Excel export now preserves leave type information'
       });
     });
 
-    console.log('[TimetableDataProcessor] *** EXCEL EXPORT PROCESSING COMPLETED ***');
+    console.log('[TimetableDataProcessor] *** EXCEL EXPORT PROCESSING COMPLETED v3.3 ***');
     return weekGroups;
   }
-
   // *** ДЕЛЕГИРОВАНИЕ К УТИЛИТАМ И АНАЛИТИКЕ (REMAINS AS PUBLIC API OF PROCESSOR) ***
 
   public static getAdvancedDataSummary(weekGroups: IWeekGroup[]): ReturnType<typeof TimetableDataAnalytics.getAdvancedDataSummary> {
