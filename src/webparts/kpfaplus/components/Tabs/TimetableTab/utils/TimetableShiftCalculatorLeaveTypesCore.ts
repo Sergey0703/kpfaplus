@@ -337,6 +337,7 @@ export class TimetableShiftCalculatorLeaveTypesCore {
   /**
    * Затемняет HEX цвет на указанный процент
    */
+  // FIXED: Added explicit return type
   private static darkenHexColor(hex: string, percent: number): string {
     const rgb = this.hexToRgb(hex);
     if (!rgb) return hex;

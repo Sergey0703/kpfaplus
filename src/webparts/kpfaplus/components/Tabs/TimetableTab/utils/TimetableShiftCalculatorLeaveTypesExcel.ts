@@ -30,8 +30,16 @@ export class TimetableShiftCalculatorLeaveTypesExcel {
     textShadow?: string;
     priority: ColorPriority;
     reason: string;
-    excelFillPattern?: any;
-    excelFont?: any;
+    // FIXED: Changed 'any' to specific ExcelJS types
+    excelFillPattern?: {
+      type: string;
+      pattern: string;
+      fgColor: { argb: string };
+    };
+    excelFont?: {
+      color: { argb: string };
+      bold?: boolean;
+    };
   } {
     console.log('[TimetableShiftCalculatorLeaveTypesExcel] Creating Excel cell styles with full markers support v3.2');
 
@@ -199,8 +207,13 @@ export class TimetableShiftCalculatorLeaveTypesExcel {
    * ОБНОВЛЕННЫЙ МЕТОД: Получает статистику по Excel экспорту
    */
   public static getExcelExportStatistics(
+    // FIXED: Changed 'any' to proper interface type
     weeksData: Array<{
-      weekInfo: any;
+      weekInfo: {
+        weekNum: number;
+        weekStart: Date;
+        weekEnd: Date;
+      };
       staffRows: Array<{
         staffName: string;
         weekData: {
@@ -302,8 +315,13 @@ export class TimetableShiftCalculatorLeaveTypesExcel {
    * НОВЫЙ МЕТОД: Создает сводку по цветам для Excel экспорта
    */
   public static createExcelColorLegend(
+    // FIXED: Changed 'any' to proper interface type
     weeksData: Array<{
-      weekInfo: any;
+      weekInfo: {
+        weekNum: number;
+        weekStart: Date;
+        weekEnd: Date;
+      };
       staffRows: Array<{
         staffName: string;
         weekData: {
@@ -415,6 +433,7 @@ export class TimetableShiftCalculatorLeaveTypesExcel {
   /**
    * Затемняет HEX цвет на указанный процент
    */
+  // FIXED: Added explicit return type
   private static darkenHexColor(hex: string, percent: number): string {
     const rgb = this.hexToRgb(hex);
     if (!rgb) return hex;

@@ -262,7 +262,12 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
             };
             
             if (cellStyles.excelFillPattern) {
-              cellStyle.fill = cellStyles.excelFillPattern;
+              // FIXED: Use proper ExcelJS fill pattern structure
+              cellStyle.fill = {
+                type: 'pattern' as const,
+                pattern: 'solid' as const,
+                fgColor: cellStyles.excelFillPattern.fgColor
+              };
               if (cellStyles.excelFont) cellStyle.font = cellStyles.excelFont;
             }
             dayCell.style = cellStyle;
