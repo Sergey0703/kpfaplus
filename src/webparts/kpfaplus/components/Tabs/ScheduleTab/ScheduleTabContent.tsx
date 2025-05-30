@@ -141,9 +141,21 @@ console.log('[ScheduleTabContent] *** COMPONENT RENDER ***');
  console.log('[ScheduleTabContent] staffRecords length:', staffRecords?.length || 0);
  console.log('[ScheduleTabContent] totalItemCount:', totalItemCount);
  console.log('[ScheduleTabContent] showDeleted:', showDeleted);
+ console.log('[ScheduleTabContent] SERVER-SIDE FILTERING: ENABLED');
  if (staffRecords && staffRecords.length > 0) {
    console.log('[ScheduleTabContent] First record ID:', staffRecords[0].ID);
    console.log('[ScheduleTabContent] Last record ID:', staffRecords[staffRecords.length - 1].ID);
+   
+   // Проверяем что сервер правильно отфильтровал записи
+   const deletedRecords = staffRecords.filter(r => r.Deleted === 1);
+   console.log('[ScheduleTabContent] Deleted records in staffRecords:', deletedRecords.length);
+   if (!showDeleted && deletedRecords.length > 0) {
+     console.error('[ScheduleTabContent] ERROR: Found deleted records when showDeleted=false!');
+   } else if (showDeleted) {
+     console.log('[ScheduleTabContent] OK: Showing all records including deleted ones');
+   } else {
+     console.log('[ScheduleTabContent] OK: Showing only active records');
+   }
  }
  console.log('[ScheduleTabContent] isLoadingStaffRecords:', isLoadingStaffRecords);
  const selectedContract = contracts.find(c => c.id === selectedContractId);
@@ -279,44 +291,21 @@ console.log('[ScheduleTabContent] *** COMPONENT RENDER ***');
    });
  }, [staffRecords, modifiedRecords, selectedContract, currentPage, totalItemCount]); // ИСПРАВЛЕНО: убрали leaves из зависимостей
 
- // Убираем useMemo и делаем прямое вычисление
+// *** НОВАЯ ФУНКЦИЯ БЕЗ КЛИЕНТСКОЙ ФИЛЬТРАЦИИ ***
 const getScheduleItemsWithModifications = (): IScheduleItem[] => {
   const allItems = getAllScheduleItems();
   
-  console.log('[ScheduleTabContent] *** CLIENT-SIDE FILTERING BY DELETED ***');
-  console.log('[ScheduleTabContent] Total items before filtering:', allItems.length);
+  console.log('[ScheduleTabContent] *** NO CLIENT-SIDE FILTERING - SERVER HANDLES IT ***');
+  console.log('[ScheduleTabContent] Total items from server:', allItems.length);
   console.log('[ScheduleTabContent] showDeleted setting:', showDeleted);
+  console.log('[ScheduleTabContent] Server already filtered based on showDeleted - returning all items as-is');
   
-  // *** ДОБАВИТЬ ЭТО ЛОГИРОВАНИЕ ДЛЯ ДИАГНОСТИКИ ***
-  const deletedItems = allItems.filter(item => item.deleted === true);
-  const nonDeletedItems = allItems.filter(item => !item.deleted);
-  
-  console.log('[ScheduleTabContent] *** DETAILED BREAKDOWN ***');
-  console.log('[ScheduleTabContent] Total items:', allItems.length);
-  console.log('[ScheduleTabContent] Deleted items (item.deleted === true):', deletedItems.length);
-  console.log('[ScheduleTabContent] Non-deleted items:', nonDeletedItems.length);
-  
-  // Показать примеры удаленных записей, если есть
-  if (deletedItems.length > 0) {
-    console.log('[ScheduleTabContent] Sample deleted items:');
-    deletedItems.slice(0, 3).forEach(item => {
-      console.log(`- DELETED Item ${item.id}: deleted=${item.deleted}, date=${item.date.toLocaleDateString()}`);
-    });
-  } else {
-    console.log('[ScheduleTabContent] *** NO DELETED ITEMS FOUND IN DATA! ***');
-  }
-  
-  if (!showDeleted) {
-    const filteredItems = allItems.filter(item => !item.deleted);
-    console.log('[ScheduleTabContent] Filtered out deleted items:', allItems.length, '->', filteredItems.length);
-    return filteredItems;
-  } else {
-    console.log('[ScheduleTabContent] Showing all items including deleted:', allItems.length);
-    return allItems;
-  }
+  // *** ВАЖНО: НЕ ФИЛЬТРУЕМ ПО DELETED - СЕРВЕР УЖЕ ЭТО СДЕЛАЛ ***
+  // Просто возвращаем все элементы с примененными локальными изменениями
+  return allItems;
 };
 
-// И используем просто:
+// Используем новую функцию без клиентской фильтрации
 const itemsForTable = getScheduleItemsWithModifications();
 
  const actionHandlerParams: IActionHandlerParams = useMemo(() => ({
@@ -653,10 +642,7 @@ const itemsForTable = getScheduleItemsWithModifications();
    ]
  }), [typesOfLeave]);
 
- // *** ИСПРАВЛЕНО: ИСПОЛЬЗУЕМ ФУНКЦИЮ С КЛИЕНТСКОЙ ФИЛЬТРАЦИЕЙ ***
- //const itemsForTable = getScheduleItemsWithModifications();
-
- console.log('[ScheduleTabContent] Rendering component with:', {
+ console.log('[ScheduleTabContent] Rendering component with SERVER-SIDE FILTERING:', {
    selectedStaffName: selectedStaff?.name,
    selectedDate: selectedDate.toISOString(),
    holidaysCount: holidays.length,
@@ -664,6 +650,7 @@ const itemsForTable = getScheduleItemsWithModifications();
    staffRecordsCount: staffRecords?.length || 0,
    itemsForTableCount: itemsForTable.length,
    showDeleted: showDeleted,
+   serverFiltering: 'ENABLED - no client-side filtering by deleted status',
    hasHolidaysService: !!holidaysServiceInstance,
    hasDaysOfLeavesService: !!daysOfLeavesServiceInstance
  });
@@ -738,8 +725,9 @@ const itemsForTable = getScheduleItemsWithModifications();
             <div style={{ padding: '10px' }}>
               {/* ИСПРАВЛЕНО: Таблица расписания использует ТОЛЬКО данные из StaffRecords */}
               {/* TypeOfLeave берется из StaffRecords.TypeOfLeaveID, а НЕ из DaysOfLeaves */}
+              {/* ВАЖНО: БЕЗ КЛИЕНТСКОЙ ФИЛЬТРАЦИИ - сервер уже отфильтровал данные */}
               <ScheduleTable
-                key={`${currentPage}-${itemsPerPage}`} 
+                key={`${currentPage}-${itemsPerPage}-${showDeleted}`} 
                 items={itemsForTable}
                 options={scheduleOptions}
                 selectedDate={selectedDate}

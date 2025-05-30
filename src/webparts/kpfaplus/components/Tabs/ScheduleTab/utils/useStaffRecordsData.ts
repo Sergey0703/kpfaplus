@@ -55,105 +55,153 @@ const setIsLoadingStaffRecords = useCallback((isLoading: boolean) => setState(pr
 const setErrorStaffRecords = useCallback((error?: string) => setState(prevState => ({ ...prevState, errorStaffRecords: error })), [setState]);
 const setTotalItemCount = useCallback((total: number) => setState(prevState => ({ ...prevState, totalItemCount: total })), [setState]);
 
+// *** УПРОЩЕННЫЙ МЕТОД loadStaffRecords ***
 const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: string): Promise<void> => {
-const dateToUse = overrideDate || selectedDate;
-const contractIdToUse = contractId !== undefined ? contractId : selectedContractId;
+  const dateToUse = overrideDate || selectedDate;
+  const contractIdToUse = contractId !== undefined ? contractId : selectedContractId;
 
-console.log('[useStaffRecordsData] *** loadStaffRecords CALLED ***');
-console.log('[useStaffRecordsData] *** PAGINATION PARAMS ***');
-console.log('[useStaffRecordsData] currentPage:', currentPage);
-console.log('[useStaffRecordsData] itemsPerPage:', itemsPerPage);
-console.log('[useStaffRecordsData] calculated skip:', (currentPage - 1) * itemsPerPage);
-console.log('[useStaffRecordsData] calculated top:', itemsPerPage);
-console.log('[useStaffRecordsData] Parameters:', {
-  date: dateToUse.toISOString(),
-  employeeId: selectedStaff?.employeeId,
-  selectedContractId: contractIdToUse,
-  currentPage,
-  itemsPerPage,
-  showDeleted,
-});
+  console.log('[useStaffRecordsData] *** loadStaffRecords CALLED - SIMPLIFIED LOGIC ***');
+  console.log('[useStaffRecordsData] *** PAGINATION PARAMS ***');
+  console.log('[useStaffRecordsData] currentPage:', currentPage);
+  console.log('[useStaffRecordsData] itemsPerPage:', itemsPerPage);
+  console.log('[useStaffRecordsData] showDeleted:', showDeleted);
+  console.log('[useStaffRecordsData] Logic: showDeleted=true -> server pagination, showDeleted=false -> load all + client pagination');
 
-if (!context || !staffRecordsService) {
-  console.log('[useStaffRecordsData] Cannot load records: missing context or service');
-  setStaffRecords([]);
-  setIsLoadingStaffRecords(false);
-  setErrorStaffRecords('Service not available.');
-  setTotalItemCount(0);
-  return;
-}
-
-if (!selectedStaff || !selectedStaff.employeeId) {
-  console.log('[useStaffRecordsData] Cannot load records: missing selected staff or employeeId');
-  setStaffRecords([]);
-  setIsLoadingStaffRecords(false);
-  setErrorStaffRecords('Selected staff member not found.');
-  setTotalItemCount(0);
-  return;
-}
-
-try {
-  setIsLoadingStaffRecords(true);
-  setErrorStaffRecords(undefined);
-
-  const date = new Date(dateToUse.getTime());
-  const firstDayOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
-  const lastDayOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-
-  const employeeId = selectedStaff.employeeId;
-  const timeTableId = contractIdToUse;
-
-  const currentUserID = currentUserId || '0';
-  const staffGroupID = managingGroupId || '0';
-
-  const skip = (currentPage - 1) * itemsPerPage;
-  const top = itemsPerPage;
-
-  const queryParams: IStaffRecordsQueryParams = {
-    startDate: firstDayOfMonth,
-    endDate: lastDayOfMonth,
-    currentUserID: currentUserID,
-    staffGroupID: staffGroupID,
-    employeeID: employeeId,
-    timeTableID: timeTableId,
-    skip: skip,
-    top: top,
-  };
-
-  console.log('[useStaffRecordsData] *** CALLING staffRecordsService.getStaffRecordsWithOptions ***');
-  console.log('[useStaffRecordsData] Query params:', queryParams);
-
-  const result: IStaffRecordsResult = await staffRecordsService.getStaffRecordsWithOptions(queryParams);
-
-  console.log(`[useStaffRecordsData] *** RECEIVED RESULT ***`);
-  console.log(`[useStaffRecordsData] Records: ${result.records.length}, totalCount: ${result.totalCount}`);
-  
-  // Логируем ID первых и последних записей ДО обновления состояния
-  if (result.records.length > 0) {
-    console.log(`[useStaffRecordsData] NEW DATA - First record ID: ${result.records[0].ID}`);
-    console.log(`[useStaffRecordsData] NEW DATA - Last record ID: ${result.records[result.records.length - 1].ID}`);
-    console.log(`[useStaffRecordsData] NEW DATA - First 3 dates:`, 
-      result.records.slice(0, 3).map(r => r.Date.toLocaleDateString())
-    );
+  if (!context || !staffRecordsService) {
+    console.log('[useStaffRecordsData] Cannot load records: missing context or service');
+    setStaffRecords([]);
+    setIsLoadingStaffRecords(false);
+    setErrorStaffRecords('Service not available.');
+    setTotalItemCount(0);
+    return;
   }
 
-  // Простое обновление состояния без принудительного очищения
-  setStaffRecords(result.records);
-  setTotalItemCount(result.totalCount);
-
-  if (result.error) {
-     setErrorStaffRecords(`Failed to load schedule records: ${result.error}`);
+  if (!selectedStaff || !selectedStaff.employeeId) {
+    console.log('[useStaffRecordsData] Cannot load records: missing selected staff or employeeId');
+    setStaffRecords([]);
+    setIsLoadingStaffRecords(false);
+    setErrorStaffRecords('Selected staff member not found.');
+    setTotalItemCount(0);
+    return;
   }
 
-} catch (error) {
-  const errorMessage = error instanceof Error ? error.message : String(error);
-  console.error('[useStaffRecordsData] *** ERROR loading schedule records ***:', error);
-  setErrorStaffRecords(`Failed to load schedule records: ${errorMessage}`);
-  setStaffRecords([]);
-  setTotalItemCount(0);
-} finally {
-  setIsLoadingStaffRecords(false);
-}
+  try {
+    setIsLoadingStaffRecords(true);
+    setErrorStaffRecords(undefined);
+
+    const date = new Date(dateToUse.getTime());
+    const firstDayOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+    const lastDayOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+
+    const employeeId = selectedStaff.employeeId;
+    const timeTableId = contractIdToUse;
+    const currentUserID = currentUserId || '0';
+    const staffGroupID = managingGroupId || '0';
+
+    if (showDeleted) {
+      // *** ВАРИАНТ 1: ПОКАЗЫВАЕМ ВСЕ ЗАПИСИ - СЕРВЕРНАЯ ПАГИНАЦИЯ ***
+      console.log('[useStaffRecordsData] *** LOADING ALL RECORDS WITH SERVER PAGINATION ***');
+      
+      const skip = (currentPage - 1) * itemsPerPage;
+      const top = itemsPerPage;
+
+      const queryParams: IStaffRecordsQueryParams = {
+        startDate: firstDayOfMonth,
+        endDate: lastDayOfMonth,
+        currentUserID: currentUserID,
+        staffGroupID: staffGroupID,
+        employeeID: employeeId,
+        timeTableID: timeTableId,
+        skip: skip,
+        top: top,
+      };
+
+      console.log('[useStaffRecordsData] *** SERVER PAGINATION - calling getStaffRecordsWithOptions ***');
+      console.log('[useStaffRecordsData] Query params:', queryParams);
+
+      const result: IStaffRecordsResult = await staffRecordsService.getStaffRecordsWithOptions(queryParams);
+
+      console.log(`[useStaffRecordsData] *** SERVER PAGINATION RESULT ***`);
+      console.log(`[useStaffRecordsData] Records: ${result.records.length}, totalCount: ${result.totalCount}`);
+
+      if (result.records.length > 0) {
+        console.log(`[useStaffRecordsData] First record ID: ${result.records[0].ID}, Deleted: ${result.records[0].Deleted}`);
+        console.log(`[useStaffRecordsData] Last record ID: ${result.records[result.records.length - 1].ID}, Deleted: ${result.records[result.records.length - 1].Deleted}`);
+      }
+
+      setStaffRecords(result.records);
+      setTotalItemCount(result.totalCount);
+
+      if (result.error) {
+        setErrorStaffRecords(`Failed to load schedule records: ${result.error}`);
+      }
+
+    } else {
+      // *** ВАРИАНТ 2: ПОКАЗЫВАЕМ ТОЛЬКО АКТИВНЫЕ ЗАПИСИ - ЗАГРУЖАЕМ ВСЕ + КЛИЕНТСКАЯ ПАГИНАЦИЯ ***
+      console.log('[useStaffRecordsData] *** LOADING ONLY ACTIVE RECORDS - LOAD ALL + CLIENT PAGINATION ***');
+      
+      // Используем метод для загрузки ВСЕХ записей без серверной пагинации
+      const allRecordsQueryParams = {
+        startDate: firstDayOfMonth,
+        endDate: lastDayOfMonth,
+        currentUserID: currentUserID,
+        staffGroupID: staffGroupID,
+        employeeID: employeeId,
+        timeTableID: timeTableId
+        // НЕ передаем skip и top - загружаем ВСЕ записи
+      };
+
+      console.log('[useStaffRecordsData] *** LOADING ALL RECORDS - calling getAllStaffRecordsForTimetable ***');
+      console.log('[useStaffRecordsData] Query params (no pagination):', allRecordsQueryParams);
+
+      const allRecordsResult: IStaffRecordsResult = await staffRecordsService.getAllStaffRecordsForTimetable(allRecordsQueryParams);
+
+      if (allRecordsResult.error) {
+        throw new Error(allRecordsResult.error);
+      }
+
+      console.log(`[useStaffRecordsData] *** ALL RECORDS LOADED ***`);
+      console.log(`[useStaffRecordsData] Total records from server: ${allRecordsResult.records.length}`);
+
+      // *** КЛИЕНТСКАЯ ФИЛЬТРАЦИЯ: ТОЛЬКО АКТИВНЫЕ ЗАПИСИ ***
+      const activeRecords = allRecordsResult.records.filter((record: IStaffRecord) => record.Deleted !== 1);
+      console.log(`[useStaffRecordsData] *** CLIENT FILTERING ***`);
+      console.log(`[useStaffRecordsData] Total records: ${allRecordsResult.records.length}`);
+      console.log(`[useStaffRecordsData] Active records: ${activeRecords.length}`);
+      console.log(`[useStaffRecordsData] Deleted records: ${allRecordsResult.records.length - activeRecords.length}`);
+
+      // *** КЛИЕНТСКАЯ ПАГИНАЦИЯ: ПРИМЕНЯЕМ К АКТИВНЫМ ЗАПИСЯМ ***
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const endIndex = startIndex + itemsPerPage;
+      const pageActiveRecords = activeRecords.slice(startIndex, endIndex);
+
+      console.log(`[useStaffRecordsData] *** CLIENT PAGINATION ***`);
+      console.log(`[useStaffRecordsData] Page ${currentPage}: records ${startIndex + 1}-${Math.min(endIndex, activeRecords.length)} of ${activeRecords.length}`);
+      console.log(`[useStaffRecordsData] Records for current page: ${pageActiveRecords.length}`);
+
+      if (pageActiveRecords.length > 0) {
+        console.log(`[useStaffRecordsData] First page record ID: ${pageActiveRecords[0].ID}, Deleted: ${pageActiveRecords[0].Deleted}`);
+        console.log(`[useStaffRecordsData] Last page record ID: ${pageActiveRecords[pageActiveRecords.length - 1].ID}, Deleted: ${pageActiveRecords[pageActiveRecords.length - 1].Deleted}`);
+      }
+
+      // *** УСТАНАВЛИВАЕМ РЕЗУЛЬТАТ ***
+      setStaffRecords(pageActiveRecords);
+      setTotalItemCount(activeRecords.length); // Общее количество АКТИВНЫХ записей
+
+      console.log(`[useStaffRecordsData] *** CLIENT PAGINATION FINAL RESULT ***`);
+      console.log(`[useStaffRecordsData] Set staffRecords: ${pageActiveRecords.length} records`);
+      console.log(`[useStaffRecordsData] Set totalItemCount: ${activeRecords.length} (total active records)`);
+    }
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('[useStaffRecordsData] *** ERROR loading schedule records ***:', error);
+    setErrorStaffRecords(`Failed to load schedule records: ${errorMessage}`);
+    setStaffRecords([]);
+    setTotalItemCount(0);
+  } finally {
+    setIsLoadingStaffRecords(false);
+  }
 }, [
   context,
   staffRecordsService,
@@ -252,7 +300,7 @@ const getExistingRecordsWithStatus = useCallback(async (
     console.log(`[useStaffRecordsData] *** FINAL RESULT: Collected ${allRecords.length} records across ${pageNumber} pages ***`);
 
     // *** FILTER OUT ALREADY DELETED RECORDS ***
-    const activeRecords = allRecords.filter(record => {
+    const activeRecords = allRecords.filter((record: IStaffRecord) => {
       const isDeleted = record.Deleted === 1;
       if (isDeleted) {
         console.log(`[useStaffRecordsData] Skipping already deleted record: ID=${record.ID}, Date=${record.Date.toLocaleDateString()}`);
@@ -356,6 +404,7 @@ useEffect(() => {
  itemsPerPage,
  selectedStaff?.employeeId,
  selectedContractId,
+ showDeleted,
  loadStaffRecords
 ]);
 
