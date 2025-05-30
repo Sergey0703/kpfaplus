@@ -239,5 +239,5 @@ export function generateFileName(groupName: string, weeksData: Array<{ weekInfo:
   
   const cleanGroupName = groupName.replace(/[^a-zA-Z0-9]/g, '_');
   
-  return `Timetable_${cleanGroupName}_${startStr}_to_${endStr}_NoZeroTimes_v3.3.xlsx`;
+  return `Timetable_${cleanGroupName}_${startStr}_to_${endStr}.xlsx`;
 }

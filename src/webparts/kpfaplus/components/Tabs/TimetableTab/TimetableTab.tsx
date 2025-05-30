@@ -179,7 +179,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
           </div>
         )}
 
-        <div style={{ 
+      {/*  <div style={{ 
           fontSize: '11px', 
           color: '#666',
           backgroundColor: '#fff3cd',
@@ -191,7 +191,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
           <span style={{ color: TIMETABLE_COLORS.HOLIDAY, fontWeight: '500' }}> Holiday</span>  
           <span style={{ color: '#107c10', fontWeight: '500' }}> Leave</span> 
           <span style={{ color: '#666' }}> Default</span>
-        </div>
+        </div> */}
       </div>
 
       {state.errorStaffRecords && (
@@ -248,7 +248,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
           </div>
         ) : state.weeksData.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px' }}>
-            <MessageBar messageBarType={MessageBarType.warning} style={{ marginBottom: '20px' }}>
+            <MessageBar messageBarType={MessageBarType.info} style={{ marginBottom: '20px' }}>
               <div style={{ textAlign: 'left' }}>
                 <div style={{ fontWeight: '600', marginBottom: '8px' }}>
                   No schedule records found for active staff members in selected period
