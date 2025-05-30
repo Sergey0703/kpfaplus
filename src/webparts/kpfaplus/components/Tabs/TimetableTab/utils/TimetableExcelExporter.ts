@@ -6,16 +6,15 @@ import {
 import { TimetableWeekCalculator } from './TimetableWeekCalculator';
 import { IDepartment } from '../../../../models/types';
 
-// FIXED: Changed 'any' to proper XLSX module type and added atomic check
-let XLSX: typeof import('xlsx') | null = null;
+// FIXED: Changed 'null' to 'undefined' to comply with ESLint rules
+let XLSX: typeof import('xlsx') | undefined = undefined;
 
 // FIXED: Added webpack chunk name comment and atomic update protection
 async function loadXLSX(): Promise<typeof import('xlsx')> {
   if (!XLSX) {
     try {
-      // FIXED: Added webpackChunkName comment as required by SPFx
-      /* webpackChunkName: 'xlsx-library' */
-      const xlsxModule = await import('xlsx');
+      // FIXED: Added webpackChunkName comment as required by SPFx ESLint rules
+      const xlsxModule = await import(/* webpackChunkName: 'xlsx-library' */ 'xlsx');
       
       // FIXED: Atomic update to prevent race conditions
       if (!XLSX) {
