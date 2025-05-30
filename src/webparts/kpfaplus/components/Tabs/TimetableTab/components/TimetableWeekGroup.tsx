@@ -179,168 +179,171 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
             );
           },
           
-          onRender: (staffRowWithKey: ITimetableStaffRowWithKey): JSX.Element => {
-            if (!staffRowWithKey || !staffRowWithKey.weekData || !staffRowWithKey.weekData.days) {
-              return (
-                <div style={{ 
-                  color: '#a19f9d', 
-                  textAlign: 'center', 
-                  padding: '2px',
-                  fontSize: '11px'
-                }}>
-                  -
-                </div>
-              );
-            }
+        // Key section from TimetableWeekGroup.tsx - around line 180+
 
-            const dayData = staffRowWithKey.weekData.days[dayNumber];
+onRender: (staffRowWithKey: ITimetableStaffRowWithKey): JSX.Element => {
+  if (!staffRowWithKey || !staffRowWithKey.weekData || !staffRowWithKey.weekData.days) {
+    return (
+      <div style={{ 
+        color: '#a19f9d', 
+        textAlign: 'center', 
+        padding: '8px', // INCREASED from 2px
+        fontSize: '11px',
+        minHeight: '40px', // NEW: Ensure minimum height
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        -
+      </div>
+    );
+  }
+
+  const dayData = staffRowWithKey.weekData.days[dayNumber];
+  
+  if (!dayData || (!dayData.hasData && !dayData.hasHoliday && !dayData.hasLeave)) {
+    return (
+      <div style={{ 
+        color: '#a19f9d', 
+        textAlign: 'center', 
+        padding: '8px', // INCREASED from 2px
+        fontSize: '11px',
+        minHeight: '40px', // NEW: Ensure minimum height
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        -
+      </div>
+    );
+  }
+
+  // *** SISTEMA DE PRIORIDADES DE COLORES ***
+  const cellStyles = TimetableShiftCalculatorLeaveTypes.createCellStyles(
+    dayData.shifts || [], 
+    getLeaveTypeColor
+  );
+
+  // Determine final background color with priority system
+  let backgroundColor: string | undefined = cellStyles.backgroundColor;
+  let borderRadius: string | undefined = cellStyles.borderRadius;
+  let border: string | undefined = cellStyles.border;
+  let textShadow: string | undefined = cellStyles.textShadow;
+  let priority = cellStyles.priority;
+
+  // Handle non-work day markers
+  if ((!dayData.shifts || dayData.shifts.length === 0) && (dayData.hasHoliday || dayData.hasLeave)) {
+    if (dayData.hasHoliday) {
+      backgroundColor = TIMETABLE_COLORS.HOLIDAY;
+      priority = ColorPriority.HOLIDAY;
+      borderRadius = '4px'; // INCREASED from 3px
+      border = `2px solid ${TIMETABLE_COLORS.HOLIDAY}`; // INCREASED border
+      textShadow = '0 1px 2px rgba(0,0,0,0.3)';
+    } else if (dayData.hasLeave && dayData.leaveTypeColor) {
+      backgroundColor = dayData.leaveTypeColor;
+      priority = ColorPriority.LEAVE_TYPE;
+      borderRadius = '4px'; // INCREASED from 3px
+      border = `2px solid ${dayData.leaveTypeColor}`; // INCREASED border
+      textShadow = 'none';
+    }
+  }
+  
+  return (
+    <div 
+      key={`${staffRowWithKey.uniqueKey}-day${dayNumber}`}
+      style={{ 
+        fontSize: '11px',
+        padding: '8px', // INCREASED from 2px
+        lineHeight: '1.3',
+        minHeight: '40px', // NEW: Ensure minimum cell height
+        width: '100%', // NEW: Full width
+        boxSizing: 'border-box', // NEW: Include padding in width
+        display: 'flex', // NEW: Flexbox for better alignment
+        flexDirection: 'column', // NEW: Stack content vertically
+        justifyContent: 'center', // NEW: Center content vertically
+        backgroundColor: backgroundColor, // Apply background color
+        borderRadius: borderRadius || '4px', // Default border radius
+        border: border || '1px solid transparent', // Default border
+        textShadow: textShadow,
+        // NEW: Ensure color covers the entire cell
+        margin: '0', // Remove any margin
+        position: 'relative' // For better positioning
+      }}
+      title={`${staffRowWithKey.staffName} - ${dayName} ${formattedDate}`}
+    >
+      {/* Content rendering */}
+      {dayData.shifts && dayData.shifts.length > 0 ? (
+        // DAY WITH WORK SHIFTS
+        dayData.shifts.map((shift: IShiftInfo, shiftIndex: number) => {
+          const shiftTextStyle: React.CSSProperties = {
+            color: '#323130',
+            fontWeight: dayData.shifts!.length === 1 ? 'bold' : 'normal',
+            fontSize: '11px',
+            marginBottom: shiftIndex < dayData.shifts!.length - 1 ? '2px' : '0',
+            textAlign: 'center', // NEW: Center text
+            width: '100%' // NEW: Full width
+          };
+
+          // Improve text readability on colored backgrounds
+          if (backgroundColor && backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND) {
+            shiftTextStyle.textShadow = textShadow || '0 0 2px rgba(255,255,255,0.8)';
             
-            // *** ОБНОВЛЕНО v3.2: Показываем данные даже если нет смен, но есть отметки ***
-            if (!dayData || (!dayData.hasData && !dayData.hasHoliday && !dayData.hasLeave)) {
-              return (
-                <div style={{ 
-                  color: '#a19f9d', 
-                  textAlign: 'center', 
-                  padding: '2px',
-                  fontSize: '11px'
-                }}>
-                  -
-                </div>
-              );
+            if (priority === ColorPriority.HOLIDAY) {
+              shiftTextStyle.color = '#ffffff';
+              shiftTextStyle.fontWeight = 'bold';
             }
-
-            // *** СИСТЕМА ПРИОРИТЕТОВ ЦВЕТОВ ДЛЯ ЯЧЕЕК (БЕЗ ТЕКСТОВЫХ ИНДИКАТОРОВ) ***
-            console.log(`[TimetableWeekGroupContent] Resolving cell color for ${staffRowWithKey.staffName}, day ${dayNumber}:`, {
-              shiftsCount: dayData.shifts?.length || 0,
-              holidayShifts: dayData.shifts?.filter(s => s.isHoliday).length || 0,
-              leaveShifts: dayData.shifts?.filter(s => s.typeOfLeaveId).length || 0,
-              hasHoliday: dayData.hasHoliday,
-              hasLeave: dayData.hasLeave,
-              hasData: dayData.hasData
-            });
-
-            // Используем систему приоритетов для определения цвета фона
-            const cellStyles = TimetableShiftCalculatorLeaveTypes.createCellStyles(
-              dayData.shifts || [], 
-              getLeaveTypeColor
-            );
-
-            // *** НОВОЕ v3.2: Если нет смен, но есть отметки праздника/отпуска - определяем цвет ***
-            let backgroundColor: string | undefined = cellStyles.backgroundColor;
-            let borderRadius: string | undefined = cellStyles.borderRadius;
-            let border: string | undefined = cellStyles.border;
-            let textShadow: string | undefined = cellStyles.textShadow;
-            let priority = cellStyles.priority;
-
-            // Если нет смен, но есть отметки - определяем цвет напрямую
-            if ((!dayData.shifts || dayData.shifts.length === 0) && (dayData.hasHoliday || dayData.hasLeave)) {
-              if (dayData.hasHoliday) {
-                backgroundColor = TIMETABLE_COLORS.HOLIDAY;
-                priority = ColorPriority.HOLIDAY;
-                borderRadius = '3px';
-                border = `1px solid ${TIMETABLE_COLORS.HOLIDAY}`;
-                textShadow = '0 1px 2px rgba(0,0,0,0.3)';
-                console.log(`[TimetableWeekGroupContent] 🔴 NON-WORK HOLIDAY COLOR applied to ${staffRowWithKey.staffName}, day ${dayNumber}: ${backgroundColor}`);
-              } else if (dayData.hasLeave && dayData.leaveTypeColor) {
-                backgroundColor = dayData.leaveTypeColor;
-                priority = ColorPriority.LEAVE_TYPE;
-                borderRadius = '3px';
-                border = `1px solid ${dayData.leaveTypeColor}`;
-                textShadow = 'none';
-                console.log(`[TimetableWeekGroupContent] 🟡 NON-WORK LEAVE COLOR applied to ${staffRowWithKey.staffName}, day ${dayNumber}: ${backgroundColor}`);
-              }
-            } else {
-              // Логирование применяемого цвета для смен
-              if (cellStyles.priority === ColorPriority.HOLIDAY) {
-                console.log(`[TimetableWeekGroupContent] 🔴 WORK HOLIDAY COLOR applied to ${staffRowWithKey.staffName}, day ${dayNumber}: ${backgroundColor}`);
-              } else if (cellStyles.priority === ColorPriority.LEAVE_TYPE) {
-                console.log(`[TimetableWeekGroupContent] 🟡 WORK LEAVE COLOR applied to ${staffRowWithKey.staffName}, day ${dayNumber}: ${backgroundColor}`);
-              }
-            }
-            
-            return (
-              <div 
-                key={`${staffRowWithKey.uniqueKey}-day${dayNumber}`}
-                style={{ 
-                  fontSize: '11px',
-                  padding: '2px',
-                  lineHeight: '1.3',
-                  backgroundColor: backgroundColor, // Применяем цвет фона
-                  borderRadius: borderRadius,
-                  border: border,
-                  textShadow: textShadow
-                }}
-                title={`${staffRowWithKey.staffName} - ${dayName} ${formattedDate}`} // Упрощенная подсказка
-              >
-                {/* *** НОВОЕ v3.2: Показываем содержимое в зависимости от типа дня *** */}
-                {dayData.shifts && dayData.shifts.length > 0 ? (
-                  // ДЕНЬ С РАБОЧИМИ СМЕНАМИ
-                  dayData.shifts.map((shift: IShiftInfo, shiftIndex: number) => {
-                    // Определяем стиль текста смены
-                    // FIXED: Changed 'let' to 'const' since shiftTextStyle is never reassigned
-                    const shiftTextStyle: React.CSSProperties = {
-                      color: '#323130',
-                      fontWeight: dayData.shifts!.length === 1 ? 'bold' : 'normal',
-                      fontSize: '11px',
-                      marginBottom: shiftIndex < dayData.shifts!.length - 1 ? '1px' : '0'
-                    };
-
-                    // Улучшаем читаемость текста на цветном фоне
-                    if (backgroundColor && backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND) {
-                      shiftTextStyle.textShadow = textShadow || '0 0 2px rgba(255,255,255,0.8)';
-                      
-                      // Если применен holiday цвет, делаем текст белым для контраста
-                      if (priority === ColorPriority.HOLIDAY) {
-                        shiftTextStyle.color = '#ffffff';
-                        shiftTextStyle.fontWeight = 'bold';
-                      }
-                    }
-
-                    return (
-                      <div 
-                        key={`${staffRowWithKey.uniqueKey}-day${dayNumber}-shift${shiftIndex}`} 
-                        style={shiftTextStyle}
-                      >
-                        {shift.formattedShift}
-                        {/* УБРАНО: Индикаторы праздников и типов отпусков */}
-                      </div>
-                    );
-                  })
-                ) : (
-                  // *** НОВОЕ v3.2: ДЕНЬ БЕЗ СМЕН, НО С ОТМЕТКАМИ ***
-                  <div style={{
-                    color: backgroundColor && backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND ? 
-                      '#ffffff' : '#323130',
-                    fontWeight: 'bold',
-                    fontSize: '11px',
-                    textAlign: 'center',
-                    textShadow: backgroundColor && backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND ? 
-                      '0 0 2px rgba(0,0,0,0.8)' : 'none'
-                  }}>
-                    {dayData.hasHoliday ? 'Holiday' : dayData.hasLeave ? 'Leave' : '-'}
-                  </div>
-                )}
-
-                {/* Показываем Total только если есть несколько смен */}
-                {dayData.shifts && dayData.shifts.length > 1 && (
-                  <div style={{ 
-                    color: backgroundColor && backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND ? 
-                      '#ffffff' : '#323130',
-                    fontWeight: 'bold',
-                    fontSize: '11px',
-                    marginTop: '2px',
-                    textShadow: backgroundColor && backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND ? 
-                      '0 0 2px rgba(0,0,0,0.8)' : 'none'
-                  }}>
-                    Total: {dayData.totalMinutes > 0 ? 
-                      TimetableWeekCalculator.formatMinutesToHours(dayData.totalMinutes) : 
-                      '0h 00m'
-                    }
-                  </div>
-                )}
-              </div>
-            );
           }
+
+          return (
+            <div 
+              key={`${staffRowWithKey.uniqueKey}-day${dayNumber}-shift${shiftIndex}`} 
+              style={shiftTextStyle}
+            >
+              {shift.formattedShift}
+            </div>
+          );
+        })
+      ) : (
+        // DAY WITHOUT SHIFTS BUT WITH MARKERS
+        <div style={{
+          color: backgroundColor && backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND ? 
+            '#ffffff' : '#323130',
+          fontWeight: 'bold',
+          fontSize: '11px',
+          textAlign: 'center',
+          width: '100%', // NEW: Full width
+          textShadow: backgroundColor && backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND ? 
+            '0 0 2px rgba(0,0,0,0.8)' : 'none'
+        }}>
+          {dayData.hasHoliday ? 'Holiday' : dayData.hasLeave ? 'Leave' : '-'}
+        </div>
+      )}
+
+      {/* Show Total only if multiple shifts */}
+      {dayData.shifts && dayData.shifts.length > 1 && (
+        <div style={{ 
+          color: backgroundColor && backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND ? 
+            '#ffffff' : '#323130',
+          fontWeight: 'bold',
+          fontSize: '10px', // Slightly smaller for total
+          marginTop: '4px', // INCREASED spacing
+          textAlign: 'center', // NEW: Center text
+          width: '100%', // NEW: Full width
+          borderTop: '1px solid rgba(255,255,255,0.3)', // NEW: Subtle separator
+          paddingTop: '2px', // NEW: Padding for separator
+          textShadow: backgroundColor && backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND ? 
+            '0 0 2px rgba(0,0,0,0.8)' : 'none'
+        }}>
+          Total: {dayData.totalMinutes > 0 ? 
+            TimetableWeekCalculator.formatMinutesToHours(dayData.totalMinutes) : 
+            '0h 00m'
+          }
+        </div>
+      )}
+    </div>
+  );
+}
+
         });
       });
 
