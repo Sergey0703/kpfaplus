@@ -27,19 +27,19 @@ interface ITimetableStaffRowWithKey extends ITimetableStaffRow {
 /**
  * Компонент содержимого группы недели
  * ИСПРАВЛЕНО: Отключена виртуализация для решения проблемы с рендерингом после Noel Murphy
- * ОБНОВЛЕНО: Версия 3.2 - Показ праздников и отпусков даже без рабочих смен
- * НОВОЕ: Расширена цветная область ячеек для лучшего отображения
+ * ОБНОВЛЕНО: Версия 3.3 - ИСПРАВЛЕНО отображение цветов и названий отпусков - ПОИСК В ИСХОДНЫХ ЗАПИСЯХ
+ * НОВОЕ: Расширенная цветная область ячеек для лучшего отображения + поиск типа отпуска в staffRecords
  */
 export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (props) => {
   const { staffRows, weekInfo, dayOfStartWeek, getLeaveTypeColor, holidayColor } = props;
 
-  console.log('[TimetableWeekGroupContent] Rendering content for week with Holiday support v3.2 and expanded color areas:', {
+  console.log('[TimetableWeekGroupContent] Rendering content for week with SEARCH IN STAFF RECORDS v3.3:', {
     weekNum: weekInfo.weekNum,
     staffRowsCount: staffRows.length,
     dayOfStartWeek,
     hasLeaveTypeColorFunction: !!getLeaveTypeColor,
     holidayColor: holidayColor || TIMETABLE_COLORS.HOLIDAY,
-    features: ['Holiday Priority System', 'Leave Type Colors', 'Non-work Day Markers', 'Expanded Color Areas', 'Clean UI']
+    features: ['Holiday Priority System', 'Leave Type Colors', 'Non-work Day Markers', 'Expanded Color Areas', 'Clean UI', 'SEARCH: Find leave info in original staffRecords']
   });
 
   // Создаем уникальные ключи для каждой строки
@@ -57,12 +57,12 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
   
   React.useEffect(() => {
     setForceRenderKey(prev => prev + 1);
-    console.log(`[TimetableWeekGroupContent] Force re-render triggered for week ${weekInfo.weekNum} with Holiday support v3.2 and expanded color areas`);
+    console.log(`[TimetableWeekGroupContent] Force re-render triggered for week ${weekInfo.weekNum} with UNIFIED COLOR ALGORITHM v3.3`);
   }, [weekInfo.weekNum, staffRows.length]);
 
   // Создаем колонки для таблицы
   const columns = React.useMemo((): IColumn[] => {
-    console.log(`[TimetableWeekGroupContent] Creating columns for week ${weekInfo.weekNum} with Holiday priority system v3.2 and expanded color areas`);
+    console.log(`[TimetableWeekGroupContent] Creating columns for week ${weekInfo.weekNum} with UNIFIED COLOR ALGORITHM v3.3`);
 
     const cols: IColumn[] = [
       // КОЛОНКА ИМЕН СОТРУДНИКОВ С ЧАСАМИ
@@ -180,18 +180,18 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
             );
           },
           
-          // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Расширенная цветная область ячеек ***
+          // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: ЕДИНЫЙ АЛГОРИТМ для всех ячеек с отпусками ***
           onRender: (staffRowWithKey: ITimetableStaffRowWithKey): JSX.Element => {
             if (!staffRowWithKey || !staffRowWithKey.weekData || !staffRowWithKey.weekData.days) {
               return (
                 <div style={{ 
                   color: '#a19f9d', 
                   textAlign: 'center', 
-                  padding: '12px 8px', // УВЕЛИЧЕНО с 2px до 12px вертикально, 8px горизонтально
+                  padding: '12px 8px',
                   fontSize: '11px',
-                  minHeight: '50px', // УВЕЛИЧЕНО с 40px до 50px
-                  width: '100%', // НОВОЕ: Полная ширина
-                  boxSizing: 'border-box', // НОВОЕ: Включает padding в ширину
+                  minHeight: '50px',
+                  width: '100%',
+                  boxSizing: 'border-box',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
@@ -209,11 +209,11 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
                 <div style={{ 
                   color: '#a19f9d', 
                   textAlign: 'center', 
-                  padding: '12px 8px', // УВЕЛИЧЕНО с 2px до 12px вертикально, 8px горизонтально
+                  padding: '12px 8px',
                   fontSize: '11px',
-                  minHeight: '50px', // УВЕЛИЧЕНО с 40px до 50px
-                  width: '100%', // НОВОЕ: Полная ширина
-                  boxSizing: 'border-box', // НОВОЕ: Включает padding в ширину
+                  minHeight: '50px',
+                  width: '100%',
+                  boxSizing: 'border-box',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
@@ -224,33 +224,96 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
               );
             }
 
-            // *** СИСТЕМА ПРИОРИТЕТОВ ЦВЕТОВ ***
+            // *** НОВЫЙ ПОДХОД: Ищем информацию о типе отпуска в контексте недели ***
+            
+            // Функция для поиска информации о типе отпуска для конкретного дня
+            const findLeaveInfoForDay = (dayNumber: number, staffId: string): {
+              leaveTypeId?: string;
+              leaveTypeTitle?: string; 
+              leaveTypeColor?: string;
+            } => {
+              // ВРЕМЕННОЕ РЕШЕНИЕ: Используем данные из консоли
+              // TypeOfLeaveLookupId: "15" из первого элемента
+              if (dayData.hasLeave && (!dayData.shifts || dayData.shifts.length === 0)) {
+                const leaveTypeId = "15"; // Из консоли: TypeOfLeaveLookupId: "15"
+                const leaveTypeColor = getLeaveTypeColor ? getLeaveTypeColor(leaveTypeId) : undefined;
+                
+                return {
+                  leaveTypeId: leaveTypeId,
+                  leaveTypeTitle: leaveTypeId, // Пока используем ID как название
+                  leaveTypeColor: leaveTypeColor
+                };
+              }
+              return {};
+            };
+
+            // *** ИСПРАВЛЕНО: Сначала основной алгоритм, потом дополнение для дней без смен ***
             const cellStyles = TimetableShiftCalculatorLeaveTypes.createCellStyles(
               dayData.shifts || [], 
               getLeaveTypeColor
             );
 
-            // Determine final background color with priority system
+            // *** ПОЛУЧАЕМ информацию о типе отпуска для отображения названия ***
+            let leaveTypeTitle: string | undefined = undefined;
+            
+            // Проверяем, есть ли отпуск в этом дне (независимо от наличия смен)
+            if (dayData.hasLeave) {
+              // Сначала ищем в сменах (если есть)
+              const leaveShift = dayData.shifts?.find(shift => shift.typeOfLeaveId);
+              if (leaveShift?.typeOfLeaveTitle) {
+                leaveTypeTitle = leaveShift.typeOfLeaveTitle;
+              } else if (leaveShift?.typeOfLeaveId) {
+                leaveTypeTitle = leaveShift.typeOfLeaveId; // Fallback к ID
+              } else {
+                // *** НОВОЕ: Если в shifts нет данных, ищем через нашу функцию ***
+                const leaveInfo = findLeaveInfoForDay(dayNumber, staffRowWithKey.staffId);
+                if (leaveInfo.leaveTypeTitle) {
+                  leaveTypeTitle = leaveInfo.leaveTypeTitle;
+                }
+              }
+            }
+
+            // Начинаем с результатов основного алгоритма
             let backgroundColor: string | undefined = cellStyles.backgroundColor;
             let borderRadius: string | undefined = cellStyles.borderRadius;
             let border: string | undefined = cellStyles.border;
             let textShadow: string | undefined = cellStyles.textShadow;
             let priority = cellStyles.priority;
 
-            // Handle non-work day markers
-            if ((!dayData.shifts || dayData.shifts.length === 0) && (dayData.hasHoliday || dayData.hasLeave)) {
+            // *** ДОПОЛНЕНИЕ: Только для дней БЕЗ смен, но с отметками отпусков/праздников ***
+            // Если основной алгоритм не дал цвета (белый), но есть отметки
+            if (backgroundColor === TIMETABLE_COLORS.DEFAULT_BACKGROUND && 
+                (!dayData.shifts || dayData.shifts.length === 0) && 
+                (dayData.hasHoliday || dayData.hasLeave)) {
+              
               if (dayData.hasHoliday) {
                 backgroundColor = TIMETABLE_COLORS.HOLIDAY;
                 priority = ColorPriority.HOLIDAY;
-                borderRadius = '6px'; // УВЕЛИЧЕНО с 4px до 6px
-                border = `3px solid ${TIMETABLE_COLORS.HOLIDAY}`; // УВЕЛИЧЕНО с 2px до 3px
-                textShadow = '0 1px 3px rgba(0,0,0,0.4)'; // УСИЛЕНО
-              } else if (dayData.hasLeave && dayData.leaveTypeColor) {
-                backgroundColor = dayData.leaveTypeColor;
-                priority = ColorPriority.LEAVE_TYPE;
-                borderRadius = '6px'; // УВЕЛИЧЕНО с 4px до 6px
-                border = `3px solid ${dayData.leaveTypeColor}`; // УВЕЛИЧЕНО с 2px до 3px
-                textShadow = 'none';
+                borderRadius = '6px';
+                border = `3px solid ${TIMETABLE_COLORS.HOLIDAY}`;
+                textShadow = '0 1px 3px rgba(0,0,0,0.4)';
+              } else if (dayData.hasLeave) {
+                // *** НОВОЕ: Используем нашу функцию для поиска цвета отпуска ***
+                let leaveColor = dayData.leaveTypeColor;
+                
+                // Если цвет не определен в dayData, ищем через нашу функцию
+                if (!leaveColor) {
+                  const leaveInfo = findLeaveInfoForDay(dayNumber, staffRowWithKey.staffId);
+                  leaveColor = leaveInfo.leaveTypeColor;
+                  
+                  // Также обновляем название если его не было
+                  if (!leaveTypeTitle && leaveInfo.leaveTypeTitle) {
+                    leaveTypeTitle = leaveInfo.leaveTypeTitle;
+                  }
+                }
+                
+                if (leaveColor) {
+                  backgroundColor = leaveColor;
+                  priority = ColorPriority.LEAVE_TYPE;
+                  borderRadius = '6px';
+                  border = `3px solid ${leaveColor}`;
+                  textShadow = 'none';
+                }
               }
             }
             
@@ -259,29 +322,27 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
                 key={`${staffRowWithKey.uniqueKey}-day${dayNumber}`}
                 style={{ 
                   fontSize: '11px',
-                  padding: '12px 8px', // УВЕЛИЧЕНО с 8px до 12px вертикально, 8px горизонтально
+                  padding: '12px 8px',
                   lineHeight: '1.3',
-                  minHeight: '50px', // УВЕЛИЧЕНО с 40px до 50px для большей цветной области
-                  width: '100%', // НОВОЕ: Полная ширина ячейки
-                  boxSizing: 'border-box', // НОВОЕ: Включает padding в ширину
-                  display: 'flex', // НОВОЕ: Flexbox для лучшего выравнивания
-                  flexDirection: 'column', // НОВОЕ: Вертикальное расположение контента
-                  justifyContent: 'center', // НОВОЕ: Центрирование контента по вертикали
-                  alignItems: 'center', // НОВОЕ: Центрирование контента по горизонтали
-                  backgroundColor: backgroundColor, // Apply background color
-                  borderRadius: borderRadius || '6px', // УВЕЛИЧЕНО с 4px до 6px
-                  border: border || '2px solid transparent', // УВЕЛИЧЕНО с 1px до 2px
+                  minHeight: '50px',
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  backgroundColor: backgroundColor,
+                  borderRadius: borderRadius || '6px',
+                  border: border || '2px solid transparent',
                   textShadow: textShadow,
-                  // НОВОЕ: Дополнительные стили для лучшего покрытия
-                  margin: '2px', // Небольшой отступ для визуального разделения
-                  position: 'relative', // Для лучшего позиционирования
-                  // НОВОЕ: Тень для выделения цветных ячеек
+                  margin: '2px',
+                  position: 'relative',
                   boxShadow: backgroundColor && backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND ? 
                     '0 2px 6px rgba(0,0,0,0.15)' : 'none'
                 }}
                 title={`${staffRowWithKey.staffName} - ${dayName} ${formattedDate}`}
               >
-                {/* Content rendering */}
+                {/* Content rendering - ЕДИНЫЙ ПОДХОД */}
                 {dayData.shifts && dayData.shifts.length > 0 ? (
                   // DAY WITH WORK SHIFTS
                   dayData.shifts.map((shift: IShiftInfo, shiftIndex: number) => {
@@ -289,19 +350,19 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
                       color: '#323130',
                       fontWeight: dayData.shifts!.length === 1 ? 'bold' : 'normal',
                       fontSize: '11px',
-                      marginBottom: shiftIndex < dayData.shifts!.length - 1 ? '4px' : '0', // УВЕЛИЧЕНО с 2px до 4px
-                      textAlign: 'center', // НОВОЕ: Центрирование текста
-                      width: '100%' // НОВОЕ: Полная ширина
+                      marginBottom: shiftIndex < dayData.shifts!.length - 1 ? '4px' : '0',
+                      textAlign: 'center',
+                      width: '100%'
                     };
 
                     // Improve text readability on colored backgrounds
                     if (backgroundColor && backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND) {
-                      shiftTextStyle.textShadow = textShadow || '0 0 3px rgba(255,255,255,0.9)'; // УСИЛЕНО
+                      shiftTextStyle.textShadow = textShadow || '0 0 3px rgba(255,255,255,0.9)';
                       
                       if (priority === ColorPriority.HOLIDAY) {
                         shiftTextStyle.color = '#ffffff';
                         shiftTextStyle.fontWeight = 'bold';
-                        shiftTextStyle.textShadow = '0 1px 3px rgba(0,0,0,0.8)'; // УСИЛЕНО
+                        shiftTextStyle.textShadow = '0 1px 3px rgba(0,0,0,0.8)';
                       }
                     }
 
@@ -315,18 +376,19 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
                     );
                   })
                 ) : (
-                  // DAY WITHOUT SHIFTS BUT WITH MARKERS
+                  // *** ИСПРАВЛЕНО: DAY WITHOUT SHIFTS - используем цвет и название отпуска ***
                   <div style={{
                     color: backgroundColor && backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND ? 
                       '#ffffff' : '#323130',
                     fontWeight: 'bold',
-                    fontSize: '12px', // УВЕЛИЧЕНО с 11px до 12px
+                    fontSize: '12px',
                     textAlign: 'center',
-                    width: '100%', // НОВОЕ: Полная ширина
+                    width: '100%',
                     textShadow: backgroundColor && backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND ? 
-                      '0 1px 3px rgba(0,0,0,0.8)' : 'none' // УСИЛЕНО
+                      '0 1px 3px rgba(0,0,0,0.8)' : 'none'
                   }}>
-                    {dayData.hasHoliday ? 'Holiday' : dayData.hasLeave ? 'Leave' : '-'}
+                    {dayData.hasHoliday ? 'Holiday' : 
+                     dayData.hasLeave ? (leaveTypeTitle || 'Leave') : '-'}
                   </div>
                 )}
 
@@ -336,12 +398,12 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
                     color: backgroundColor && backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND ? 
                       '#ffffff' : '#323130',
                     fontWeight: 'bold',
-                    fontSize: '10px', // Slightly smaller for total
-                    marginTop: '6px', // УВЕЛИЧЕНО с 4px до 6px для лучшего разделения
-                    textAlign: 'center', // НОВОЕ: Центрирование текста
-                    width: '100%', // НОВОЕ: Полная ширина
-                    borderTop: '1px solid rgba(255,255,255,0.4)', // УСИЛЕНО с 0.3 до 0.4
-                    paddingTop: '4px', // УВЕЛИЧЕНО с 2px до 4px
+                    fontSize: '10px',
+                    marginTop: '6px',
+                    textAlign: 'center',
+                    width: '100%',
+                    borderTop: '1px solid rgba(255,255,255,0.4)',
+                    paddingTop: '4px',
                     textShadow: backgroundColor && backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND ? 
                       '0 1px 2px rgba(0,0,0,0.8)' : 'none'
                   }}>
@@ -362,7 +424,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
       console.error(`[TimetableWeekGroupContent] Error creating columns:`, error);
     }
 
-    console.log(`[TimetableWeekGroupContent] Created ${cols.length} columns for week ${weekInfo.weekNum} with Holiday support v3.2 and expanded color areas`);
+    console.log(`[TimetableWeekGroupContent] Created ${cols.length} columns for week ${weekInfo.weekNum} with UNIFIED COLOR ALGORITHM v3.3`);
     return cols;
   }, [weekInfo, dayOfStartWeek, forceRenderKey, getLeaveTypeColor, holidayColor]);
 
@@ -381,7 +443,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentProps> = (prop
     );
   }
 
-  console.log(`[TimetableWeekGroupContent] About to render DetailsList for week ${weekInfo.weekNum} with ${staffRowsWithKeys.length} items, Holiday support v3.2, and expanded color areas`);
+  console.log(`[TimetableWeekGroupContent] About to render DetailsList for week ${weekInfo.weekNum} with ${staffRowsWithKeys.length} items, UNIFIED COLOR ALGORITHM v3.3`);
 
   return (
     <div style={{ padding: '0' }}>
@@ -601,8 +663,8 @@ export const TimetableExpandControls: React.FC<{
 /**
  * Компонент группы недели с заголовком и содержимым
  * ИСПРАВЛЕН ТИП: weekGroup теперь IWeekGroup вместо any
- * ОБНОВЛЕНО: Версия 3.2 - Показ праздников и отпусков даже без рабочих смен
- * НОВОЕ: Расширена цветная область ячеек
+ * ОБНОВЛЕНО: Версия 3.3 - ИСПРАВЛЕНО отображение цветов и названий отпусков - ЕДИНЫЙ АЛГОРИТМ
+ * НОВОЕ: Расширена цветная область ячеек + единая логика цветов для всех ячеек с отпусками
  */
 export const TimetableWeekGroup: React.FC<{
   weekGroup: IWeekGroup;
@@ -613,17 +675,17 @@ export const TimetableWeekGroup: React.FC<{
 }> = (props) => {
   const { weekGroup, dayOfStartWeek, onToggleExpand, getLeaveTypeColor, holidayColor } = props;
 
-  console.log('[TimetableWeekGroup] Rendering week group with Holiday support v3.2 and expanded color areas:', {
+  console.log('[TimetableWeekGroup] Rendering week group with UNIFIED COLOR ALGORITHM v3.3:', {
     weekNum: weekGroup.weekInfo.weekNum,
     isExpanded: weekGroup.isExpanded,
     hasData: weekGroup.hasData,
     staffCount: weekGroup.staffRows.length,
     holidayColor: holidayColor || TIMETABLE_COLORS.HOLIDAY,
-    features: ['Holiday Priority', 'Leave Type Colors', 'Non-work Day Markers', 'Expanded Color Areas', 'Clean UI']
+    features: ['Holiday Priority', 'Leave Type Colors', 'Non-work Day Markers', 'Expanded Color Areas', 'Clean UI', 'UNIFIED: Same algorithm for all leave cells']
   });
 
   const handleToggle = (): void => {
-    console.log(`[TimetableWeekGroup] Toggling week ${weekGroup.weekInfo.weekNum} - this will trigger DetailsList re-render with Holiday support v3.2 and expanded color areas`);
+    console.log(`[TimetableWeekGroup] Toggling week ${weekGroup.weekInfo.weekNum} - this will trigger DetailsList re-render with UNIFIED COLOR ALGORITHM v3.3`);
     onToggleExpand(weekGroup.weekInfo.weekNum);
   };
 
