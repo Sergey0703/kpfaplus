@@ -251,8 +251,19 @@ const getExistingRecordsWithStatus = useCallback(async (
 
     console.log(`[useStaffRecordsData] *** FINAL RESULT: Collected ${allRecords.length} records across ${pageNumber} pages ***`);
 
-    // Convert to IExistingRecordCheck format
-    const existingRecordsCheck: IExistingRecordCheck[] = allRecords.map((record: IStaffRecord) => ({
+    // *** FILTER OUT ALREADY DELETED RECORDS ***
+    const activeRecords = allRecords.filter(record => {
+      const isDeleted = record.Deleted === 1;
+      if (isDeleted) {
+        console.log(`[useStaffRecordsData] Skipping already deleted record: ID=${record.ID}, Date=${record.Date.toLocaleDateString()}`);
+      }
+      return !isDeleted; // Only include records that are NOT deleted
+    });
+
+    console.log(`[useStaffRecordsData] *** FILTERED RESULTS: ${allRecords.length} total -> ${activeRecords.length} active (non-deleted) records ***`);
+
+    // Convert ONLY active records to IExistingRecordCheck format
+    const existingRecordsCheck: IExistingRecordCheck[] = activeRecords.map((record: IStaffRecord) => ({
       id: record.ID,
       checked: record.Checked || 0,
       exportResult: record.ExportResult || '0',
@@ -260,7 +271,7 @@ const getExistingRecordsWithStatus = useCallback(async (
       title: record.Title
     }));
 
-    console.log(`[useStaffRecordsData] Converted to IExistingRecordCheck format: ${existingRecordsCheck.length} records`);
+    console.log(`[useStaffRecordsData] Converted ${activeRecords.length} active records to IExistingRecordCheck format`);
     
     // Log some sample records for verification
     if (existingRecordsCheck.length > 0) {
