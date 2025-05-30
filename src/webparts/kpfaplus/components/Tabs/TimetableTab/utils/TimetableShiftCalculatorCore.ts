@@ -429,61 +429,7 @@ export class TimetableShiftCalculatorCore {
     };
   }
 
-  /**
-   * *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ ДЛЯ ПРОБЛЕМЫ С ОТПУСКАМИ ***
-   * НОВЫЙ МЕТОД: Извлекает информацию о типе отпуска из записей дня без рабочего времени
-   * Версия 3.3: Решает проблему потери информации о типах отпусков
-   */
-  public static extractLeaveInfoFromNonWorkRecords(
-    allDayRecords: IStaffRecord[],
-    getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined
-  ): {
-    hasNonWorkLeave: boolean;
-    leaveTypeId?: string;
-    leaveTypeTitle?: string;
-    leaveTypeColor?: string;
-  } {
-    // Ищем записи без рабочего времени, но с типом отпуска
-    const nonWorkLeaveRecords = allDayRecords.filter(record => {
-      // Проверяем что нет рабочего времени
-      const hasWorkTime = record.ShiftDate1 && record.ShiftDate2 && 
-        !(record.ShiftDate1.getHours() === 0 && record.ShiftDate1.getMinutes() === 0 && 
-          record.ShiftDate2.getHours() === 0 && record.ShiftDate2.getMinutes() === 0);
-      
-      // Но есть тип отпуска
-      const hasLeaveType = record.TypeOfLeaveID && record.TypeOfLeaveID !== '0';
-      
-      return !hasWorkTime && hasLeaveType;
-    });
-
-    if (nonWorkLeaveRecords.length === 0) {
-      return { hasNonWorkLeave: false };
-    }
-
-    // Берем первую найденную запись с отпуском
-    const leaveRecord = nonWorkLeaveRecords[0];
-    const leaveTypeId = leaveRecord.TypeOfLeaveID;
-    
-    // Получаем название и цвет
-    const leaveTypeTitle = leaveRecord.TypeOfLeave?.Title || leaveTypeId;
-    const leaveTypeColor = getLeaveTypeColor ? getLeaveTypeColor(leaveTypeId!) : undefined;
-
-    console.log(`[TimetableShiftCalculatorCore] *** ИЗВЛЕЧЕНА ИНФОРМАЦИЯ О ТИПЕ ОТПУСКА ***`, {
-      recordId: leaveRecord.ID,
-      leaveTypeId,
-      leaveTypeTitle,
-      leaveTypeColor,
-      hasColor: !!leaveTypeColor,
-      solution: 'Теперь информация о типе отпуска будет сохранена в dayData'
-    });
-
-    return {
-      hasNonWorkLeave: true,
-      leaveTypeId,
-      leaveTypeTitle,
-      leaveTypeColor
-    };
-  }
+   
   /**
    * Форматирует содержимое дня (аналогично FormatDayShifts в Power Apps)
    */
@@ -856,4 +802,88 @@ export class TimetableShiftCalculatorCore {
     date.setDate(weekStart.getDate() + offset);
     return date;
   }
+
+  // Добавить этот метод в TimetableShiftCalculatorCore.ts
+
+/**
+ * *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ ДЛЯ ПРОБЛЕМЫ С ОТПУСКАМИ ***
+ * ОБНОВЛЕННЫЙ МЕТОД: Извлекает информацию о типе отпуска из записей дня без рабочего времени
+ * Версия 3.4: Улучшенная логика извлечения названий типов отпусков
+ */
+public static extractLeaveInfoFromNonWorkRecords(
+  allDayRecords: IStaffRecord[],
+  getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined
+): {
+  hasNonWorkLeave: boolean;
+  leaveTypeId?: string;
+  leaveTypeTitle?: string;
+  leaveTypeColor?: string;
+} {
+  console.log(`[TimetableShiftCalculatorCore] *** EXTRACTING LEAVE INFO FROM ${allDayRecords.length} RECORDS ***`);
+  
+  // Ищем записи без рабочего времени, но с типом отпуска
+  const nonWorkLeaveRecords = allDayRecords.filter(record => {
+    // Проверяем что нет рабочего времени
+    const hasWorkTime = record.ShiftDate1 && record.ShiftDate2 && 
+      !(record.ShiftDate1.getHours() === 0 && record.ShiftDate1.getMinutes() === 0 && 
+        record.ShiftDate2.getHours() === 0 && record.ShiftDate2.getMinutes() === 0);
+    
+    // Но есть тип отпуска
+    const hasLeaveType = record.TypeOfLeaveID && record.TypeOfLeaveID !== '0';
+    
+    console.log(`[TimetableShiftCalculatorCore] Record ${record.ID} analysis:`, {
+      hasWorkTime,
+      hasLeaveType,
+      leaveTypeId: record.TypeOfLeaveID,
+      leaveTypeTitle: record.TypeOfLeave?.Title
+    });
+    
+    return !hasWorkTime && hasLeaveType;
+  });
+
+  if (nonWorkLeaveRecords.length === 0) {
+    console.log(`[TimetableShiftCalculatorCore] No non-work leave records found`);
+    return { hasNonWorkLeave: false };
+  }
+
+  // Берем первую найденную запись с отпуском
+  const leaveRecord = nonWorkLeaveRecords[0];
+  const leaveTypeId = leaveRecord.TypeOfLeaveID;
+  
+  // *** ИСПРАВЛЕНО: Улучшенное получение названия типа отпуска ***
+  let leaveTypeTitle: string | undefined = undefined;
+  
+  // Приоритет 1: Название из связанного объекта TypeOfLeave
+  if (leaveRecord.TypeOfLeave && leaveRecord.TypeOfLeave.Title) {
+    leaveTypeTitle = leaveRecord.TypeOfLeave.Title;
+    console.log(`[TimetableShiftCalculatorCore] *** FOUND LEAVE TITLE FROM LINKED OBJECT: ${leaveTypeTitle} ***`);
+  }
+  // Приоритет 2: ID как название (fallback)
+  else if (leaveTypeId) {
+    leaveTypeTitle = leaveTypeId;
+    console.log(`[TimetableShiftCalculatorCore] *** USING LEAVE ID AS TITLE: ${leaveTypeTitle} ***`);
+  }
+  
+  // Получаем цвет типа отпуска
+  const leaveTypeColor = getLeaveTypeColor ? getLeaveTypeColor(leaveTypeId!) : undefined;
+
+  const result = {
+    hasNonWorkLeave: true,
+    leaveTypeId,
+    leaveTypeTitle,
+    leaveTypeColor
+  };
+
+  console.log(`[TimetableShiftCalculatorCore] *** ИЗВЛЕЧЕНА ПОЛНАЯ ИНФОРМАЦИЯ О ТИПЕ ОТПУСКА ***`, {
+    recordId: leaveRecord.ID,
+    leaveTypeId,
+    leaveTypeTitle,
+    leaveTypeColor,
+    hasColor: !!leaveTypeColor,
+    hasTitle: !!leaveTypeTitle,
+    solution: 'Информация о типе отпуска сохранена и будет передана в dayData'
+  });
+
+  return result;
+}
 }

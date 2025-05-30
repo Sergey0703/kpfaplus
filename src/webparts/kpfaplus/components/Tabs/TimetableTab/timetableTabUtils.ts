@@ -41,148 +41,7 @@ export const formatDate = (date?: Date): string => {
   return `${day}.${month}.${year}`;
 };
 
-/**
- * UPDATED FUNCTION: Форматирует ячейку дня с поддержкой отметок праздников/отпусков
- * FIXED: Не показывает время 00:00 - 00:00, только отметки отпусков/праздников
- */
-export function formatDayCellWithMarkers(dayData: IDayInfo | undefined, typesOfLeave: ITypeOfLeave[]): string {
-  if (!dayData) {
-    return '';
-  }
-  
-  console.log('[formatDayCellWithMarkers] Processing day cell with markers support v3.3 (hide 00:00-00:00):', {
-    hasShifts: dayData.shifts?.length > 0,
-    hasData: dayData.hasData,
-    hasHoliday: dayData.hasHoliday,
-    hasLeave: dayData.hasLeave,
-    shiftsCount: dayData.shifts?.length || 0
-  });
-  
-  const hasWorkShifts = dayData.shifts && dayData.shifts.length > 0;
-  const hasHolidayMarker = dayData.hasHoliday;
-  const hasLeaveMarker = dayData.hasLeave;
-  
-  if (!hasWorkShifts && !hasHolidayMarker && !hasLeaveMarker) {
-    return '';
-  }
-  
-  if (hasWorkShifts) {
-    if (dayData.shifts.length === 1) {
-      const shift = dayData.shifts[0];
-      const startTime = formatTimeForExcel(shift.startTime);
-      const endTime = formatTimeForExcel(shift.endTime);
-      
-      // *** NEW: Skip showing 00:00 - 00:00 times, only show markers ***
-      if (startTime === "00:00" && endTime === "00:00" && shift.workMinutes === 0) {
-        console.log('[formatDayCellWithMarkers] Skipping 00:00-00:00 time display, showing only markers');
-        
-        // Show holiday first (highest priority)
-        if (shift.isHoliday) {
-          return 'Holiday';
-        }
-        
-        // Then show leave type
-        if (shift.typeOfLeaveId && typesOfLeave.length > 0) {
-          const leaveType = typesOfLeave.find(lt => lt.id === shift.typeOfLeaveId);
-          const leaveName = leaveType ? leaveType.title : shift.typeOfLeaveId;
-          return `[${leaveName}]`;
-        }
-        
-        // If no markers, return empty (don't show 00:00 - 00:00)
-        return '';
-      }
-      
-      // *** EXISTING: Normal time display for actual work shifts ***
-      const duration = formatDurationForExcel(shift.workMinutes);
-      
-      let leaveIndicator = '';
-      if (shift.isHoliday) {
-        leaveIndicator = ' [Holiday]';
-        console.log(`[formatDayCellWithMarkers] Applied holiday indicator (priority over leave type)`);
-      } else if (shift.typeOfLeaveId && typesOfLeave.length > 0) {
-        const leaveType = typesOfLeave.find(lt => lt.id === shift.typeOfLeaveId);
-        const leaveName = leaveType ? leaveType.title : shift.typeOfLeaveId;
-        leaveIndicator = ` [${leaveName}]`;
-        console.log(`[formatDayCellWithMarkers] Found leave type: ${shift.typeOfLeaveId} -> ${leaveName}`);
-      }
-      
-      return `${startTime} - ${endTime} (${duration})${leaveIndicator}`;
-    } else {
-      // *** MULTIPLE SHIFTS: Filter out 00:00-00:00 shifts ***
-      const validShifts = dayData.shifts.filter((shift: IShiftInfo) => {
-        const startTime = formatTimeForExcel(shift.startTime);
-        const endTime = formatTimeForExcel(shift.endTime);
-        
-        // Keep shift if it's not 00:00-00:00 OR if it has meaningful markers
-        if (startTime !== "00:00" || endTime !== "00:00" || shift.workMinutes > 0) {
-          return true; // Real work shift
-        }
-        
-        // For 00:00-00:00 shifts, only keep if they have holiday/leave markers
-        return shift.isHoliday || shift.typeOfLeaveId;
-      });
-      
-      if (validShifts.length === 0) {
-        // All shifts were 00:00-00:00 without markers
-        return '';
-      }
-      
-      const shiftLines = validShifts.map((shift: IShiftInfo) => {
-        const startTime = formatTimeForExcel(shift.startTime);
-        const endTime = formatTimeForExcel(shift.endTime);
-        
-        // Check if this is a 00:00-00:00 marker-only shift
-        if (startTime === "00:00" && endTime === "00:00" && shift.workMinutes === 0) {
-          if (shift.isHoliday) {
-            return 'Holiday';
-          }
-          if (shift.typeOfLeaveId && typesOfLeave.length > 0) {
-            const leaveType = typesOfLeave.find(lt => lt.id === shift.typeOfLeaveId);
-            const leaveName = leaveType ? leaveType.title : shift.typeOfLeaveId;
-            return `[${leaveName}]`;
-          }
-          return ''; // Should not happen due to filtering above
-        }
-        
-        // Normal shift with actual time
-        const duration = formatDurationForExcel(shift.workMinutes);
-        
-        let leaveIndicator = '';
-        if (shift.isHoliday) {
-          leaveIndicator = ' [Holiday]';
-        } else if (shift.typeOfLeaveId && typesOfLeave.length > 0) {
-          const leaveType = typesOfLeave.find(lt => lt.id === shift.typeOfLeaveId);
-          const leaveName = leaveType ? leaveType.title : shift.typeOfLeaveId;
-          leaveIndicator = ` [${leaveName}]`;
-        }
-        
-        return `${startTime} - ${endTime} (${duration})${leaveIndicator}`;
-      }).filter(line => line !== ''); // Remove empty lines
-      
-      return shiftLines.join('\n');
-    }
-  }
-  
-  // *** NON-WORK MARKERS: Show holiday/leave without times ***
-  if (hasHolidayMarker && !hasWorkShifts) {
-    console.log(`[formatDayCellWithMarkers] Showing holiday marker without work shifts`);
-    return 'Holiday';
-  }
-  
-  if (hasLeaveMarker && !hasWorkShifts && !hasHolidayMarker) {
-    console.log(`[formatDayCellWithMarkers] Showing leave marker without work shifts`);
-    
-    if (dayData.leaveTypeColor && typesOfLeave.length > 0) {
-      const leaveType = typesOfLeave.find(lt => lt.color === dayData.leaveTypeColor);
-      if (leaveType) {
-        return `[${leaveType.title}]`;
-      }
-    }
-    return '[Leave]';
-  }
-  
-  return '';
-}
+
 
 /**
  * Форматирует дату для Excel в формате dd/mm
@@ -240,4 +99,215 @@ export function generateFileName(groupName: string, weeksData: Array<{ weekInfo:
   const cleanGroupName = groupName.replace(/[^a-zA-Z0-9]/g, '_');
   
   return `Timetable_${cleanGroupName}_${startStr}_to_${endStr}.xlsx`;
+}
+
+/**
+ * UPDATED FUNCTION: Форматирует ячейку дня с поддержкой отметок праздников/отпусков
+ * FIXED v3.4: Правильное отображение названий типов отпусков вместо "Leave"
+ */
+export function formatDayCellWithMarkers(dayData: IDayInfo | undefined, typesOfLeave: ITypeOfLeave[]): string {
+  if (!dayData) {
+    return '';
+  }
+  
+  console.log('[formatDayCellWithMarkers] Processing day cell with LEAVE TYPE NAMES support v3.4:', {
+    hasShifts: dayData.shifts?.length > 0,
+    hasData: dayData.hasData,
+    hasHoliday: dayData.hasHoliday,
+    hasLeave: dayData.hasLeave,
+    shiftsCount: dayData.shifts?.length || 0,
+    formattedContent: dayData.formattedContent,
+    leaveTypeColor: dayData.leaveTypeColor
+  });
+  
+  const hasWorkShifts = dayData.shifts && dayData.shifts.length > 0;
+  const hasHolidayMarker = dayData.hasHoliday;
+  const hasLeaveMarker = dayData.hasLeave;
+  
+  if (!hasWorkShifts && !hasHolidayMarker && !hasLeaveMarker) {
+    return '';
+  }
+  
+  if (hasWorkShifts) {
+    if (dayData.shifts.length === 1) {
+      const shift = dayData.shifts[0];
+      const startTime = formatTimeForExcel(shift.startTime);
+      const endTime = formatTimeForExcel(shift.endTime);
+      
+      // *** NEW: Skip showing 00:00 - 00:00 times, only show markers ***
+      if (startTime === "00:00" && endTime === "00:00" && shift.workMinutes === 0) {
+        console.log('[formatDayCellWithMarkers] Skipping 00:00-00:00 time display, showing only markers');
+        
+        // Show holiday first (highest priority)
+        if (shift.isHoliday) {
+          return 'Holiday';
+        }
+        
+        // *** ИСПРАВЛЕНО: Показываем название типа отпуска вместо [Leave] ***
+        if (shift.typeOfLeaveId && typesOfLeave.length > 0) {
+          const leaveType = typesOfLeave.find(lt => lt.id === shift.typeOfLeaveId);
+          if (leaveType && leaveType.title) {
+            console.log(`[formatDayCellWithMarkers] *** FOUND LEAVE TYPE NAME: ${leaveType.title} ***`);
+            return leaveType.title; // Возвращаем название без скобок
+          } else if (shift.typeOfLeaveTitle) {
+            console.log(`[formatDayCellWithMarkers] *** USING SHIFT LEAVE TITLE: ${shift.typeOfLeaveTitle} ***`);
+            return shift.typeOfLeaveTitle; // Возвращаем название без скобок
+          } else {
+            return shift.typeOfLeaveId; // Fallback к ID
+          }
+        }
+        
+        // If no markers, return empty (don't show 00:00 - 00:00)
+        return '';
+      }
+      
+      // *** EXISTING: Normal time display for actual work shifts ***
+      const duration = formatDurationForExcel(shift.workMinutes);
+      
+      let leaveIndicator = '';
+      if (shift.isHoliday) {
+        leaveIndicator = ' [Holiday]';
+        console.log(`[formatDayCellWithMarkers] Applied holiday indicator (priority over leave type)`);
+      } else if (shift.typeOfLeaveId && typesOfLeave.length > 0) {
+        // *** ИСПРАВЛЕНО: Улучшенное определение названия типа отпуска ***
+        const leaveType = typesOfLeave.find(lt => lt.id === shift.typeOfLeaveId);
+        let leaveName = '';
+        
+        if (leaveType && leaveType.title) {
+          leaveName = leaveType.title;
+        } else if (shift.typeOfLeaveTitle) {
+          leaveName = shift.typeOfLeaveTitle;
+        } else {
+          leaveName = shift.typeOfLeaveId;
+        }
+        
+        leaveIndicator = ` [${leaveName}]`;
+        console.log(`[formatDayCellWithMarkers] *** Applied leave indicator with name: ${leaveName} ***`);
+      }
+      
+      return `${startTime} - ${endTime} (${duration})${leaveIndicator}`;
+    } else {
+      // *** MULTIPLE SHIFTS: Filter out 00:00-00:00 shifts ***
+      const validShifts = dayData.shifts.filter((shift: IShiftInfo) => {
+        const startTime = formatTimeForExcel(shift.startTime);
+        const endTime = formatTimeForExcel(shift.endTime);
+        
+        // Keep shift if it's not 00:00-00:00 OR if it has meaningful markers
+        if (startTime !== "00:00" || endTime !== "00:00" || shift.workMinutes > 0) {
+          return true; // Real work shift
+        }
+        
+        // For 00:00-00:00 shifts, only keep if they have holiday/leave markers
+        return shift.isHoliday || shift.typeOfLeaveId;
+      });
+      
+      if (validShifts.length === 0) {
+        // All shifts were 00:00-00:00 without markers
+        return '';
+      }
+      
+      const shiftLines = validShifts.map((shift: IShiftInfo) => {
+        const startTime = formatTimeForExcel(shift.startTime);
+        const endTime = formatTimeForExcel(shift.endTime);
+        
+        // Check if this is a 00:00-00:00 marker-only shift
+        if (startTime === "00:00" && endTime === "00:00" && shift.workMinutes === 0) {
+          if (shift.isHoliday) {
+            return 'Holiday';
+          }
+          if (shift.typeOfLeaveId && typesOfLeave.length > 0) {
+            // *** ИСПРАВЛЕНО: Улучшенное определение названия типа отпуска для множественных смен ***
+            const leaveType = typesOfLeave.find(lt => lt.id === shift.typeOfLeaveId);
+            if (leaveType && leaveType.title) {
+              return leaveType.title; // Без скобок для marker-only смен
+            } else if (shift.typeOfLeaveTitle) {
+              return shift.typeOfLeaveTitle;
+            } else {
+              return shift.typeOfLeaveId;
+            }
+          }
+          return ''; // Should not happen due to filtering above
+        }
+        
+        // Normal shift with actual time
+        const duration = formatDurationForExcel(shift.workMinutes);
+        
+        let leaveIndicator = '';
+        if (shift.isHoliday) {
+          leaveIndicator = ' [Holiday]';
+        } else if (shift.typeOfLeaveId && typesOfLeave.length > 0) {
+          // *** ИСПРАВЛЕНО: Улучшенное определение названия типа отпуска ***
+          const leaveType = typesOfLeave.find(lt => lt.id === shift.typeOfLeaveId);
+          let leaveName = '';
+          
+          if (leaveType && leaveType.title) {
+            leaveName = leaveType.title;
+          } else if (shift.typeOfLeaveTitle) {
+            leaveName = shift.typeOfLeaveTitle;
+          } else {
+            leaveName = shift.typeOfLeaveId;
+          }
+          
+          leaveIndicator = ` [${leaveName}]`;
+        }
+        
+        return `${startTime} - ${endTime} (${duration})${leaveIndicator}`;
+      }).filter(line => line !== ''); // Remove empty lines
+      
+      return shiftLines.join('\n');
+    }
+  }
+  
+  // *** ИСПРАВЛЕНО: NON-WORK MARKERS с правильными названиями типов отпусков ***
+  if (hasHolidayMarker && !hasWorkShifts) {
+    console.log(`[formatDayCellWithMarkers] Showing holiday marker without work shifts`);
+    return 'Holiday';
+  }
+  
+  if (hasLeaveMarker && !hasWorkShifts && !hasHolidayMarker) {
+    console.log(`[formatDayCellWithMarkers] Showing leave marker without work shifts`);
+    
+    // *** ИСПРАВЛЕНО: Попытка найти название типа отпуска разными способами ***
+    
+    // Способ 1: Используем formattedContent если оно содержит название (не "Leave")
+    if (dayData.formattedContent && 
+        dayData.formattedContent !== 'Leave' && 
+        dayData.formattedContent !== '' &&
+        dayData.formattedContent !== '-') {
+      console.log(`[formatDayCellWithMarkers] *** Using formattedContent: ${dayData.formattedContent} ***`);
+      return dayData.formattedContent;
+    }
+    
+    // Способ 2: Ищем по цвету отпуска
+    if (dayData.leaveTypeColor && typesOfLeave.length > 0) {
+      const leaveType = typesOfLeave.find(lt => lt.color === dayData.leaveTypeColor);
+      if (leaveType && leaveType.title) {
+        console.log(`[formatDayCellWithMarkers] *** Found leave type by color: ${leaveType.title} ***`);
+        return leaveType.title;
+      }
+    }
+    
+    // Способ 3: Ищем в сменах (может быть 00:00-00:00 смена с типом отпуска)
+    if (dayData.shifts && dayData.shifts.length > 0) {
+      const leaveShift = dayData.shifts.find(shift => shift.typeOfLeaveId);
+      if (leaveShift) {
+        if (leaveShift.typeOfLeaveTitle) {
+          console.log(`[formatDayCellWithMarkers] *** Found leave title in shifts: ${leaveShift.typeOfLeaveTitle} ***`);
+          return leaveShift.typeOfLeaveTitle;
+        } else if (leaveShift.typeOfLeaveId && typesOfLeave.length > 0) {
+          const leaveType = typesOfLeave.find(lt => lt.id === leaveShift.typeOfLeaveId);
+          if (leaveType && leaveType.title) {
+            console.log(`[formatDayCellWithMarkers] *** Found leave type by ID in shifts: ${leaveType.title} ***`);
+            return leaveType.title;
+          }
+        }
+      }
+    }
+    
+    // Fallback: показываем общее "Leave"
+    console.log(`[formatDayCellWithMarkers] *** Fallback to generic 'Leave' - could not determine specific type ***`);
+    return 'Leave';
+  }
+  
+  return '';
 }
