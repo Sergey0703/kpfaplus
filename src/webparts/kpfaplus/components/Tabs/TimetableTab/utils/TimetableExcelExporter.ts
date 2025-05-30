@@ -155,9 +155,17 @@ export class TimetableExcelExporter {
 
   /**
    * Форматирует содержимое ячейки дня
+   * FIXED: Не показывает время 00:00 - 00:00, только отметки отпусков/праздников
    */
   private static formatDayCell(dayData: IDayInfo): string {
-    if (!dayData || !dayData.hasData || dayData.shifts.length === 0) {
+    if (!dayData || dayData.shifts.length === 0) {
+      // Check for non-work markers
+      if (dayData.hasHoliday && !dayData.hasData) {
+        return 'Holiday';
+      }
+      if (dayData.hasLeave && !dayData.hasData && !dayData.hasHoliday) {
+        return 'Leave';
+      }
       return '';
     }
     
@@ -166,16 +174,95 @@ export class TimetableExcelExporter {
       const shift = dayData.shifts[0];
       const startTime = this.formatTime(shift.startTime);
       const endTime = this.formatTime(shift.endTime);
+      
+      // *** NEW: Skip showing 00:00 - 00:00 times, only show markers ***
+      if (startTime === "00:00" && endTime === "00:00" && shift.workMinutes === 0) {
+        console.log('[TimetableExcelExporter] Skipping 00:00-00:00 time display, showing only markers');
+        
+        // Show holiday first (highest priority)
+        if (shift.isHoliday) {
+          return 'Holiday';
+        }
+        
+        // Then show leave type
+        if (shift.typeOfLeaveTitle) {
+          return `[${shift.typeOfLeaveTitle}]`;
+        } else if (shift.typeOfLeaveId) {
+          return `[${shift.typeOfLeaveId}]`;
+        }
+        
+        // If no markers, return empty (don't show 00:00 - 00:00)
+        return '';
+      }
+      
+      // *** EXISTING: Normal time display for actual work shifts ***
       const duration = this.formatDuration(shift.workMinutes);
-      return `${startTime} - ${endTime} (${duration})`;
+      let result = `${startTime} - ${endTime} (${duration})`;
+      
+      // Add markers for actual work shifts
+      if (shift.isHoliday) {
+        result += ' [Holiday]';
+      } else if (shift.typeOfLeaveTitle) {
+        result += ` [${shift.typeOfLeaveTitle}]`;
+      }
+      
+      return result;
     } else {
-      // Несколько смен
-      const shiftLines = dayData.shifts.map(shift => {
+      // *** MULTIPLE SHIFTS: Filter out 00:00-00:00 shifts ***
+      const validShifts = dayData.shifts.filter(shift => {
         const startTime = this.formatTime(shift.startTime);
         const endTime = this.formatTime(shift.endTime);
-        const duration = this.formatDuration(shift.workMinutes);
-        return `${startTime} - ${endTime} (${duration})`;
+        
+        // Keep shift if it's not 00:00-00:00 OR if it has meaningful markers
+        if (startTime !== "00:00" || endTime !== "00:00" || shift.workMinutes > 0) {
+          return true; // Real work shift
+        }
+        
+        // For 00:00-00:00 shifts, only keep if they have holiday/leave markers
+        return shift.isHoliday || shift.typeOfLeaveId;
       });
+      
+      if (validShifts.length === 0) {
+        // All shifts were 00:00-00:00 without markers, check day-level markers
+        if (dayData.hasHoliday) {
+          return 'Holiday';
+        }
+        if (dayData.hasLeave) {
+          return 'Leave';
+        }
+        return '';
+      }
+      
+      const shiftLines = validShifts.map(shift => {
+        const startTime = this.formatTime(shift.startTime);
+        const endTime = this.formatTime(shift.endTime);
+        
+        // Check if this is a 00:00-00:00 marker-only shift
+        if (startTime === "00:00" && endTime === "00:00" && shift.workMinutes === 0) {
+          if (shift.isHoliday) {
+            return 'Holiday';
+          }
+          if (shift.typeOfLeaveTitle) {
+            return `[${shift.typeOfLeaveTitle}]`;
+          } else if (shift.typeOfLeaveId) {
+            return `[${shift.typeOfLeaveId}]`;
+          }
+          return ''; // Should not happen due to filtering above
+        }
+        
+        // Normal shift with actual time
+        const duration = this.formatDuration(shift.workMinutes);
+        let result = `${startTime} - ${endTime} (${duration})`;
+        
+        // Add markers for actual work shifts
+        if (shift.isHoliday) {
+          result += ' [Holiday]';
+        } else if (shift.typeOfLeaveTitle) {
+          result += ` [${shift.typeOfLeaveTitle}]`;
+        }
+        
+        return result;
+      }).filter(line => line !== ''); // Remove empty lines
       
       return shiftLines.join('\n');
     }
