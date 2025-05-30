@@ -432,13 +432,13 @@ export class TimetableShiftCalculatorLeaveTypesExcel {
 
   /**
    * Затемняет HEX цвет на указанный процент
+   * FIXED: Added explicit return type
    */
-  // FIXED: Added explicit return type
   private static darkenHexColor(hex: string, percent: number): string {
     const rgb = this.hexToRgb(hex);
     if (!rgb) return hex;
     
-    const darken = (color: number) => Math.max(0, Math.floor(color * (1 - percent)));
+    const darken = (color: number): number => Math.max(0, Math.floor(color * (1 - percent)));
     
     const r = darken(rgb.r).toString(16).padStart(2, '0');
     const g = darken(rgb.g).toString(16).padStart(2, '0');
