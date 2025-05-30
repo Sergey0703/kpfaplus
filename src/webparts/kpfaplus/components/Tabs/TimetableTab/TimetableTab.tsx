@@ -282,29 +282,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
               </div>
             </div>
             
-            {weeks.length > 0 && ( // Проверяем, что недели для месяца рассчитаны
-              <button 
-                onClick={() => {
-                  // console.log('[TimetableTab] Manual refresh requested from no-data state'); // Опциональное логирование
-                  refreshTimetableData().catch(error => {
-                    console.error('[TimetableTab] Manual refresh failed:', error);
-                  });
-                }}
-                style={{
-                  marginTop: '16px',
-                  padding: '8px 16px',
-                  backgroundColor: '#ff9800',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: '500'
-                }}
-              >
-                Refresh Data
-              </button>
-            )}
+            
           </div>
         ) : (
           <div>
@@ -385,19 +363,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
                   <div>
                     <strong>Expanded Weeks:</strong> {statistics.expandedCount}
                   </div>
-                  <div style={{ 
-                    gridColumn: '1 / -1',
-                    marginTop: '8px',
-                    padding: '8px',
-                    backgroundColor: '#fff3cd',
-                    borderRadius: '3px',
-                    border: '1px solid #ffeaa7'
-                  }}>
-                    <strong style={{ color: '#856404' }}>System Info:</strong> 
-                    <span style={{ color: '#666', marginLeft: '8px' }}>
-                      Leave Types: {typesOfLeave.length} loaded
-                    </span>
-                  </div>
+                  
                 </div>
               </div>
             )}
