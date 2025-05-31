@@ -24,6 +24,7 @@ import { NotesTab } from './Tabs/NotesTab/NotesTab';
 import { LeavesTab } from './Tabs/LeavesTab/LeavesTab';
 import { LeaveTimeByYearsTab } from './Tabs/LeaveTimeByYearsTab/LeaveTimeByYearsTab';
 import { SRSTab } from './Tabs/SRSTab/SRSTab';
+import { SRSReportsTab } from './Tabs/SRSReportsTab/SRSReportsTab';
 import { TimetableTab } from './Tabs/TimetableTab/TimetableTab';
 
 const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
@@ -527,6 +528,8 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
        return <LeaveTimeByYearsTab {...tabProps} />;
      case 'srs':
        return <SRSTab {...tabProps} />;
+     case 'srsReports':
+       return <SRSReportsTab {...tabProps} />;  
      case 'remoteConnection':
        return <RemoteConnectionTest context={props.context} />;
      default:
@@ -725,6 +728,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
                <PivotItem itemKey="schedule" headerText="Schedule" />
                <PivotItem itemKey="timetable" headerText="Timetable" />
                <PivotItem itemKey="srs" headerText="SRS" />
+               <PivotItem itemKey="srsReports" headerText="SRS Reports" />
                <PivotItem itemKey="notes" headerText="Notes" />
                <PivotItem itemKey="leaveTimeByYears" headerText="Leave Time by Years" />
                <PivotItem itemKey="remoteConnection" headerText="Remote Connection" />
