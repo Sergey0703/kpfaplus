@@ -1,40 +1,22 @@
 // src/webparts/kpfaplus/components/Tabs/SRSReportsTab/components/SRSReportsTable.tsx
 import * as React from 'react';
 import { useState, useEffect, useMemo } from 'react';
-import { 
-  DetailsList, 
-  DetailsListLayoutMode, 
-  SelectionMode, 
-  IColumn
-} from '@fluentui/react';
+import { Spinner } from '@fluentui/react';
 import { IStaffMember } from '../../../../models/types';
 import { ITypeOfLeave } from '../../../../services/TypeOfLeaveService';
 import { ContractsService } from '../../../../services/ContractsService';
+import { StaffRecordsService, IStaffRecord } from '../../../../services/StaffRecordsService';
 import { IContract } from '../../../../models/IContract';
 import { WebPartContext } from '@microsoft/sp-webpart-base';
-
-// Интерфейс для строки данных в таблице SRS Reports
-interface ISRSReportRow {
-  staffId: string;
-  staffName: string;
-  contract: string;
-  contractedHours: number;
-  annualLeaveFromPrevious: number;
-  dateColumn: string; // Новая колонка для даты (пока пустая)
-  jan: number;
-  feb: number;
-  mar: number;
-  apr: number;
-  may: number;
-  jun: number;
-  jul: number;
-  aug: number;
-  sep: number;
-  oct: number;
-  nov: number;
-  dec: number;
-  balanceRemainingInHrs: number;
-}
+import { LeaveDataProcessor } from '../LeaveDataProcessor';
+import { ExpandableLeaveTable } from './ExpandableLeaveTable';
+// Импортируем недостающий тип
+import {
+  ISRSReportData,
+  ISRSGroupingParams,
+  ISRSGroupingResult,
+  ISRSTableRow
+} from '../interfaces/ISRSReportsInterfaces';
 
 interface ISRSReportsTableProps {
   staffMembers: IStaffMember[];
@@ -44,10 +26,17 @@ interface ISRSReportsTableProps {
   selectedTypeFilter: string;
   typesOfLeave: ITypeOfLeave[];
   isLoading: boolean;
-  // Новые props для работы с контрактами
+  // Props для работы с контрактами и данными
   context?: WebPartContext;
   currentUserId?: string;
   managingGroupId?: string;
+}
+
+// Интерфейс для объединенных данных контракта с записями отпусков
+interface IContractWithLeaveRecords {
+  contract: IContract;
+  staffMember: IStaffMember;
+  leaveRecords: IStaffRecord[];
 }
 
 export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
@@ -73,30 +62,44 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
     isLoading
   });
 
-  // Состояние для контрактов
+  // СУЩЕСТВУЮЩЕЕ СОСТОЯНИЕ для контрактов (сохраняем как есть)
   const [contractsData, setContractsData] = useState<{ [staffId: string]: IContract[] }>({});
   const [isLoadingContracts, setIsLoadingContracts] = useState<boolean>(false);
 
-  // Инициализируем сервис контрактов
+  // НОВЫЕ СОСТОЯНИЯ для StaffRecords и обработанных данных
+  const [staffRecordsData, setStaffRecordsData] = useState<IStaffRecord[]>([]);
+  const [isLoadingStaffRecords, setIsLoadingStaffRecords] = useState<boolean>(false);
+  const [processedData, setProcessedData] = useState<ISRSReportData[]>([]);
+  const [processingError, setProcessingError] = useState<string>('');
+
+  // СУЩЕСТВУЮЩИЕ СЕРВИСЫ (сохраняем как есть)
   const contractsService = useMemo(() => {
     return context ? ContractsService.getInstance(context) : undefined;
   }, [context]);
 
-  // Вычисляем фильтрованных сотрудников внутри рендера (не в состоянии)
+  // НОВЫЕ СЕРВИСЫ
+  const staffRecordsService = useMemo(() => {
+    return context ? StaffRecordsService.getInstance(context) : undefined;
+  }, [context]);
+
+  const leaveDataProcessor = useMemo(() => {
+    return new LeaveDataProcessor();
+  }, []);
+
+  // СУЩЕСТВУЮЩАЯ ЛОГИКА: Вычисляем фильтрованных сотрудников (сохраняем как есть)
   const filteredStaffMembers = useMemo(() => {
     return selectedStaffId === '' 
       ? staffMembers.filter((staff: IStaffMember) => staff.deleted !== 1) // Все активные сотрудники
       : staffMembers.filter((staff: IStaffMember) => staff.id === selectedStaffId && staff.deleted !== 1); // Конкретный сотрудник
   }, [staffMembers, selectedStaffId]);
 
-  // Загружаем контракты для отфильтрованных сотрудников
+  // СУЩЕСТВУЮЩИЙ useEffect: Загружаем контракты для отфильтрованных сотрудников (сохраняем как есть)
   useEffect(() => {
     const fetchContractsForStaff = async (): Promise<void> => {
       if (!contractsService || staffMembers.length === 0) {
         return;
       }
 
-      // Вычисляем фильтрованных сотрудников внутри useEffect
       const currentFilteredStaff = selectedStaffId === '' 
         ? staffMembers.filter((staff: IStaffMember) => staff.deleted !== 1)
         : staffMembers.filter((staff: IStaffMember) => staff.id === selectedStaffId && staff.deleted !== 1);
@@ -112,7 +115,7 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
       try {
         const contractsMap: { [staffId: string]: IContract[] } = {};
 
-        // Загружаем контракты для каждого сотрудника
+        // Загружаем контракты для каждого сотрудника (СУЩЕСТВУЮЩАЯ ЛОГИКА)
         for (const staff of currentFilteredStaff) {
           if (staff.employeeId && currentUserId && managingGroupId) {
             try {
@@ -122,69 +125,38 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
                 managingGroupId
               );
               
-              // Фильтруем только НЕ удаленные контракты (Deleted !== 1)
-              // Поле isDeleted числовое: 0 = активный, 1 = удаленный
+              // Фильтруем только НЕ удаленные контракты и проверяем пересечение с периодом (СУЩЕСТВУЮЩАЯ ЛОГИКА)
               const activeContracts = contracts.filter((contract: IContract) => {
-                // Приводим к числу для безопасного сравнения
                 const deletedValue = typeof contract.isDeleted === 'number' 
                   ? contract.isDeleted 
                   : (contract.isDeleted ? 1 : 0);
                 
-                // Исключаем удаленные контракты
                 if (deletedValue === 1) {
                   return false;
                 }
                 
-                // Исключаем контракты без даты начала
                 if (!contract.startDate) {
                   return false;
                 }
                 
-                // Проверяем пересечение с выбранным периодом
+                // Проверяем пересечение с выбранным периодом (СУЩЕСТВУЮЩАЯ ЛОГИКА)
                 const contractStart = new Date(contract.startDate);
                 const contractEnd = contract.finishDate ? new Date(contract.finishDate) : null;
                 const periodStart = selectedPeriodStart;
                 const periodEnd = selectedPeriodEnd;
                 
-                // Случай 1: Контракт начался раньше выбранного периода и не закрыт
-                if (contractStart < periodStart && !contractEnd) {
-                  return true;
-                }
+                if (contractStart < periodStart && !contractEnd) return true;
+                if (contractStart < periodStart && contractEnd && contractEnd >= periodStart) return true;
+                if (contractStart >= periodStart && contractStart <= periodEnd) return true;
+                if (contractEnd && contractStart >= periodStart && contractEnd <= periodEnd) return true;
+                if (contractStart <= periodStart && contractEnd && contractEnd >= periodEnd) return true;
                 
-                // Случай 2: Контракт начался раньше выбранного периода и закрывается после или во время периода
-                if (contractStart < periodStart && contractEnd && contractEnd >= periodStart) {
-                  return true;
-                }
-                
-                // Случай 3: Дата начала контракта в выбранном периоде
-                if (contractStart >= periodStart && contractStart <= periodEnd) {
-                  return true;
-                }
-                
-                // Случай 4: Весь срок контракта в выбранном периоде
-                if (contractEnd && contractStart >= periodStart && contractEnd <= periodEnd) {
-                  return true;
-                }
-                
-                // Случай 5: Контракт покрывает весь выбранный период
-                if (contractStart <= periodStart && contractEnd && contractEnd >= periodEnd) {
-                  return true;
-                }
-                
-                // Во всех остальных случаях не включаем контракт
                 return false;
               });
               
               contractsMap[staff.id] = activeContracts;
               
-              console.log(`[SRSReportsTable] Loaded ${activeContracts.length} relevant contracts for ${staff.name} (total: ${contracts.length}) for period ${selectedPeriodStart.toLocaleDateString()} - ${selectedPeriodEnd.toLocaleDateString()}`);
-              
-              // Логируем детали каждого контракта для отладки
-              activeContracts.forEach(contract => {
-                const startStr = contract.startDate ? new Date(contract.startDate).toLocaleDateString() : 'No start';
-                const endStr = contract.finishDate ? new Date(contract.finishDate).toLocaleDateString() : 'Open';
-                console.log(`  - Contract "${contract.template}": ${startStr} - ${endStr}`);
-              });
+              console.log(`[SRSReportsTable] Loaded ${activeContracts.length} relevant contracts for ${staff.name}`);
             } catch (error) {
               console.error(`[SRSReportsTable] Error loading contracts for ${staff.name}:`, error);
               contractsMap[staff.id] = [];
@@ -209,282 +181,283 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
       .catch((error) => {
         console.error('[SRSReportsTable] Error in contracts loading:', error);
       });
-  }, [staffMembers, selectedStaffId, contractsService, currentUserId, managingGroupId, selectedPeriodStart, selectedPeriodEnd]); // Добавили периоды в зависимости
+  }, [staffMembers, selectedStaffId, contractsService, currentUserId, managingGroupId, selectedPeriodStart, selectedPeriodEnd]);
 
-  // Генерируем данные для таблицы на основе реальных контрактов
-  const generateSRSReportData = (): ISRSReportRow[] => {
-    const rows: ISRSReportRow[] = [];
-    
-    filteredStaffMembers.forEach((staff: IStaffMember) => {
-      const staffContracts = contractsData[staff.id] || [];
-      
-      if (staffContracts.length === 0) {
-        // Если у сотрудника нет контрактов, создаем одну строку с "No Contract"
-        const previousLeave = Math.floor(Math.random() * 50) + 20; // 20-70 часов
-        const monthlyData = Array.from({ length: 12 }, () => Math.floor(Math.random() * 10));
-        const totalUsed = monthlyData.reduce((sum, val) => sum + val, 0);
-        const balance = previousLeave - totalUsed;
-
-        rows.push({
-          staffId: staff.id,
-          staffName: staff.name,
-          contract: 'No Contract',
-          contractedHours: 0,
-          annualLeaveFromPrevious: previousLeave,
-          dateColumn: '', // Пустая колонка для даты
-          jan: monthlyData[0],
-          feb: monthlyData[1],
-          mar: monthlyData[2],
-          apr: monthlyData[3],
-          may: monthlyData[4],
-          jun: monthlyData[5],
-          jul: monthlyData[6],
-          aug: monthlyData[7],
-          sep: monthlyData[8],
-          oct: monthlyData[9],
-          nov: monthlyData[10],
-          dec: monthlyData[11],
-          balanceRemainingInHrs: balance
-        });
-      } else {
-        // Создаем отдельную строку для каждого контракта
-        staffContracts.forEach((contract, contractIndex) => {
-          const previousLeave = Math.floor(Math.random() * 50) + 20; // 20-70 часов
-          const monthlyData = Array.from({ length: 12 }, () => Math.floor(Math.random() * 10));
-          const totalUsed = monthlyData.reduce((sum, val) => sum + val, 0);
-          const balance = previousLeave - totalUsed;
-
-          rows.push({
-            staffId: `${staff.id}_${contract.id}`, // Уникальный ID для строки
-            staffName: staff.name, // Показываем имя во всех строках
-            contract: contract.template || 'Unnamed Contract',
-            contractedHours: contract.contractedHours || 0,
-            annualLeaveFromPrevious: previousLeave,
-            dateColumn: '', // Пустая колонка для даты
-            jan: monthlyData[0],
-            feb: monthlyData[1],
-            mar: monthlyData[2],
-            apr: monthlyData[3],
-            may: monthlyData[4],
-            jun: monthlyData[5],
-            jul: monthlyData[6],
-            aug: monthlyData[7],
-            sep: monthlyData[8],
-            oct: monthlyData[9],
-            nov: monthlyData[10],
-            dec: monthlyData[11],
-            balanceRemainingInHrs: balance
-          });
-        });
+  // НОВЫЙ useEffect: Загружаем StaffRecords с типом отпуска
+  useEffect(() => {
+    const fetchStaffRecordsData = async (): Promise<void> => {
+      if (!staffRecordsService || !context) {
+        console.log('[SRSReportsTable] StaffRecordsService или context недоступны');
+        return;
       }
-    });
-    
-    return rows;
+
+      if (filteredStaffMembers.length === 0) {
+        console.log('[SRSReportsTable] Нет сотрудников для загрузки записей отпусков');
+        setStaffRecordsData([]);
+        return;
+      }
+
+      setIsLoadingStaffRecords(true);
+      setProcessingError('');
+      console.log('[SRSReportsTable] Загрузка StaffRecords с типом отпуска...');
+
+      try {
+        // Параметры запроса для получения записей с типом отпуска
+        const queryParams = {
+          startDate: selectedPeriodStart,
+          endDate: selectedPeriodEnd,
+          currentUserID: currentUserId || '',
+          staffGroupID: managingGroupId || '',
+          employeeID: selectedStaffId === '' ? '' : selectedStaffId // Пустой для всех сотрудников
+        };
+
+        console.log('[SRSReportsTable] Параметры запроса StaffRecords:', queryParams);
+
+        // Используем новый метод для получения записей с типом отпуска
+        const result = await staffRecordsService.getStaffRecordsForSRSReports(queryParams);
+
+        if (result.error) {
+          const errorMsg = `Ошибка загрузки записей отпусков: ${result.error}`;
+          console.error('[SRSReportsTable]', errorMsg);
+          setProcessingError(errorMsg);
+          setStaffRecordsData([]);
+        } else {
+          console.log(`[SRSReportsTable] Загружено ${result.records.length} записей отпусков с типом отпуска`);
+          setStaffRecordsData(result.records);
+        }
+
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error('[SRSReportsTable] Ошибка при загрузке записей отпусков:', errorMessage);
+        setProcessingError(`Не удалось загрузить записи отпусков: ${errorMessage}`);
+        setStaffRecordsData([]);
+      } finally {
+        setIsLoadingStaffRecords(false);
+      }
+    };
+
+    fetchStaffRecordsData()
+      .then(() => {
+        console.log('[SRSReportsTable] Загрузка записей отпусков завершена');
+      })
+      .catch((error) => {
+        console.error('[SRSReportsTable] Ошибка в fetchStaffRecordsData:', error);
+      });
+  }, [
+    staffRecordsService, 
+    context, 
+    filteredStaffMembers, 
+    selectedPeriodStart, 
+    selectedPeriodEnd, 
+    selectedStaffId, 
+    currentUserId, 
+    managingGroupId
+  ]);
+
+  // НОВЫЙ useEffect: Объединяем контракты с записями отпусков и обрабатываем данные
+  useEffect(() => {
+    const processContractsWithLeaveRecords = (): void => {
+      if (Object.keys(contractsData).length === 0 || staffRecordsData.length === 0) {
+        console.log('[SRSReportsTable] Недостаточно данных для объединения - контракты или записи отпусков отсутствуют');
+        setProcessedData([]);
+        return;
+      }
+
+      console.log('[SRSReportsTable] Объединение контрактов с записями отпусков...');
+
+      try {
+        const contractsWithLeaveRecords: IContractWithLeaveRecords[] = [];
+
+        // Объединяем контракты с записями отпусков
+        filteredStaffMembers.forEach(staff => {
+          const staffContracts = contractsData[staff.id] || [];
+          
+          staffContracts.forEach(contract => {
+            // Находим записи отпусков, относящиеся к этому контракту
+            const contractLeaveRecords = staffRecordsData.filter(record => {
+              // Проверяем, что запись принадлежит этому сотруднику
+              const recordStaffId = record.StaffMemberLookupId || record.ID;
+              const belongsToStaff = recordStaffId === staff.id || recordStaffId === staff.employeeId;
+              
+              if (!belongsToStaff) {
+                return false;
+              }
+
+              // Проверяем, что запись попадает в период действия контракта
+              if (!record.Date || !contract.startDate) {
+                return false;
+              }
+
+              const recordDate = new Date(record.Date);
+              const contractStart = new Date(contract.startDate);
+              const contractEnd = contract.finishDate ? new Date(contract.finishDate) : new Date('2099-12-31');
+
+              return recordDate >= contractStart && recordDate <= contractEnd;
+            });
+
+            console.log(`[SRSReportsTable] Контракт ${contract.template} для ${staff.name}: ${contractLeaveRecords.length} записей отпуска`);
+
+            contractsWithLeaveRecords.push({
+              contract,
+              staffMember: staff,
+              leaveRecords: contractLeaveRecords
+            });
+          });
+
+          // Если у сотрудника нет контрактов, но есть записи отпусков, создаем "виртуальный" контракт
+          if (staffContracts.length === 0) {
+            const staffLeaveRecords = staffRecordsData.filter(record => {
+              const recordStaffId = record.StaffMemberLookupId || record.ID;
+              return recordStaffId === staff.id || recordStaffId === staff.employeeId;
+            });
+
+            if (staffLeaveRecords.length > 0) {
+              console.log(`[SRSReportsTable] Создание виртуального контракта для ${staff.name}: ${staffLeaveRecords.length} записей отпуска`);
+
+              const virtualContract: IContract = {
+                id: `virtual_${staff.id}`,
+                template: 'No Contract',
+                startDate: selectedPeriodStart,
+                finishDate: selectedPeriodEnd,
+                contractedHours: 0,
+                isDeleted: false,
+                typeOfWorker: { id: 'unknown', value: 'Unknown' } // Объект с id и value
+              };
+
+              contractsWithLeaveRecords.push({
+                contract: virtualContract,
+                staffMember: staff,
+                leaveRecords: staffLeaveRecords
+              });
+            }
+          }
+        });
+
+        console.log(`[SRSReportsTable] Объединено ${contractsWithLeaveRecords.length} контрактов с записями отпусков`);
+
+        // Теперь обрабатываем объединенные данные через LeaveDataProcessor
+        if (contractsWithLeaveRecords.length === 0) {
+          console.log('[SRSReportsTable] Нет данных для обработки после объединения');
+          setProcessedData([]);
+          return;
+        }
+
+        // Создаем ISRSReportData для каждого контракта с записями отпусков
+        const reportDataList: ISRSReportData[] = [];
+
+        contractsWithLeaveRecords.forEach(({ contract, staffMember, leaveRecords }) => {
+          if (leaveRecords.length === 0) {
+            // Пропускаем контракты без записей отпусков
+            return;
+          }
+
+          // Применяем фильтр по типу отпуска, если задан
+          const filteredLeaveRecords = selectedTypeFilter === '' 
+            ? leaveRecords 
+            : leaveRecords.filter(record => record.TypeOfLeaveID === selectedTypeFilter);
+
+          if (filteredLeaveRecords.length === 0) {
+            return;
+          }
+
+          // Используем LeaveDataProcessor для обработки записей этого контракта
+          const groupingParams: ISRSGroupingParams = {
+            staffRecords: filteredLeaveRecords,
+            periodStart: selectedPeriodStart,
+            periodEnd: selectedPeriodEnd,
+            typeOfLeaveFilter: selectedTypeFilter === '' ? undefined : selectedTypeFilter,
+            typesOfLeave: typesOfLeave
+          };
+
+          const result: ISRSGroupingResult = leaveDataProcessor.processStaffRecords(groupingParams);
+
+          // Преобразуем результат в данные с информацией о контракте
+          if (result.reportData.length > 0) {
+            // Берем первый элемент результата и обогащаем его данными контракта
+            const processedContract = result.reportData[0];
+            
+            const enhancedReportData: ISRSReportData = {
+              ...processedContract,
+              id: `${staffMember.id}_${contract.id}`,
+              staffId: staffMember.id,
+              staffName: staffMember.name,
+              contractId: contract.id,
+              contractName: contract.template || 'Unnamed Contract',
+              contractedHours: contract.contractedHours || 0
+            };
+
+            reportDataList.push(enhancedReportData);
+          }
+        });
+
+        console.log(`[SRSReportsTable] Обработано ${reportDataList.length} контрактов с данными отпусков`);
+        setProcessedData(reportDataList);
+        setProcessingError('');
+
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error('[SRSReportsTable] Ошибка при объединении и обработке данных:', errorMessage);
+        setProcessingError(`Ошибка обработки данных: ${errorMessage}`);
+        setProcessedData([]);
+      }
+    };
+
+    processContractsWithLeaveRecords();
+  }, [
+    contractsData,
+    staffRecordsData,
+    filteredStaffMembers,
+    selectedPeriodStart,
+    selectedPeriodEnd,
+    selectedTypeFilter,
+    typesOfLeave,
+    leaveDataProcessor
+  ]);
+
+  // Обработчики для ExpandableLeaveTable
+  const handleExpandToggle = (rowId: string, isExpanded: boolean): void => {
+    console.log('[SRSReportsTable] Expand toggle:', rowId, isExpanded);
+    // Здесь можно добавить дополнительную логику при разворачивании строк
   };
 
-  const reportData = generateSRSReportData();
+  const handleRowClick = (row: ISRSTableRow): void => {
+    console.log('[SRSReportsTable] Row clicked:', row);
+    // Здесь можно добавить логику обработки клика по строке
+  };
 
-  console.log('[SRSReportsTable] Generated report data:', {
-    reportRowsCount: reportData.length,
-    contractsDataKeys: Object.keys(contractsData),
-    isLoadingContracts,
-    totalContracts: Object.values(contractsData).reduce((sum, contracts) => sum + contracts.length, 0),
-    reportRows: reportData.map(row => ({ staffName: row.staffName, contract: row.contract, hours: row.contractedHours }))
-  });
-
-  // Определяем колонки таблицы
-  const columns: IColumn[] = [
-    {
-      key: 'staffName',
-      name: 'StaffName',
-      fieldName: 'staffName',
-      minWidth: 150,
-      maxWidth: 200,
-      isResizable: true,
-      onRender: (item: ISRSReportRow): JSX.Element => (
-        <span style={{ fontWeight: '600' }}>{item.staffName}</span>
-      )
-    },
-    {
-      key: 'contract',
-      name: 'Contract',
-      fieldName: 'contract',
-      minWidth: 120,
-      maxWidth: 150,
-      isResizable: true
-    },
-    {
-      key: 'contractedHours',
-      name: 'Contracted Hours',
-      fieldName: 'contractedHours',
-      minWidth: 80,
-      maxWidth: 100,
-      onRender: (item: ISRSReportRow): JSX.Element => (
-        <span style={{ textAlign: 'center', display: 'block' }}>{item.contractedHours}</span>
-      )
-    },
-    {
-      key: 'annualLeaveFromPrevious',
-      name: 'Annual Leave from previous',
-      fieldName: 'annualLeaveFromPrevious',
-      minWidth: 80,
-      maxWidth: 100,
-      onRender: (item: ISRSReportRow): JSX.Element => (
-        <span style={{ textAlign: 'center', display: 'block', fontWeight: '600', color: '#0078d4' }}>
-          {item.annualLeaveFromPrevious}
-        </span>
-      )
-    },
-    // Месячные колонки
-    {
-      key: 'jan',
-      name: 'Jan',
-      fieldName: 'jan',
-      minWidth: 50,
-      maxWidth: 60,
-      onRender: (item: ISRSReportRow): JSX.Element => (
-        <span style={{ textAlign: 'center', display: 'block' }}>{item.jan}</span>
-      )
-    },
-    {
-      key: 'feb',
-      name: 'Feb',
-      fieldName: 'feb',
-      minWidth: 50,
-      maxWidth: 60,
-      onRender: (item: ISRSReportRow): JSX.Element => (
-        <span style={{ textAlign: 'center', display: 'block' }}>{item.feb}</span>
-      )
-    },
-    {
-      key: 'mar',
-      name: 'Mar',
-      fieldName: 'mar',
-      minWidth: 50,
-      maxWidth: 60,
-      onRender: (item: ISRSReportRow): JSX.Element => (
-        <span style={{ textAlign: 'center', display: 'block' }}>{item.mar}</span>
-      )
-    },
-    {
-      key: 'apr',
-      name: 'Apr',
-      fieldName: 'apr',
-      minWidth: 50,
-      maxWidth: 60,
-      onRender: (item: ISRSReportRow): JSX.Element => (
-        <span style={{ textAlign: 'center', display: 'block' }}>{item.apr}</span>
-      )
-    },
-    {
-      key: 'may',
-      name: 'May',
-      fieldName: 'may',
-      minWidth: 50,
-      maxWidth: 60,
-      onRender: (item: ISRSReportRow): JSX.Element => (
-        <span style={{ textAlign: 'center', display: 'block' }}>{item.may}</span>
-      )
-    },
-    {
-      key: 'jun',
-      name: 'Jun',
-      fieldName: 'jun',
-      minWidth: 50,
-      maxWidth: 60,
-      onRender: (item: ISRSReportRow): JSX.Element => (
-        <span style={{ textAlign: 'center', display: 'block' }}>{item.jun}</span>
-      )
-    },
-    {
-      key: 'jul',
-      name: 'Jul',
-      fieldName: 'jul',
-      minWidth: 50,
-      maxWidth: 60,
-      onRender: (item: ISRSReportRow): JSX.Element => (
-        <span style={{ textAlign: 'center', display: 'block' }}>{item.jul}</span>
-      )
-    },
-    {
-      key: 'aug',
-      name: 'Aug',
-      fieldName: 'aug',
-      minWidth: 50,
-      maxWidth: 60,
-      onRender: (item: ISRSReportRow): JSX.Element => (
-        <span style={{ textAlign: 'center', display: 'block' }}>{item.aug}</span>
-      )
-    },
-    {
-      key: 'sep',
-      name: 'Sep',
-      fieldName: 'sep',
-      minWidth: 50,
-      maxWidth: 60,
-      onRender: (item: ISRSReportRow): JSX.Element => (
-        <span style={{ textAlign: 'center', display: 'block' }}>{item.sep}</span>
-      )
-    },
-    {
-      key: 'oct',
-      name: 'Oct',
-      fieldName: 'oct',
-      minWidth: 50,
-      maxWidth: 60,
-      onRender: (item: ISRSReportRow): JSX.Element => (
-        <span style={{ textAlign: 'center', display: 'block' }}>{item.oct}</span>
-      )
-    },
-    {
-      key: 'nov',
-      name: 'Nov',
-      fieldName: 'nov',
-      minWidth: 50,
-      maxWidth: 60,
-      onRender: (item: ISRSReportRow): JSX.Element => (
-        <span style={{ textAlign: 'center', display: 'block' }}>{item.nov}</span>
-      )
-    },
-    {
-      key: 'dec',
-      name: 'Dec',
-      fieldName: 'dec',
-      minWidth: 50,
-      maxWidth: 60,
-      onRender: (item: ISRSReportRow): JSX.Element => (
-        <span style={{ textAlign: 'center', display: 'block' }}>{item.dec}</span>
-      )
-    },
-    {
-      key: 'balanceRemainingInHrs',
-      name: 'Balance remaining in hrs',
-      fieldName: 'balanceRemainingInHrs',
-      minWidth: 80,
-      maxWidth: 100,
-      onRender: (item: ISRSReportRow): JSX.Element => (
-        <span style={{ 
-          textAlign: 'center', 
-          display: 'block', 
-          fontWeight: '600',
-          color: item.balanceRemainingInHrs < 0 ? '#d83b01' : '#107c10'
-        }}>
-          {item.balanceRemainingInHrs}
-        </span>
-      )
-    }
-  ];
-
-  if (isLoading || isLoadingContracts) {
+  // Обработка состояний загрузки
+  if (isLoading || isLoadingContracts || isLoadingStaffRecords) {
     return (
       <div style={{ textAlign: 'center', padding: '40px' }}>
-        <p>Loading SRS reports data...</p>
-        {isLoadingContracts && <p style={{ fontSize: '12px', color: '#666' }}>Loading contracts...</p>}
+        <Spinner size={1} />
+        <p style={{ marginTop: '10px', color: '#666' }}>
+          {isLoading && 'Loading SRS reports data...'}
+          {isLoadingContracts && 'Loading contracts...'}
+          {isLoadingStaffRecords && 'Loading leave records...'}
+        </p>
       </div>
     );
   }
 
-  if (reportData.length === 0) {
+  // Обработка ошибок
+  if (processingError) {
+    return (
+      <div style={{ textAlign: 'center', padding: '40px' }}>
+        <p style={{ color: '#d83b01', marginBottom: '10px' }}>
+          Error processing SRS reports data
+        </p>
+        <p style={{ fontSize: '12px', color: '#666' }}>
+          {processingError}
+        </p>
+        <p style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
+          Try adjusting your filters or refresh the page.
+        </p>
+      </div>
+    );
+  }
+
+  // Обработка отсутствия данных
+  if (filteredStaffMembers.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '40px' }}>
         <p>No staff members found for the selected criteria.</p>
@@ -496,47 +469,52 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
     );
   }
 
+  // Статистика для отладки
+  const totalContracts = Object.values(contractsData).reduce((sum, contracts) => sum + contracts.length, 0);
+  
+  if (processedData.length === 0) {
+    return (
+      <div style={{ textAlign: 'center', padding: '40px' }}>
+        <p>No leave records found that match contracts for the selected period.</p>
+        <p style={{ fontSize: '12px', color: '#666' }}>
+          Staff members: {filteredStaffMembers.length} | 
+          Contracts: {totalContracts} | 
+          Leave records: {staffRecordsData.length}
+        </p>
+        <p style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
+          Period: {selectedPeriodStart.toLocaleDateString()} - {selectedPeriodEnd.toLocaleDateString()}
+          {selectedTypeFilter && ` | Type: ${typesOfLeave.find(t => t.id === selectedTypeFilter)?.title || selectedTypeFilter}`}
+        </p>
+        <p style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
+          Try selecting a different period or leave type filter.
+        </p>
+      </div>
+    );
+  }
+
+  console.log('[SRSReportsTable] Rendering ExpandableLeaveTable with', processedData.length, 'processed contracts');
+
+  // Отображение основной таблицы
   return (
     <div>
-      <p style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}>
-        Showing SRS reports for {reportData.length} staff member(s) | 
-        Period: {selectedPeriodStart.toLocaleDateString()} - {selectedPeriodEnd.toLocaleDateString()}
-        {selectedTypeFilter && ` | Type: ${typesOfLeave.find(t => t.id === selectedTypeFilter)?.title || selectedTypeFilter}`}
-      </p>
-      
-      <DetailsList
-        items={reportData}
-        columns={columns}
-        layoutMode={DetailsListLayoutMode.justified}
-        selectionMode={SelectionMode.none}
-        isHeaderVisible={true}
-        compact={true}
-        styles={{
-          root: {
-            selectors: {
-              '.ms-DetailsHeader': {
-                backgroundColor: '#f8f9fa',
-                borderBottom: '2px solid #dee2e6'
-              },
-              '.ms-DetailsHeader-cell': {
-                fontSize: '12px',
-                fontWeight: '600',
-                color: '#495057'
-              },
-              '.ms-DetailsRow': {
-                selectors: {
-                  ':hover': {
-                    backgroundColor: '#f8f9fa'
-                  }
-                }
-              },
-              '.ms-DetailsRow-cell': {
-                fontSize: '11px',
-                padding: '8px 12px'
-              }
-            }
-          }
-        }}
+      <div style={{ marginBottom: '15px' }}>
+        <p style={{ fontSize: '12px', color: '#666', margin: '0' }}>
+          <strong>SRS Reports Summary:</strong> {filteredStaffMembers.length} staff member(s) | 
+          {totalContracts} contract(s) | 
+          {staffRecordsData.length} leave record(s) | 
+          {processedData.length} contract(s) with leave data
+        </p>
+        <p style={{ fontSize: '11px', color: '#999', margin: '5px 0 0 0' }}>
+          Period: {selectedPeriodStart.toLocaleDateString()} - {selectedPeriodEnd.toLocaleDateString()}
+          {selectedTypeFilter && ` | Type: ${typesOfLeave.find(t => t.id === selectedTypeFilter)?.title || selectedTypeFilter}`}
+        </p>
+      </div>
+
+      <ExpandableLeaveTable
+        reportData={processedData}
+        isLoading={false} // Мы уже обработали загрузку выше
+        onExpandToggle={handleExpandToggle}
+        onRowClick={handleRowClick}
       />
     </div>
   );
