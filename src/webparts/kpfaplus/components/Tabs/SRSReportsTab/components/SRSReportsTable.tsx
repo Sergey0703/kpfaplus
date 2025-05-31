@@ -20,6 +20,7 @@ interface ISRSReportRow {
   contract: string;
   contractedHours: number;
   annualLeaveFromPrevious: number;
+  dateColumn: string; // Новая колонка для даты (пока пустая)
   jan: number;
   feb: number;
   mar: number;
@@ -230,6 +231,7 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
           contract: 'No Contract',
           contractedHours: 0,
           annualLeaveFromPrevious: previousLeave,
+          dateColumn: '', // Пустая колонка для даты
           jan: monthlyData[0],
           feb: monthlyData[1],
           mar: monthlyData[2],
@@ -254,10 +256,11 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
 
           rows.push({
             staffId: `${staff.id}_${contract.id}`, // Уникальный ID для строки
-            staffName: contractIndex === 0 ? staff.name : '', // Показываем имя только в первой строке
+            staffName: staff.name, // Показываем имя во всех строках
             contract: contract.template || 'Unnamed Contract',
             contractedHours: contract.contractedHours || 0,
             annualLeaveFromPrevious: previousLeave,
+            dateColumn: '', // Пустая колонка для даты
             jan: monthlyData[0],
             feb: monthlyData[1],
             mar: monthlyData[2],
