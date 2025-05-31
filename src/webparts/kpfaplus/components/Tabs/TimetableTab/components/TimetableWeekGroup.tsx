@@ -28,6 +28,7 @@ interface ITimetableStaffRowWithKey extends ITimetableStaffRow {
 // Обновленный интерфейс для передачи типов отпусков
 interface IWeekGroupContentPropsExtended extends IWeekGroupContentProps {
   typesOfLeave: ITypeOfLeave[];
+  getLeaveTypeTitle?: (typeOfLeaveId: string) => string | undefined; // *** НОВОЕ v3.7 ***
 }
 
 /**
@@ -35,7 +36,7 @@ interface IWeekGroupContentPropsExtended extends IWeekGroupContentProps {
  * ИСПРАВЛЕНО v3.7: Правильное отображение названий типов отпусков и применение цветов
  */
 export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended> = (props) => {
-  const { staffRows, weekInfo, dayOfStartWeek, getLeaveTypeColor, holidayColor, typesOfLeave } = props;
+  const { staffRows, weekInfo, dayOfStartWeek, getLeaveTypeColor, holidayColor, typesOfLeave, getLeaveTypeTitle } = props;
 
   console.log('[TimetableWeekGroupContent] Rendering content for week with FIXED LEAVE TYPE NAMES v3.7:', {
     weekNum: weekInfo.weekNum,
@@ -44,6 +45,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
     hasLeaveTypeColorFunction: !!getLeaveTypeColor,
     holidayColor: holidayColor || TIMETABLE_COLORS.HOLIDAY,
     typesOfLeaveCount: typesOfLeave?.length || 0,
+    hasGetLeaveTypeTitle: !!getLeaveTypeTitle, // *** НОВОЕ v3.7 ***
     features: ['Holiday Priority System', 'Leave Type Colors', 'FIXED Leave Type Names', 'Non-work Day Markers', 'Expanded Color Areas', 'Clean UI']
   });
 
@@ -66,25 +68,48 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
   }, [weekInfo.weekNum, staffRows.length]);
 
   /**
-   * НОВАЯ ФУНКЦИЯ v3.7: Получает правильное название типа отпуска
+   * *** УЛУЧШЕННАЯ ФУНКЦИЯ v3.7: Получает правильное название типа отпуска ***
    */
   const getLeaveTypeName = React.useCallback((leaveTypeId: string): string => {
     if (!leaveTypeId || !typesOfLeave || typesOfLeave.length === 0) {
       return leaveTypeId || 'Leave';
     }
 
-    // Ищем тип отпуска по ID
+    console.log(`[TimetableWeekGroup] *** v3.7: Converting leave type ID to name: ${leaveTypeId} ***`);
+
+    // Приоритет 1: Используем getLeaveTypeTitle из хука
+    if (getLeaveTypeTitle) {
+      const titleFromHook = getLeaveTypeTitle(leaveTypeId);
+      if (titleFromHook && titleFromHook !== leaveTypeId) {
+        console.log(`[TimetableWeekGroup] *** v3.7 SUCCESS: FOUND FROM HOOK: ${titleFromHook} ***`);
+        return titleFromHook;
+      }
+    }
+
+    // Приоритет 2: Ищем в массиве typesOfLeave
     const leaveType = typesOfLeave.find(lt => lt.id === leaveTypeId);
-    
     if (leaveType && leaveType.title) {
-      console.log(`[TimetableWeekGroupContent] *** FIXED v3.7: FOUND LEAVE TYPE NAME: ${leaveType.title} (was: ${leaveTypeId}) ***`);
+      console.log(`[TimetableWeekGroup] *** v3.7 SUCCESS: FOUND FROM ARRAY: ${leaveType.title} ***`);
       return leaveType.title;
     }
 
-    // Fallback к ID если название не найдено
-    console.log(`[TimetableWeekGroupContent] *** FIXED v3.7: FALLBACK: No name found for ${leaveTypeId}, using ID ***`);
+    // Приоритет 3: Пробуем найти по числовому ID
+    if (leaveTypeId.startsWith('Type ')) {
+      const numericId = leaveTypeId.replace('Type ', '').trim();
+      const numericLeaveType = typesOfLeave.find(lt => 
+        lt.id === numericId || 
+        lt.id === `Type ${numericId}`
+      );
+      if (numericLeaveType && numericLeaveType.title) {
+        console.log(`[TimetableWeekGroup] *** v3.7 SUCCESS: FOUND BY NUMERIC ID: ${numericLeaveType.title} ***`);
+        return numericLeaveType.title;
+      }
+    }
+
+    // Fallback
+    console.log(`[TimetableWeekGroup] *** v3.7 FALLBACK: Using ID: ${leaveTypeId} ***`);
     return leaveTypeId;
-  }, [typesOfLeave]);
+  }, [typesOfLeave, getLeaveTypeTitle]);
 
   // Создаем колонки для таблицы
   const columns = React.useMemo((): IColumn[] => {
@@ -415,6 +440,19 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
                         shiftContent = getLeaveTypeName(shift.typeOfLeaveId);
                       }
                     }
+                    // *** НОВОЕ ИСПРАВЛЕНИЕ: Для обычных смен с рабочим временем, но с типом отпуска ***
+                    else if (shift.typeOfLeaveId && shift.formattedShift.includes('(')) {
+                      // Разбираем formattedShift на части: время и продолжительность
+                      const timeAndDuration = shift.formattedShift;
+                      const leaveTypeTitle = getLeaveTypeName(shift.typeOfLeaveId);
+                      
+                      if (shift.isHoliday) {
+                        shiftContent = `${timeAndDuration} [Holiday]`;
+                      } else {
+                        shiftContent = `${timeAndDuration} [${leaveTypeTitle}]`;
+                      }
+                      console.log(`[TimetableWeekGroup] *** FIXED v3.7: Enhanced work shift with leave type: ${shift.typeOfLeaveId} → ${leaveTypeTitle} ***`);
+                    }
 
                     return (
                       <div 
@@ -440,7 +478,8 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
                       (priority === ColorPriority.HOLIDAY ? '0 1px 3px rgba(0,0,0,0.8)' : '0 1px 2px rgba(0,0,0,0.3)') : 
                       'none'
                   }}>
-                    {displayText}
+                    {/* *** КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Используем getLeaveTypeName для преобразования displayText *** */}
+                    {displayText && displayText.startsWith('Type ') ? getLeaveTypeName(displayText) : displayText}
                   </div>
                 )}
 
@@ -725,9 +764,10 @@ export const TimetableWeekGroup: React.FC<{
   onToggleExpand: (weekNum: number) => void;
   getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined;
   holidayColor?: string;
-  typesOfLeave: ITypeOfLeave[]; // *** НОВОЕ: Добавляем типы отпусков ***
+  typesOfLeave: ITypeOfLeave[];
+  getLeaveTypeTitle?: (typeOfLeaveId: string) => string | undefined; // *** НОВОЕ v3.7 ***
 }> = (props) => {
-  const { weekGroup, dayOfStartWeek, onToggleExpand, getLeaveTypeColor, holidayColor, typesOfLeave } = props;
+  const { weekGroup, dayOfStartWeek, onToggleExpand, getLeaveTypeColor, holidayColor, typesOfLeave, getLeaveTypeTitle } = props;
 
   console.log('[TimetableWeekGroup] Rendering week group with FIXED LEAVE TYPE NAMES v3.7:', {
     weekNum: weekGroup.weekInfo.weekNum,
@@ -736,6 +776,7 @@ export const TimetableWeekGroup: React.FC<{
     staffCount: weekGroup.staffRows.length,
     holidayColor: holidayColor || TIMETABLE_COLORS.HOLIDAY,
     typesOfLeaveCount: typesOfLeave?.length || 0,
+    hasGetLeaveTypeTitle: !!getLeaveTypeTitle, // *** НОВОЕ v3.7 ***
     features: ['Holiday Priority', 'Leave Type Colors', 'FIXED Leave Type Names', 'Non-work Day Markers', 'Expanded Color Areas', 'Clean UI']
   });
 
@@ -759,7 +800,6 @@ export const TimetableWeekGroup: React.FC<{
         onToggle={handleToggle}
       />
       
-           
       {weekGroup.isExpanded && (
         <TimetableWeekGroupContent
           staffRows={weekGroup.staffRows}
@@ -767,7 +807,8 @@ export const TimetableWeekGroup: React.FC<{
           dayOfStartWeek={dayOfStartWeek}
           getLeaveTypeColor={getLeaveTypeColor}
           holidayColor={holidayColor}
-          typesOfLeave={typesOfLeave} // *** ИСПРАВЛЕНО: Передаем типы отпусков ***
+          typesOfLeave={typesOfLeave}
+          getLeaveTypeTitle={getLeaveTypeTitle} // *** ИСПРАВЛЕНО v3.7: Передаем функцию ***
         />
       )}
     </div>

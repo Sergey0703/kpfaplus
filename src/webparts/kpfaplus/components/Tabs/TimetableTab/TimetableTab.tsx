@@ -40,7 +40,8 @@ const TimetableTabComponent: React.FC<ITimetableTabProps> = (props) => {
     toggleWeekExpand,
     expandAllWeeks,
     collapseAllWeeks,
-    staffMembers 
+    staffMembers,
+    getLeaveTypeTitle 
   } = useTimetableLogic(props as ITimetableLogicProps); // Приведение типа здесь допустимо
 
   console.log('[TimetableTab] Rendering with FIXED LEAVE TYPE NAMES v3.7:', {
@@ -343,6 +344,7 @@ const TimetableTabComponent: React.FC<ITimetableTabProps> = (props) => {
                 getLeaveTypeColor={getLeaveTypeColor}
                 holidayColor={TIMETABLE_COLORS.HOLIDAY}
                 typesOfLeave={typesOfLeave} // *** КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ v3.7: Передаем типы отпусков ***
+                 getLeaveTypeTitle={getLeaveTypeTitle} 
               />
             ))}
             
