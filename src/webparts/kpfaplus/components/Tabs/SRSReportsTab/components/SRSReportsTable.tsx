@@ -330,6 +330,40 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
                 return false;
               }
 
+              // НОВОЕ: Проверяем, что запись привязана к этому конкретному контракту
+              // В StaffRecord поле WeeklyTimeTable - это lookup объект
+              const recordContractId = record.WeeklyTimeTable?.Id || record.WeeklyTimeTableID;
+              const contractId = contract.id;
+              
+              console.log(`[DEBUG] Проверка привязки записи к контракту:`, {
+                recordId: record.ID,
+                recordContractId,
+                contractId,
+                recordWeeklyTimeTable: record.WeeklyTimeTable,
+                recordWeeklyTimeTableID: record.WeeklyTimeTableID
+              });
+              
+              if (!recordContractId || !contractId) {
+                console.log(`[DEBUG] Пропуск записи - отсутствует ID контракта:`, {
+                  recordContractId: !!recordContractId,
+                  contractId: !!contractId
+                });
+                return false;
+              }
+              
+              // Приводим к строковому виду для корректного сравнения
+              const belongsToContract = String(recordContractId) === String(contractId);
+              
+              console.log(`[DEBUG] Результат сравнения контрактов:`, {
+                recordContractId: String(recordContractId),
+                contractId: String(contractId),
+                belongsToContract
+              });
+              
+              if (!belongsToContract) {
+                return false;
+              }
+
               // Проверяем, что запись попадает в период действия контракта
               if (!record.Date || !contract.startDate) {
                 return false;
@@ -342,7 +376,7 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
               return recordDate >= contractStart && recordDate <= contractEnd;
             });
 
-            console.log(`[SRSReportsTable] Контракт ${contract.template} для ${staff.name}: ${contractLeaveRecords.length} записей отпуска`);
+            console.log(`[SRSReportsTable] Контракт ${contract.template} (ID: ${contract.id}) для ${staff.name}: ${contractLeaveRecords.length} записей отпуска`);
 
             // ИЗМЕНЕНО: Добавляем контракт ВСЕГДА, даже если нет записей отпусков
             contractsWithLeaveRecords.push({
@@ -352,7 +386,7 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
             });
           });
 
-          // ИЗМЕНЕНО: Создаем виртуальный контракт только если у сотрудника НЕТ контрактов, но ЕСТЬ записи отпусков
+          // ИЗМЕНЕНО: Создаем виртуальный контракт только если у сотрудника НЕТ контрактов, но ЕСТЬ записи отпусков БЕЗ КОНТРАКТА
           if (staffContracts.length === 0) {
             const staffLeaveRecords = staffRecordsData.filter(record => {
               // ИСПРАВЛЕНО: Используем правильное сопоставление для виртуального контракта
@@ -363,7 +397,20 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
                 return false;
               }
               
-              return recordStaffLookupId === staffEmployeeId;
+              const belongsToStaff = recordStaffLookupId === staffEmployeeId;
+              
+              // НОВОЕ: Для виртуального контракта берем только записи БЕЗ привязки к контракту
+              const recordContractId = record.WeeklyTimeTable?.Id || record.WeeklyTimeTableID;
+              const hasNoContract = !recordContractId || recordContractId === '';
+              
+              console.log(`[DEBUG] Проверка виртуального контракта для записи:`, {
+                recordId: record.ID,
+                recordContractId,
+                hasNoContract,
+                belongsToStaff
+              });
+              
+              return belongsToStaff && hasNoContract;
             });
 
             if (staffLeaveRecords.length > 0) {
