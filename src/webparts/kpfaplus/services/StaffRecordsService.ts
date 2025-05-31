@@ -372,6 +372,98 @@ export class StaffRecordsService {
       };
     }
   }
+/////////////////////////
+// ЭТАП 1: Добавить этот метод в StaffRecordsService.ts
+// Вставить ПОСЛЕ метода getAllActiveStaffRecordsForTimetable (около строки 280)
+
+/**
+ * НОВЫЙ МЕТОД ДЛЯ SRS REPORTS: Получает записи расписания с заполненным типом отпуска
+ * Базируется на getAllActiveStaffRecordsForTimetable + дополнительный фильтр по TypeOfLeave
+ * 
+ * @param queryParams Параметры запроса (без пагинации)
+ * @returns Promise с результатами (записи с типом отпуска, исключая удаленные)
+ */
+public async getStaffRecordsForSRSReports(
+  queryParams: Omit<IStaffRecordsQueryParams, 'skip' | 'top' | 'nextLink'>
+): Promise<{ records: IStaffRecord[]; totalCount: number; error?: string }> {
+  try {
+    this.logInfo('[DEBUG] getStaffRecordsForSRSReports ВЫЗВАН С ПАРАМЕТРАМИ:');
+    this.logInfo(`        startDate: ${queryParams.startDate.toISOString()}`);
+    this.logInfo(`        endDate: ${queryParams.endDate.toISOString()}`);
+    this.logInfo(`        currentUserID: ${queryParams.currentUserID}`);
+    this.logInfo(`        staffGroupID: ${queryParams.staffGroupID}`);
+    this.logInfo(`        employeeID: ${queryParams.employeeID}`);
+    this.logInfo(`        timeTableID: ${queryParams.timeTableID || 'не указан'}`);
+    this.logInfo(`        NOTE: ЗАГРУЖАЕМ ЗАПИСИ С ТИПОМ ОТПУСКА (TypeOfLeave IS NOT NULL) БЕЗ УДАЛЕННЫХ`);
+
+    if (!this._fetchService) {
+      const errorMsg = 'StaffRecordsFetchService не инициализирован';
+      this.logError(`[ОШИБКА] ${errorMsg}`);
+      return { records: [], totalCount: 0, error: errorMsg };
+    }
+
+    // Получаем записи через новый метод fetchService специально для SRS Reports
+    const fetchResult = await this._fetchService.fetchStaffRecordsForSRSReports(queryParams);
+    
+    // Проверяем наличие ошибки в fetchResult
+    if (!fetchResult || fetchResult.items === undefined || fetchResult.totalCount === undefined) {
+      const errorMsg = "Получены некорректные данные от fetchService.fetchStaffRecordsForSRSReports";
+      this.logError(`[ОШИБКА] ${errorMsg}`);
+      return { records: [], totalCount: 0, error: errorMsg };
+    }
+
+    this.logInfo(`[DEBUG] Получены данные для SRS Reports: ${fetchResult.items.length} записей, общее количество: ${fetchResult.totalCount}`);
+
+    // Преобразуем СЫРЫЕ данные (записи с типом отпуска) в формат IStaffRecord
+    const mappedRecords = this._mapperService.mapToStaffRecords(fetchResult.items);
+
+    // Рассчитываем рабочее время для каждой записи
+    const recordsWithWorkTime = mappedRecords.map(record =>
+      this._calculationService.calculateWorkTime(record)
+    );
+
+    // Сортируем записи по дате (важно для группировки по месяцам)
+    const defaultSortOptions: ISortOptions = {
+      type: StaffRecordsSortType.ByDate,
+      ascending: true
+    };
+
+    const sortedRecords = this._calculationService.sortStaffRecords(
+      recordsWithWorkTime,
+      defaultSortOptions
+    );
+
+    this.logInfo(`[DEBUG] Получено и обработано ${sortedRecords.length} записей с типом отпуска для SRS Reports.`);
+    this.logInfo(`[DEBUG] Общее количество записей с типом отпуска: ${fetchResult.totalCount}`);
+
+    // Дополнительная статистика для отладки
+    const typeOfLeaveStats = sortedRecords.reduce((acc, record) => {
+      const typeId = record.TypeOfLeaveID || 'unknown';
+      acc[typeId] = (acc[typeId] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    this.logInfo(`[DEBUG] Статистика по типам отпусков: ${JSON.stringify(typeOfLeaveStats)}`);
+
+    return {
+      records: sortedRecords,
+      totalCount: fetchResult.totalCount
+    };
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    this.logError(`[КРИТИЧЕСКАЯ ОШИБКА] Не удалось получить записи для SRS Reports: ${errorMessage}`);
+    console.error(`[${this._logSource}] [DEBUG] Подробности ошибки:`, error);
+
+    return {
+      records: [],
+      totalCount: 0,
+      error: `Failed to get SRS reports data: ${errorMessage}`
+    };
+  }
+}
+
+
 
   /**
  * Обновляет запись расписания

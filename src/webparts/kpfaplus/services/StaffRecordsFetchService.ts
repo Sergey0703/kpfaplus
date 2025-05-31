@@ -437,7 +437,101 @@ export class StaffRecordsFetchService {
       throw new Error(`Failed to fetch all active staff records: ${errorMessage}`);
     }
   }
+/////////////////////////////////
 
+// ЭТАП 1: Добавить этот метод в StaffRecordsFetchService.ts
+// Вставить ПОСЛЕ метода fetchAllActiveStaffRecordsForTimetable
+
+/**
+ * НОВЫЙ МЕТОД ДЛЯ SRS REPORTS: Получает записи с заполненным типом отпуска
+ * Базируется на fetchAllActiveStaffRecordsForTimetable + фильтр TypeOfLeaveLookupId IS NOT NULL
+ */
+public async fetchStaffRecordsForSRSReports(
+  queryParams: Omit<IStaffRecordsQueryParams, 'skip' | 'top' | 'nextLink'>
+): Promise<IRemotePaginatedItemsResponse<IRawStaffRecord>> {
+  try {
+    this.logInfo('[DEBUG] fetchStaffRecordsForSRSReports НАЧИНАЕТСЯ');
+    this.logInfo(`[DEBUG] Параметры запроса для SRS Reports: ${JSON.stringify({
+      startDate: queryParams.startDate.toISOString(),
+      endDate: queryParams.endDate.toISOString(),
+      currentUserID: queryParams.currentUserID,
+      staffGroupID: queryParams.staffGroupID,
+      employeeID: queryParams.employeeID,
+      timeTableID: queryParams.timeTableID
+    })}`);
+
+    // Построение фильтра с ДОПОЛНИТЕЛЬНЫМ условием для типа отпуска
+    const filter = this.buildFilterForSRSReports(queryParams);
+    this.logInfo(`[DEBUG] SRS Reports фильтр: ${filter}`);
+
+    // Определение полей для запроса (те же что и для Timetable)
+    const expandFields = this.getExpandFields();
+    this.logInfo(`[DEBUG] Expand поля для SRS Reports: ${expandFields}`);
+
+    // Сортировка по дате для правильной группировки по месяцам
+    const orderBy = 'fields/Date asc';
+
+    // Получаем ВСЕ записи с типом отпуска без пагинации
+    const result = await this._remoteSiteService.getAllListItems(
+      this._listName,
+      true, // expandFields
+      filter,
+      { field: 'Date', ascending: true }
+    );
+
+    this.logInfo(`[DEBUG] SRS Reports: получено ${result.length} записей с типом отпуска`);
+
+    // Форматируем результат в ожидаемый формат
+    const formattedResult: IRemotePaginatedItemsResponse<IRawStaffRecord> = {
+      items: result as IRawStaffRecord[],
+      totalCount: result.length
+    };
+
+    this.logInfo(`[DEBUG] fetchStaffRecordsForSRSReports ЗАВЕРШЕН: ${formattedResult.items.length} записей`);
+    return formattedResult;
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    this.logError(`[ОШИБКА] fetchStaffRecordsForSRSReports: ${errorMessage}`);
+    console.error(`[${this._logSource}] Подробности ошибки:`, error);
+    
+    // Возвращаем пустой результат при ошибке
+    return {
+      items: [],
+      totalCount: 0
+    };
+  }
+}
+
+/**
+ * ВСПОМОГАТЕЛЬНЫЙ МЕТОД: Построение фильтра для SRS Reports
+ * Добавляет условие TypeOfLeaveLookupId IS NOT NULL к базовому фильтру
+ */
+private buildFilterForSRSReports(
+  queryParams: Omit<IStaffRecordsQueryParams, 'skip' | 'top' | 'nextLink'>
+): string {
+  try {
+    // Используем базовый метод построения фильтра
+    const baseFilter = this.buildFilter(queryParams);
+    
+    // Добавляем условие для типа отпуска
+    const typeOfLeaveFilter = 'fields/TypeOfLeaveLookupId ne null';
+    
+    // Объединяем фильтры
+    const combinedFilter = baseFilter 
+      ? `(${baseFilter}) and (${typeOfLeaveFilter})`
+      : typeOfLeaveFilter;
+
+    this.logInfo(`[DEBUG] SRS Reports комбинированный фильтр: ${combinedFilter}`);
+    return combinedFilter;
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    this.logError(`[ОШИБКА] buildFilterForSRSReports: ${errorMessage}`);
+    // Возвращаем только фильтр типа отпуска при ошибке
+    return 'fields/TypeOfLeaveLookupId ne null';
+  }
+}
   /**
    * ВСПОМОГАТЕЛЬНЫЙ МЕТОД: Строит выражение фильтра с исключением удаленных записей (Deleted=1)
    *
