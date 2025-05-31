@@ -448,7 +448,7 @@ export class StaffRecordsFetchService {
  */
 public async fetchStaffRecordsForSRSReports(
   queryParams: Omit<IStaffRecordsQueryParams, 'skip' | 'top' | 'nextLink'>
-): Promise<IRemotePaginatedItemsResponse<IRawStaffRecord>> {
+): Promise<{ items: IRemoteListItemResponse[], totalCount: number }> {
   try {
     this.logInfo('[DEBUG] fetchStaffRecordsForSRSReports НАЧИНАЕТСЯ');
     this.logInfo(`[DEBUG] Параметры запроса для SRS Reports: ${JSON.stringify({
@@ -460,35 +460,84 @@ public async fetchStaffRecordsForSRSReports(
       timeTableID: queryParams.timeTableID
     })}`);
 
-    // Построение фильтра с ДОПОЛНИТЕЛЬНЫМ условием для типа отпуска
-    const filter = this.buildFilterForSRSReports(queryParams);
-    this.logInfo(`[DEBUG] SRS Reports фильтр: ${filter}`);
+    // Проверяем наличие RemoteSiteService
+    if (!this._remoteSiteService) {
+      this.logError("[ОШИБКА] RemoteSiteService не инициализирован");
+      return { items: [], totalCount: 0 };
+    }
 
-    // Определение полей для запроса (те же что и для Timetable)
-    const expandFields = this.getExpandFields();
-    this.logInfo(`[DEBUG] Expand поля для SRS Reports: ${expandFields}`);
+    // Проверка имени списка
+    if (!this._listName) {
+      const errorMsg = "Имя списка не определено";
+      this.logError(`[ОШИБКА] ${errorMsg}`);
+      throw new Error(errorMsg);
+    }
 
-    // Сортировка по дате для правильной группировки по месяцам
-    const orderBy = 'fields/Date asc';
-
-    // Получаем ВСЕ записи с типом отпуска без пагинации
-    const result = await this._remoteSiteService.getAllListItems(
-      this._listName,
-      true, // expandFields
-      filter,
-      { field: 'Date', ascending: true }
+    // Форматирование дат для фильтрации
+    const startDateStr = this.formatDateForFilter(queryParams.startDate);
+    const endDateStr = this.formatDateForFilter(queryParams.endDate);
+    this.logInfo(
+      `[DEBUG] Форматированные даты для запроса: ${startDateStr} - ${endDateStr}`
     );
 
-    this.logInfo(`[DEBUG] SRS Reports: получено ${result.length} записей с типом отпуска`);
+    // Проверка валидности дат после форматирования
+    if (startDateStr === '' || endDateStr === '') {
+      const errorMsg = "Некорректные даты начала/окончания периода";
+      this.logError(`[ОШИБКА] ${errorMsg}`);
+      throw new Error(errorMsg);
+    }
 
-    // Форматируем результат в ожидаемый формат
-    const formattedResult: IRemotePaginatedItemsResponse<IRawStaffRecord> = {
-      items: result as IRawStaffRecord[],
-      totalCount: result.length
-    };
+    // Строим фильтр для SRS Reports с дополнительным условием TypeOfLeaveLookupId IS NOT NULL
+    const filter = this.buildFilterForSRSReports(
+      startDateStr,
+      endDateStr,
+      queryParams.employeeID,
+      queryParams.staffGroupID,
+      queryParams.currentUserID,
+      queryParams.timeTableID
+    );
+    this.logInfo(`[DEBUG] SRS Reports фильтр: ${filter}`);
 
-    this.logInfo(`[DEBUG] fetchStaffRecordsForSRSReports ЗАВЕРШЕН: ${formattedResult.items.length} записей`);
-    return formattedResult;
+    // Определяем параметры сортировки по умолчанию (по дате)
+    const orderBy = { field: "fields/Date", ascending: true };
+
+    // --- ИСПОЛЬЗУЕМ МЕТОД RemoteSiteService.getAllFilteredItemsFromList ---
+    this.logInfo(`[DEBUG] НАЧИНАЕМ запрос к списку ${this._listName} для SRS Reports через RemoteSiteService...`);
+
+    let fetchResult: { items: IRemoteListItemResponse[], totalCount: number };
+    try {
+      // Вызываем метод RemoteSiteService.getAllFilteredItemsFromList
+      fetchResult = await this._remoteSiteService.getAllFilteredItemsFromList(
+        this._listName,
+        filter,
+        orderBy
+      );
+
+      this.logInfo(
+        `[DEBUG] ПОЛУЧЕН ответ от RemoteSiteService.getAllFilteredItemsFromList: ${fetchResult.items.length} элементов с типом отпуска, ОБЩЕЕ количество: ${fetchResult.totalCount}`
+      );
+    } catch (requestError) {
+      this.logError(
+        `[ОШИБКА] Ошибка при запросе к списку для SRS Reports через RemoteSiteService: ${JSON.stringify(requestError)}`
+      );
+      throw requestError;
+    }
+
+    // Логирование результата запроса
+    this.logInfo(
+      `Получено ${fetchResult.items.length} элементов с типом отпуска из SharePoint для SRS Reports`
+    );
+    if (fetchResult.items.length > 0) {
+      // Логируем первый элемент сырых данных
+      this.logDetailedDataInfo(fetchResult.items[0]);
+    } else {
+      this.logInfo(
+        `[DEBUG] Нет элементов с типом отпуска в ответе от сервера для фильтра: ${filter}`
+      );
+    }
+
+    this.logInfo(`[DEBUG] fetchStaffRecordsForSRSReports ЗАВЕРШЕН: ${fetchResult.items.length} записей`);
+    return fetchResult;
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -508,11 +557,23 @@ public async fetchStaffRecordsForSRSReports(
  * Добавляет условие TypeOfLeaveLookupId IS NOT NULL к базовому фильтру
  */
 private buildFilterForSRSReports(
-  queryParams: Omit<IStaffRecordsQueryParams, 'skip' | 'top' | 'nextLink'>
+  startDateStr: string,
+  endDateStr: string,
+  employeeID: string | number,
+  staffGroupID: string | number,
+  currentUserID: string | number,
+  timeTableID?: string | number
 ): string {
   try {
-    // Используем базовый метод построения фильтра
-    const baseFilter = this.buildFilter(queryParams);
+    // Используем существующий метод построения фильтра с исключением удаленных записей
+    const baseFilter = this.buildFilterExpressionExcludingDeleted(
+      startDateStr,
+      endDateStr,
+      employeeID,
+      staffGroupID,
+      currentUserID,
+      timeTableID
+    );
     
     // Добавляем условие для типа отпуска
     const typeOfLeaveFilter = 'fields/TypeOfLeaveLookupId ne null';
