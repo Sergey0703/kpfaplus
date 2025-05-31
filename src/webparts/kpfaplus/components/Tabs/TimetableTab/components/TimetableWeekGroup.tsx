@@ -25,29 +25,17 @@ interface ITimetableStaffRowWithKey extends ITimetableStaffRow {
   weekNum: number;
 }
 
-// Обновленный интерфейс для передачи типов отпусков
+// Интерфейс для передачи типов отпусков и функций
 interface IWeekGroupContentPropsExtended extends IWeekGroupContentProps {
   typesOfLeave: ITypeOfLeave[];
-  getLeaveTypeTitle?: (typeOfLeaveId: string) => string | undefined; // *** НОВОЕ v3.7 ***
+  getLeaveTypeTitle?: (typeOfLeaveId: string) => string | undefined;
 }
 
 /**
  * Компонент содержимого группы недели
- * ИСПРАВЛЕНО v3.7: Правильное отображение названий типов отпусков и применение цветов
  */
 export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended> = (props) => {
   const { staffRows, weekInfo, dayOfStartWeek, getLeaveTypeColor, holidayColor, typesOfLeave, getLeaveTypeTitle } = props;
-
-  console.log('[TimetableWeekGroupContent] Rendering content for week with FIXED LEAVE TYPE NAMES v3.7:', {
-    weekNum: weekInfo.weekNum,
-    staffRowsCount: staffRows.length,
-    dayOfStartWeek,
-    hasLeaveTypeColorFunction: !!getLeaveTypeColor,
-    holidayColor: holidayColor || TIMETABLE_COLORS.HOLIDAY,
-    typesOfLeaveCount: typesOfLeave?.length || 0,
-    hasGetLeaveTypeTitle: !!getLeaveTypeTitle, // *** НОВОЕ v3.7 ***
-    features: ['Holiday Priority System', 'Leave Type Colors', 'FIXED Leave Type Names', 'Non-work Day Markers', 'Expanded Color Areas', 'Clean UI']
-  });
 
   // Создаем уникальные ключи для каждой строки
   const staffRowsWithKeys = React.useMemo(() => {
@@ -64,24 +52,20 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
   
   React.useEffect(() => {
     setForceRenderKey(prev => prev + 1);
-    console.log(`[TimetableWeekGroupContent] Force re-render triggered for week ${weekInfo.weekNum} with FIXED LEAVE TYPE NAMES v3.7`);
   }, [weekInfo.weekNum, staffRows.length]);
 
   /**
-   * *** УЛУЧШЕННАЯ ФУНКЦИЯ v3.7: Получает правильное название типа отпуска ***
+   * Получает правильное название типа отпуска
    */
   const getLeaveTypeName = React.useCallback((leaveTypeId: string): string => {
     if (!leaveTypeId || !typesOfLeave || typesOfLeave.length === 0) {
       return leaveTypeId || 'Leave';
     }
 
-    console.log(`[TimetableWeekGroup] *** v3.7: Converting leave type ID to name: ${leaveTypeId} ***`);
-
     // Приоритет 1: Используем getLeaveTypeTitle из хука
     if (getLeaveTypeTitle) {
       const titleFromHook = getLeaveTypeTitle(leaveTypeId);
       if (titleFromHook && titleFromHook !== leaveTypeId) {
-        console.log(`[TimetableWeekGroup] *** v3.7 SUCCESS: FOUND FROM HOOK: ${titleFromHook} ***`);
         return titleFromHook;
       }
     }
@@ -89,7 +73,6 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
     // Приоритет 2: Ищем в массиве typesOfLeave
     const leaveType = typesOfLeave.find(lt => lt.id === leaveTypeId);
     if (leaveType && leaveType.title) {
-      console.log(`[TimetableWeekGroup] *** v3.7 SUCCESS: FOUND FROM ARRAY: ${leaveType.title} ***`);
       return leaveType.title;
     }
 
@@ -101,22 +84,17 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
         lt.id === `Type ${numericId}`
       );
       if (numericLeaveType && numericLeaveType.title) {
-        console.log(`[TimetableWeekGroup] *** v3.7 SUCCESS: FOUND BY NUMERIC ID: ${numericLeaveType.title} ***`);
         return numericLeaveType.title;
       }
     }
 
-    // Fallback
-    console.log(`[TimetableWeekGroup] *** v3.7 FALLBACK: Using ID: ${leaveTypeId} ***`);
     return leaveTypeId;
   }, [typesOfLeave, getLeaveTypeTitle]);
 
   // Создаем колонки для таблицы
   const columns = React.useMemo((): IColumn[] => {
-    console.log(`[TimetableWeekGroupContent] Creating columns for week ${weekInfo.weekNum} with FIXED LEAVE TYPE NAMES v3.7`);
-
     const cols: IColumn[] = [
-      // КОЛОНКА ИМЕН СОТРУДНИКОВ С ЧАСАМИ
+      // КОЛОНКА ИМЕН СОТРУДНИКОВ
       {
         key: `staffMember-week${weekInfo.weekNum}`,
         name: 'Staff Member',
@@ -129,7 +107,6 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
             return <div style={{ color: 'red' }}>Error: Missing staff data</div>;
           }
 
-          // Получаем недельный итог часов
           const weekTotalHours = staffRowWithKey.weekData?.formattedWeekTotal || '0h 00m';
           const hasWeekData = staffRowWithKey.weekData?.totalWeekMinutes > 0;
 
@@ -156,7 +133,6 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
                 alignItems: 'center',
                 gap: '6px'
               }}>
-                {/* Недельный итог часов и ID в одной строке */}
                 <span style={{
                   color: hasWeekData ? '#0078d4' : '#a19f9d',
                   fontWeight: hasWeekData ? 'bold' : 'normal'
@@ -192,14 +168,14 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
         
         dayDate.setDate(weekInfo.weekStart.getDate() + offset);
 
-        // Форматируем дату в формате DD/MM как в Power Apps
+        // Форматируем дату в формате DD/MM
         const day = dayDate.getDate().toString().padStart(2, '0');
         const month = (dayDate.getMonth() + 1).toString().padStart(2, '0');
         const formattedDate = `${day}/${month}`;
 
         cols.push({
           key: `day${dayNumber}-week${weekInfo.weekNum}`,
-          name: dayName, // Только день недели
+          name: dayName,
           minWidth: 80,
           maxWidth: 100,
           isResizable: true,
@@ -231,115 +207,53 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
             );
           },
 
-          // *** ПОЛНОСТЬЮ ИСПРАВЛЕННАЯ ЛОГИКА РЕНДЕРИНГА v3.7 ***
+          // Рендеринг ячейки дня
           onRender: (staffRowWithKey: ITimetableStaffRowWithKey): JSX.Element => {
             if (!staffRowWithKey || !staffRowWithKey.weekData || !staffRowWithKey.weekData.days) {
-              return (
-                <div style={{ 
-                  color: '#a19f9d', 
-                  textAlign: 'center', 
-                  padding: '12px 8px',
-                  fontSize: '11px',
-                  minHeight: '50px',
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  -
-                </div>
-              );
+              return renderEmptyCell();
             }
 
             const dayData = staffRowWithKey.weekData.days[dayNumber];
             
             if (!dayData || (!dayData.hasData && !dayData.hasHoliday && !dayData.hasLeave)) {
-              return (
-                <div style={{ 
-                  color: '#a19f9d', 
-                  textAlign: 'center', 
-                  padding: '12px 8px',
-                  fontSize: '11px',
-                  minHeight: '50px',
-                  width: '100%',
-                  boxSizing: 'border-box',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  -
-                </div>
-              );
+              return renderEmptyCell();
             }
 
-            console.log(`[TimetableWeekGroupContent] *** FIXED v3.7: PROCESSING DAY ${dayNumber} ***`, {
-              hasData: dayData.hasData,
-              hasLeave: dayData.hasLeave,
-              hasHoliday: dayData.hasHoliday,
-              leaveTypeColor: dayData.leaveTypeColor,
-              finalCellColor: dayData.finalCellColor,
-              shiftsCount: dayData.shifts?.length || 0,
-              formattedContent: dayData.formattedContent,
-              typesOfLeaveAvailable: typesOfLeave?.length || 0
-            });
-
-            // *** ИСПРАВЛЕНО v3.7: Определяем правильный текст для отображения ***
+            // Определяем правильный текст для отображения
             let displayText = '';
             
             if (dayData.shifts && dayData.shifts.length > 0) {
-              // День с рабочими сменами - показываем смены как есть
-              displayText = ''; // Будет обработано в рендеринге смен ниже
+              displayText = ''; // Будет обработано в рендеринге смен
             } else {
-              // День без смен - показываем правильное название
               if (dayData.hasHoliday) {
                 displayText = 'Holiday';
-                console.log(`[TimetableWeekGroupContent] *** FIXED v3.7: Holiday display text set ***`);
               } else if (dayData.hasLeave) {
-                // *** КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ v3.7: Правильное получение названия типа отпуска ***
-                
-                // Способ 1: Из formattedContent если это полное название
                 if (dayData.formattedContent && 
                     dayData.formattedContent !== 'Leave' && 
                     dayData.formattedContent !== '' &&
                     dayData.formattedContent !== '-' &&
                     !dayData.formattedContent.startsWith('Type ')) {
-                  // Уже правильное название
                   displayText = dayData.formattedContent;
-                  console.log(`[TimetableWeekGroupContent] *** FIXED v3.7: Using formattedContent: ${displayText} ***`);
-                }
-                // Способ 2: Из formattedContent если это ID - конвертируем в название
-                else if (dayData.formattedContent && dayData.formattedContent.startsWith('Type ')) {
-                  const leaveTypeId = dayData.formattedContent;
-                  displayText = getLeaveTypeName(leaveTypeId);
-                  console.log(`[TimetableWeekGroupContent] *** FIXED v3.7: CONVERTED ID TO NAME: ${leaveTypeId} → ${displayText} ***`);
-                }
-                // Способ 3: Ищем в сменах (для 00:00-00:00 смен с типом отпуска)
-                else if (dayData.shifts && dayData.shifts.length > 0) {
+                } else if (dayData.formattedContent && dayData.formattedContent.startsWith('Type ')) {
+                  displayText = getLeaveTypeName(dayData.formattedContent);
+                } else if (dayData.shifts && dayData.shifts.length > 0) {
                   const leaveShift = dayData.shifts.find(shift => shift.typeOfLeaveId);
                   if (leaveShift) {
                     if (leaveShift.typeOfLeaveTitle) {
                       displayText = leaveShift.typeOfLeaveTitle;
-                      console.log(`[TimetableWeekGroupContent] *** FIXED v3.7: Found leave title in shifts: ${displayText} ***`);
                     } else if (leaveShift.typeOfLeaveId) {
                       displayText = getLeaveTypeName(leaveShift.typeOfLeaveId);
-                      console.log(`[TimetableWeekGroupContent] *** FIXED v3.7: Converted shift leave ID to name: ${displayText} ***`);
                     }
                   }
-                }
-                // Способ 4: Fallback к общему "Leave"
-                else {
+                } else {
                   displayText = 'Leave';
-                  console.log(`[TimetableWeekGroupContent] *** FIXED v3.7: Fallback to generic 'Leave' ***`);
                 }
               } else {
                 displayText = '-';
               }
             }
 
-            // *** ИСПРАВЛЕНО v3.7: Используем finalCellColor напрямую из dayData ***
+            // Используем finalCellColor напрямую из dayData
             let backgroundColor: string | undefined = dayData.finalCellColor;
             let borderRadius = '6px';
             let border = '2px solid transparent';
@@ -353,15 +267,10 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
                 border = `3px solid ${backgroundColor}`;
                 textShadow = '0 1px 3px rgba(0,0,0,0.4)';
               }
-              console.log(`[TimetableWeekGroupContent] *** FIXED v3.7: HOLIDAY COLOR APPLIED: ${backgroundColor} ***`);
             } else if (dayData.hasLeave && backgroundColor) {
               priority = ColorPriority.LEAVE_TYPE;
               border = `3px solid ${backgroundColor}`;
               textShadow = 'none';
-              console.log(`[TimetableWeekGroupContent] *** FIXED v3.7: LEAVE COLOR APPLIED: ${backgroundColor} ***`, {
-                leaveTypeTitle: displayText,
-                colorSource: 'dayData.finalCellColor'
-              });
             }
 
             // Если нет цвета, но есть цвет типа отпуска - используем его
@@ -369,7 +278,6 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
               backgroundColor = dayData.leaveTypeColor;
               priority = ColorPriority.LEAVE_TYPE;
               border = `3px solid ${backgroundColor}`;
-              console.log(`[TimetableWeekGroupContent] *** FIXED v3.7: FALLBACK: Using leaveTypeColor: ${backgroundColor} ***`);
             }
             
             return (
@@ -397,7 +305,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
                 }}
                 title={`${staffRowWithKey.staffName} - ${dayName} ${formattedDate} - ${displayText || dayData.formattedContent}`}
               >
-                {/* *** ИСПРАВЛЕНО v3.7: Content rendering с полными названиями и цветами *** */}
+                {/* Content rendering с полными названиями и цветами */}
                 {dayData.shifts && dayData.shifts.length > 0 ? (
                   // DAY WITH WORK SHIFTS
                   dayData.shifts.map((shift: IShiftInfo, shiftIndex: number) => {
@@ -419,7 +327,6 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
                         shiftTextStyle.fontWeight = 'bold';
                         shiftTextStyle.textShadow = '0 1px 3px rgba(0,0,0,0.8)';
                       } else if (priority === ColorPriority.LEAVE_TYPE) {
-                        // Определяем контрастность для текста на цветном фоне
                         const textColor = TimetableShiftCalculatorLeaveTypes.getTextColorForBackground(backgroundColor);
                         shiftTextStyle.color = textColor;
                         if (textColor === '#ffffff') {
@@ -428,7 +335,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
                       }
                     }
 
-                    // *** ИСПРАВЛЕНО v3.7: Показываем правильное содержимое смены ***
+                    // Показываем правильное содержимое смены
                     let shiftContent = shift.formattedShift;
                     
                     // Если смена показывает время 00:00-00:00, заменяем на название отпуска/праздника
@@ -440,9 +347,8 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
                         shiftContent = getLeaveTypeName(shift.typeOfLeaveId);
                       }
                     }
-                    // *** НОВОЕ ИСПРАВЛЕНИЕ: Для обычных смен с рабочим временем, но с типом отпуска ***
+                    // Для обычных смен с рабочим временем, но с типом отпуска
                     else if (shift.typeOfLeaveId && shift.formattedShift.includes('(')) {
-                      // Разбираем formattedShift на части: время и продолжительность
                       const timeAndDuration = shift.formattedShift;
                       const leaveTypeTitle = getLeaveTypeName(shift.typeOfLeaveId);
                       
@@ -451,7 +357,6 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
                       } else {
                         shiftContent = `${timeAndDuration} [${leaveTypeTitle}]`;
                       }
-                      console.log(`[TimetableWeekGroup] *** FIXED v3.7: Enhanced work shift with leave type: ${shift.typeOfLeaveId} → ${leaveTypeTitle} ***`);
                     }
 
                     return (
@@ -464,7 +369,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
                     );
                   })
                 ) : (
-                  // *** ИСПРАВЛЕНО v3.7: DAY WITHOUT SHIFTS - показываем полное название типа отпуска с правильным стилем ***
+                  // DAY WITHOUT SHIFTS - показываем полное название типа отпуска
                   <div style={{
                     color: backgroundColor && backgroundColor !== TIMETABLE_COLORS.DEFAULT_BACKGROUND ? 
                       (priority === ColorPriority.HOLIDAY ? '#ffffff' : 
@@ -478,7 +383,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
                       (priority === ColorPriority.HOLIDAY ? '0 1px 3px rgba(0,0,0,0.8)' : '0 1px 2px rgba(0,0,0,0.3)') : 
                       'none'
                   }}>
-                    {/* *** КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Используем getLeaveTypeName для преобразования displayText *** */}
+                    {/* Используем getLeaveTypeName для преобразования displayText */}
                     {displayText && displayText.startsWith('Type ') ? getLeaveTypeName(displayText) : displayText}
                   </div>
                 )}
@@ -516,13 +421,30 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
       console.error(`[TimetableWeekGroupContent] Error creating columns:`, error);
     }
 
-    console.log(`[TimetableWeekGroupContent] Created ${cols.length} columns for week ${weekInfo.weekNum} with FIXED LEAVE TYPE NAMES v3.7`);
     return cols;
   }, [weekInfo, dayOfStartWeek, forceRenderKey, getLeaveTypeColor, holidayColor, typesOfLeave, getLeaveTypeName]);
 
+  // Функция для рендеринга пустой ячейки
+  const renderEmptyCell = (): JSX.Element => (
+    <div style={{ 
+      color: '#a19f9d', 
+      textAlign: 'center', 
+      padding: '12px 8px',
+      fontSize: '11px',
+      minHeight: '50px',
+      width: '100%',
+      boxSizing: 'border-box',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center'
+    }}>
+      -
+    </div>
+  );
+
   // Проверяем данные
   if (!staffRowsWithKeys || staffRowsWithKeys.length === 0) {
-    console.warn(`[TimetableWeekGroupContent] No staff rows for week ${weekInfo.weekNum}`);
     return (
       <div style={{ 
         padding: '20px', 
@@ -535,8 +457,6 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
     );
   }
 
-  console.log(`[TimetableWeekGroupContent] About to render DetailsList for week ${weekInfo.weekNum} with ${staffRowsWithKeys.length} items, FIXED LEAVE TYPE NAMES v3.7`);
-
   return (
     <div style={{ padding: '0' }}>
       <DetailsList
@@ -547,19 +467,12 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
         selectionMode={SelectionMode.none}
         isHeaderVisible={true}
         compact={true}
-        
-        // *** КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Отключаем виртуализацию ***
         onShouldVirtualize={() => false}
-        
-        // Собственный getKey для уникальности - ИСПРАВЛЕН ТИП
         getKey={(item: ITimetableStaffRowWithKey, index?: number) => {
           const key = item.uniqueKey || `fallback-${weekInfo.weekNum}-${index}`;
           return key;
         }}
-        
-        // Отключаем анимации для стабильности
         enableUpdateAnimations={false}
-        
         styles={{
           root: {
             '.ms-DetailsHeader': {
@@ -573,10 +486,9 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
               transition: 'none !important',
               animation: 'none !important'
             },
-            // *** НОВОЕ: Улучшенные стили для цветных ячеек ***
             '.ms-DetailsRow-cell': {
-              padding: '0 !important', // Убираем стандартный padding
-              overflow: 'visible !important' // Разрешаем показ цветных границ
+              padding: '0 !important',
+              overflow: 'visible !important'
             }
           }
         }}
@@ -584,7 +496,6 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
     </div>
   );
 };
-
 
 /**
  * Компонент заголовка группы недели
@@ -755,8 +666,6 @@ export const TimetableExpandControls: React.FC<{
 
 /**
  * Компонент группы недели с заголовком и содержимым
- * ИСПРАВЛЕН ТИП: weekGroup теперь IWeekGroup вместо any
- * ОБНОВЛЕНО: Версия 3.7 - ИСПРАВЛЕНО отображение названий типов отпусков
  */
 export const TimetableWeekGroup: React.FC<{
   weekGroup: IWeekGroup;
@@ -765,23 +674,11 @@ export const TimetableWeekGroup: React.FC<{
   getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined;
   holidayColor?: string;
   typesOfLeave: ITypeOfLeave[];
-  getLeaveTypeTitle?: (typeOfLeaveId: string) => string | undefined; // *** НОВОЕ v3.7 ***
+  getLeaveTypeTitle?: (typeOfLeaveId: string) => string | undefined;
 }> = (props) => {
   const { weekGroup, dayOfStartWeek, onToggleExpand, getLeaveTypeColor, holidayColor, typesOfLeave, getLeaveTypeTitle } = props;
 
-  console.log('[TimetableWeekGroup] Rendering week group with FIXED LEAVE TYPE NAMES v3.7:', {
-    weekNum: weekGroup.weekInfo.weekNum,
-    isExpanded: weekGroup.isExpanded,
-    hasData: weekGroup.hasData,
-    staffCount: weekGroup.staffRows.length,
-    holidayColor: holidayColor || TIMETABLE_COLORS.HOLIDAY,
-    typesOfLeaveCount: typesOfLeave?.length || 0,
-    hasGetLeaveTypeTitle: !!getLeaveTypeTitle, // *** НОВОЕ v3.7 ***
-    features: ['Holiday Priority', 'Leave Type Colors', 'FIXED Leave Type Names', 'Non-work Day Markers', 'Expanded Color Areas', 'Clean UI']
-  });
-
   const handleToggle = (): void => {
-    console.log(`[TimetableWeekGroup] Toggling week ${weekGroup.weekInfo.weekNum} - this will trigger DetailsList re-render with FIXED LEAVE TYPE NAMES v3.7`);
     onToggleExpand(weekGroup.weekInfo.weekNum);
   };
 
@@ -808,7 +705,7 @@ export const TimetableWeekGroup: React.FC<{
           getLeaveTypeColor={getLeaveTypeColor}
           holidayColor={holidayColor}
           typesOfLeave={typesOfLeave}
-          getLeaveTypeTitle={getLeaveTypeTitle} // *** ИСПРАВЛЕНО v3.7: Передаем функцию ***
+          getLeaveTypeTitle={getLeaveTypeTitle}
         />
       )}
     </div>
