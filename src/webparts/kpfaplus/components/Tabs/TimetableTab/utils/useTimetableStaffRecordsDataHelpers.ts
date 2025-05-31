@@ -6,14 +6,15 @@ import {
   IWeekGroup,
   IStaffMember,
   ITimetableStaffRow,
-  IDayInfo
+  IDayInfo,
+  TIMETABLE_COLORS
 } from '../interfaces/TimetableInterfaces';
 import { TimetableDataProcessor } from './TimetableDataProcessor';
 import { TimetableWeekCalculator } from './TimetableWeekCalculator';
 
 /**
  * Обработка и установка результатов с детальной диагностикой
- * ВЫНЕСЕНО ИЗ ОСНОВНОГО ФАЙЛА ДЛЯ УПРОЩЕНИЯ
+ * ИСПРАВЛЕНО v3.7: Добавлена передача getLeaveTypeColor в TimetableDataProcessor
  */
 export const processAndSetResults = async (
   allRecords: IStaffRecord[], 
@@ -22,9 +23,16 @@ export const processAndSetResults = async (
   strategy: string,
   selectedDate: Date,
   setStaffRecords: (records: IStaffRecord[]) => void,
-  setWeeksData: (weeksData: IWeekGroup[]) => void
+  setWeeksData: (weeksData: IWeekGroup[]) => void,
+  // *** НОВОЕ v3.7: Добавляем функцию getLeaveTypeColor ***
+  getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined
 ): Promise<void> => {
-  console.log(`[processAndSetResults] *** PROCESSING RESULTS FROM ${strategy.toUpperCase()} STRATEGY WITH DIAGNOSTICS ***`);
+  console.log(`[processAndSetResults] *** PROCESSING RESULTS FROM ${strategy.toUpperCase()} STRATEGY WITH DIAGNOSTICS v3.7 ***`);
+  console.log(`[processAndSetResults] *** v3.7: getLeaveTypeColor function availability check ***`, {
+    getLeaveTypeColorExists: !!getLeaveTypeColor,
+    functionType: typeof getLeaveTypeColor,
+    note: 'This function will be passed to TimetableDataProcessor'
+  });
   
   // Создаем Set с employeeId активных сотрудников для быстрой фильтрации
   const activeEmployeeIds = new Set(
@@ -266,18 +274,27 @@ export const processAndSetResults = async (
   console.log('[processAndSetResults] *** SETTING FILTERED STAFF RECORDS IN STATE ***');
   setStaffRecords(filteredRecords);
 
-  // Обрабатываем данные в структуру групп недель
-  console.log('[processAndSetResults] *** CALLING TimetableDataProcessor.processDataByWeeks ***');
+  // *** КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ v3.7: Передача getLeaveTypeColor в TimetableDataProcessor ***
+  console.log('[processAndSetResults] *** v3.7: CALLING TimetableDataProcessor.processDataByWeeks WITH getLeaveTypeColor ***');
+  console.log('[processAndSetResults] *** v3.7: getLeaveTypeColor function status before passing ***', {
+    getLeaveTypeColorExists: !!getLeaveTypeColor,
+    functionType: typeof getLeaveTypeColor,
+    willBePassed: true,
+    expectedResult: 'Colors should now be available in TimetableDataProcessorCore'
+  });
+
   const weeksData = TimetableDataProcessor.processDataByWeeks({
     staffRecords: filteredRecords,
     staffMembers: activeStaffMembers,
     weeks: weeks,
     currentUserId: undefined, // Не используется в новой версии
-    managingGroupId: undefined // Не используется в новой версии
+    managingGroupId: undefined, // Не используется в новой версии
+    getLeaveTypeColor, // *** КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ v3.7: Передаем функцию ***
+    holidayColor: TIMETABLE_COLORS.HOLIDAY
   });
 
-  console.log(`[processAndSetResults] *** PROCESSOR COMPLETED ***`);
-  console.log(`[processAndSetResults] Processed ${weeksData.length} week groups using ${strategy} strategy`);
+  console.log(`[processAndSetResults] *** PROCESSOR COMPLETED v3.7 ***`);
+  console.log(`[processAndSetResults] Processed ${weeksData.length} week groups using ${strategy} strategy with getLeaveTypeColor function`);
   
   // Логируем статистику по неделям
   weeksData.forEach((weekGroup: IWeekGroup) => {
@@ -292,8 +309,8 @@ export const processAndSetResults = async (
   const totalStaffRows = weeksData.reduce((sum, week) => sum + week.staffRows.length, 0);
   const weeksWithData = weeksData.filter(week => week.hasData).length;
   
-  console.log('[processAndSetResults] *** NEW TIMETABLE STRATEGY PERFORMANCE SUMMARY ***');
-  console.log('[processAndSetResults] Final processing summary:', {
+  console.log('[processAndSetResults] *** TIMETABLE STRATEGY PERFORMANCE SUMMARY v3.7 ***');
+  console.log('[processAndSetResults] Final processing summary with getLeaveTypeColor:', {
     strategy: strategy,
     totalWeeks: weeksData.length,
     weeksWithData,
@@ -303,7 +320,9 @@ export const processAndSetResults = async (
     dataQuality: weeksWithData > 1 ? 
       '🎉 EXCELLENT: Multi-week data achieved with new strategy!' : 
       '❌ STILL FAILED: Single week concentration - need to investigate server filtering',
-    expectedImprovement: 'Should load all 477 records and distribute across 5 weeks'
+    expectedImprovement: 'Should load all records and distribute across weeks WITH COLORS',
+    getLeaveTypeColorPassed: !!getLeaveTypeColor,
+    colorFunctionStatus: getLeaveTypeColor ? 'PASSED TO PROCESSOR ✓' : 'MISSING ✗'
   });
 
   setWeeksData(weeksData);

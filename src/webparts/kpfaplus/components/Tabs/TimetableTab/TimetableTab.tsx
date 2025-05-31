@@ -23,7 +23,7 @@ export interface ITimetableTabProps extends ITabProps {
 }
 
 // ИМЕНОВАННЫЙ ЭКСПОРТ компонента
-export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
+const TimetableTabComponent: React.FC<ITimetableTabProps> = (props) => {
   const { managingGroupId, currentUserId, dayOfStartWeek } = props;
 
   const {
@@ -43,14 +43,14 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
     staffMembers 
   } = useTimetableLogic(props as ITimetableLogicProps); // Приведение типа здесь допустимо
 
-
-  // console.log('[TimetableTab] Final render state:', { // Опциональное логирование
-  //   hasWeeksData: state.weeksData.length > 0,
-  //   isLoading: state.isLoadingStaffRecords,
-  //   hasError: !!state.errorStaffRecords,
-  //   statistics,
-  //   typesOfLeaveLoaded: typesOfLeave.length,
-  // });
+  console.log('[TimetableTab] Rendering with FIXED LEAVE TYPE NAMES v3.7:', {
+    hasWeeksData: state.weeksData.length > 0,
+    isLoading: state.isLoadingStaffRecords,
+    hasError: !!state.errorStaffRecords,
+    statistics,
+    typesOfLeaveLoaded: typesOfLeave.length,
+    version: 'v3.7 - Fixed leave type names display and colors'
+  });
 
   return (
     <div style={{ padding: '20px', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -64,7 +64,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
           Week starts on day: {dayOfStartWeek} | 
           Staff count: {statistics.staffCount} | 
           Records: {statistics.recordsCount}
-          </p>
+        </p>
       </div>
 
       {/* Панель настроек */}
@@ -122,7 +122,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
         <div>
           <button
             onClick={() => {
-              // console.log('[TimetableTab] Manual refresh requested'); // Опциональное логирование
+              console.log('[TimetableTab] Manual refresh requested with FIXED LEAVE TYPE NAMES v3.7');
               refreshTimetableData().catch(error => {
                 console.error('[TimetableTab] Manual refresh failed:', error);
               });
@@ -147,7 +147,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
         <div>
           <button
             onClick={() => {
-              // console.log('[TimetableTab] Excel export requested'); // Опциональное логирование
+              console.log('[TimetableTab] Excel export requested with FIXED LEAVE TYPE NAMES v3.7');
               handleExportToExcel().catch(error => {
                 console.error('[TimetableTab] Export button error:', error);
               });
@@ -164,7 +164,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
               fontWeight: '500',
               transition: 'background-color 0.2s ease'
             }}
-            title="Export to Excel with Holiday/Leave markers (v3.2)"
+            title="Export to Excel with Holiday/Leave markers (v3.7)"
           >
             {state.isLoadingStaffRecords || isLoadingTypesOfLeave ? 'Loading...' : 'Export to Excel'}
           </button>
@@ -179,7 +179,28 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
           </div>
         )}
 
-      {/*  <div style={{ 
+        {/* *** НОВОЕ v3.7: Индикатор статуса типов отпусков *** */}
+        <div style={{ 
+          fontSize: '11px', 
+          color: '#666',
+          backgroundColor: typesOfLeave.length > 0 ? '#d4edda' : '#fff3cd',
+          padding: '4px 8px',
+          borderRadius: '3px',
+          border: `1px solid ${typesOfLeave.length > 0 ? '#c3e6cb' : '#ffeaa7'}`
+        }}>
+          <span style={{ fontWeight: '600', color: typesOfLeave.length > 0 ? '#155724' : '#856404' }}>
+            Leave Types:
+          </span> 
+          <span style={{ marginLeft: '4px' }}>
+            {typesOfLeave.length > 0 ? 
+              `${typesOfLeave.length} loaded ✓` : 
+              'Loading...'
+            }
+          </span>
+        </div>
+
+        {/* Цветовые приоритеты - обновленная версия */}
+        <div style={{ 
           fontSize: '11px', 
           color: '#666',
           backgroundColor: '#fff3cd',
@@ -191,7 +212,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
           <span style={{ color: TIMETABLE_COLORS.HOLIDAY, fontWeight: '500' }}> Holiday</span>  
           <span style={{ color: '#107c10', fontWeight: '500' }}> Leave</span> 
           <span style={{ color: '#666' }}> Default</span>
-        </div> */}
+        </div>
       </div>
 
       {state.errorStaffRecords && (
@@ -241,7 +262,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
                   Making individual server requests for {staffMembers.filter(s => s.deleted !== 1 && s.employeeId && s.employeeId !== '0').length} active staff members
                 </p>
                 <p style={{ fontSize: '11px', color: '#666', marginTop: '4px', fontStyle: 'italic' }}>
-                  Processing with Holiday priority system and non-work day markers
+                  Processing with Holiday priority system and non-work day markers v3.7
                 </p>
               </>
             )}
@@ -278,11 +299,9 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
               <div>• Current User ID: {currentUserId || 'Not set'}</div>
               <div>• Types of Leave Loaded: {typesOfLeave.length}</div>
               <div style={{ marginTop: '8px', fontStyle: 'italic', color: '#f57c00' }}>
-                Holiday Priority System: {typesOfLeave.length > 0 ? 'Active' : 'Pending leave types loading'}
+                Holiday Priority System: {typesOfLeave.length > 0 ? 'Active v3.7' : 'Pending leave types loading'}
               </div>
             </div>
-            
-            
           </div>
         ) : (
           <div>
@@ -309,11 +328,12 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
                   <strong>Week starts:</strong> {TimetableWeekCalculator.getDayName(dayOfStartWeek || 7)}
                 </span>
                 <span>
-                  <strong>Leave types:</strong> {typesOfLeave.length} loaded
+                  <strong>Leave types:</strong> {typesOfLeave.length} loaded v3.7
                 </span>
               </div>
             </div>
             
+            {/* *** ИСПРАВЛЕНО v3.7: Передаем typesOfLeave в TimetableWeekGroup *** */}
             {state.weeksData.map(weekGroup => (
               <TimetableWeekGroup
                 key={weekGroup.weekInfo.weekNum}
@@ -322,6 +342,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
                 onToggleExpand={toggleWeekExpand}
                 getLeaveTypeColor={getLeaveTypeColor}
                 holidayColor={TIMETABLE_COLORS.HOLIDAY}
+                typesOfLeave={typesOfLeave} // *** КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ v3.7: Передаем типы отпусков ***
               />
             ))}
             
@@ -339,7 +360,7 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
                   fontWeight: '600',
                   color: '#323130'
                 }}>
-                  Data Summary
+                  Data Summary v3.7
                 </h3>
                 <div style={{ 
                   display: 'grid', 
@@ -363,7 +384,31 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
                   <div>
                     <strong>Expanded Weeks:</strong> {statistics.expandedCount}
                   </div>
-                  
+                  <div>
+                    <strong>Leave Types Loaded:</strong> {typesOfLeave.length} v3.7
+                  </div>
+                  {/* *** НОВОЕ v3.7: Показываем названия первых нескольких типов отпусков *** */}
+                  {typesOfLeave.length > 0 && (
+                    <div style={{ gridColumn: '1 / -1', marginTop: '8px' }}>
+                      <strong>Available Leave Types:</strong>{' '}
+                      {typesOfLeave.slice(0, 5).map((leaveType, index) => (
+                        <span key={leaveType.id}>
+                          <span 
+                            style={{ 
+                              color: leaveType.color || '#666',
+                              fontWeight: '500'
+                            }}
+                          >
+                            {leaveType.title}
+                          </span>
+                          {index < Math.min(4, typesOfLeave.length - 1) ? ', ' : ''}
+                        </span>
+                      ))}
+                      {typesOfLeave.length > 5 && (
+                        <span style={{ color: '#666' }}> and {typesOfLeave.length - 5} more...</span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -374,7 +419,8 @@ export const TimetableTab: React.FC<ITimetableTabProps> = (props) => {
   );
 };
 
-// Оставляем export default TimetableTab, если хотите иметь возможность импортировать и так, и так.
-// Если Kpfaplus.tsx использует `import { TimetableTab } ...`, то `export const TimetableTab` уже достаточен.
-// Но наличие обоих не вредит.
-export default TimetableTab;
+// Экспортируем компонент как именованный экспорт для совместимости с Kpfaplus.tsx
+export const TimetableTab = TimetableTabComponent;
+
+// Оставляем также дефолтный экспорт для гибкости
+export default TimetableTabComponent;

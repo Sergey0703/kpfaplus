@@ -51,6 +51,9 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
   expandAllWeeks: () => void;
   collapseAllWeeks: () => void;
   staffMembers: ReturnType<typeof useDataContext>['staffMembers'];
+  // *** НОВЫЕ ВОЗВРАЩАЕМЫЕ ЗНАЧЕНИЯ ДЛЯ ИСПРАВЛЕНИЯ ОТОБРАЖЕНИЯ ТИПОВ ОТПУСКОВ ***
+  getLeaveTypeTitle: (typeOfLeaveId: string) => string | undefined;
+  getLeaveTypeById: (typeOfLeaveId: string) => ITypeOfLeave | undefined;
 } => {
   const { managingGroupId, currentUserId, dayOfStartWeek, context } = props;
   const { staffMembers, departments } = useDataContext();
@@ -87,20 +90,41 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
     return undefined;
   }, [context]);
 
+  // *** УЛУЧШЕННАЯ ЗАГРУЗКА ТИПОВ ОТПУСКОВ С ПОДРОБНЫМ ЛОГИРОВАНИЕМ ***
   useEffect(() => {
     const loadTypesOfLeave = async (): Promise<void> => {
       if (!typeOfLeaveService) return;
       try {
         setIsLoadingTypesOfLeave(true);
-        console.log('[useTimetableLogic] Loading types of leave...');
+        console.log('[useTimetableLogic] *** LOADING TYPES OF LEAVE FOR UI DISPLAY FIX ***');
         const types = await typeOfLeaveService.getAllTypesOfLeave();
-        console.log('[useTimetableLogic] Loaded types of leave:', types.length);
-        types.slice(0, 3).forEach(type => {
-          console.log(`[useTimetableLogic] Leave type: ${type.title} (ID: ${type.id}) - Color: ${type.color}`);
+        console.log('[useTimetableLogic] *** TYPES OF LEAVE LOADED SUCCESSFULLY ***:', {
+          totalCount: types.length,
+          typesWithColors: types.filter(t => t.color).length,
+          typesWithTitles: types.filter(t => t.title).length,
+          sampleTypes: types.slice(0, 5).map(type => ({
+            id: type.id,
+            title: type.title,
+            color: type.color,
+            hasColor: !!type.color,
+            hasTitle: !!type.title
+          }))
         });
+        
+        // *** ДОПОЛНИТЕЛЬНАЯ ВАЛИДАЦИЯ ДАННЫХ ***
+        const invalidTypes = types.filter(type => !type.title || !type.color);
+        if (invalidTypes.length > 0) {
+          console.warn('[useTimetableLogic] *** WARNING: Some leave types missing title or color ***:', {
+            invalidCount: invalidTypes.length,
+            invalidTypes: invalidTypes.map(t => ({ id: t.id, title: t.title, color: t.color }))
+          });
+        }
+        
         setTypesOfLeave(types);
+        console.log('[useTimetableLogic] *** TYPES OF LEAVE SET IN STATE - UI SHOULD NOW SHOW PROPER NAMES AND COLORS ***');
       } catch (error) {
-        console.error('[useTimetableLogic] Error loading types of leave:', error);
+        console.error('[useTimetableLogic] *** ERROR LOADING TYPES OF LEAVE ***:', error);
+        setTypesOfLeave([]); // Fallback to empty array
       } finally {
         setIsLoadingTypesOfLeave(false);
       }
@@ -108,14 +132,62 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
     loadTypesOfLeave().catch(error => console.error('[useTimetableLogic] Failed to load types of leave:', error));
   }, [typeOfLeaveService]);
 
+  // *** УЛУЧШЕННАЯ ФУНКЦИЯ ПОЛУЧЕНИЯ ЦВЕТА ТИПА ОТПУСКА ***
   const getLeaveTypeColor = useCallback((typeOfLeaveId: string): string | undefined => {
-    if (!typeOfLeaveId || !typesOfLeave.length) return undefined;
+    if (!typeOfLeaveId || !typesOfLeave.length) {
+      console.log(`[useTimetableLogic] getLeaveTypeColor: No typeOfLeaveId (${typeOfLeaveId}) or no types loaded (${typesOfLeave.length})`);
+      return undefined;
+    }
+    
     const leaveType = typesOfLeave.find(t => t.id === typeOfLeaveId);
     const color = leaveType?.color;
+    
     if (color) {
-      console.log(`[useTimetableLogic] Found color ${color} for leave type ID: ${typeOfLeaveId}`);
+      console.log(`[useTimetableLogic] *** COLOR RESOLVED *** ID: ${typeOfLeaveId} -> Color: ${color} (Title: ${leaveType?.title})`);
+    } else {
+      console.warn(`[useTimetableLogic] *** COLOR NOT FOUND *** ID: ${typeOfLeaveId} not found in types of leave`);
+      console.log(`[useTimetableLogic] Available leave type IDs:`, typesOfLeave.map(t => t.id).slice(0, 10));
     }
+    
     return color;
+  }, [typesOfLeave]);
+
+  // *** НОВАЯ ФУНКЦИЯ: Получение названия типа отпуска ***
+  const getLeaveTypeTitle = useCallback((typeOfLeaveId: string): string | undefined => {
+    if (!typeOfLeaveId || !typesOfLeave.length) {
+      console.log(`[useTimetableLogic] getLeaveTypeTitle: No typeOfLeaveId (${typeOfLeaveId}) or no types loaded (${typesOfLeave.length})`);
+      return undefined;
+    }
+    
+    const leaveType = typesOfLeave.find(t => t.id === typeOfLeaveId);
+    const title = leaveType?.title;
+    
+    if (title) {
+      console.log(`[useTimetableLogic] *** TITLE RESOLVED *** ID: ${typeOfLeaveId} -> Title: ${title}`);
+    } else {
+      console.warn(`[useTimetableLogic] *** TITLE NOT FOUND *** ID: ${typeOfLeaveId} not found in types of leave`);
+    }
+    
+    return title;
+  }, [typesOfLeave]);
+
+  // *** НОВАЯ ФУНКЦИЯ: Получение полного объекта типа отпуска ***
+  const getLeaveTypeById = useCallback((typeOfLeaveId: string): ITypeOfLeave | undefined => {
+    if (!typeOfLeaveId || !typesOfLeave.length) {
+      return undefined;
+    }
+    
+    const leaveType = typesOfLeave.find(t => t.id === typeOfLeaveId);
+    
+    if (leaveType) {
+      console.log(`[useTimetableLogic] *** LEAVE TYPE OBJECT RESOLVED *** ID: ${typeOfLeaveId}`, {
+        title: leaveType.title,
+        color: leaveType.color,
+        id: leaveType.id
+      });
+    }
+    
+    return leaveType;
   }, [typesOfLeave]);
 
   const weeks: IWeekInfo[] = useMemo(() => {
@@ -138,6 +210,7 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
     }
   }, [weeks, state.weeks.length, setWeeks]);
 
+  // *** ОБНОВЛЕННЫЙ useTimetableStaffRecordsData С ПЕРЕДАЧЕЙ ФУНКЦИЙ ТИПОВ ОТПУСКОВ ***
   const { refreshTimetableData } = useTimetableStaffRecordsData({
     context,
     selectedDate: state.selectedDate,
@@ -146,10 +219,80 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
     staffRecordsService,
     weeks: state.weeks,
     staffMembers,
-    setWeeksData,
+    setWeeksData: (weeksData) => {
+      console.log('[useTimetableLogic] *** SETTING WEEKS DATA WITH ENHANCED LEAVE TYPE SUPPORT ***', {
+        weeksCount: weeksData.length,
+        typesOfLeaveLoaded: typesOfLeave.length,
+        hasGetLeaveTypeColor: !!getLeaveTypeColor,
+        hasGetLeaveTypeTitle: !!getLeaveTypeTitle
+      });
+      
+      // *** ПРИМЕНЯЕМ ДОПОЛНИТЕЛЬНУЮ ОБРАБОТКУ ДЛЯ ИСПРАВЛЕНИЯ ОТОБРАЖЕНИЯ ***
+      const enhancedWeeksData = weeksData.map(weekGroup => ({
+        ...weekGroup,
+        staffRows: weekGroup.staffRows.map(staffRow => ({
+          ...staffRow,
+          weekData: {
+            ...staffRow.weekData,
+            days: (() => {
+              // *** ИСПРАВЛЕНО: Заменяем Object.fromEntries на совместимый код ***
+              const enhancedDays: { [dayNumber: number]: IDayInfo } = {};
+              
+              Object.entries(staffRow.weekData.days).forEach(([dayNum, dayData]) => {
+                const dayInfo = dayData as IDayInfo;
+                
+                // *** ИСПРАВЛЯЕМ formattedContent ДЛЯ ДНЕЙ БЕЗ СМЕН С ТИПАМИ ОТПУСКОВ ***
+                let enhancedFormattedContent = dayInfo.formattedContent;
+                
+                if (dayInfo.hasLeave && !dayInfo.hasData && dayInfo.formattedContent) {
+                  // Если это день только с отпуском (без рабочих смен)
+                  if (dayInfo.formattedContent.startsWith('Type ')) {
+                    // Пытаемся заменить "Type X" на полное название
+                    const leaveTypeId = dayInfo.formattedContent;
+                    const fullTitle = getLeaveTypeTitle(leaveTypeId);
+                    if (fullTitle) {
+                      enhancedFormattedContent = fullTitle;
+                      console.log(`[useTimetableLogic] *** ENHANCED CONTENT *** Day ${dayNum}: ${leaveTypeId} -> ${fullTitle}`);
+                    }
+                  }
+                }
+                
+                // *** ИСПРАВЛЯЕМ СМЕНЫ С ТИПАМИ ОТПУСКОВ ***
+                const enhancedShifts = dayInfo.shifts.map(shift => {
+                  if (shift.typeOfLeaveId && !shift.typeOfLeaveTitle) {
+                    // Если у смены есть ID типа отпуска, но нет названия
+                    const fullTitle = getLeaveTypeTitle(shift.typeOfLeaveId);
+                    if (fullTitle) {
+                      console.log(`[useTimetableLogic] *** ENHANCED SHIFT *** Shift ${shift.recordId}: ${shift.typeOfLeaveId} -> ${fullTitle}`);
+                      return {
+                        ...shift,
+                        typeOfLeaveTitle: fullTitle
+                      };
+                    }
+                  }
+                  return shift;
+                });
+                
+                enhancedDays[parseInt(dayNum)] = {
+                  ...dayInfo,
+                  formattedContent: enhancedFormattedContent,
+                  shifts: enhancedShifts
+                };
+              });
+              
+              return enhancedDays;
+            })()
+          }
+        }))
+      }));
+      
+      console.log('[useTimetableLogic] *** ENHANCED WEEKS DATA SET *** - UI should now show proper leave type names and colors');
+      setWeeksData(enhancedWeeksData);
+    },
     setStaffRecords,
     setIsLoadingStaffRecords,
-    setErrorStaffRecords
+    setErrorStaffRecords,
+    getLeaveTypeColor
   });
 
   const handleMonthChange = (date: Date | undefined): void => {
@@ -159,8 +302,9 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
     }
   };
 
+  // *** ОБНОВЛЕННЫЙ EXCEL ЭКСПОРТ С ПЕРЕДАЧЕЙ ТИПОВ ОТПУСКОВ ***
   const handleExportToExcel = async (): Promise<void> => {
-    console.log('[useTimetableLogic] Export to Excel requested v3.2');
+    console.log('[useTimetableLogic] *** EXCEL EXPORT REQUESTED v3.7 WITH ENHANCED LEAVE TYPE SUPPORT ***');
     try {
       if (state.weeksData.length === 0) {
         console.warn('[useTimetableLogic] No data to export');
@@ -171,7 +315,12 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
       const department = departments.find(d => d.ID.toString() === managingGroupId);
       const groupName = department?.Title || `Group ${managingGroupId}`;
       
-      console.log('[useTimetableLogic] Using TimetableDataProcessor.processDataForExcelExport');
+      console.log('[useTimetableLogic] *** PROCESSING DATA FOR EXCEL WITH FULL LEAVE TYPE SUPPORT ***', {
+        typesOfLeaveCount: typesOfLeave.length,
+        hasGetLeaveTypeColor: !!getLeaveTypeColor,
+        sampleLeaveTypes: typesOfLeave.slice(0, 3).map(lt => ({ id: lt.id, title: lt.title, color: lt.color }))
+      });
+      
       const excelWeeksData = TimetableDataProcessor.processDataForExcelExport({
         staffRecords: state.staffRecords,
         staffMembers: staffMembers.filter(sm => sm.deleted !== 1),
@@ -180,8 +329,9 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
         holidayColor: TIMETABLE_COLORS.HOLIDAY
       });
 
-      console.log('[useTimetableLogic] Excel data processed:', {
-        excelWeeksDataCount: excelWeeksData.length
+      console.log('[useTimetableLogic] Excel data processed with enhanced leave type support:', {
+        excelWeeksDataCount: excelWeeksData.length,
+        typesOfLeaveAvailable: typesOfLeave.length
       });
       
       const workbook = new ExcelJS.Workbook();
@@ -245,7 +395,8 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
           
           orderedDays.forEach((dayNum, dayIndex) => {
             const dayData = staffRow.weekData.days[dayNum];
-            const cellContent = formatDayCellWithMarkers(dayData, typesOfLeave); // Pass typesOfLeave
+            // *** КРИТИЧЕСКИ ВАЖНО: Передаем typesOfLeave в formatDayCellWithMarkers ***
+            const cellContent = formatDayCellWithMarkers(dayData, typesOfLeave);
             const dayCell = worksheet.getCell(currentRow, dayIndex + 2);
             dayCell.value = cellContent;
             
@@ -291,7 +442,7 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
       
-      console.log('[useTimetableLogic] ExcelJS export completed:', fileName);
+      console.log('[useTimetableLogic] *** EXCEL EXPORT COMPLETED v3.7 WITH ENHANCED LEAVE TYPE SUPPORT ***:', fileName);
       const exportStats = TimetableShiftCalculatorLeaveTypes.getExcelExportStatistics(excelWeeksData);
       console.log('[useTimetableLogic] Excel export statistics:', exportStats);
       
@@ -327,7 +478,7 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
   }, [state.expandedWeeks.size, state.weeksData]);
 
   useEffect(() => {
-    console.log('[useTimetableLogic] State updated:', {
+    console.log('[useTimetableLogic] *** STATE UPDATED WITH ENHANCED LEAVE TYPE SUPPORT ***:', {
       selectedDate: state.selectedDate.toLocaleDateString(),
       weeksCount: state.weeks.length, // Calculated weeks for month
       weeksDataCount: state.weeksData.length, // Processed weeks with data
@@ -335,8 +486,10 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
       isLoading: state.isLoadingStaffRecords,
       hasError: !!state.errorStaffRecords,
       typesOfLeaveCount: typesOfLeave.length,
+      isLoadingTypesOfLeave,
+      enhancement: 'Added getLeaveTypeTitle, getLeaveTypeById functions for proper UI display'
     });
-  }, [state, typesOfLeave.length]);
+  }, [state, typesOfLeave.length, isLoadingTypesOfLeave]);
 
   return {
     state,
@@ -353,5 +506,9 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
     expandAllWeeks,
     collapseAllWeeks,
     staffMembers, // Pass through for UI if needed (e.g. debug info)
+    
+    // *** НОВЫЕ ФУНКЦИИ ДЛЯ ИСПРАВЛЕНИЯ ОТОБРАЖЕНИЯ ТИПОВ ОТПУСКОВ В UI ***
+    getLeaveTypeTitle,
+    getLeaveTypeById
   };
 };
