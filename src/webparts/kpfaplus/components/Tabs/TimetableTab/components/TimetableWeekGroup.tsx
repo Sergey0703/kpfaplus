@@ -37,6 +37,25 @@ interface IWeekGroupContentPropsExtended extends IWeekGroupContentProps {
 export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended> = (props) => {
   const { staffRows, weekInfo, dayOfStartWeek, getLeaveTypeColor, holidayColor, typesOfLeave, getLeaveTypeTitle } = props;
 
+  // *** ИСПРАВЛЕНИЕ: Функция renderEmptyCell перенесена в начало ***
+  const renderEmptyCell = (): JSX.Element => (
+    <div style={{ 
+      color: '#a19f9d', 
+      textAlign: 'center', 
+      padding: '12px 8px',
+      fontSize: '11px',
+      minHeight: '50px',
+      width: '100%',
+      boxSizing: 'border-box',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center'
+    }}>
+      -
+    </div>
+  );
+
   // Создаем уникальные ключи для каждой строки
   const staffRowsWithKeys = React.useMemo(() => {
     return staffRows.map((staffRow, index) => ({
@@ -255,7 +274,9 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
 
             // Используем finalCellColor напрямую из dayData
             let backgroundColor: string | undefined = dayData.finalCellColor;
-            let borderRadius = '6px';
+            
+            // ИСПРАВЛЕНИЕ: const вместо let для borderRadius
+            const borderRadius = '6px';
             let border = '2px solid transparent';
             let textShadow: string | undefined = undefined;
             let priority = ColorPriority.DEFAULT;
@@ -423,25 +444,6 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
 
     return cols;
   }, [weekInfo, dayOfStartWeek, forceRenderKey, getLeaveTypeColor, holidayColor, typesOfLeave, getLeaveTypeName]);
-
-  // Функция для рендеринга пустой ячейки
-  const renderEmptyCell = (): JSX.Element => (
-    <div style={{ 
-      color: '#a19f9d', 
-      textAlign: 'center', 
-      padding: '12px 8px',
-      fontSize: '11px',
-      minHeight: '50px',
-      width: '100%',
-      boxSizing: 'border-box',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center'
-    }}>
-      -
-    </div>
-  );
 
   // Проверяем данные
   if (!staffRowsWithKeys || staffRowsWithKeys.length === 0) {
