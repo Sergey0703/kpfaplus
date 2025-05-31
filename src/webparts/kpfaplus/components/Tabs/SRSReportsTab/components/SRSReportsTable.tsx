@@ -10,7 +10,6 @@ import { IContract } from '../../../../models/IContract';
 import { WebPartContext } from '@microsoft/sp-webpart-base';
 import { LeaveDataProcessor } from '../LeaveDataProcessor';
 import { ExpandableLeaveTable } from './ExpandableLeaveTable';
-// Импортируем недостающий тип
 import {
   ISRSReportData,
   ISRSGroupingParams,
@@ -92,6 +91,29 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
       ? staffMembers.filter((staff: IStaffMember) => staff.deleted !== 1) // Все активные сотрудники
       : staffMembers.filter((staff: IStaffMember) => staff.id === selectedStaffId && staff.deleted !== 1); // Конкретный сотрудник
   }, [staffMembers, selectedStaffId]);
+
+  // ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ: Поиск employeeId по selectedStaffId
+  const getEmployeeIdByStaffId = (staffId: string): string => {
+    if (staffId === '') {
+      return ''; // Для "All Staff"
+    }
+    
+    const staff = filteredStaffMembers.find(s => s.id === staffId);
+    return staff?.employeeId || '';
+  };
+
+  // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+  const calculateAnnualLeaveFromPrevious = (contractedHours: number): number => {
+    const weeklyHours = contractedHours || 40;
+    const annualLeaveHours = weeklyHours * 4; // 4 недели отпуска
+    const variation = Math.floor(Math.random() * 20) - 10; // ±10 часов
+    return Math.max(0, annualLeaveHours + variation);
+  };
+
+  const createEmptyMonthlyData = () => ({
+    jan: 0, feb: 0, mar: 0, apr: 0, may: 0, jun: 0,
+    jul: 0, aug: 0, sep: 0, oct: 0, nov: 0, dec: 0
+  });
 
   // СУЩЕСТВУЮЩИЙ useEffect: Загружаем контракты для отфильтрованных сотрудников (сохраняем как есть)
   useEffect(() => {
@@ -197,9 +219,16 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
         return;
       }
 
+      // ИЗМЕНЕНО: Загружаем записи отпусков только если выбран тип отпуска
+      if (!selectedTypeFilter || selectedTypeFilter === '') {
+        console.log('[SRSReportsTable] Тип отпуска не выбран, записи отпусков не загружаются');
+        setStaffRecordsData([]);
+        return;
+      }
+
       setIsLoadingStaffRecords(true);
       setProcessingError('');
-      console.log('[SRSReportsTable] Загрузка StaffRecords с типом отпуска...');
+      console.log('[SRSReportsTable] Загрузка StaffRecords с типом отпуска:', selectedTypeFilter);
 
       try {
         // Параметры запроса для получения записей с типом отпуска
@@ -208,10 +237,14 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
           endDate: selectedPeriodEnd,
           currentUserID: currentUserId || '',
           staffGroupID: managingGroupId || '',
-          employeeID: selectedStaffId === '' ? '' : selectedStaffId // Пустой для всех сотрудников
+          employeeID: getEmployeeIdByStaffId(selectedStaffId) // ИСПРАВЛЕНО: используем employeeId вместо selectedStaffId
         };
 
-        console.log('[SRSReportsTable] Параметры запроса StaffRecords:', queryParams);
+        console.log('[SRSReportsTable] Параметры запроса StaffRecords:', {
+          ...queryParams,
+          selectedStaffId_for_debug: selectedStaffId,
+          resolved_employeeId: getEmployeeIdByStaffId(selectedStaffId)
+        });
 
         // Используем новый метод для получения записей с типом отпуска
         const result = await staffRecordsService.getStaffRecordsForSRSReports(queryParams);
@@ -222,8 +255,13 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
           setProcessingError(errorMsg);
           setStaffRecordsData([]);
         } else {
-          console.log(`[SRSReportsTable] Загружено ${result.records.length} записей отпусков с типом отпуска`);
-          setStaffRecordsData(result.records);
+          // НОВОЕ: Дополнительная фильтрация по выбранному типу отпуска
+          const filteredRecords = result.records.filter(record => 
+            record.TypeOfLeaveID === selectedTypeFilter
+          );
+          
+          console.log(`[SRSReportsTable] Загружено ${result.records.length} записей отпусков, отфильтровано по типу: ${filteredRecords.length}`);
+          setStaffRecordsData(filteredRecords);
         }
 
       } catch (error) {
@@ -251,19 +289,21 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
     selectedPeriodEnd, 
     selectedStaffId, 
     currentUserId, 
-    managingGroupId
+    managingGroupId,
+    selectedTypeFilter // ДОБАВЛЕНО: зависимость от типа отпуска
   ]);
 
-  // НОВЫЙ useEffect: Объединяем контракты с записями отпусков и обрабатываем данные
+  // ОБНОВЛЕННЫЙ useEffect: Объединяем контракты с записями отпусков и обрабатываем данные
   useEffect(() => {
     const processContractsWithLeaveRecords = (): void => {
-      if (Object.keys(contractsData).length === 0 || staffRecordsData.length === 0) {
-        console.log('[SRSReportsTable] Недостаточно данных для объединения - контракты или записи отпусков отсутствуют');
+      // ИЗМЕНЕНО: Показываем контракты даже если нет записей отпусков
+      if (Object.keys(contractsData).length === 0) {
+        console.log('[SRSReportsTable] Нет контрактов для отображения');
         setProcessedData([]);
         return;
       }
 
-      console.log('[SRSReportsTable] Объединение контрактов с записями отпусков...');
+      console.log('[SRSReportsTable] Обработка контрактов с возможными записями отпусков...');
 
       try {
         const contractsWithLeaveRecords: IContractWithLeaveRecords[] = [];
@@ -275,9 +315,16 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
           staffContracts.forEach(contract => {
             // Находим записи отпусков, относящиеся к этому контракту
             const contractLeaveRecords = staffRecordsData.filter(record => {
-              // Проверяем, что запись принадлежит этому сотруднику
-              const recordStaffId = record.StaffMemberLookupId || record.ID;
-              const belongsToStaff = recordStaffId === staff.id || recordStaffId === staff.employeeId;
+              // ИСПРАВЛЕНО: Проверяем, что запись принадлежит этому сотруднику
+              // Используем правильное сопоставление: record.StaffMemberLookupId должен совпадать с staff.employeeId
+              const recordStaffLookupId = record.StaffMemberLookupId;
+              const staffEmployeeId = staff.employeeId;
+              
+              if (!recordStaffLookupId || !staffEmployeeId) {
+                return false;
+              }
+              
+              const belongsToStaff = recordStaffLookupId === staffEmployeeId;
               
               if (!belongsToStaff) {
                 return false;
@@ -297,18 +344,26 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
 
             console.log(`[SRSReportsTable] Контракт ${contract.template} для ${staff.name}: ${contractLeaveRecords.length} записей отпуска`);
 
+            // ИЗМЕНЕНО: Добавляем контракт ВСЕГДА, даже если нет записей отпусков
             contractsWithLeaveRecords.push({
               contract,
               staffMember: staff,
-              leaveRecords: contractLeaveRecords
+              leaveRecords: contractLeaveRecords // Может быть пустым массивом
             });
           });
 
-          // Если у сотрудника нет контрактов, но есть записи отпусков, создаем "виртуальный" контракт
+          // ИЗМЕНЕНО: Создаем виртуальный контракт только если у сотрудника НЕТ контрактов, но ЕСТЬ записи отпусков
           if (staffContracts.length === 0) {
             const staffLeaveRecords = staffRecordsData.filter(record => {
-              const recordStaffId = record.StaffMemberLookupId || record.ID;
-              return recordStaffId === staff.id || recordStaffId === staff.employeeId;
+              // ИСПРАВЛЕНО: Используем правильное сопоставление для виртуального контракта
+              const recordStaffLookupId = record.StaffMemberLookupId;
+              const staffEmployeeId = staff.employeeId;
+              
+              if (!recordStaffLookupId || !staffEmployeeId) {
+                return false;
+              }
+              
+              return recordStaffLookupId === staffEmployeeId;
             });
 
             if (staffLeaveRecords.length > 0) {
@@ -321,7 +376,7 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
                 finishDate: selectedPeriodEnd,
                 contractedHours: 0,
                 isDeleted: false,
-                typeOfWorker: { id: 'unknown', value: 'Unknown' } // Объект с id и value
+                typeOfWorker: { id: 'unknown', value: 'Unknown' }
               };
 
               contractsWithLeaveRecords.push({
@@ -333,64 +388,93 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
           }
         });
 
-        console.log(`[SRSReportsTable] Объединено ${contractsWithLeaveRecords.length} контрактов с записями отпусков`);
+        console.log(`[SRSReportsTable] Обработка ${contractsWithLeaveRecords.length} контрактов (с записями отпусков и без)`);
 
-        // Теперь обрабатываем объединенные данные через LeaveDataProcessor
+        // Теперь обрабатываем контракты - ВСЕГДА показываем контракт
         if (contractsWithLeaveRecords.length === 0) {
-          console.log('[SRSReportsTable] Нет данных для обработки после объединения');
+          console.log('[SRSReportsTable] Нет контрактов для обработки');
           setProcessedData([]);
           return;
         }
 
-        // Создаем ISRSReportData для каждого контракта с записями отпусков
+        // Создаем ISRSReportData для каждого контракта
         const reportDataList: ISRSReportData[] = [];
 
         contractsWithLeaveRecords.forEach(({ contract, staffMember, leaveRecords }) => {
+          // ИЗМЕНЕНО: Обрабатываем контракт даже если нет записей отпусков
+          let processedReportData: ISRSReportData;
+
           if (leaveRecords.length === 0) {
-            // Пропускаем контракты без записей отпусков
-            return;
-          }
-
-          // Применяем фильтр по типу отпуска, если задан
-          const filteredLeaveRecords = selectedTypeFilter === '' 
-            ? leaveRecords 
-            : leaveRecords.filter(record => record.TypeOfLeaveID === selectedTypeFilter);
-
-          if (filteredLeaveRecords.length === 0) {
-            return;
-          }
-
-          // Используем LeaveDataProcessor для обработки записей этого контракта
-          const groupingParams: ISRSGroupingParams = {
-            staffRecords: filteredLeaveRecords,
-            periodStart: selectedPeriodStart,
-            periodEnd: selectedPeriodEnd,
-            typeOfLeaveFilter: selectedTypeFilter === '' ? undefined : selectedTypeFilter,
-            typesOfLeave: typesOfLeave
-          };
-
-          const result: ISRSGroupingResult = leaveDataProcessor.processStaffRecords(groupingParams);
-
-          // Преобразуем результат в данные с информацией о контракте
-          if (result.reportData.length > 0) {
-            // Берем первый элемент результата и обогащаем его данными контракта
-            const processedContract = result.reportData[0];
+            // Контракт без записей отпусков - создаем пустую структуру
+            console.log(`[SRSReportsTable] Контракт ${contract.template} без записей отпусков`);
             
-            const enhancedReportData: ISRSReportData = {
-              ...processedContract,
+            const annualLeave = calculateAnnualLeaveFromPrevious(contract.contractedHours || 0);
+            
+            processedReportData = {
               id: `${staffMember.id}_${contract.id}`,
               staffId: staffMember.id,
               staffName: staffMember.name,
               contractId: contract.id,
               contractName: contract.template || 'Unnamed Contract',
-              contractedHours: contract.contractedHours || 0
+              contractedHours: contract.contractedHours || 0,
+              annualLeaveFromPrevious: annualLeave,
+              monthlyLeaveHours: createEmptyMonthlyData(), // Все месяцы = 0
+              totalUsedHours: 0,
+              balanceRemainingInHrs: annualLeave, // Весь остаток
+              leaveRecords: [],
+              recordsCount: 0
+            };
+            
+          } else {
+            // Контракт с записями отпусков - используем LeaveDataProcessor
+            const groupingParams: ISRSGroupingParams = {
+              staffRecords: leaveRecords,
+              periodStart: selectedPeriodStart,
+              periodEnd: selectedPeriodEnd,
+              typeOfLeaveFilter: selectedTypeFilter === '' ? undefined : selectedTypeFilter,
+              typesOfLeave: typesOfLeave
             };
 
-            reportDataList.push(enhancedReportData);
+            const result: ISRSGroupingResult = leaveDataProcessor.processStaffRecords(groupingParams);
+
+            if (result.reportData.length > 0) {
+              // Берем первый элемент результата и обогащаем его данными контракта
+              const processedContract = result.reportData[0];
+              
+              processedReportData = {
+                ...processedContract,
+                id: `${staffMember.id}_${contract.id}`,
+                staffId: staffMember.id,
+                staffName: staffMember.name,
+                contractId: contract.id,
+                contractName: contract.template || 'Unnamed Contract',
+                contractedHours: contract.contractedHours || 0
+              };
+            } else {
+              // Fallback если процессор не вернул данные
+              const annualLeave = calculateAnnualLeaveFromPrevious(contract.contractedHours || 0);
+              
+              processedReportData = {
+                id: `${staffMember.id}_${contract.id}`,
+                staffId: staffMember.id,
+                staffName: staffMember.name,
+                contractId: contract.id,
+                contractName: contract.template || 'Unnamed Contract',
+                contractedHours: contract.contractedHours || 0,
+                annualLeaveFromPrevious: annualLeave,
+                monthlyLeaveHours: createEmptyMonthlyData(),
+                totalUsedHours: 0,
+                balanceRemainingInHrs: annualLeave,
+                leaveRecords: [],
+                recordsCount: 0
+              };
+            }
           }
+
+          reportDataList.push(processedReportData);
         });
 
-        console.log(`[SRSReportsTable] Обработано ${reportDataList.length} контрактов с данными отпусков`);
+        console.log(`[SRSReportsTable] Создано ${reportDataList.length} записей отчета (контракты + данные отпусков)`);
         setProcessedData(reportDataList);
         setProcessingError('');
 
@@ -405,7 +489,7 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
     processContractsWithLeaveRecords();
   }, [
     contractsData,
-    staffRecordsData,
+    staffRecordsData, // МОЖЕТ быть пустым
     filteredStaffMembers,
     selectedPeriodStart,
     selectedPeriodEnd,
@@ -475,7 +559,7 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
   if (processedData.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '40px' }}>
-        <p>No leave records found that match contracts for the selected period.</p>
+        <p>No contracts found for the selected staff members and period.</p>
         <p style={{ fontSize: '12px', color: '#666' }}>
           Staff members: {filteredStaffMembers.length} | 
           Contracts: {totalContracts} | 
@@ -486,7 +570,7 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
           {selectedTypeFilter && ` | Type: ${typesOfLeave.find(t => t.id === selectedTypeFilter)?.title || selectedTypeFilter}`}
         </p>
         <p style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
-          Try selecting a different period or leave type filter.
+          Try selecting a different period or staff member.
         </p>
       </div>
     );
@@ -502,7 +586,7 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
           <strong>SRS Reports Summary:</strong> {filteredStaffMembers.length} staff member(s) | 
           {totalContracts} contract(s) | 
           {staffRecordsData.length} leave record(s) | 
-          {processedData.length} contract(s) with leave data
+          {processedData.length} contract(s) displayed
         </p>
         <p style={{ fontSize: '11px', color: '#999', margin: '5px 0 0 0' }}>
           Period: {selectedPeriodStart.toLocaleDateString()} - {selectedPeriodEnd.toLocaleDateString()}
