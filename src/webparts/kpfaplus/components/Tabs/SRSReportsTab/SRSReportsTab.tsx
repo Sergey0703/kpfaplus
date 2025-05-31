@@ -107,7 +107,7 @@ export const SRSReportsTab: React.FC<ITabProps> = (props) => {
       }
     };
 
-    loadTypesOfLeave();
+    void loadTypesOfLeave();
   }, [typeOfLeaveService]);
 
   // Обновляем выбранного сотрудника при изменении selectedStaff
@@ -449,15 +449,24 @@ export const SRSReportsTab: React.FC<ITabProps> = (props) => {
 
       {/* Таблица SRS Reports */}
       <div style={{ flex: 1, marginTop: '15px' }}>
-        <SRSReportsTable
-          staffMembers={staffMembers || []}
-          selectedStaffId={selectedStaffId}
-          selectedPeriodStart={selectedPeriodStart}
-          selectedPeriodEnd={selectedPeriodEnd}
-          selectedTypeFilter={selectedTypeFilter}
-          typesOfLeave={typesOfLeave}
-          isLoading={isLoading}
-        />
+        {context ? (
+          <SRSReportsTable
+            staffMembers={staffMembers || []}
+            selectedStaffId={selectedStaffId}
+            selectedPeriodStart={selectedPeriodStart}
+            selectedPeriodEnd={selectedPeriodEnd}
+            selectedTypeFilter={selectedTypeFilter}
+            typesOfLeave={typesOfLeave}
+            isLoading={isLoading}
+            context={context}
+            currentUserId={props.currentUserId}
+            managingGroupId={props.managingGroupId}
+          />
+        ) : (
+          <div style={{ textAlign: 'center', padding: '40px' }}>
+            <p>Context not available. Please reload the page.</p>
+          </div>
+        )}
       </div>
     </div>
   );
