@@ -89,14 +89,14 @@ export const ExpandableLeaveTable: React.FC<IExpandableLeaveTableProps> = (props
     }
   };
 
-  // Определение колонок таблицы
+  // Определение колонок таблицы - МАКСИМАЛЬНО КОМПАКТНЫЕ РАЗМЕРЫ
   const columns: IColumn[] = [
     {
       key: 'staffName',
-      name: 'StaffName',
+      name: 'Staff Name',
       fieldName: 'staffName',
-      minWidth: 180,
-      maxWidth: 220,
+      minWidth: 100, // Еще уменьшена (было 120)
+      maxWidth: 120, // Еще уменьшена (было 140)
       isResizable: true,
       onRender: (item: ISRSTableRow): JSX.Element => {
         const isExpanded = isRowExpanded(item.id);
@@ -106,7 +106,8 @@ export const ExpandableLeaveTable: React.FC<IExpandableLeaveTableProps> = (props
           <div style={{ 
             display: 'flex', 
             alignItems: 'center',
-            paddingLeft: item.rowType === 'detail' ? '20px' : '0px' // Отступ для detail строк
+            paddingLeft: item.rowType === 'detail' ? '15px' : '0px', // Уменьшен отступ
+            fontSize: '11px' // Уменьшен шрифт
           }}>
             {showExpandButton && (
               <IconButton
@@ -117,20 +118,22 @@ export const ExpandableLeaveTable: React.FC<IExpandableLeaveTableProps> = (props
                 }}
                 styles={{
                   root: {
-                    width: '24px',
-                    height: '24px',
-                    marginRight: '8px'
+                    width: '20px', // Уменьшена кнопка
+                    height: '20px',
+                    marginRight: '5px'
                   }
                 }}
                 title={isExpanded ? 'Collapse details' : 'Expand details'}
               />
             )}
             {!showExpandButton && item.rowType === 'summary' && (
-              <div style={{ width: '32px' }} /> // Placeholder для выравнивания
+              <div style={{ width: '25px' }} /> // Уменьшен placeholder
             )}
             <span style={{ 
               fontWeight: item.rowType === 'summary' ? '600' : 'normal',
-              color: item.rowType === 'detail' ? '#666' : 'inherit'
+              color: item.rowType === 'detail' ? '#666' : 'inherit',
+              fontSize: '11px',
+              lineHeight: '1.2'
             }}>
               {item.staffName}
             </span>
@@ -142,14 +145,15 @@ export const ExpandableLeaveTable: React.FC<IExpandableLeaveTableProps> = (props
       key: 'contract',
       name: 'Contract',
       fieldName: 'contract',
-      minWidth: 120,
-      maxWidth: 150,
+      minWidth: 65, // Еще уменьшена (было 80)
+      maxWidth: 80, // Еще уменьшена (было 100)
       isResizable: true,
       onRender: (item: ISRSTableRow): JSX.Element => (
         <span style={{
           fontWeight: item.rowType === 'summary' ? '500' : 'normal',
           color: item.rowType === 'detail' ? '#666' : 'inherit',
-          fontSize: item.rowType === 'detail' ? '11px' : 'inherit'
+          fontSize: '10px',
+          lineHeight: '1.2'
         }}>
           {item.contract}
         </span>
@@ -157,16 +161,16 @@ export const ExpandableLeaveTable: React.FC<IExpandableLeaveTableProps> = (props
     },
     {
       key: 'contractedHours',
-      name: 'Contracted Hours',
+      name: 'Contract Hrs',
       fieldName: 'contractedHours',
-      minWidth: 80,
-      maxWidth: 100,
+      minWidth: 40, // Еще уменьшена (было 50)
+      maxWidth: 50, // Еще уменьшена (было 60)
       onRender: (item: ISRSTableRow): JSX.Element => (
         <span style={{ 
           textAlign: 'center', 
           display: 'block',
           color: item.rowType === 'detail' ? '#666' : 'inherit',
-          fontSize: item.rowType === 'detail' ? '11px' : 'inherit'
+          fontSize: '10px'
         }}>
           {item.contractedHours}
         </span>
@@ -174,17 +178,17 @@ export const ExpandableLeaveTable: React.FC<IExpandableLeaveTableProps> = (props
     },
     {
       key: 'annualLeaveFromPrevious',
-      name: 'Annual Leave from previous',
+      name: 'Annual Leave',
       fieldName: 'annualLeaveFromPrevious',
-      minWidth: 80,
-      maxWidth: 100,
+      minWidth: 40, // Еще уменьшена (было 50)
+      maxWidth: 55, // Еще уменьшена (было 65)
       onRender: (item: ISRSTableRow): JSX.Element => (
         <span style={{ 
           textAlign: 'center', 
           display: 'block', 
           fontWeight: item.rowType === 'summary' ? '600' : 'normal',
           color: item.rowType === 'summary' ? '#0078d4' : '#666',
-          fontSize: item.rowType === 'detail' ? '11px' : 'inherit'
+          fontSize: '10px'
         }}>
           {item.annualLeaveFromPrevious}
         </span>
@@ -194,27 +198,27 @@ export const ExpandableLeaveTable: React.FC<IExpandableLeaveTableProps> = (props
       key: 'dateColumn',
       name: 'Date',
       fieldName: 'dateColumn',
-      minWidth: 80,
-      maxWidth: 100,
+      minWidth: 45, // Еще уменьшена (было 50)
+      maxWidth: 60, // Еще уменьшена (было 65)
       onRender: (item: ISRSTableRow): JSX.Element => (
         <span style={{ 
           textAlign: 'center', 
           display: 'block',
           fontWeight: item.dateColumn ? '500' : 'normal',
           color: item.dateColumn ? '#323130' : '#666',
-          fontSize: item.rowType === 'detail' ? '11px' : 'inherit'
+          fontSize: '9px' // Очень маленький шрифт для даты
         }}>
           {item.dateColumn || ''}
         </span>
       )
     },
-    // Месячные колонки
+    // Месячные колонки - МАКСИМАЛЬНО КОМПАКТНЫЕ
     ...MONTH_ORDER.map(monthKey => ({
       key: monthKey,
-      name: monthKey.charAt(0).toUpperCase() + monthKey.slice(1), // Capitalize first letter
+      name: monthKey.charAt(0).toUpperCase() + monthKey.slice(1, 3), // Сокращаем названия месяцев до 3 букв
       fieldName: monthKey,
-      minWidth: 50,
-      maxWidth: 60,
+      minWidth: 28, // Еще более узкие колонки (было 35)
+      maxWidth: 32, // Еще более узкие колонки (было 40)
       onRender: (item: ISRSTableRow): JSX.Element => {
         const value = item[monthKey as keyof ISRSTableRow] as number;
         const hasValue = value > 0;
@@ -225,7 +229,8 @@ export const ExpandableLeaveTable: React.FC<IExpandableLeaveTableProps> = (props
             display: 'block',
             fontWeight: hasValue && item.rowType === 'summary' ? '600' : 'normal',
             color: hasValue ? (item.rowType === 'summary' ? '#323130' : '#666') : '#a19f9d',
-            fontSize: item.rowType === 'detail' ? '11px' : 'inherit'
+            fontSize: '8px', // Еще меньше шрифт (было 9px)
+            lineHeight: '1.1'
           }}>
             {value || ''}
           </span>
@@ -234,10 +239,10 @@ export const ExpandableLeaveTable: React.FC<IExpandableLeaveTableProps> = (props
     })),
     {
       key: 'balanceRemainingInHrs',
-      name: 'Balance remaining in hrs',
+      name: 'Balance',
       fieldName: 'balanceRemainingInHrs',
-      minWidth: 80,
-      maxWidth: 100,
+      minWidth: 45, // Еще уменьшена (было 50)
+      maxWidth: 60, // Еще уменьшена (было 65)
       onRender: (item: ISRSTableRow): JSX.Element => (
         <span style={{ 
           textAlign: 'center', 
@@ -246,7 +251,7 @@ export const ExpandableLeaveTable: React.FC<IExpandableLeaveTableProps> = (props
           color: item.balanceRemainingInHrs < 0 
             ? '#d83b01' 
             : (item.rowType === 'summary' ? '#107c10' : '#666'),
-          fontSize: item.rowType === 'detail' ? '11px' : 'inherit'
+          fontSize: '10px'
         }}>
           {item.balanceRemainingInHrs}
         </span>
@@ -302,9 +307,10 @@ export const ExpandableLeaveTable: React.FC<IExpandableLeaveTableProps> = (props
                 borderBottom: '2px solid #dee2e6'
               },
               '.ms-DetailsHeader-cell': {
-                fontSize: '12px',
+                fontSize: '11px', // Уменьшен шрифт заголовков
                 fontWeight: '600',
-                color: '#495057'
+                color: '#495057',
+                padding: '4px 8px' // Уменьшен padding заголовков
               },
               '.ms-DetailsRow': {
                 selectors: {
@@ -314,8 +320,8 @@ export const ExpandableLeaveTable: React.FC<IExpandableLeaveTableProps> = (props
                 }
               },
               '.ms-DetailsRow-cell': {
-                fontSize: '11px',
-                padding: '8px 12px'
+                fontSize: '10px', // Уменьшен шрифт ячеек
+                padding: '6px 8px' // Уменьшен padding ячеек
               }
             }
           }

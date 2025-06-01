@@ -14,7 +14,8 @@ import {
   ISRSReportData,
   ISRSGroupingParams,
   ISRSGroupingResult,
-  ISRSTableRow
+  ISRSTableRow,
+  IMonthlyLeaveData
 } from '../interfaces/ISRSReportsInterfaces';
 
 interface ISRSReportsTableProps {
@@ -101,7 +102,7 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
     return staff?.employeeId || '';
   };
 
-  // Вспомогательные функции
+  // Вспомогательные функции - ИСПРАВЛЕНО: добавлены типы возврата
   const calculateAnnualLeaveFromPrevious = (contractedHours: number): number => {
     const weeklyHours = contractedHours || 40;
     const annualLeaveHours = weeklyHours * 4; // 4 недели отпуска
@@ -109,7 +110,7 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
     return Math.max(0, annualLeaveHours + variation);
   };
 
-  const createEmptyMonthlyData = () => ({
+  const createEmptyMonthlyData = (): IMonthlyLeaveData => ({
     jan: 0, feb: 0, mar: 0, apr: 0, may: 0, jun: 0,
     jul: 0, aug: 0, sep: 0, oct: 0, nov: 0, dec: 0
   });

@@ -47,7 +47,7 @@ export const SRSReportsTab: React.FC<ITabProps> = (props) => {
   const [selectedPeriodStart, setSelectedPeriodStart] = useState<Date>(firstDay);
   const [selectedPeriodEnd, setSelectedPeriodEnd] = useState<Date>(lastDay);
   const [selectedStaffId, setSelectedStaffId] = useState<string>(selectedStaff?.id || '');
-  const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('');
+  const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('1'); // По умолчанию Annual Leave (ID=1)
   const [typesOfLeave, setTypesOfLeave] = useState<ITypeOfLeave[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
@@ -86,8 +86,6 @@ export const SRSReportsTab: React.FC<ITabProps> = (props) => {
     
     return `${day}.${month}.${year}`;
   };
-
-  const calendarMinWidth = '655px';
 
   // Загружаем типы отпусков при монтировании
   useEffect(() => {
@@ -238,30 +236,47 @@ export const SRSReportsTab: React.FC<ITabProps> = (props) => {
   return (
     <div style={{ padding: '20px', height: '100%', display: 'flex', flexDirection: 'column' }}>
       <div style={{ marginBottom: '20px' }}>
-        <h2 style={{ margin: '0 0 10px 0' }}>
-          SRS Reports for {currentSelectedStaff.name}
-        </h2>
-        <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>
-          Group ID: {props.managingGroupId} | Selected: {currentSelectedStaff.name} | Active Staff: {staffOptions.length - 1}
-        </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
+          <div>
+            <h2 style={{ margin: '0 0 10px 0' }}>
+              SRS Reports for {currentSelectedStaff.name}
+            </h2>
+            <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>
+              Group ID: {props.managingGroupId} | Selected: {currentSelectedStaff.name} | Active Staff: {staffOptions.length - 1}
+            </p>
+          </div>
+          
+          {/* Кнопка Export to Excel вынесена наверх */}
+          <PrimaryButton 
+            text="Export to Excel" 
+            onClick={handleExportToExcel}
+            disabled={isLoading}
+            styles={{
+              root: {
+                backgroundColor: '#217346', // зеленый цвет Excel
+                borderColor: '#217346'
+              }
+            }}
+          />
+        </div>
       </div>
 
-      {/* Панель управления фильтрами */}
+      {/* Панель управления фильтрами - более компактная */}
       <div style={{
         display: 'flex',
         alignItems: 'flex-end',
-        gap: '15px',
-        padding: '15px',
+        gap: '10px', // Уменьшен gap
+        padding: '10px', // Уменьшен padding
         backgroundColor: '#f8f9fa',
         borderRadius: '4px',
         border: '1px solid #e1e5e9',
         marginBottom: '20px'
       }}>
-        <Stack.Item style={{ minWidth: '220px' }}>
+        <Stack.Item style={{ minWidth: '160px' }}> {/* Уменьшена ширина */}
           <div style={{
-            fontSize: '14px',
+            fontSize: '12px', // Уменьшен размер шрифта
             fontWeight: '600',
-            marginBottom: '5px',
+            marginBottom: '3px',
             color: '#323130'
           }}>Start Date</div>
           <DatePicker
@@ -276,23 +291,23 @@ export const SRSReportsTab: React.FC<ITabProps> = (props) => {
             showMonthPickerAsOverlay={true}
             styles={{
               root: {
-                width: '220px',
+                width: '160px', // Уменьшена ширина
                 selectors: {
                   '.ms-DatePicker-weekday': {
-                    width: '35px',
-                    height: '35px',
-                    lineHeight: '35px',
+                    width: '30px', // Уменьшена ширина
+                    height: '30px',
+                    lineHeight: '30px',
                     padding: 0,
                     textAlign: 'center',
-                    fontSize: '12px',
+                    fontSize: '11px', // Уменьшен шрифт
                   },
                   '.ms-DatePicker-day': {
-                    width: '35px',
-                    height: '35px',
-                    lineHeight: '35px',
+                    width: '30px',
+                    height: '30px',
+                    lineHeight: '30px',
                     padding: 0,
                     margin: 0,
-                    fontSize: '14px',
+                    fontSize: '12px',
                     textAlign: 'center',
                   },
                   'td[class*="dayOutsideNavigatedMonth"] button[class*="dayButton"]': {
@@ -305,9 +320,9 @@ export const SRSReportsTab: React.FC<ITabProps> = (props) => {
               },
               textField: {
                 width: '100%',
-                height: '32px',
+                height: '28px', // Уменьшена высота
                 selectors: {
-                  '.ms-TextField-field': { height: '32px' },
+                  '.ms-TextField-field': { height: '28px', fontSize: '12px' },
                 },
               },
             }}
@@ -321,18 +336,18 @@ export const SRSReportsTab: React.FC<ITabProps> = (props) => {
             calloutProps={{
               styles: {
                 calloutMain: {
-                  minWidth: calendarMinWidth,
+                  minWidth: '655px', // Возвращаем прежнюю ширину календаря
                 }
               }
             }}
           />
         </Stack.Item>
         
-        <Stack.Item style={{ minWidth: '220px' }}>
+        <Stack.Item style={{ minWidth: '160px' }}> {/* Уменьшена ширина */}
           <div style={{
-            fontSize: '14px',
+            fontSize: '12px',
             fontWeight: '600',
-            marginBottom: '5px',
+            marginBottom: '3px',
             color: '#323130'
           }}>End Date</div>
           <DatePicker
@@ -347,23 +362,23 @@ export const SRSReportsTab: React.FC<ITabProps> = (props) => {
             showMonthPickerAsOverlay={true}
             styles={{
               root: {
-                width: '220px',
+                width: '160px',
                 selectors: {
                   '.ms-DatePicker-weekday': {
-                    width: '35px',
-                    height: '35px',
-                    lineHeight: '35px',
+                    width: '30px',
+                    height: '30px',
+                    lineHeight: '30px',
                     padding: 0,
                     textAlign: 'center',
-                    fontSize: '12px',
+                    fontSize: '11px',
                   },
                   '.ms-DatePicker-day': {
-                    width: '35px',
-                    height: '35px',
-                    lineHeight: '35px',
+                    width: '30px',
+                    height: '30px',
+                    lineHeight: '30px',
                     padding: 0,
                     margin: 0,
-                    fontSize: '14px',
+                    fontSize: '12px',
                     textAlign: 'center',
                   },
                   'td[class*="dayOutsideNavigatedMonth"] button[class*="dayButton"]': {
@@ -376,9 +391,9 @@ export const SRSReportsTab: React.FC<ITabProps> = (props) => {
               },
               textField: {
                 width: '100%',
-                height: '32px',
+                height: '28px',
                 selectors: {
-                  '.ms-TextField-field': { height: '32px' },
+                  '.ms-TextField-field': { height: '28px', fontSize: '12px' },
                 },
               },
             }}
@@ -392,14 +407,14 @@ export const SRSReportsTab: React.FC<ITabProps> = (props) => {
             calloutProps={{
               styles: {
                 calloutMain: {
-                  minWidth: calendarMinWidth,
+                  minWidth: '655px', // Возвращаем прежнюю ширину календаря
                 }
               }
             }}
           />
         </Stack.Item>
         
-        <div style={{ minWidth: '200px' }}>
+        <div style={{ minWidth: '150px' }}> {/* Уменьшена ширина */}
           <Dropdown
             label="Select Staff Member"
             options={staffOptions}
@@ -407,50 +422,43 @@ export const SRSReportsTab: React.FC<ITabProps> = (props) => {
             onChange={(_, option) => option && handleStaffChange(option.key as string)}
             disabled={isLoading || staffOptions.length === 0}
             placeholder={staffOptions.length === 0 ? "No staff available" : "Choose staff member"}
+            styles={{
+              label: { fontSize: '12px', marginBottom: '3px' },
+              dropdown: { height: '28px', fontSize: '12px' }
+            }}
           />
           {/* Отладочная информация */}
           {staffOptions.length <= 1 && (
-            <div style={{ fontSize: '10px', color: 'red', marginTop: '2px' }}>
+            <div style={{ fontSize: '9px', color: 'red', marginTop: '2px' }}>
               Debug: Staff options count: {staffOptions.length}, Total staff: {staffMembers?.length || 0}
             </div>
           )}
         </div>
         
-        <div style={{ minWidth: '200px' }}>
+        <div style={{ minWidth: '150px' }}> {/* Уменьшена ширина */}
           <Dropdown
             label="Select Type of Leave"
             options={typeOptions}
             selectedKey={selectedTypeFilter}
             onChange={(_, option) => option && handleTypeFilterChange(option.key as string)}
             disabled={isLoading || typesOfLeave.length === 0}
-            placeholder={typeOptions.length === 0 ? "No leave types available" : "Choose leave type"}
+            styles={{
+              label: { fontSize: '12px', marginBottom: '3px' },
+              dropdown: { height: '28px', fontSize: '12px' }
+            }}
           />
           {/* Отладочная информация для типов отпуска */}
           {typeOptions.length === 0 && (
-            <div style={{ fontSize: '10px', color: 'red', marginTop: '2px' }}>
+            <div style={{ fontSize: '9px', color: 'red', marginTop: '2px' }}>
               Debug: No leave types loaded. Service available: {!!typeOfLeaveService}
             </div>
           )}
         </div>
         
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <PrimaryButton 
-            text="Export to Excel" 
-            onClick={handleExportToExcel}
-            disabled={isLoading || !selectedTypeFilter} // Отключаем если тип отпуска не выбран
-            styles={{
-              root: {
-                backgroundColor: '#217346', // зеленый цвет Excel
-                borderColor: '#217346'
-              }
-            }}
-          />
-        </div>
-        
         {isLoading && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
             <Spinner size={1} />
-            <span style={{ fontSize: '12px', color: '#666' }}>Loading...</span>
+            <span style={{ fontSize: '10px', color: '#666' }}>Loading...</span>
           </div>
         )}
       </div>
