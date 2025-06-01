@@ -61,22 +61,21 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
     isLoading
   });
 
-  // СУЩЕСТВУЮЩЕЕ СОСТОЯНИЕ для контрактов (сохраняем как есть)
+  // Состояния для контрактов
   const [contractsData, setContractsData] = useState<{ [staffId: string]: IContract[] }>({});
   const [isLoadingContracts, setIsLoadingContracts] = useState<boolean>(false);
 
-  // НОВЫЕ СОСТОЯНИЯ для StaffRecords и обработанных данных
+  // Состояния для StaffRecords и обработанных данных
   const [staffRecordsData, setStaffRecordsData] = useState<IStaffRecord[]>([]);
   const [isLoadingStaffRecords, setIsLoadingStaffRecords] = useState<boolean>(false);
   const [processedData, setProcessedData] = useState<ISRSReportData[]>([]);
   const [processingError, setProcessingError] = useState<string>('');
 
-  // СУЩЕСТВУЮЩИЕ СЕРВИСЫ (сохраняем как есть)
+  // Сервисы
   const contractsService = useMemo(() => {
     return context ? ContractsService.getInstance(context) : undefined;
   }, [context]);
 
-  // НОВЫЕ СЕРВИСЫ
   const staffRecordsService = useMemo(() => {
     return context ? StaffRecordsService.getInstance(context) : undefined;
   }, [context]);
@@ -85,14 +84,14 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
     return new LeaveDataProcessor();
   }, []);
 
-  // СУЩЕСТВУЮЩАЯ ЛОГИКА: Вычисляем фильтрованных сотрудников (сохраняем как есть)
+  // Вычисляем фильтрованных сотрудников
   const filteredStaffMembers = useMemo(() => {
     return selectedStaffId === '' 
       ? staffMembers.filter((staff: IStaffMember) => staff.deleted !== 1) // Все активные сотрудники
       : staffMembers.filter((staff: IStaffMember) => staff.id === selectedStaffId && staff.deleted !== 1); // Конкретный сотрудник
   }, [staffMembers, selectedStaffId]);
 
-  // ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ: Поиск employeeId по selectedStaffId
+  // Поиск employeeId по selectedStaffId
   const getEmployeeIdByStaffId = (staffId: string): string => {
     if (staffId === '') {
       return ''; // Для "All Staff"
@@ -102,7 +101,7 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
     return staff?.employeeId || '';
   };
 
-  // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+  // Вспомогательные функции
   const calculateAnnualLeaveFromPrevious = (contractedHours: number): number => {
     const weeklyHours = contractedHours || 40;
     const annualLeaveHours = weeklyHours * 4; // 4 недели отпуска
@@ -115,36 +114,7 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
     jul: 0, aug: 0, sep: 0, oct: 0, nov: 0, dec: 0
   });
 
-  /**
-   * ЛОКАЛЬНОЕ ИСПРАВЛЕНИЕ: Извлекает ID контракта из записи с fallback логикой
-   * @param record Запись StaffRecord
-   * @returns ID контракта или 0 если не найден
-   */
-  const getRecordContractId = (record: IStaffRecord): string | number => {
-    // Приоритет 1: Проверяем стандартное поле WeeklyTimeTableID (из маппера)
-    if (record.WeeklyTimeTableID) {
-      console.log(`[DEBUG] Found WeeklyTimeTableID: ${record.WeeklyTimeTableID}`);
-      return record.WeeklyTimeTableID;
-    }
-    
-    // Приоритет 2: Fallback - ищем в сырых данных (если они доступны)
-    if ((record as any).WeeklyTimeTableLookupId) {
-      console.log(`[DEBUG] Found WeeklyTimeTableLookupId fallback: ${(record as any).WeeklyTimeTableLookupId}`);
-      return (record as any).WeeklyTimeTableLookupId;
-    }
-    
-    // Приоритет 3: Проверяем вложенный объект WeeklyTimeTable
-    if (record.WeeklyTimeTable?.Id) {
-      console.log(`[DEBUG] Found WeeklyTimeTable.Id: ${record.WeeklyTimeTable.Id}`);
-      return record.WeeklyTimeTable.Id;
-    }
-    
-    // Если ничего не найдено
-    console.log(`[DEBUG] No contract ID found for record ${record.ID}`);
-    return 0;
-  };
-
-  // СУЩЕСТВУЮЩИЙ useEffect: Загружаем контракты для отфильтрованных сотрудников (сохраняем как есть)
+  // Загружаем контракты для отфильтрованных сотрудников
   useEffect(() => {
     const fetchContractsForStaff = async (): Promise<void> => {
       if (!contractsService || staffMembers.length === 0) {
@@ -166,7 +136,7 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
       try {
         const contractsMap: { [staffId: string]: IContract[] } = {};
 
-        // Загружаем контракты для каждого сотрудника (СУЩЕСТВУЮЩАЯ ЛОГИКА)
+        // Загружаем контракты для каждого сотрудника
         for (const staff of currentFilteredStaff) {
           if (staff.employeeId && currentUserId && managingGroupId) {
             try {
@@ -176,7 +146,7 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
                 managingGroupId
               );
               
-              // Фильтруем только НЕ удаленные контракты и проверяем пересечение с периодом (СУЩЕСТВУЮЩАЯ ЛОГИКА)
+              // Фильтруем только НЕ удаленные контракты и проверяем пересечение с периодом
               const activeContracts = contracts.filter((contract: IContract) => {
                 const deletedValue = typeof contract.isDeleted === 'number' 
                   ? contract.isDeleted 
@@ -190,7 +160,7 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
                   return false;
                 }
                 
-                // Проверяем пересечение с выбранным периодом (СУЩЕСТВУЮЩАЯ ЛОГИКА)
+                // Проверяем пересечение с выбранным периодом
                 const contractStart = new Date(contract.startDate);
                 const contractEnd = contract.finishDate ? new Date(contract.finishDate) : null;
                 const periodStart = selectedPeriodStart;
@@ -234,7 +204,7 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
       });
   }, [staffMembers, selectedStaffId, contractsService, currentUserId, managingGroupId, selectedPeriodStart, selectedPeriodEnd]);
 
-  // НОВЫЙ useEffect: Загружаем StaffRecords с типом отпуска
+  // Загружаем StaffRecords с типом отпуска
   useEffect(() => {
     const fetchStaffRecordsData = async (): Promise<void> => {
       if (!staffRecordsService || !context) {
@@ -248,7 +218,7 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
         return;
       }
 
-      // ИЗМЕНЕНО: Загружаем записи отпусков только если выбран тип отпуска
+      // Загружаем записи отпусков только если выбран тип отпуска
       if (!selectedTypeFilter || selectedTypeFilter === '') {
         console.log('[SRSReportsTable] Тип отпуска не выбран, записи отпусков не загружаются');
         setStaffRecordsData([]);
@@ -266,7 +236,7 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
           endDate: selectedPeriodEnd,
           currentUserID: currentUserId || '',
           staffGroupID: managingGroupId || '',
-          employeeID: getEmployeeIdByStaffId(selectedStaffId) // ИСПРАВЛЕНО: используем employeeId вместо selectedStaffId
+          employeeID: getEmployeeIdByStaffId(selectedStaffId) // Используем employeeId вместо selectedStaffId
         };
 
         console.log('[SRSReportsTable] Параметры запроса StaffRecords:', {
@@ -284,7 +254,7 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
           setProcessingError(errorMsg);
           setStaffRecordsData([]);
         } else {
-          // НОВОЕ: Дополнительная фильтрация по выбранному типу отпуска
+          // Дополнительная фильтрация по выбранному типу отпуска
           const filteredRecords = result.records.filter(record => 
             record.TypeOfLeaveID === selectedTypeFilter
           );
@@ -319,13 +289,13 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
     selectedStaffId, 
     currentUserId, 
     managingGroupId,
-    selectedTypeFilter // ДОБАВЛЕНО: зависимость от типа отпуска
+    selectedTypeFilter
   ]);
 
-  // ОБНОВЛЕННЫЙ useEffect: Объединяем контракты с записями отпусков и обрабатываем данные
+  // Объединяем контракты с записями отпусков и обрабатываем данные
   useEffect(() => {
     const processContractsWithLeaveRecords = (): void => {
-      // ИЗМЕНЕНО: Показываем контракты даже если нет записей отпусков
+      // Показываем контракты даже если нет записей отпусков
       if (Object.keys(contractsData).length === 0) {
         console.log('[SRSReportsTable] Нет контрактов для отображения');
         setProcessedData([]);
@@ -344,8 +314,7 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
           staffContracts.forEach(contract => {
             // Находим записи отпусков, относящиеся к этому контракту
             const contractLeaveRecords = staffRecordsData.filter(record => {
-              // ИСПРАВЛЕНО: Проверяем, что запись принадлежит этому сотруднику
-              // Используем правильное сопоставление: record.StaffMemberLookupId должен совпадать с staff.employeeId
+              // Проверяем, что запись принадлежит этому сотруднику
               const recordStaffLookupId = record.StaffMemberLookupId;
               const staffEmployeeId = staff.employeeId;
               
@@ -359,35 +328,18 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
                 return false;
               }
 
-              // ИСПРАВЛЕНО: Используем локальную функцию с fallback логикой
-              const recordContractId = getRecordContractId(record);
+              // УПРОЩЕННАЯ проверка контракта
+              const recordContractId = record.WeeklyTimeTableID || 0;
               const contractId = contract.id;
               
-              console.log(`[DEBUG] Проверка привязки записи к контракту:`, {
-                recordId: record.ID,
-                recordContractId,
-                contractId,
-                recordWeeklyTimeTableID: record.WeeklyTimeTableID,
-                fallbackWeeklyTimeTableLookupId: (record as any).WeeklyTimeTableLookupId,
-                recordWeeklyTimeTable: record.WeeklyTimeTable
-              });
+              console.log(`[DEBUG] Record ${record.ID}: contractId=${recordContractId}, targetContract=${contractId}`);
               
               if (!recordContractId || !contractId) {
-                console.log(`[DEBUG] Пропуск записи - отсутствует ID контракта:`, {
-                  recordContractId: !!recordContractId,
-                  contractId: !!contractId
-                });
                 return false;
               }
               
-              // Приводим к строковому виду для корректного сравнения
+              // Простое сравнение - приводим оба к строкам
               const belongsToContract = String(recordContractId) === String(contractId);
-              
-              console.log(`[DEBUG] Результат сравнения контрактов:`, {
-                recordContractId: String(recordContractId),
-                contractId: String(contractId),
-                belongsToContract
-              });
               
               if (!belongsToContract) {
                 return false;
@@ -407,7 +359,7 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
 
             console.log(`[SRSReportsTable] Контракт ${contract.template} (ID: ${contract.id}) для ${staff.name}: ${contractLeaveRecords.length} записей отпуска`);
 
-            // ИЗМЕНЕНО: Добавляем контракт ВСЕГДА, даже если нет записей отпусков
+            // Добавляем контракт ВСЕГДА, даже если нет записей отпусков
             contractsWithLeaveRecords.push({
               contract,
               staffMember: staff,
@@ -415,10 +367,10 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
             });
           });
 
-          // ИЗМЕНЕНО: Создаем виртуальный контракт только если у сотрудника НЕТ контрактов, но ЕСТЬ записи отпусков БЕЗ КОНТРАКТА
+          // Создаем виртуальный контракт только если у сотрудника НЕТ контрактов, но ЕСТЬ записи отпусков БЕЗ КОНТРАКТА
           if (staffContracts.length === 0) {
             const staffLeaveRecords = staffRecordsData.filter(record => {
-              // ИСПРАВЛЕНО: Используем правильное сопоставление для виртуального контракта
+              // Используем правильное сопоставление для виртуального контракта
               const recordStaffLookupId = record.StaffMemberLookupId;
               const staffEmployeeId = staff.employeeId;
               
@@ -428,18 +380,9 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
               
               const belongsToStaff = recordStaffLookupId === staffEmployeeId;
               
-              // ИСПРАВЛЕНО: Используем локальную функцию с fallback логикой для виртуального контракта
-              const recordContractId = getRecordContractId(record);
-              const hasNoContract = !recordContractId || recordContractId === '' || recordContractId === 0;
-              
-              console.log(`[DEBUG] Проверка виртуального контракта для записи:`, {
-                recordId: record.ID,
-                recordContractId,
-                hasNoContract,
-                belongsToStaff,
-                recordWeeklyTimeTableID: record.WeeklyTimeTableID,
-                fallbackWeeklyTimeTableLookupId: (record as any).WeeklyTimeTableLookupId
-              });
+              // УПРОЩЕННАЯ проверка отсутствия контракта
+              const recordContractId = record.WeeklyTimeTableID || 0;
+              const hasNoContract = !recordContractId || Number(recordContractId) === 0;
               
               return belongsToStaff && hasNoContract;
             });
@@ -479,7 +422,7 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
         const reportDataList: ISRSReportData[] = [];
 
         contractsWithLeaveRecords.forEach(({ contract, staffMember, leaveRecords }) => {
-          // ИЗМЕНЕНО: Обрабатываем контракт даже если нет записей отпусков
+          // Обрабатываем контракт даже если нет записей отпусков
           let processedReportData: ISRSReportData;
 
           if (leaveRecords.length === 0) {
@@ -567,7 +510,7 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
     processContractsWithLeaveRecords();
   }, [
     contractsData,
-    staffRecordsData, // МОЖЕТ быть пустым
+    staffRecordsData,
     filteredStaffMembers,
     selectedPeriodStart,
     selectedPeriodEnd,
