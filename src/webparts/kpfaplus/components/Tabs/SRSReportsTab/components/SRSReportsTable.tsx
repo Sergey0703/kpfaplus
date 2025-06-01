@@ -115,6 +115,26 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
     jul: 0, aug: 0, sep: 0, oct: 0, nov: 0, dec: 0
   });
 
+  // СКОПИРОВАНО из DaysOfLeavesService: Получает ID из lookup поля
+  const getLookupId = (lookup?: unknown): number | undefined => {
+    if (!lookup) return undefined;
+    
+    // Если lookup - число или строка, возвращаем его как число
+    if (typeof lookup === 'number') return lookup;
+    if (typeof lookup === 'string') return parseInt(lookup, 10);
+    
+    // Если lookup - объект с полем Id, LookupId или id
+    if (typeof lookup === 'object' && lookup !== null) {
+      const lookupObj = lookup as Record<string, unknown>;
+      if ('Id' in lookupObj && lookupObj.Id !== undefined) return Number(lookupObj.Id);
+      if ('id' in lookupObj && lookupObj.id !== undefined) return Number(lookupObj.id);
+      if ('LookupId' in lookupObj && lookupObj.LookupId !== undefined) return Number(lookupObj.LookupId);
+      if ('lookupId' in lookupObj && lookupObj.lookupId !== undefined) return Number(lookupObj.lookupId);
+    }
+    
+    return undefined;
+  };
+
   // СУЩЕСТВУЮЩИЙ useEffect: Загружаем контракты для отфильтрованных сотрудников (сохраняем как есть)
   useEffect(() => {
     const fetchContractsForStaff = async (): Promise<void> => {
@@ -330,9 +350,9 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
                 return false;
               }
 
-              // НОВОЕ: Проверяем, что запись привязана к этому конкретному контракту
-              // В StaffRecord поле WeeklyTimeTable - это lookup объект
-              const recordContractId = record.WeeklyTimeTable?.Id || record.WeeklyTimeTableID;
+              // ИСПРАВЛЕНО: Используем рабочий подход как в DaysOfLeavesService
+              const recordContractId = getLookupId(record.WeeklyTimeTable) || 
+                                     record.WeeklyTimeTableID || 0;
               const contractId = contract.id;
               
               console.log(`[DEBUG] Проверка привязки записи к контракту:`, {
@@ -399,15 +419,18 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
               
               const belongsToStaff = recordStaffLookupId === staffEmployeeId;
               
-              // НОВОЕ: Для виртуального контракта берем только записи БЕЗ привязки к контракту
-              const recordContractId = record.WeeklyTimeTable?.Id || record.WeeklyTimeTableID;
+              // ИСПРАВЛЕНО: Используем рабочий подход как в DaysOfLeavesService для виртуального контракта
+              const recordContractId = getLookupId(record.WeeklyTimeTable) || 
+                                     record.WeeklyTimeTableID || 0;
               const hasNoContract = !recordContractId || recordContractId === '';
               
               console.log(`[DEBUG] Проверка виртуального контракта для записи:`, {
                 recordId: record.ID,
                 recordContractId,
                 hasNoContract,
-                belongsToStaff
+                belongsToStaff,
+                recordWeeklyTimeTable: record.WeeklyTimeTable,
+                recordWeeklyTimeTableID: record.WeeklyTimeTableID
               });
               
               return belongsToStaff && hasNoContract;
