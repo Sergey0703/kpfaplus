@@ -15,6 +15,7 @@ import {
 /**
  * Сервис для группировки и обработки данных StaffRecords для SRS Reports
  * Преобразует записи отпусков в структурированные данные по месяцам
+ * ОБНОВЛЕНО: Использует поле LeaveTime вместо вычислений
  */
 export class LeaveDataProcessor {
   private _logSource: string = "LeaveDataProcessor";
@@ -175,10 +176,9 @@ export class LeaveDataProcessor {
         }
       }
 
-      // Проверка наличия рабочего времени или возможности его рассчитать
-      const hours = this.calculateWorkingHours(record);
-      if (hours <= 0) {
-        this.logInfo(`[DEBUG] Пропуск записи без рабочих часов: ID ${record.ID}`);
+      // УПРОЩЕНО: Проверка наличия часов отпуска из поля LeaveTime
+      if (!record.LeaveTime || record.LeaveTime <= 0) {
+        this.logInfo(`[DEBUG] Пропуск записи без часов отпуска: ID ${record.ID}, LeaveTime: ${record.LeaveTime}`);
         return false;
       }
 
@@ -366,6 +366,7 @@ export class LeaveDataProcessor {
 
   /**
    * Создание записи отпуска из StaffRecord
+   * УПРОЩЕНО: Использует поле LeaveTime вместо вычислений
    */
   private createLeaveRecord(
     record: IStaffRecord,
@@ -376,13 +377,15 @@ export class LeaveDataProcessor {
         return null;
       }
 
-      const date = new Date(record.Date);
-      const hours = this.calculateWorkingHours(record);
+      // УПРОЩЕНО: Используем готовое поле LeaveTime
+      const hours = record.LeaveTime;
       
       if (hours <= 0) {
+        this.logInfo(`[DEBUG] Пропуск записи с нулевыми часами отпуска: ID ${record.ID}, LeaveTime: ${hours}`);
         return null;
       }
 
+      const date = new Date(record.Date);
       const monthKey = MonthUtils.getMonthKey(date);
       const monthNumber = MonthUtils.getMonthNumber(monthKey);
 
@@ -403,6 +406,7 @@ export class LeaveDataProcessor {
         originalRecord: record
       };
 
+      this.logInfo(`[DEBUG] Создана запись отпуска: ID ${record.ID}, LeaveTime: ${hours} часов, Месяц: ${monthKey}`);
       return leaveRecord;
 
     } catch (error) {
@@ -413,77 +417,14 @@ export class LeaveDataProcessor {
   }
 
   /**
-   * Расчет рабочих часов из записи StaffRecord
+   * УДАЛЕН СЛОЖНЫЙ МЕТОД calculateWorkingHours()
+   * Теперь используется простое поле LeaveTime из записи
    */
-  private calculateWorkingHours(record: IStaffRecord): number {
-    try {
-      // Проверяем наличие готового поля WorkTime
-      if (record.WorkTime && typeof record.WorkTime === 'string') {
-        const hours = this.parseWorkTimeString(record.WorkTime);
-        if (hours > 0) {
-          return hours;
-        }
-      }
-
-      // Если WorkTime недоступно, рассчитываем из времени смен
-      if (record.ShiftDate1 && record.ShiftDate2) {
-        const startTime = new Date(record.ShiftDate1);
-        const endTime = new Date(record.ShiftDate2);
-        
-        if (!isNaN(startTime.getTime()) && !isNaN(endTime.getTime())) {
-          const diffMs = endTime.getTime() - startTime.getTime();
-          let diffHours = diffMs / (1000 * 60 * 60);
-          
-          // Вычитаем время обеда, если указано
-          if (record.TimeForLunch && typeof record.TimeForLunch === 'number') {
-            diffHours -= record.TimeForLunch / 60; // TimeForLunch в минутах
-          }
-          
-          return Math.max(0, diffHours);
-        }
-      }
-
-      // Значение по умолчанию для записей отпуска
-      return 8; // Стандартный рабочий день
-
-    } catch (error) {
-      this.logError(`[ОШИБКА] calculateWorkingHours для записи ${record.ID}: ${error}`);
-      return 0;
-    }
-  }
 
   /**
-   * Парсинг строки рабочего времени (например, "8:00", "7.5", "8:30")
+   * УДАЛЕН МЕТОД parseWorkTimeString()
+   * Больше не нужен, так как LeaveTime уже число
    */
-  private parseWorkTimeString(workTime: string): number {
-    try {
-      const trimmed = workTime.trim();
-      
-      // Формат "8:30" - часы:минуты
-      if (trimmed.includes(':')) {
-        const parts = trimmed.split(':');
-        if (parts.length === 2) {
-          const hours = parseInt(parts[0], 10);
-          const minutes = parseInt(parts[1], 10);
-          if (!isNaN(hours) && !isNaN(minutes)) {
-            return hours + (minutes / 60);
-          }
-        }
-      }
-      
-      // Формат "7.5" - десятичные часы
-      const decimal = parseFloat(trimmed);
-      if (!isNaN(decimal) && decimal > 0) {
-        return decimal;
-      }
-      
-      return 0;
-
-    } catch (error) {
-      this.logError(`[ОШИБКА] parseWorkTimeString для "${workTime}": ${error}`);
-      return 0;
-    }
-  }
 
   /**
    * Расчет остатка отпуска с предыдущего периода
