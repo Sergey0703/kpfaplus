@@ -125,8 +125,9 @@ export const SRSReportsTab: React.FC<ITabProps> = (props) => {
   });
 
   // Подготавливаем опции для dropdown типов отпусков
+  // ЗАКОММЕНТИРОВАНА опция "All Types"
   const typeOptions: IDropdownOption[] = [
-    { key: '', text: 'All Types' },
+    // { key: '', text: 'All Types' }, // ЗАКОММЕНТИРОВАНО: пока убираем опцию "All Types"
     ...typesOfLeave.map(type => ({
       key: type.id,
       text: type.title
@@ -422,14 +423,21 @@ export const SRSReportsTab: React.FC<ITabProps> = (props) => {
             selectedKey={selectedTypeFilter}
             onChange={(_, option) => option && handleTypeFilterChange(option.key as string)}
             disabled={isLoading || typesOfLeave.length === 0}
+            placeholder={typeOptions.length === 0 ? "No leave types available" : "Choose leave type"}
           />
+          {/* Отладочная информация для типов отпуска */}
+          {typeOptions.length === 0 && (
+            <div style={{ fontSize: '10px', color: 'red', marginTop: '2px' }}>
+              Debug: No leave types loaded. Service available: {!!typeOfLeaveService}
+            </div>
+          )}
         </div>
         
         <div style={{ display: 'flex', gap: '10px' }}>
           <PrimaryButton 
             text="Export to Excel" 
             onClick={handleExportToExcel}
-            disabled={isLoading}
+            disabled={isLoading || !selectedTypeFilter} // Отключаем если тип отпуска не выбран
             styles={{
               root: {
                 backgroundColor: '#217346', // зеленый цвет Excel

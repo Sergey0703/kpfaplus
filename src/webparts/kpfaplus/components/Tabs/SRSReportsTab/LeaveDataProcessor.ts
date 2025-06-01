@@ -453,7 +453,13 @@ export class LeaveDataProcessor {
   /**
    * Создание пустой статистики
    */
-  private createEmptyStatistics() {
+  private createEmptyStatistics(): {
+    totalStaff: number;
+    totalContracts: number;
+    totalLeaveRecords: number;
+    totalLeaveHours: number;
+    monthlyStats: IMonthlyLeaveData;
+  } {
     return {
       totalStaff: 0,
       totalContracts: 0,
