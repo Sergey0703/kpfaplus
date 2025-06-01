@@ -42,13 +42,14 @@ export interface IStaffRecord {
   WeeklyTimeTableID: string;     // ID недельного расписания
   WeeklyTimeTable: IStaffRecordWeeklyTimeTable | undefined; // Недельное расписание
   WeeklyTimeTableTitle: string;  // Название недельного расписания
+  LeaveTime: number;             // Часы отпуска (например, 8.5)
   
   // Дополнительные рассчитываемые поля
   SortOrder?: number;            // Порядок сортировки
   WorkTime?: string;             // Рассчитанное рабочее время в формате "часы.минуты"
-  StaffMemberLookupId?: string;
-ManagerLookupId?: string;
-StaffGroupLookupId?: string;
+  StaffMemberLookupId?: string;  // ID сотрудника (lookup)
+  ManagerLookupId?: string;      // ID менеджера (lookup)
+  StaffGroupLookupId?: string;   // ID группы (lookup)
 }
 
 /**
@@ -68,6 +69,7 @@ export interface IRawStaffRecord {
   TimeForLunch?: number | string; // Время обеда
   Contract?: number | string;    // Номер контракта
   Holiday?: number | string | boolean; // Признак праздника
+  LeaveTime?: number | string;   // Часы отпуска из SharePoint
   TypeOfLeave?: {                // Тип отпуска (lookup)
     Id?: string | number;        // ID типа отпуска
     ID?: string | number;        // ID типа отпуска (альтернативное поле)
@@ -152,6 +154,7 @@ export interface IStaffRecordUpdateParams {
   timeForLunch?: number;         // Время обеда
   contract?: number;             // Номер контракта
   holiday?: number;              // Признак праздника
+  leaveTime?: number;            // Часы отпуска
   typeOfLeaveID?: string;        // ID типа отпуска
   weeklyTimeTableID?: string;    // ID недельного расписания
   deleted?: number;              // Флаг удаления

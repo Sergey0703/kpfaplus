@@ -110,9 +110,9 @@ import {
         TimeForLunch: this.ensureNumber(fields.TimeForLunch, 0),
         Contract: this.ensureNumber(fields.Contract, 1),
         Holiday: this.ensureNumber(fields.Holiday, 0),
+        LeaveTime: this.ensureNumber(fields.LeaveTime, 0), // ДОБАВЛЕНО: Поле LeaveTime
         TypeOfLeaveID: typeOfLeaveID,
         TypeOfLeave: typeOfLeave,
-
         StaffMemberLookupId: this.ensureString(fields.StaffMemberLookupId),
         WeeklyTimeTableID: weeklyTimeTableID,
         WeeklyTimeTable: weeklyTimeTable,
