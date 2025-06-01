@@ -115,24 +115,33 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
     jul: 0, aug: 0, sep: 0, oct: 0, nov: 0, dec: 0
   });
 
-  // СКОПИРОВАНО из DaysOfLeavesService: Получает ID из lookup поля
-  const getLookupId = (lookup?: unknown): number | undefined => {
-    if (!lookup) return undefined;
-    
-    // Если lookup - число или строка, возвращаем его как число
-    if (typeof lookup === 'number') return lookup;
-    if (typeof lookup === 'string') return parseInt(lookup, 10);
-    
-    // Если lookup - объект с полем Id, LookupId или id
-    if (typeof lookup === 'object' && lookup !== null) {
-      const lookupObj = lookup as Record<string, unknown>;
-      if ('Id' in lookupObj && lookupObj.Id !== undefined) return Number(lookupObj.Id);
-      if ('id' in lookupObj && lookupObj.id !== undefined) return Number(lookupObj.id);
-      if ('LookupId' in lookupObj && lookupObj.LookupId !== undefined) return Number(lookupObj.LookupId);
-      if ('lookupId' in lookupObj && lookupObj.lookupId !== undefined) return Number(lookupObj.lookupId);
+  /**
+   * ЛОКАЛЬНОЕ ИСПРАВЛЕНИЕ: Извлекает ID контракта из записи с fallback логикой
+   * @param record Запись StaffRecord
+   * @returns ID контракта или 0 если не найден
+   */
+  const getRecordContractId = (record: IStaffRecord): string | number => {
+    // Приоритет 1: Проверяем стандартное поле WeeklyTimeTableID (из маппера)
+    if (record.WeeklyTimeTableID) {
+      console.log(`[DEBUG] Found WeeklyTimeTableID: ${record.WeeklyTimeTableID}`);
+      return record.WeeklyTimeTableID;
     }
     
-    return undefined;
+    // Приоритет 2: Fallback - ищем в сырых данных (если они доступны)
+    if ((record as any).WeeklyTimeTableLookupId) {
+      console.log(`[DEBUG] Found WeeklyTimeTableLookupId fallback: ${(record as any).WeeklyTimeTableLookupId}`);
+      return (record as any).WeeklyTimeTableLookupId;
+    }
+    
+    // Приоритет 3: Проверяем вложенный объект WeeklyTimeTable
+    if (record.WeeklyTimeTable?.Id) {
+      console.log(`[DEBUG] Found WeeklyTimeTable.Id: ${record.WeeklyTimeTable.Id}`);
+      return record.WeeklyTimeTable.Id;
+    }
+    
+    // Если ничего не найдено
+    console.log(`[DEBUG] No contract ID found for record ${record.ID}`);
+    return 0;
   };
 
   // СУЩЕСТВУЮЩИЙ useEffect: Загружаем контракты для отфильтрованных сотрудников (сохраняем как есть)
@@ -350,17 +359,17 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
                 return false;
               }
 
-              // ИСПРАВЛЕНО: Используем рабочий подход как в DaysOfLeavesService
-              const recordContractId = getLookupId(record.WeeklyTimeTable) || 
-                                     record.WeeklyTimeTableID || 0;
+              // ИСПРАВЛЕНО: Используем локальную функцию с fallback логикой
+              const recordContractId = getRecordContractId(record);
               const contractId = contract.id;
               
               console.log(`[DEBUG] Проверка привязки записи к контракту:`, {
                 recordId: record.ID,
                 recordContractId,
                 contractId,
-                recordWeeklyTimeTable: record.WeeklyTimeTable,
-                recordWeeklyTimeTableID: record.WeeklyTimeTableID
+                recordWeeklyTimeTableID: record.WeeklyTimeTableID,
+                fallbackWeeklyTimeTableLookupId: (record as any).WeeklyTimeTableLookupId,
+                recordWeeklyTimeTable: record.WeeklyTimeTable
               });
               
               if (!recordContractId || !contractId) {
@@ -419,18 +428,17 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
               
               const belongsToStaff = recordStaffLookupId === staffEmployeeId;
               
-              // ИСПРАВЛЕНО: Используем рабочий подход как в DaysOfLeavesService для виртуального контракта
-              const recordContractId = getLookupId(record.WeeklyTimeTable) || 
-                                     record.WeeklyTimeTableID || 0;
-              const hasNoContract = !recordContractId || recordContractId === '';
+              // ИСПРАВЛЕНО: Используем локальную функцию с fallback логикой для виртуального контракта
+              const recordContractId = getRecordContractId(record);
+              const hasNoContract = !recordContractId || recordContractId === '' || recordContractId === 0;
               
               console.log(`[DEBUG] Проверка виртуального контракта для записи:`, {
                 recordId: record.ID,
                 recordContractId,
                 hasNoContract,
                 belongsToStaff,
-                recordWeeklyTimeTable: record.WeeklyTimeTable,
-                recordWeeklyTimeTableID: record.WeeklyTimeTableID
+                recordWeeklyTimeTableID: record.WeeklyTimeTableID,
+                fallbackWeeklyTimeTableLookupId: (record as any).WeeklyTimeTableLookupId
               });
               
               return belongsToStaff && hasNoContract;

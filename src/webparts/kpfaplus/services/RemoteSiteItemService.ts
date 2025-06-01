@@ -79,16 +79,15 @@ export class RemoteSiteItemService {
            // Применяем $select и $expand
            if (expandFields) {
              if (listTitle === 'StaffRecords') {
-                // ИСПРАВЛЕНО: Для StaffRecords выбираем только нужные поля и расширяем поле fields + WeeklyTimeTable
-               request = request.select('id,fields/ID,fields/Title,fields/Date,fields/ShiftDate1,fields/ShiftDate2,fields/ShiftDate3,fields/ShiftDate4,fields/TimeForLunch,fields/Contract,fields/Holiday,fields/TypeOfLeave,fields/WeeklyTimeTable,fields/Deleted,fields/Checked,fields/ExportResult,fields/StaffMemberLookupId,fields/ManagerLookupId,fields/StaffGroupLookupId,fields/WeeklyTimeTableLookupId');
-               request = request.expand('fields'); // ИСПРАВЛЕНО: Добавлен expand для WeeklyTimeTable
-               this.logInfo(`[DEBUG] Applying specific select/expand for StaffRecords including WeeklyTimeTable lookup`);
+                // ИСПРАВЛЕНО: Для StaffRecords используем простой select и expand без вложенных полей
+               request = request.select('id,fields');
+               request = request.expand('fields');
+               this.logInfo(`[DEBUG] Using simple select/expand for StaffRecords`);
              } else {
                request = request.expand('fields');
                this.logInfo(`[DEBUG] Applying general expand fields`);
              }
            }
-
 
            if (filter) {
              const modifiedFilter = filter.startsWith('fields/') ? filter : `fields/${filter}`;
@@ -228,10 +227,10 @@ try {
   // Применяем $select и $expand
   if (expandFields) {
     if (listTitle === 'StaffRecords') {
-      // ИСПРАВЛЕНО: Для StaffRecords используем расширенный expand включая WeeklyTimeTable
+      // ИСПРАВЛЕНО: Для StaffRecords используем простой select и expand
       request = request.select('id,fields');
-      request = request.expand('fields'); // ИСПРАВЛЕНО: Добавлен expand для WeeklyTimeTable
-      console.log(`[DEBUG] Applying StaffRecords-specific select/expand including WeeklyTimeTable lookup`);
+      request = request.expand('fields');
+      console.log(`[DEBUG] Applying simple select/expand for StaffRecords`);
     } else {
       request = request.select('id,fields');
       request = request.expand('fields');
@@ -449,10 +448,10 @@ try {
 
        // Применяем специфичные настройки для StaffRecords
        if (listTitle === 'StaffRecords') {
-         // ИСПРАВЛЕНО: Для StaffRecords добавляем expand для WeeklyTimeTable
+         // ИСПРАВЛЕНО: Для StaffRecords используем простой select и expand
          request = request.select('id,fields');
-         request = request.expand('fields'); // ИСПРАВЛЕНО: Добавлен expand для WeeklyTimeTable
-         console.log(`[DEBUG] Applied StaffRecords-specific select/expand including WeeklyTimeTable lookup`);
+         request = request.expand('fields');
+         console.log(`[DEBUG] Applied simple select/expand for StaffRecords`);
        } else {
          request = request.select('id,fields');
          request = request.expand('fields');
@@ -559,20 +558,20 @@ try {
          console.log(`[DEBUG] Unique staff members in data: ${uniqueStaffIds.size}`);
          console.log(`[DEBUG] Staff IDs: ${Array.from(uniqueStaffIds).slice(0, 10).join(', ')}${uniqueStaffIds.size > 10 ? '...' : ''}`);
          
-         // НОВОЕ: Анализ WeeklyTimeTable после исправления
+         // ИСПРАВЛЕНО: Анализ WeeklyTimeTableID после исправления
          const sampleWithWeeklyTimeTable = formattedItems.filter(item => 
-           (item.fields as IRemoteListItemField)?.WeeklyTimeTable
+           (item.fields as IRemoteListItemField)?.WeeklyTimeTableID
          ).slice(0, 3);
          
          if (sampleWithWeeklyTimeTable.length > 0) {
-           console.log(`[DEBUG] Sample WeeklyTimeTable data after fix:`, 
+           console.log(`[DEBUG] Sample WeeklyTimeTableID data after fix:`, 
              sampleWithWeeklyTimeTable.map(item => ({
                itemId: item.id,
-               weeklyTimeTable: (item.fields as IRemoteListItemField)?.WeeklyTimeTable
+               weeklyTimeTableID: (item.fields as IRemoteListItemField)?.WeeklyTimeTableID
              }))
            );
          } else {
-           console.log(`[DEBUG] No items with WeeklyTimeTable found in sample`);
+           console.log(`[DEBUG] No items with WeeklyTimeTableID found in sample`);
          }
        }
      }
@@ -711,9 +710,9 @@ try {
 
            if (expandFields) {
              if (listTitle === 'StaffRecords') {
-               // ИСПРАВЛЕНО: Для StaffRecords добавляем expand для WeeklyTimeTable
+               // ИСПРАВЛЕНО: Для StaffRecords используем простой expand
                request = request.expand('fields');
-               this.logInfo(`[DEBUG] Applied StaffRecords-specific expand including WeeklyTimeTable for single item`);
+               this.logInfo(`[DEBUG] Applied simple expand for single StaffRecords item`);
              } else {
                request = request.expand('fields');
              }

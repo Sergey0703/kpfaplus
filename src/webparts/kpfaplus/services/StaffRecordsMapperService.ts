@@ -89,12 +89,11 @@ import {
       const shiftDate4 = this.parseOptionalDate(fields.ShiftDate4 as string, index, 'ShiftDate4');
       
       // Получаем информацию о типе отпуска
-      // ПРАВИЛЬНО:
-const { typeOfLeaveID, typeOfLeave } = this.extractTypeOfLeave(fields.TypeOfLeaveLookupId, index);
+      const { typeOfLeaveID, typeOfLeave } = this.extractTypeOfLeave(fields.TypeOfLeaveLookupId, index);
       
-      // Получаем информацию о недельном расписании
+      // ИСПРАВЛЕНО: Получаем информацию о недельном расписании из правильного поля
       const { weeklyTimeTableID, weeklyTimeTable, weeklyTimeTableTitle } = 
-        this.extractWeeklyTimeTable(fields.WeeklyTimeTable, index);
+        this.extractWeeklyTimeTable(fields.WeeklyTimeTableLookupId, index);
       
       // Создаем объект IStaffRecord с преобразованными данными
       return {
@@ -121,46 +120,48 @@ const { typeOfLeaveID, typeOfLeave } = this.extractTypeOfLeave(fields.TypeOfLeav
       };
     }
   
+    /**
+     * ИСПРАВЛЕНО: Извлекает информацию о типе отпуска из правильного поля TypeOfLeaveLookupId
+     */
     private extractTypeOfLeave(typeOfLeaveRaw: unknown, index: number): {
-  typeOfLeaveID: string;
-  typeOfLeave: IStaffRecordTypeOfLeave | undefined;
-} {
-  let typeOfLeave: IStaffRecordTypeOfLeave | undefined = undefined;
-  let typeOfLeaveID = '';
-  
-  // ИСПРАВЛЕНО: TypeOfLeaveLookupId приходит как строка или число
-  if (typeOfLeaveRaw) {
-    if (typeof typeOfLeaveRaw === 'string' || typeof typeOfLeaveRaw === 'number') {
-      typeOfLeaveID = String(typeOfLeaveRaw);
-      this.logInfo(`[DEBUG] Extracted TypeOfLeaveID: ${typeOfLeaveID}`);
+      typeOfLeaveID: string;
+      typeOfLeave: IStaffRecordTypeOfLeave | undefined;
+    } {
+      let typeOfLeave: IStaffRecordTypeOfLeave | undefined = undefined;
+      let typeOfLeaveID = '';
       
-      // Создаем минимальный объект TypeOfLeave с ID
-      typeOfLeave = {
-        Id: typeOfLeaveID,
-        Title: `Type ${typeOfLeaveID}` // Название будет заменено при полной загрузке данных
-      };
-    }
-    // Обрабатываем случай, если все-таки придет объект (для backward compatibility)
-    else if (typeof typeOfLeaveRaw === 'object' && typeOfLeaveRaw !== null) {
-      const typeData = typeOfLeaveRaw as { Id?: string | number; Title?: string };
-      typeOfLeaveID = typeData.Id?.toString() || '';
-      
-      if (typeOfLeaveID && typeData.Title) {
-        typeOfLeave = {
-          Id: typeOfLeaveID,
-          Title: typeData.Title.toString()
-        };
+      // ИСПРАВЛЕНО: TypeOfLeaveLookupId приходит как строка или число
+      if (typeOfLeaveRaw) {
+        if (typeof typeOfLeaveRaw === 'string' || typeof typeOfLeaveRaw === 'number') {
+          typeOfLeaveID = String(typeOfLeaveRaw);
+          this.logInfo(`[DEBUG] Элемент #${index}: Extracted TypeOfLeaveID from LookupId: ${typeOfLeaveID}`);
+          
+          // Создаем минимальный объект TypeOfLeave с ID
+          typeOfLeave = {
+            Id: typeOfLeaveID,
+            Title: `Type ${typeOfLeaveID}` // Название будет заменено при полной загрузке данных
+          };
+        }
+        // Обрабатываем случай, если все-таки придет объект (для backward compatibility)
+        else if (typeof typeOfLeaveRaw === 'object' && typeOfLeaveRaw !== null) {
+          const typeData = typeOfLeaveRaw as { Id?: string | number; Title?: string };
+          typeOfLeaveID = typeData.Id?.toString() || '';
+          
+          if (typeOfLeaveID && typeData.Title) {
+            typeOfLeave = {
+              Id: typeOfLeaveID,
+              Title: typeData.Title.toString()
+            };
+          }
+        }
       }
+      
+      return { typeOfLeaveID, typeOfLeave };
     }
-  }
-  
-  this.logInfo(`[DEBUG] Extracted TypeOfLeaveID: ${typeOfLeaveID}`);
-  return { typeOfLeaveID, typeOfLeave };
-}
   
     /**
-     * Извлекает информацию о недельном расписании из сырых данных
-     * @param weeklyTimeTableRaw Сырые данные недельного расписания
+     * ИСПРАВЛЕНО: Извлекает информацию о недельном расписании из правильного поля WeeklyTimeTableLookupId
+     * @param weeklyTimeTableRaw Сырые данные недельного расписания (WeeklyTimeTableLookupId)
      * @param index Индекс записи (для логов)
      * @returns Объект с ID, названием и структурированным объектом недельного расписания
      */
@@ -174,19 +175,36 @@ const { typeOfLeaveID, typeOfLeave } = this.extractTypeOfLeave(fields.TypeOfLeav
       let weeklyTimeTableTitle = '';
       
       if (weeklyTimeTableRaw) {
-        this.logInfo(`[DEBUG] Элемент #${index} имеет поле WeeklyTimeTable: ${JSON.stringify(weeklyTimeTableRaw)}`);
+        this.logInfo(`[DEBUG] Элемент #${index} имеет поле WeeklyTimeTableLookupId: ${JSON.stringify(weeklyTimeTableRaw)}`);
         
-        const tableData = weeklyTimeTableRaw as { Id?: string | number; Title?: string };
-        weeklyTimeTableID = tableData.Id?.toString() || '';
-        
-        if (weeklyTimeTableID && tableData.Title) {
+        // ИСПРАВЛЕНО: WeeklyTimeTableLookupId приходит как строка или число
+        if (typeof weeklyTimeTableRaw === 'string' || typeof weeklyTimeTableRaw === 'number') {
+          weeklyTimeTableID = String(weeklyTimeTableRaw);
+          this.logInfo(`[DEBUG] Элемент #${index}: Extracted WeeklyTimeTableID from LookupId: ${weeklyTimeTableID}`);
+          
+          // Создаем минимальный объект WeeklyTimeTable с ID
           weeklyTimeTable = {
             Id: weeklyTimeTableID,
-            Title: tableData.Title.toString()
+            Title: `Contract ${weeklyTimeTableID}` // Название будет заменено при полной загрузке данных
           };
-          
-          weeklyTimeTableTitle = tableData.Title.toString();
+          weeklyTimeTableTitle = `Contract ${weeklyTimeTableID}`;
         }
+        // Обрабатываем случай, если все-таки придет объект (для backward compatibility)
+        else if (typeof weeklyTimeTableRaw === 'object' && weeklyTimeTableRaw !== null) {
+          const tableData = weeklyTimeTableRaw as { Id?: string | number; Title?: string };
+          weeklyTimeTableID = tableData.Id?.toString() || '';
+          
+          if (weeklyTimeTableID && tableData.Title) {
+            weeklyTimeTable = {
+              Id: weeklyTimeTableID,
+              Title: tableData.Title.toString()
+            };
+            weeklyTimeTableTitle = tableData.Title.toString();
+          }
+        }
+      } else {
+        // Логируем случаи, когда поле отсутствует
+        this.logInfo(`[DEBUG] Элемент #${index}: WeeklyTimeTableLookupId отсутствует или пустое`);
       }
       
       return { weeklyTimeTableID, weeklyTimeTable, weeklyTimeTableTitle };
@@ -308,7 +326,7 @@ const { typeOfLeaveID, typeOfLeave } = this.extractTypeOfLeave(fields.TypeOfLeav
      * @param message Сообщение для логирования
      */
     private logInfo(message: string): void {
-  //    console.log(`[${this._logSource}] ${message}`);
+      console.log(`[${this._logSource}] ${message}`);
     }
   
     /**
