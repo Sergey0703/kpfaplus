@@ -488,6 +488,13 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
  const handleGoBackFromManageGroups = (): void => {
    logInfo("Going back from Manage Groups screen");
    setShowManageGroups(false);
+    refreshData()
+    .then(() => {
+      logInfo("Data refreshed successfully after returning from Manage Groups");
+    })
+    .catch(error => {
+      logError(`Error refreshing data after returning from Manage Groups: ${error}`);
+    });
  };
 
  // Рендеринг содержимого вкладки

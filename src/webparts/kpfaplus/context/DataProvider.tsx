@@ -108,7 +108,7 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
    }
  }, [userService]);
  
- // Функция для загрузки данных департаментов
+ // Функция для загрузки данных департаментов с фильтрацией неудаленных
  const fetchDepartments = useCallback(async (user: ICurrentUser | undefined) => {
    try {
      if (user && user.ID) {
@@ -117,15 +117,18 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
        
        const depts = await departmentService.fetchDepartmentsByManager(user.ID);
        
-       addLoadingStep('fetch-departments', 'Loading departments data', 'success', `Loaded ${depts.length} departments`);
-       setDepartments(depts);
+       // Фильтруем только активные (неудаленные) департаменты
+       const activeDepts = depts.filter(dept => !dept.Deleted);
+       
+       addLoadingStep('fetch-departments', 'Loading departments data', 'success', `Loaded ${activeDepts.length} active departments (filtered ${depts.length - activeDepts.length} deleted)`);
+       setDepartments(activeDepts);
        
        // Выбираем первый департамент, если он есть
-       if (depts.length > 0) {
-         setSelectedDepartmentId(depts[0].ID.toString());
-         addLoadingStep('select-department', 'Selecting default department', 'success', `Selected department: ${depts[0].Title} (ID: ${depts[0].ID})`);
+       if (activeDepts.length > 0) {
+         setSelectedDepartmentId(activeDepts[0].ID.toString());
+         addLoadingStep('select-department', 'Selecting default department', 'success', `Selected department: ${activeDepts[0].Title} (ID: ${activeDepts[0].ID})`);
        } else {
-         addLoadingStep('select-department', 'Selecting default department', 'error', 'No departments available to select');
+         addLoadingStep('select-department', 'Selecting default department', 'error', 'No active departments available to select');
        }
      } else {
        // Если пользователь не определен, получаем все департаменты
@@ -133,15 +136,18 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
        
        const depts = await departmentService.fetchDepartments();
        
-       addLoadingStep('fetch-departments', 'Loading all departments', 'success', `Loaded ${depts.length} departments`);
-       setDepartments(depts);
+       // Фильтруем только активные (неудаленные) департаменты
+       const activeDepts = depts.filter(dept => !dept.Deleted);
+       
+       addLoadingStep('fetch-departments', 'Loading all departments', 'success', `Loaded ${activeDepts.length} active departments (filtered ${depts.length - activeDepts.length} deleted)`);
+       setDepartments(activeDepts);
        
        // Выбираем первый департамент, если он есть
-       if (depts.length > 0) {
-         setSelectedDepartmentId(depts[0].ID.toString());
-         addLoadingStep('select-department', 'Selecting default department', 'success', `Selected department: ${depts[0].Title} (ID: ${depts[0].ID})`);
+       if (activeDepts.length > 0) {
+         setSelectedDepartmentId(activeDepts[0].ID.toString());
+         addLoadingStep('select-department', 'Selecting default department', 'success', `Selected department: ${activeDepts[0].Title} (ID: ${activeDepts[0].ID})`);
        } else {
-         addLoadingStep('select-department', 'Selecting default department', 'error', 'No departments available to select');
+         addLoadingStep('select-department', 'Selecting default department', 'error', 'No active departments available to select');
        }
      }
    } catch (error) {
@@ -155,8 +161,7 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
      }));
    }
  }, [departmentService]);
-///////////////// 
-// Функция для загрузки членов группы с выбором первого неудаленного сотрудника
+
 // Функция для загрузки членов группы с выбором первого неудаленного сотрудника
 const fetchGroupMembers = useCallback(async (departmentId: string) => {
   try {
@@ -244,7 +249,6 @@ const fetchGroupMembers = useCallback(async (departmentId: string) => {
   }
 }, [groupMemberService, addLoadingStep]);
 
-////////////////////////// 
  // Функция для загрузки сотрудников
  const fetchStaffMembers = useCallback(async (departmentId: string) => {
    try {
@@ -417,8 +421,6 @@ const fetchGroupMembers = useCallback(async (departmentId: string) => {
    }
  }, [staffMembers, selectedStaff, groupMemberService, addLoadingStep]);
  
-//////////////////////////////////
-
 // Метод для добавления сотрудника в группу
 const addStaffToGroup = useCallback(async (
   departmentId: string, 
@@ -485,8 +487,6 @@ const addStaffToGroup = useCallback(async (
     return { success: false, alreadyExists: false };
   }
 }, [groupMemberService, refreshStaffMembers, addLoadingStep, currentUser]);
-
-///////////////////////////////////////////////////////////////////
 
  // Инициализация приложения
  useEffect(() => {
