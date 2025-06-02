@@ -34,7 +34,7 @@ export class TimetableDataProcessorCore {
     const weekRecords = TimetableDataUtils.filterRecordsByWeek(staffRecords, week);
 
     for (let dayNum = 1; dayNum <= 7; dayNum++) {
-      const dayInfo = this.processDayDataWithLeaveColorsAndHolidaysEnhanced(
+      const dayInfo = this.processDayDataWithLeaveColorsAndHolidays(
         weekRecords,
         dayNum,
         week.weekStart,
@@ -69,7 +69,7 @@ export class TimetableDataProcessorCore {
     const weekRecords = TimetableDataUtils.filterRecordsByWeek(staffRecords, week);
 
     for (let dayNum = 1; dayNum <= 7; dayNum++) {
-      const dayInfo = this.processDayDataWithLeaveColorsAndHolidaysIncludingNonWorkDaysFixed(
+      const dayInfo = this.processDayDataIncludingNonWorkDays(
         weekRecords,
         dayNum,
         week.weekStart,
@@ -104,7 +104,7 @@ export class TimetableDataProcessorCore {
     const weekRecords = TimetableDataUtils.filterRecordsByWeek(staffRecords, week);
 
     for (let dayNum = 1; dayNum <= 7; dayNum++) {
-      const dayInfo = this.processDayDataForExcelWithFullMarkersFixed(
+      const dayInfo = this.processDayDataForExcel(
         weekRecords,
         dayNum,
         week.weekStart,
@@ -121,7 +121,7 @@ export class TimetableDataProcessorCore {
     return weeklyData;
   }
 
-  private static processDayDataWithLeaveColorsAndHolidaysEnhanced(
+  private static processDayDataWithLeaveColorsAndHolidays(
     weekRecords: IStaffRecord[],
     dayNumber: number,
     weekStart: Date,
@@ -192,7 +192,7 @@ export class TimetableDataProcessorCore {
     };
   }
 
-  private static processDayDataWithLeaveColorsAndHolidaysIncludingNonWorkDaysFixed(
+  private static processDayDataIncludingNonWorkDays(
     weekRecords: IStaffRecord[],
     dayNumber: number,
     weekStart: Date,
@@ -263,7 +263,7 @@ export class TimetableDataProcessorCore {
     };
   }
 
-  private static processDayDataForExcelWithFullMarkersFixed(
+  private static processDayDataForExcel(
     weekRecords: IStaffRecord[],
     dayNumber: number,
     weekStart: Date,
@@ -347,36 +347,5 @@ export class TimetableDataProcessorCore {
 
   public static countHolidaysInWeekData(weeklyData: IWeeklyStaffData): number {
     return TimetableDataProcessorUtils.countHolidaysInWeekData(weeklyData);
-  }
-
-  public static getModuleInfo(): {
-    version: string;
-    architecture: string;
-    coreModule: string;
-    delegatedModules: string[];
-    totalMethods: number;
-    improvements: string[];
-  } {
-    return {
-      version: '4.1',
-      architecture: 'Refactored and Modularized',
-      coreModule: 'TimetableDataProcessorCore (Main Processing Logic)',
-      delegatedModules: [
-        'TimetableDataProcessorLeaveTypes (Leave Type Analysis)',
-        'TimetableDataProcessorHolidays (Holiday Analysis)', 
-        'TimetableDataProcessorUtils (Utilities and Helpers)',
-        'TimetableDataProcessorDiagnostics (Diagnostics and Validation)'
-      ],
-      totalMethods: Object.getOwnPropertyNames(TimetableDataProcessorCore)
-        .filter(name => typeof TimetableDataProcessorCore[name as keyof typeof TimetableDataProcessorCore] === 'function')
-        .length,
-      improvements: [
-        'Reduced file size by 75%',
-        'Better separation of concerns',
-        'Eliminated TypeScript any types',
-        'Improved maintainability',
-        'Enhanced testability'
-      ]
-    };
   }
 }
