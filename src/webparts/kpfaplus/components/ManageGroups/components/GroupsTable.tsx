@@ -680,7 +680,7 @@ export const GroupsTable: React.FC<IGroupsTableProps> = (props) => {
       
       {hasValidationErrors && (
         <MessageBar messageBarType={MessageBarType.error} style={{ marginBottom: '10px' }}>
-          Please fix validation errors before saving. Required fields: Group's name.
+          Please fix validation errors before saving. Required fields: Group name.
         </MessageBar>
       )}
       

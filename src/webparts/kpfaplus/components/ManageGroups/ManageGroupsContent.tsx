@@ -1,5 +1,4 @@
-// 2. src/webparts/kpfaplus/components/ManageGroups/ManageGroupsContent.tsx
-// ============================================================================
+// src/webparts/kpfaplus/components/ManageGroups/ManageGroupsContent.tsx
 import * as React from 'react';
 import { useState, useEffect, useMemo } from 'react';
 import { IManageGroupsProps } from './ManageGroups';
@@ -16,8 +15,6 @@ interface IInfoMessage {
   text: string;
   type: MessageBarType;
 }
-
-// Интерфейс для данных обновления группы удален - используем Partial<IDepartment> напрямую
 
 export const ManageGroupsContent: React.FC<IManageGroupsProps> = (props) => {
   const { context, onGoBack } = props;
@@ -37,7 +34,7 @@ export const ManageGroupsContent: React.FC<IManageGroupsProps> = (props) => {
   const [isNewGroupDialogOpen, setIsNewGroupDialogOpen] = useState<boolean>(false);
   const [isUnsavedChangesDialogOpen, setIsUnsavedChangesDialogOpen] = useState<boolean>(false);
 
-  // НОВОЕ СОСТОЯНИЕ для Show Deleted
+  // СОСТОЯНИЕ для Show Deleted
   const [showDeleted, setShowDeleted] = useState<boolean>(false);
 
   // СОСТОЯНИЯ для управления сохранением
@@ -129,6 +126,12 @@ export const ManageGroupsContent: React.FC<IManageGroupsProps> = (props) => {
       setEditingCount(newSet.size);
       return newSet;
     });
+  };
+
+  // ОБРАБОТЧИК для Show Deleted
+  const handleShowDeletedChange = (checked: boolean): void => {
+    console.log('[ManageGroupsContent] Show deleted changed:', checked);
+    setShowDeleted(checked);
   };
 
   // ОБРАБОТЧИК: Глобальное сохранение всех изменений
@@ -266,11 +269,12 @@ export const ManageGroupsContent: React.FC<IManageGroupsProps> = (props) => {
       // Подготавливаем данные для новой записи
       const newGroupData = {
         Title: 'New Group', // имя по умолчанию
-        DayOfStartWeek: 1, // Sunday по умолчанию
+        DayOfStartWeek: 7, // Saturday по умолчанию
         EnterLunchTime: true, // Lunch time включен
         LeaveExportFolder: '', // пустая папка
         ManagerLookupId: parseInt(props.currentUserId, 10),
-        Deleted: 0 // активная группа
+        Deleted: 0, // активная группа
+        TypeOfSRS: 3 // Residential по умолчанию
       };
 
       console.log('[ManageGroupsContent] New group data:', newGroupData);
@@ -292,6 +296,12 @@ export const ManageGroupsContent: React.FC<IManageGroupsProps> = (props) => {
         
         // Перезагружаем данные для отображения новой записи
         await loadData();
+        
+        // Автоматически переводим новую запись в режим редактирования
+        setTimeout(() => {
+          console.log('[ManageGroupsContent] Auto-starting edit mode for new group:', newGroupId);
+          handleStartEdit(newGroupId);
+        }, 100);
         
         console.log('[ManageGroupsContent] Data reloaded after creating new group, highlighting new record');
       } else {
@@ -357,11 +367,7 @@ export const ManageGroupsContent: React.FC<IManageGroupsProps> = (props) => {
     setIsNewGroupDialogOpen(false);
   };
 
-  // НОВЫЙ ОБРАБОТЧИК для Show Deleted
-  const handleShowDeletedChange = (checked: boolean): void => {
-    console.log('[ManageGroupsContent] Show deleted changed:', checked);
-    setShowDeleted(checked);
-  };
+  // Обработчики для удаления/восстановления
   const handleDeleteGroup = async (groupId: string): Promise<void> => {
     if (!departmentService) {
       console.error('[ManageGroupsContent] DepartmentService not available for delete operation');
@@ -479,16 +485,15 @@ export const ManageGroupsContent: React.FC<IManageGroupsProps> = (props) => {
         </div>
       )}
 
-      {/* Панель управления (кнопки New и Save) */}
-     {/* Панель управления (кнопки New и Save + Show Deleted) */}
-<GroupsControlPanel
-  isLoading={isLoading || isSaving}
-  onAddNewGroup={handleAddNewGroup}
-  hasUnsavedChanges={hasUnsavedChanges}
-  onSaveChanges={handleSaveAllChanges}
-  showDeleted={showDeleted}
-  onShowDeletedChange={handleShowDeletedChange}
-/>
+      {/* Панель управления (кнопки New и Save + Show Deleted) */}
+      <GroupsControlPanel
+        isLoading={isLoading || isSaving}
+        onAddNewGroup={handleAddNewGroup}
+        hasUnsavedChanges={hasUnsavedChanges}
+        onSaveChanges={handleSaveAllChanges}
+        showDeleted={showDeleted}
+        onShowDeletedChange={handleShowDeletedChange}
+      />
 
       {/* Таблица групп */}
       <div style={{ flex: 1, marginTop: '15px' }}>

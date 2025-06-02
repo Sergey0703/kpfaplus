@@ -1,5 +1,4 @@
-// 6. src/webparts/kpfaplus/services/DepartmentService.ts (ОБНОВЛЕННЫЙ)
-// ============================================================================
+// src/webparts/kpfaplus/services/DepartmentService.ts
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { RemoteSiteService } from "./RemoteSiteService";
 
@@ -31,6 +30,7 @@ interface ICreateGroupData {
   LeaveExportFolder: string;
   ManagerLookupId: number;
   Deleted: number;
+  TypeOfSRS?: number;
 }
 
 export class DepartmentService {
@@ -266,6 +266,11 @@ export class DepartmentService {
         itemData.LeaveExportFolder = updateData.LeaveExportFolder;
       }
       
+      // ДОБАВЛЯЕМ ПОДДЕРЖКУ TypeOfSRS
+      if (updateData.TypeOfSRS !== undefined) {
+        itemData.TypeOfSRS = updateData.TypeOfSRS;
+      }
+      
       if (updateData.Deleted !== undefined) {
         itemData.Deleted = updateData.Deleted ? 1 : 0;
       }
@@ -303,11 +308,12 @@ export class DepartmentService {
       // Подготавливаем данные для создания в формате SharePoint
       const itemData: Record<string, unknown> = {
         Title: groupData.Title || 'New Group',
-        DayOfStartWeek: groupData.DayOfStartWeek || 1,
+        DayOfStartWeek: groupData.DayOfStartWeek || 7, // По умолчанию Saturday
         EnterLunchTime: groupData.EnterLunchTime !== undefined ? groupData.EnterLunchTime : true,
         LeaveExportFolder: groupData.LeaveExportFolder || '',
         ManagerLookupId: groupData.ManagerLookupId,
-        Deleted: groupData.Deleted || 0
+        Deleted: groupData.Deleted || 0,
+        TypeOfSRS: groupData.TypeOfSRS || 3 // По умолчанию Residential
       };
       
       this.logInfo(`Prepared create data: ${JSON.stringify(itemData, null, 2)}`);
@@ -375,8 +381,8 @@ export class DepartmentService {
         Title: typeof fields.Title === 'string' ? fields.Title : "Unknown",
         Deleted: Boolean(fields.Deleted),
         LeaveExportFolder: typeof fields.LeaveExportFolder === 'string' ? fields.LeaveExportFolder : "",
-        DayOfStartWeek: parseInt(String(fields.DayOfStartWeek || "0")),
-        TypeOfSRS: parseInt(String(fields.TypeOfSRS || "0")),
+        DayOfStartWeek: parseInt(String(fields.DayOfStartWeek || "7")), // По умолчанию Saturday
+        TypeOfSRS: parseInt(String(fields.TypeOfSRS || "3")), // По умолчанию Residential
         EnterLunchTime: Boolean(fields.EnterLunchTime),
         Manager: {
           Id: managerId,
