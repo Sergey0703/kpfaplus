@@ -6,6 +6,8 @@ import { TypeOfLeaveService, ITypeOfLeave } from '../../../services/TypeOfLeaveS
 import { DatePicker, Dropdown, IDropdownOption, PrimaryButton, Spinner, DayOfWeek, Stack } from '@fluentui/react';
 import { useDataContext } from '../../../context';
 import { SRSReportsTable } from './components/SRSReportsTable';
+import { SRSReportsExcelExporter } from './utils/SRSReportsExcelExporter';
+import { ISRSReportData } from './interfaces/ISRSReportsInterfaces';
 
 export const SRSReportsTab: React.FC<ITabProps> = (props) => {
   const { selectedStaff, context } = props;
@@ -18,7 +20,7 @@ export const SRSReportsTab: React.FC<ITabProps> = (props) => {
   });
 
   // Получаем данные сотрудников из контекста
-  const { staffMembers } = useDataContext();
+  const { staffMembers, departments } = useDataContext();
 
   console.log('[SRSReportsTab] Staff members from context:', {
     totalStaffMembers: staffMembers?.length || 0,
@@ -50,6 +52,8 @@ export const SRSReportsTab: React.FC<ITabProps> = (props) => {
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('1'); // По умолчанию Annual Leave (ID=1)
   const [typesOfLeave, setTypesOfLeave] = useState<ITypeOfLeave[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [processedReportData, setProcessedReportData] = useState<ISRSReportData[]>([]);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
 
   // Локализация для DatePicker (копируем из LeavesFilterPanel)
   const datePickerStringsEN = {
@@ -181,33 +185,69 @@ export const SRSReportsTab: React.FC<ITabProps> = (props) => {
   };
 
   // Обработчик для кнопки Export to Excel
-  const handleExportToExcel = (): void => {
+  const handleExportToExcel = async (): Promise<void> => {
     console.log('[SRSReportsTab] Export to Excel button clicked');
     
-    // Находим выбранного сотрудника или обрабатываем случай "All Staff Members"
-    let selectedStaffInfo;
-    if (selectedStaffId === '') {
-      selectedStaffInfo = {
-        id: 'all',
-        name: 'All Staff Members',
-        count: staffOptions.length - 1 // -1 потому что первый элемент "All Staff Members"
-      };
-    } else {
-      selectedStaffInfo = {
-        id: selectedStaffId,
-        name: (staffMembers || []).find(staff => staff.id === selectedStaffId)?.name || 'Unknown',
-        count: 1
-      };
+    if (processedReportData.length === 0) {
+      console.warn('[SRSReportsTab] No data to export');
+      return;
     }
     
-    console.log('[SRSReportsTab] Export parameters:', {
-      periodStart: formatDate(selectedPeriodStart),
-      periodEnd: formatDate(selectedPeriodEnd),
-      selectedStaffInfo,
-      selectedType: selectedTypeFilter,
-      managingGroupId: props.managingGroupId
-    });
-    // TODO: Реализовать экспорт в Excel
+    try {
+      setIsExporting(true);
+      
+      // Находим выбранного сотрудника или обрабатываем случай "All Staff Members"
+      let selectedStaffInfo;
+      if (selectedStaffId === '') {
+        selectedStaffInfo = {
+          id: 'all',
+          name: 'All Staff Members',
+          count: staffOptions.length - 1 // -1 потому что первый элемент "All Staff Members"
+        };
+      } else {
+        selectedStaffInfo = {
+          id: selectedStaffId,
+          name: (staffMembers || []).find(staff => staff.id === selectedStaffId)?.name || 'Unknown',
+          count: 1
+        };
+      }
+      
+      console.log('[SRSReportsTab] Export parameters:', {
+        periodStart: formatDate(selectedPeriodStart),
+        periodEnd: formatDate(selectedPeriodEnd),
+        selectedStaffInfo,
+        selectedType: selectedTypeFilter,
+        managingGroupId: props.managingGroupId,
+        dataCount: processedReportData.length
+      });
+
+      // Получаем название группы/департамента
+      const department = departments?.find(d => d.ID.toString() === props.managingGroupId);
+      const groupName = department?.Title || `Group ${props.managingGroupId}`;
+      
+      // Параметры для экспорта
+      const exportParams = {
+        reportData: processedReportData,
+        staffMembers: staffMembers || [],
+        periodStart: selectedPeriodStart,
+        periodEnd: selectedPeriodEnd,
+        selectedTypeFilter: selectedTypeFilter,
+        typesOfLeave: typesOfLeave,
+        managingGroupId: props.managingGroupId || '',
+        groupName: groupName
+      };
+      
+      // Выполняем экспорт
+      await SRSReportsExcelExporter.exportToExcel(exportParams);
+      
+      console.log('[SRSReportsTab] Excel export completed successfully');
+      
+    } catch (error) {
+      console.error('[SRSReportsTab] Excel export failed:', error);
+      // В реальной системе здесь можно показать уведомление об ошибке
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   // Обработчики закрытия календарей
@@ -247,17 +287,27 @@ export const SRSReportsTab: React.FC<ITabProps> = (props) => {
           </div>
           
           {/* Кнопка Export to Excel вынесена наверх */}
-          <PrimaryButton 
-            text="Export to Excel" 
-            onClick={handleExportToExcel}
-            disabled={isLoading}
-            styles={{
-              root: {
-                backgroundColor: '#217346', // зеленый цвет Excel
-                borderColor: '#217346'
-              }
-            }}
-          />
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <PrimaryButton 
+              text={isExporting ? "Exporting..." : "Export to Excel"}
+              onClick={handleExportToExcel}
+              disabled={isLoading || isExporting || processedReportData.length === 0}
+              styles={{
+                root: {
+                  backgroundColor: isExporting ? '#f3f2f1' : '#217346', // зеленый цвет Excel
+                  borderColor: isExporting ? '#f3f2f1' : '#217346'
+                }
+              }}
+            />
+            {isExporting && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '10px' }}>
+                <Spinner size={1} />
+                <span style={{ fontSize: '12px', color: '#666' }}>
+                  Generating Excel file...
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -477,6 +527,10 @@ export const SRSReportsTab: React.FC<ITabProps> = (props) => {
             context={context}
             currentUserId={props.currentUserId}
             managingGroupId={props.managingGroupId}
+            onDataUpdate={(data) => {
+              console.log('[SRSReportsTab] Received processed data for export:', data.length);
+              setProcessedReportData(data);
+            }}
           />
         ) : (
           <div style={{ textAlign: 'center', padding: '40px' }}>

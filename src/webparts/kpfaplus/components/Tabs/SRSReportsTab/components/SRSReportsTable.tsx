@@ -30,6 +30,8 @@ interface ISRSReportsTableProps {
   context?: WebPartContext;
   currentUserId?: string;
   managingGroupId?: string;
+  // Новый callback для передачи данных в родительский компонент для Excel экспорта
+  onDataUpdate?: (data: ISRSReportData[]) => void;
 }
 
 // Интерфейс для объединенных данных контракта с записями отпусков
@@ -50,7 +52,8 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
     isLoading,
     context,
     currentUserId,
-    managingGroupId
+    managingGroupId,
+    onDataUpdate // Новый проп для передачи данных для экспорта
   } = props;
 
   console.log('[SRSReportsTable] Rendering with props:', {
@@ -59,7 +62,8 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
     periodStart: selectedPeriodStart.toLocaleDateString(),
     periodEnd: selectedPeriodEnd.toLocaleDateString(),
     selectedTypeFilter,
-    isLoading
+    isLoading,
+    hasOnDataUpdate: !!onDataUpdate
   });
 
   // Состояния для контрактов
@@ -103,11 +107,9 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
   };
 
   // Вспомогательные функции - ИСПРАВЛЕНО: добавлены типы возврата
-  const calculateAnnualLeaveFromPrevious = (contractedHours: number): number => {
-    const weeklyHours = contractedHours || 40;
-    const annualLeaveHours = weeklyHours * 4; // 4 недели отпуска
-    const variation = Math.floor(Math.random() * 20) - 10; // ±10 часов
-    return Math.max(0, annualLeaveHours + variation);
+  const calculateAnnualLeaveFromPrevious = (): number => {
+    // ИСПРАВЛЕНО: Всегда возвращаем 0 вместо вычислений
+    return 0;
   };
 
   const createEmptyMonthlyData = (): IMonthlyLeaveData => ({
@@ -300,6 +302,10 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
       if (Object.keys(contractsData).length === 0) {
         console.log('[SRSReportsTable] Нет контрактов для отображения');
         setProcessedData([]);
+        // Уведомляем родительский компонент о пустых данных для экспорта
+        if (onDataUpdate) {
+          onDataUpdate([]);
+        }
         return;
       }
 
@@ -416,6 +422,10 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
         if (contractsWithLeaveRecords.length === 0) {
           console.log('[SRSReportsTable] Нет контрактов для обработки');
           setProcessedData([]);
+          // Уведомляем родительский компонент о пустых данных для экспорта
+          if (onDataUpdate) {
+            onDataUpdate([]);
+          }
           return;
         }
 
@@ -430,7 +440,7 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
             // Контракт без записей отпусков - создаем пустую структуру
             console.log(`[SRSReportsTable] Контракт ${contract.template} без записей отпусков`);
             
-            const annualLeave = calculateAnnualLeaveFromPrevious(contract.contractedHours || 0);
+            const annualLeave = calculateAnnualLeaveFromPrevious();
             
             processedReportData = {
               id: `${staffMember.id}_${contract.id}`,
@@ -470,11 +480,13 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
                 staffName: staffMember.name,
                 contractId: contract.id,
                 contractName: contract.template || 'Unnamed Contract',
-                contractedHours: contract.contractedHours || 0
+                contractedHours: contract.contractedHours || 0,
+                // ИСПРАВЛЕНО: Устанавливаем annualLeaveFromPrevious в 0
+                annualLeaveFromPrevious: 0
               };
             } else {
               // Fallback если процессор не вернул данные
-              const annualLeave = calculateAnnualLeaveFromPrevious(contract.contractedHours || 0);
+              const annualLeave = calculateAnnualLeaveFromPrevious();
               
               processedReportData = {
                 id: `${staffMember.id}_${contract.id}`,
@@ -500,11 +512,21 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
         setProcessedData(reportDataList);
         setProcessingError('');
 
+        // Передаем данные в родительский компонент для Excel экспорта
+        if (onDataUpdate) {
+          console.log('[SRSReportsTable] Updating parent component with processed data:', reportDataList.length);
+          onDataUpdate(reportDataList);
+        }
+
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         console.error('[SRSReportsTable] Ошибка при объединении и обработке данных:', errorMessage);
         setProcessingError(`Ошибка обработки данных: ${errorMessage}`);
         setProcessedData([]);
+        // Уведомляем родительский компонент об ошибке для экспорта
+        if (onDataUpdate) {
+          onDataUpdate([]);
+        }
       }
     };
 
@@ -517,7 +539,8 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
     selectedPeriodEnd,
     selectedTypeFilter,
     typesOfLeave,
-    leaveDataProcessor
+    leaveDataProcessor,
+    onDataUpdate
   ]);
 
   // Обработчики для ExpandableLeaveTable
