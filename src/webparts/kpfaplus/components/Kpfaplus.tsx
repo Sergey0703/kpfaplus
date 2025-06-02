@@ -15,6 +15,7 @@ import { ConfirmDialog } from './ConfirmDialog/ConfirmDialog';
 import { StaffSelector } from './StaffSelector/StaffSelector';
 import { RemoteConnectionTest } from './RemoteConnectionTest/RemoteConnectionTest';
 import { ResizableLayout } from './ResizableLayout/ResizableLayout';
+import { ManageGroups } from './ManageGroups/ManageGroups';
 
 // Импортируем компоненты вкладок
 import { MainTab } from './Tabs/MainTab/MainTab';
@@ -70,6 +71,9 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
  
  // Состояние для отображения деталей загрузки
  const [showLoadingDetails, setShowLoadingDetails] = useState<boolean>(false);
+ 
+ // Новое состояние для показа экрана управления группами
+ const [showManageGroups, setShowManageGroups] = useState<boolean>(false);
  
  // Дополнительные состояния для данных в вкладках
  const [autoSchedule, setAutoSchedule] = useState<boolean>(true);
@@ -474,6 +478,18 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
    setIsConfirmDialogOpen(true);
  };
 
+ // Обработчик для кнопки Manage Groups
+ const handleManageGroups = (): void => {
+   logInfo("Manage Groups button clicked");
+   setShowManageGroups(true);
+ };
+
+ // Обработчик для возврата из экрана управления группами
+ const handleGoBackFromManageGroups = (): void => {
+   logInfo("Going back from Manage Groups screen");
+   setShowManageGroups(false);
+ };
+
  // Рендеринг содержимого вкладки
  const renderTabContent = (): JSX.Element => {
    if (!selectedStaff && selectedTabKey !== 'remoteConnection') {
@@ -592,59 +608,111 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
 
  logInfo("Rendering main component view");
 
+ // Если показан экран управления группами, рендерим только его
+ if (showManageGroups) {
+   const currentUserId = currentUser?.ID !== undefined ? currentUser.ID.toString() : undefined;
+   
+   return (
+     <ManageGroups
+       selectedStaff={selectedStaff}
+       autoSchedule={autoSchedule}
+       onAutoScheduleChange={handleAutoScheduleChange}
+       srsFilePath={srsFilePath}
+       onSrsFilePathChange={handleSrsFilePathChange}
+       generalNote={generalNote}
+       onGeneralNoteChange={handleGeneralNoteChange}
+       isEditMode={isEditMode}
+       onSave={handleSave}
+       onCancel={handleCancel}
+       onEdit={handleEdit}
+       onDelete={handleDeleteToggleWithConfirm}
+       onAddNewStaff={handleAddNewStaffWithConfirm}
+       context={props.context}
+       currentUserId={currentUserId}
+       managingGroupId={selectedDepartmentId}
+       dayOfStartWeek={selectedDepartmentDayOfStartWeek}
+       onGoBack={handleGoBackFromManageGroups}
+     />
+   );
+ }
+
  return (
    <div style={{ width: '100%', height: '100%', margin: 0, padding: 0, position: 'relative' }}>
      <ResizableLayout
        minLeftWidth={180}
        maxLeftWidth={500}
        defaultLeftWidth={250}
-       collapsedWidth={36} // Ширина в свернутом состоянии (8 пикселей)
+       collapsedWidth={36}
        showCollapseButton={true}
        leftPanel={
-  <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-    {/* Select Group - убираем padding, так как теперь это внутри ResizableLayout */}
-    <div style={{ padding: '10px', flexShrink: 0 }}>
-      <label style={{ 
-        fontSize: '12px', 
-        fontWeight: '600', 
-        color: '#323130',
-        marginBottom: '5px',
-        display: 'block'
-      }}>
-        Select Group
-      </label>
-      <select 
-        value={selectedDepartmentId}
-        onChange={handleDepartmentChange}
-        style={{ 
-          display: 'block', 
-          width: '100%',
-          padding: '6px 8px',
-          marginTop: '5px',
-          border: '1px solid #c8c6c4',
-          borderRadius: '2px',
-          fontSize: '13px',
-          backgroundColor: '#ffffff'
-        }}
-      >
-        {departments.map((dept: IDepartment) => (
-          <option key={dept.ID} value={dept.ID.toString()}>
-            {dept.Title}
-          </option>
-        ))}
-      </select>
-    </div>
-    
-    {/* Staff Gallery - теперь занимает оставшееся место */}
-    <div style={{ 
-      flex: 1, 
-      overflow: 'auto',
-      padding: '0 10px 10px 10px'
-    }}>
-      <StaffGallery />
-    </div>
-  </div>
-}
+         <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+           {/* Select Group и Manage Groups на одной строке */}
+           <div style={{ padding: '10px', flexShrink: 0 }}>
+             <div style={{ 
+               fontSize: '12px', 
+               fontWeight: '600', 
+               color: '#323130',
+               marginBottom: '5px',
+               display: 'flex',
+               alignItems: 'center',
+               justifyContent: 'space-between'
+             }}>
+               <span>Select Group</span>
+               <span style={{ margin: '0 8px', color: '#c8c6c4' }}>|</span>
+               <button
+                 onClick={handleManageGroups}
+                 style={{
+                   background: 'none',
+                   border: 'none',
+                   color: '#0078d4',
+                   fontSize: '12px',
+                   fontWeight: '600',
+                   cursor: 'pointer',
+                   padding: '0',
+                   textDecoration: 'underline'
+                 }}
+                 onMouseOver={(e) => {
+                   e.currentTarget.style.color = '#106ebe';
+                 }}
+                 onMouseOut={(e) => {
+                   e.currentTarget.style.color = '#0078d4';
+                 }}
+               >
+                 Manage Groups
+               </button>
+             </div>
+             <select 
+               value={selectedDepartmentId}
+               onChange={handleDepartmentChange}
+               style={{ 
+                 display: 'block', 
+                 width: '100%',
+                 padding: '6px 8px',
+                 marginTop: '5px',
+                 border: '1px solid #c8c6c4',
+                 borderRadius: '2px',
+                 fontSize: '13px',
+                 backgroundColor: '#ffffff'
+               }}
+             >
+               {departments.map((dept: IDepartment) => (
+                 <option key={dept.ID} value={dept.ID.toString()}>
+                   {dept.Title}
+                 </option>
+               ))}
+             </select>
+           </div>
+           
+           {/* Staff Gallery - теперь занимает оставшееся место */}
+           <div style={{ 
+             flex: 1, 
+             overflow: 'auto',
+             padding: '0 10px 10px 10px'
+           }}>
+             <StaffGallery />
+           </div>
+         </div>
+       }
        rightPanel={
          <div style={{ padding: '10px', height: '100%', display: 'flex', flexDirection: 'column' }}>
            {/* Информация о текущем пользователе и система логирования */}
