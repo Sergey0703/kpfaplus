@@ -1,5 +1,5 @@
 // src/webparts/kpfaplus/components/Tabs/TimetableTab/TimetableTab.tsx
-import * as React from 'react'; // Необходим для JSX
+import * as React from 'react';
 import { 
   DatePicker, 
   DayOfWeek, 
@@ -7,22 +7,20 @@ import {
   MessageBarType,
   Spinner
 } from '@fluentui/react';
-import { ITabProps } from '../../../models/types'; // Убедитесь, что этот путь корректен
+import { ITabProps } from '../../../models/types';
 import { TIMETABLE_COLORS } from './interfaces/TimetableInterfaces';
 import { TimetableWeekCalculator } from './utils/TimetableWeekCalculator';
 import { 
   TimetableWeekGroup, 
   TimetableExpandControls 
-} from './components/TimetableWeekGroup'; // Убедитесь, что этот путь корректен
+} from './components/TimetableWeekGroup';
 import { useTimetableLogic, ITimetableLogicProps } from './useTimetableLogic';
 import { calendarMinWidth, datePickerStringsEN, formatDate } from './timetableTabUtils';
 
-// Экспортируем интерфейс пропсов, если он нужен где-то еще, или оставляем неэкспортированным
 export interface ITimetableTabProps extends ITabProps {
   // Дополнительные пропсы для таблицы времени, если понадобятся
 }
 
-// ИМЕНОВАННЫЙ ЭКСПОРТ компонента
 const TimetableTabComponent: React.FC<ITimetableTabProps> = (props) => {
   const { managingGroupId, currentUserId, dayOfStartWeek } = props;
 
@@ -42,20 +40,7 @@ const TimetableTabComponent: React.FC<ITimetableTabProps> = (props) => {
     collapseAllWeeks,
     staffMembers,
     getLeaveTypeTitle 
-  } = useTimetableLogic(props as ITimetableLogicProps); // Приведение типа здесь допустимо
-
-  // *** ОБНОВЛЕННОЕ ЛОГИРОВАНИЕ С ИНФОРМАЦИЕЙ О СОХРАНЕНИИ ДАТЫ ***
-  console.log('[TimetableTab] Rendering with DATE PERSISTENCE v3.8:', {
-    hasWeeksData: state.weeksData.length > 0,
-    isLoading: state.isLoadingStaffRecords,
-    hasError: !!state.errorStaffRecords,
-    statistics,
-    typesOfLeaveLoaded: typesOfLeave.length,
-    selectedDate: state.selectedDate.toLocaleDateString(),
-    dateSource: 'sessionStorage or first day of current month default', // *** НОВОЕ ***
-    datePersistence: 'Enabled - selected date will be remembered', // *** НОВОЕ ***
-    version: 'v3.8 - Added date persistence + Fixed leave type names display and colors'
-  });
+  } = useTimetableLogic(props as ITimetableLogicProps);
 
   return (
     <div style={{ padding: '20px', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -69,7 +54,6 @@ const TimetableTabComponent: React.FC<ITimetableTabProps> = (props) => {
           Week starts on day: {dayOfStartWeek} | 
           Staff count: {statistics.staffCount} | 
           Records: {statistics.recordsCount}
-          {/* *** НОВОЕ: Показываем информацию о выбранной дате *** */}
           {' | Selected: ' + state.selectedDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
         </p>
       </div>
@@ -122,9 +106,8 @@ const TimetableTabComponent: React.FC<ITimetableTabProps> = (props) => {
         
         <div style={{ fontSize: '12px', color: '#666', lineHeight: '1.3' }}>
           <div>Selected month: {state.selectedDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</div>
-          <div>{statistics.totalWeeks} weeks with data | {weeks.length} total in month</div> {/* Уточнил для ясности */}
+          <div>{statistics.totalWeeks} weeks with data | {weeks.length} total in month</div>
           <div>Expanded: {statistics.expandedCount} weeks</div>
-          {/* *** НОВОЕ: Показываем статус сохранения даты *** */}
           <div style={{ color: '#107c10', fontSize: '11px', fontStyle: 'italic' }}>
             📅 Date will be remembered
           </div>
@@ -133,7 +116,6 @@ const TimetableTabComponent: React.FC<ITimetableTabProps> = (props) => {
         <div>
           <button
             onClick={() => {
-              console.log('[TimetableTab] Manual refresh requested with DATE PERSISTENCE v3.8');
               refreshTimetableData().catch(error => {
                 console.error('[TimetableTab] Manual refresh failed:', error);
               });
@@ -158,7 +140,6 @@ const TimetableTabComponent: React.FC<ITimetableTabProps> = (props) => {
         <div>
           <button
             onClick={() => {
-              console.log('[TimetableTab] Excel export requested with DATE PERSISTENCE v3.8');
               handleExportToExcel().catch(error => {
                 console.error('[TimetableTab] Export button error:', error);
               });
@@ -175,7 +156,7 @@ const TimetableTabComponent: React.FC<ITimetableTabProps> = (props) => {
               fontWeight: '500',
               transition: 'background-color 0.2s ease'
             }}
-            title="Export to Excel with Holiday/Leave markers (v3.8 with date persistence)"
+            title="Export to Excel with Holiday/Leave markers"
           >
             {state.isLoadingStaffRecords || isLoadingTypesOfLeave ? 'Loading...' : 'Export to Excel'}
           </button>
@@ -190,7 +171,6 @@ const TimetableTabComponent: React.FC<ITimetableTabProps> = (props) => {
           </div>
         )}
 
-        {/* *** ОБНОВЛЕНО v3.8: Индикатор статуса типов отпусков с информацией о дате *** */}
         <div style={{ 
           fontSize: '11px', 
           color: '#666',
@@ -210,7 +190,6 @@ const TimetableTabComponent: React.FC<ITimetableTabProps> = (props) => {
           </span>
         </div>
 
-        {/* Цветовые приоритеты - обновленная версия */}
         <div style={{ 
           fontSize: '11px', 
           color: '#666',
@@ -268,14 +247,9 @@ const TimetableTabComponent: React.FC<ITimetableTabProps> = (props) => {
               {isLoadingTypesOfLeave ? 'Loading leave types...' : 'Loading staff timetable...'}
             </p>
             {state.isLoadingStaffRecords && (
-              <>
-                <p style={{ fontSize: '12px', color: '#666', marginTop: '8px' }}>
-                  Making individual server requests for {staffMembers.filter(s => s.deleted !== 1 && s.employeeId && s.employeeId !== '0').length} active staff members
-                </p>
-                <p style={{ fontSize: '11px', color: '#666', marginTop: '4px', fontStyle: 'italic' }}>
-                  Processing with Holiday priority system and date persistence v3.8
-                </p>
-              </>
+              <p style={{ fontSize: '12px', color: '#666', marginTop: '8px' }}>
+                Making individual server requests for {staffMembers.filter(s => s.deleted !== 1 && s.employeeId && s.employeeId !== '0').length} active staff members
+              </p>
             )}
           </div>
         ) : state.weeksData.length === 0 ? (
@@ -309,10 +283,7 @@ const TimetableTabComponent: React.FC<ITimetableTabProps> = (props) => {
               <div>• Managing Group ID: {managingGroupId || 'Not set'}</div>
               <div>• Current User ID: {currentUserId || 'Not set'}</div>
               <div>• Types of Leave Loaded: {typesOfLeave.length}</div>
-              <div>• Selected Date: {state.selectedDate.toLocaleDateString()}</div> {/* *** НОВОЕ *** */}
-              <div style={{ marginTop: '8px', fontStyle: 'italic', color: '#f57c00' }}>
-                Date Persistence System: Active v3.8 - {typesOfLeave.length > 0 ? 'Date saved to sessionStorage' : 'Pending leave types loading'}
-              </div>
+              <div>• Selected Date: {state.selectedDate.toLocaleDateString()}</div>
             </div>
           </div>
         ) : (
@@ -340,16 +311,14 @@ const TimetableTabComponent: React.FC<ITimetableTabProps> = (props) => {
                   <strong>Week starts:</strong> {TimetableWeekCalculator.getDayName(dayOfStartWeek || 7)}
                 </span>
                 <span>
-                  <strong>Leave types:</strong> {typesOfLeave.length} loaded v3.8
+                  <strong>Leave types:</strong> {typesOfLeave.length} loaded
                 </span>
-                {/* *** НОВОЕ: Показываем выбранный месяц *** */}
                 <span>
                   <strong>Period:</strong> {state.selectedDate.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })} (saved)
                 </span>
               </div>
             </div>
             
-            {/* *** ИСПРАВЛЕНО v3.8: Передаем typesOfLeave в TimetableWeekGroup *** */}
             {state.weeksData.map(weekGroup => (
               <TimetableWeekGroup
                 key={weekGroup.weekInfo.weekNum}
@@ -358,8 +327,8 @@ const TimetableTabComponent: React.FC<ITimetableTabProps> = (props) => {
                 onToggleExpand={toggleWeekExpand}
                 getLeaveTypeColor={getLeaveTypeColor}
                 holidayColor={TIMETABLE_COLORS.HOLIDAY}
-                typesOfLeave={typesOfLeave} // *** КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ v3.8: Передаем типы отпусков ***
-                 getLeaveTypeTitle={getLeaveTypeTitle} 
+                typesOfLeave={typesOfLeave}
+                getLeaveTypeTitle={getLeaveTypeTitle} 
               />
             ))}
             
@@ -377,7 +346,7 @@ const TimetableTabComponent: React.FC<ITimetableTabProps> = (props) => {
                   fontWeight: '600',
                   color: '#323130'
                 }}>
-                  Data Summary v3.8
+                  Data Summary
                 </h3>
                 <div style={{ 
                   display: 'grid', 
@@ -402,16 +371,14 @@ const TimetableTabComponent: React.FC<ITimetableTabProps> = (props) => {
                     <strong>Expanded Weeks:</strong> {statistics.expandedCount}
                   </div>
                   <div>
-                    <strong>Leave Types Loaded:</strong> {typesOfLeave.length} v3.8
+                    <strong>Leave Types Loaded:</strong> {typesOfLeave.length}
                   </div>
-                  {/* *** НОВОЕ v3.8: Информация о дате *** */}
                   <div>
                     <strong>Selected Period:</strong> {state.selectedDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
                   </div>
                   <div style={{ color: '#107c10' }}>
                     <strong>Date Persistence:</strong> ✓ Enabled
                   </div>
-                  {/* *** НОВОЕ v3.8: Показываем названия первых нескольких типов отпусков *** */}
                   {typesOfLeave.length > 0 && (
                     <div style={{ gridColumn: '1 / -1', marginTop: '8px' }}>
                       <strong>Available Leave Types:</strong>{' '}

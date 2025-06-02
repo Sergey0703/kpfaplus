@@ -37,7 +37,6 @@ interface IWeekGroupContentPropsExtended extends IWeekGroupContentProps {
 export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended> = (props) => {
   const { staffRows, weekInfo, dayOfStartWeek, getLeaveTypeColor, holidayColor, typesOfLeave, getLeaveTypeTitle } = props;
 
-  // *** ИСПРАВЛЕНИЕ: Функция renderEmptyCell перенесена в начало ***
   const renderEmptyCell = (): JSX.Element => (
     <div style={{ 
       color: '#a19f9d', 
@@ -275,7 +274,6 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
             // Используем finalCellColor напрямую из dayData
             let backgroundColor: string | undefined = dayData.finalCellColor;
             
-            // ИСПРАВЛЕНИЕ: const вместо let для borderRadius
             const borderRadius = '6px';
             let border = '2px solid transparent';
             let textShadow: string | undefined = undefined;
