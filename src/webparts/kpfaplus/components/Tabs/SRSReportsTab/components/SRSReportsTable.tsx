@@ -482,7 +482,9 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
                 contractName: contract.template || 'Unnamed Contract',
                 contractedHours: contract.contractedHours || 0,
                 // ИСПРАВЛЕНО: Устанавливаем annualLeaveFromPrevious в 0
-                annualLeaveFromPrevious: 0
+                annualLeaveFromPrevious: 0,
+                // ИСПРАВЛЕНО: Balance = 0 - totalUsedHours (отрицательное значение)
+                balanceRemainingInHrs: 0 - processedContract.totalUsedHours
               };
             } else {
               // Fallback если процессор не вернул данные
@@ -498,7 +500,7 @@ export const SRSReportsTable: React.FC<ISRSReportsTableProps> = (props) => {
                 annualLeaveFromPrevious: annualLeave,
                 monthlyLeaveHours: createEmptyMonthlyData(),
                 totalUsedHours: 0,
-                balanceRemainingInHrs: annualLeave,
+                balanceRemainingInHrs: 0, // ИСПРАВЛЕНО: Баланс всегда 0 если нет данных
                 leaveRecords: [],
                 recordsCount: 0
               };
