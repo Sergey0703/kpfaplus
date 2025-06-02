@@ -7,6 +7,7 @@ import {
   IWeekGroup, 
   IWeekInfo 
 } from '../interfaces/TimetableInterfaces';
+import { getSavedTimetableDate } from '../timetableTabUtils'; // *** НОВЫЙ ИМПОРТ ***
 
 // Интерфейс для возвращаемого типа хука состояния
 interface UseTimetableTabStateReturn {
@@ -29,9 +30,9 @@ interface UseTimetableTabStateReturn {
 export const useTimetableTabState = (): UseTimetableTabStateReturn => {
   //console.log('[useTimetableTabState] Initializing state hook');
   
-  // Инициализируем состояние
+  // *** ИЗМЕНЕНО: Инициализируем состояние с сохраненной датой ***
   const [state, setState] = useState<ITimetableTabState>({
-    selectedDate: new Date(),
+    selectedDate: getSavedTimetableDate(), // *** ИЗМЕНЕНО: Используем сохраненную дату вместо new Date() ***
     staffRecords: [],
     isLoadingStaffRecords: false,
     errorStaffRecords: undefined,

@@ -41,6 +41,54 @@ export const formatDate = (date?: Date): string => {
   return `${day}.${month}.${year}`;
 };
 
+// *** НОВЫЕ ФУНКЦИИ ДЛЯ ЗАПОМИНАНИЯ ДАТЫ ***
+
+/**
+ * Получает первый день текущего месяца
+ */
+const getFirstDayOfCurrentMonth = (): Date => {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), 1);
+};
+
+/**
+ * Получает сохраненную дату для Timetable из sessionStorage
+ */
+export const getSavedTimetableDate = (): Date => {
+  try {
+    const savedDate = sessionStorage.getItem('timetableTab_selectedDate');
+    if (savedDate) {
+      const parsedDate = new Date(savedDate);
+      if (!isNaN(parsedDate.getTime())) {
+        console.log('[TimetableTab] Restored selected date from sessionStorage:', parsedDate.toISOString());
+        return parsedDate;
+      } else {
+        console.warn('[TimetableTab] Invalid date found in sessionStorage, using first day of current month');
+      }
+    } else {
+      console.log('[TimetableTab] No saved date found in sessionStorage, using first day of current month');
+    }
+  } catch (error) {
+    console.warn('[TimetableTab] Error reading saved date from sessionStorage:', error);
+  }
+  
+  const firstDay = getFirstDayOfCurrentMonth();
+  console.log('[TimetableTab] Using first day of current month as default:', firstDay.toISOString());
+  return firstDay;
+};
+
+/**
+ * Сохраняет дату Timetable в sessionStorage
+ */
+export const saveTimetableDate = (date: Date): void => {
+  try {
+    sessionStorage.setItem('timetableTab_selectedDate', date.toISOString());
+    console.log('[TimetableTab] Date saved to sessionStorage:', date.toISOString());
+  } catch (error) {
+    console.warn('[TimetableTab] Error saving date to sessionStorage:', error);
+  }
+};
+
 /**
  * Форматирует дату для Excel в формате dd/mm
  */

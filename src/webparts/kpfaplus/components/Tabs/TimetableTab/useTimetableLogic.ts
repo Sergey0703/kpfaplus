@@ -22,7 +22,8 @@ import {
   formatDate, 
   formatDayCellWithMarkers, 
   formatDateForExcel, 
-  generateFileName 
+  generateFileName,
+  saveTimetableDate // *** НОВЫЙ ИМПОРТ ***
 } from './timetableTabUtils';
 
 export interface ITimetableLogicProps extends ITabProps {
@@ -295,9 +296,14 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
     getLeaveTypeColor
   });
 
+  // *** ИЗМЕНЕНО: Обновить handleMonthChange для сохранения даты ***
   const handleMonthChange = (date: Date | undefined): void => {
     if (date) {
       console.log('[useTimetableLogic] Month changed to:', formatDate(date));
+      
+      // *** НОВОЕ: Сохраняем дату в sessionStorage ***
+      saveTimetableDate(date);
+      
       setState(prevState => ({ ...prevState, selectedDate: date }));
     }
   };
@@ -487,7 +493,8 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
       hasError: !!state.errorStaffRecords,
       typesOfLeaveCount: typesOfLeave.length,
       isLoadingTypesOfLeave,
-      enhancement: 'Added getLeaveTypeTitle, getLeaveTypeById functions for proper UI display'
+      enhancement: 'Added getLeaveTypeTitle, getLeaveTypeById functions for proper UI display',
+      datePersistence: 'Added date saving to sessionStorage' // *** НОВОЕ ***
     });
   }, [state, typesOfLeave.length, isLoadingTypesOfLeave]);
 
