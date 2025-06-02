@@ -11,6 +11,7 @@ import {
   DefaultButton,
   TextField,
   DatePicker,
+  DayOfWeek,
   ComboBox,
   IComboBoxOption,
   Spinner,
@@ -20,14 +21,44 @@ import { IContract, IContractFormData } from '../../../models/IContract';
 import { ConfirmDialog } from '../../ConfirmDialog/ConfirmDialog';
 import styles from './ContractsTab.module.scss';
 
-// Интерфейс для детальной информации об ошибке
-//interface ErrorWithDetails {
-//  message: string;
-//  statusCode?: number;
-//  code?: string;
-//  requestId?: string;
-//  body?: unknown;
-//}
+// Локализация для DatePicker (точно такая же, как в LeavesTable.tsx)
+const datePickerStringsEN = {
+  months: [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ],
+  shortMonths: [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+  ],
+  days: [
+    'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
+  ],
+  shortDays: ['S', 'M', 'T', 'W', 'T', 'F', 'S'],
+  goToToday: 'Go to today',
+  weekNumberFormatString: 'Week number {0}',
+  prevMonthAriaLabel: 'Previous month',
+  nextMonthAriaLabel: 'Next month',
+  prevYearAriaLabel: 'Previous year',
+  nextYearAriaLabel: 'Next year',
+  closeButtonAriaLabel: 'Close date picker',
+  monthPickerHeaderAriaLabel: '{0}, select to change the year',
+  yearPickerHeaderAriaLabel: '{0}, select to change the month'
+};
+
+// Форматирование даты в формате dd.mm.yyyy (точно такое же, как в LeavesTable.tsx)
+const formatDate = (date?: Date): string => {
+  if (!date) return '';
+  
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const year = date.getFullYear();
+  
+  return `${day}.${month}.${year}`;
+};
+
+// Константа для минимальной ширины календаря (точно такая же, как в LeavesTable.tsx)
+const calendarMinWidth = '655px';
 
 // Интерфейс пропсов для компонента ContractsTable
 export interface IContractsTableProps {
@@ -52,10 +83,10 @@ export interface IContractsTableProps {
   
   // Состояние панели редактирования
   isContractPanelOpen: boolean;
-  currentContract: IContractFormData | undefined; // Заменено с null на undefined
+  currentContract: IContractFormData | undefined;
   onPanelDismiss: () => void;
   onCancelButtonClick: () => void;
-  onContractFormChange: (field: string, value: unknown) => void; // Заменено any на unknown
+  onContractFormChange: (field: string, value: unknown) => void;
 }
 
 export const ContractsTable: React.FC<IContractsTableProps> = (props) => {
@@ -91,15 +122,18 @@ export const ContractsTable: React.FC<IContractsTableProps> = (props) => {
     confirmButtonColor: ''
   });
 
-  // Используем useRef для ID контракта в ожидании действия - заменяем null на undefined
+  // Используем useRef для ID контракта в ожидании действия
   const pendingActionContractIdRef = useRef<string | undefined>(undefined);
   
+  // Обработчик закрытия календаря (точно такой же, как в LeavesTable.tsx)
+  const calendarDismissHandler = (): void => {
+    console.log('[ContractsTable] Calendar dismissed');
+  };
+
   // Обработчик для показа диалога подтверждения удаления
   const showDeleteConfirmDialog = (contractId: string): void => {
     console.log(`Setting up delete for contract ID: ${contractId}`);
     
-    // Используем самовызывающуюся функцию (IIFE) для обновления ref
-    // Это помогает избежать race condition
     (() => { pendingActionContractIdRef.current = contractId; })();
     
     setConfirmDialogProps({
@@ -109,24 +143,22 @@ export const ContractsTable: React.FC<IContractsTableProps> = (props) => {
       confirmButtonText: 'Delete',
       cancelButtonText: 'Cancel',
       onConfirm: () => {
-        // Получаем текущее значение contractId из ref
         const contractId = pendingActionContractIdRef.current;
         if (contractId) {
-          // Вызываем функцию удаления из props
           onDeleteContract(contractId)
             .then(() => {
               console.log(`Contract ${contractId} deleted successfully`);
               setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-              pendingActionContractIdRef.current = undefined; // Заменяем null на undefined
+              pendingActionContractIdRef.current = undefined;
             })
             .catch(err => {
               console.error(`Error deleting contract ${contractId}:`, err);
               setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-              pendingActionContractIdRef.current = undefined; // Заменяем null на undefined
+              pendingActionContractIdRef.current = undefined;
             });
         }
       },
-      confirmButtonColor: '#d83b01' // красный цвет для удаления
+      confirmButtonColor: '#d83b01'
     });
   };
   
@@ -143,24 +175,22 @@ export const ContractsTable: React.FC<IContractsTableProps> = (props) => {
       confirmButtonText: 'Restore',
       cancelButtonText: 'Cancel',
       onConfirm: () => {
-        // Получаем текущее значение contractId из ref
         const contractId = pendingActionContractIdRef.current;
         if (contractId) {
-          // Вызываем функцию восстановления из props
           onRestoreContract(contractId)
             .then(() => {
               console.log(`Contract ${contractId} restored successfully`);
               setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-              pendingActionContractIdRef.current = undefined; // Заменяем null на undefined
+              pendingActionContractIdRef.current = undefined;
             })
             .catch(err => {
               console.error(`Error restoring contract ${contractId}:`, err);
               setConfirmDialogProps(prev => ({ ...prev, isOpen: false }));
-              pendingActionContractIdRef.current = undefined; // Заменяем null на undefined
+              pendingActionContractIdRef.current = undefined;
             });
         }
       },
-      confirmButtonColor: '#107c10' // зеленый цвет для восстановления
+      confirmButtonColor: '#107c10'
     });
   };
 
@@ -178,13 +208,6 @@ export const ContractsTable: React.FC<IContractsTableProps> = (props) => {
       fontSize: '12px',
       height: '28px',
       padding: '0 10px'
-    }
-  };
-  
-  const calendarIconButtonStyles = {
-    root: {
-      padding: 0,
-      fontSize: '14px'
     }
   };
   
@@ -223,18 +246,75 @@ export const ContractsTable: React.FC<IContractsTableProps> = (props) => {
       key: 'startDate',
       name: 'Start Contract',
       fieldName: 'startDate',
-      minWidth: 120,
+      minWidth: 220, // Увеличено для размещения полноценного датапикера
       isResizable: true,
       onRender: (item: IContract) => {
         return item.startDate 
           ? item.startDate.toLocaleDateString() 
           : (
-            <div className={styles.datePickerContainer}>
-              <span className={styles.dateText}>Select a date...</span>
-              <IconButton 
-                iconProps={{ iconName: 'Calendar' }} 
-                title="Select a date" 
-                styles={calendarIconButtonStyles}
+            <div style={{ width: '220px' }}>
+              <DatePicker
+                value={undefined}
+                onSelectDate={() => {}} // Пустой обработчик для отображения
+                firstDayOfWeek={DayOfWeek.Monday}
+                strings={datePickerStringsEN}
+                formatDate={formatDate}
+                allowTextInput={false}
+                showGoToToday={true}
+                showMonthPickerAsOverlay={true}
+                placeholder="Select a date..."
+                disabled={true} // Отключен в режиме просмотра
+                styles={{
+                  root: {
+                    width: '220px',
+                    selectors: {
+                      '.ms-DatePicker-weekday': {
+                        width: '35px',
+                        height: '35px',
+                        lineHeight: '35px',
+                        padding: 0,
+                        textAlign: 'center',
+                        fontSize: '12px',
+                      },
+                      '.ms-DatePicker-day': {
+                        width: '35px',
+                        height: '35px',
+                        lineHeight: '35px',
+                        padding: 0,
+                        margin: 0,
+                        fontSize: '14px',
+                        textAlign: 'center',
+                      },
+                      'td[class*="dayOutsideNavigatedMonth"] button[class*="dayButton"]': {
+                        color: '#a19f9d',
+                      },
+                      '.ms-DatePicker-table': {
+                        width: '100%',
+                      },
+                    }
+                  },
+                  textField: {
+                    width: '100%',
+                    height: '32px',
+                    selectors: {
+                      '.ms-TextField-field': { height: '32px' },
+                    },
+                  },
+                }}
+                calendarProps={{
+                  onDismiss: calendarDismissHandler,
+                  firstDayOfWeek: DayOfWeek.Monday,
+                  showGoToToday: true,
+                  showSixWeeksByDefault: true,
+                  showWeekNumbers: false,
+                }}
+                calloutProps={{
+                  styles: {
+                    calloutMain: {
+                      minWidth: calendarMinWidth,
+                    }
+                  }
+                }}
               />
             </div>
           );
@@ -244,18 +324,75 @@ export const ContractsTable: React.FC<IContractsTableProps> = (props) => {
       key: 'finishDate',
       name: 'Finish Contract',
       fieldName: 'finishDate',
-      minWidth: 120,
+      minWidth: 220, // Увеличено для размещения полноценного датапикера
       isResizable: true,
       onRender: (item: IContract) => {
         return item.finishDate 
           ? item.finishDate.toLocaleDateString() 
           : (
-            <div className={styles.datePickerContainer}>
-              <span className={styles.dateText}>Select a date...</span>
-              <IconButton 
-                iconProps={{ iconName: 'Calendar' }} 
-                title="Select a date" 
-                styles={calendarIconButtonStyles}
+            <div style={{ width: '220px' }}>
+              <DatePicker
+                value={undefined}
+                onSelectDate={() => {}} // Пустой обработчик для отображения
+                firstDayOfWeek={DayOfWeek.Monday}
+                strings={datePickerStringsEN}
+                formatDate={formatDate}
+                allowTextInput={false}
+                showGoToToday={true}
+                showMonthPickerAsOverlay={true}
+                placeholder="Select a date..."
+                disabled={true} // Отключен в режиме просмотра
+                styles={{
+                  root: {
+                    width: '220px',
+                    selectors: {
+                      '.ms-DatePicker-weekday': {
+                        width: '35px',
+                        height: '35px',
+                        lineHeight: '35px',
+                        padding: 0,
+                        textAlign: 'center',
+                        fontSize: '12px',
+                      },
+                      '.ms-DatePicker-day': {
+                        width: '35px',
+                        height: '35px',
+                        lineHeight: '35px',
+                        padding: 0,
+                        margin: 0,
+                        fontSize: '14px',
+                        textAlign: 'center',
+                      },
+                      'td[class*="dayOutsideNavigatedMonth"] button[class*="dayButton"]': {
+                        color: '#a19f9d',
+                      },
+                      '.ms-DatePicker-table': {
+                        width: '100%',
+                      },
+                    }
+                  },
+                  textField: {
+                    width: '100%',
+                    height: '32px',
+                    selectors: {
+                      '.ms-TextField-field': { height: '32px' },
+                    },
+                  },
+                }}
+                calendarProps={{
+                  onDismiss: calendarDismissHandler,
+                  firstDayOfWeek: DayOfWeek.Monday,
+                  showGoToToday: true,
+                  showSixWeeksByDefault: true,
+                  showWeekNumbers: false,
+                }}
+                calloutProps={{
+                  styles: {
+                    calloutMain: {
+                      minWidth: calendarMinWidth,
+                    }
+                  }
+                }}
               />
             </div>
           );
@@ -269,28 +406,24 @@ export const ContractsTable: React.FC<IContractsTableProps> = (props) => {
         return (
           <div className={styles.actionButtons}>
             {item.isDeleted ? (
-              // Для удаленных контрактов показываем иконку восстановления
               <IconButton 
                 iconProps={{ iconName: 'Refresh' }} 
                 title="Restore" 
                 onClick={(e) => {
-                  // Останавливаем распространение события, чтобы не открывать форму редактирования
                   e.stopPropagation();
                   showRestoreConfirmDialog(item.id);
                 }}
                 styles={{
                   root: {
-                    color: '#107c10' // зеленый цвет для восстановления
+                    color: '#107c10'
                   }
                 }}
               />
             ) : (
-              // Для активных контрактов показываем иконку удаления
               <IconButton 
                 iconProps={{ iconName: 'Delete' }} 
                 title="Delete" 
                 onClick={(e) => {
-                  // Останавливаем распространение события, чтобы не открывать форму редактирования
                   e.stopPropagation();
                   showDeleteConfirmDialog(item.id);
                 }}
@@ -339,7 +472,7 @@ export const ContractsTable: React.FC<IContractsTableProps> = (props) => {
           className={styles.contractsList}
           isHeaderVisible={true}
           onRenderRow={(props, defaultRender) => {
-            if (!props || !defaultRender) return null; // Используем null здесь
+            if (!props || !defaultRender) return null;
             
             return (
               <div onClick={() => props.item && onEditContract(props.item)}>
@@ -362,7 +495,7 @@ export const ContractsTable: React.FC<IContractsTableProps> = (props) => {
         />
       )}
 
-      {/* Кастомная панель редактирования */}
+      {/* Кастомная панель редактирования с полноценными датапикерами */}
       {isContractPanelOpen && currentContract && (
         <>
           {/* Теневой фон */}
@@ -415,7 +548,7 @@ export const ContractsTable: React.FC<IContractsTableProps> = (props) => {
               </button>
             </div>
             
-            {/* Содержимое формы */}
+            {/* Содержимое формы с полноценными датапикерами */}
             <div className={styles.formContainer}>
               <TextField 
                 label="Template Name" 
@@ -444,25 +577,152 @@ export const ContractsTable: React.FC<IContractsTableProps> = (props) => {
                 onChange={(_, newValue) => onContractFormChange('contractedHours', Number(newValue) || 0)}
               />
               
-              <DatePicker
-                label="Start Date"
-                value={currentContract.startDate ? new Date(currentContract.startDate) : undefined}
-                onSelectDate={(date) => onContractFormChange('startDate', date || undefined)}
-                formatDate={(date): string => date ? date.toLocaleDateString() : ''}
-              />
+              {/* Полноценный DatePicker для Start Date */}
+              <div style={{ marginBottom: '15px' }}>
+                <div style={{
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  marginBottom: '5px',
+                  color: '#323130'
+                }}>Start Date</div>
+                <DatePicker
+                  value={currentContract.startDate ? new Date(currentContract.startDate) : undefined}
+                  onSelectDate={(date) => onContractFormChange('startDate', date || undefined)}
+                  firstDayOfWeek={DayOfWeek.Monday}
+                  strings={datePickerStringsEN}
+                  formatDate={formatDate}
+                  allowTextInput={false}
+                  showGoToToday={true}
+                  showMonthPickerAsOverlay={true}
+                  styles={{
+                    root: {
+                      width: '220px',
+                      selectors: {
+                        '.ms-DatePicker-weekday': {
+                          width: '35px',
+                          height: '35px',
+                          lineHeight: '35px',
+                          padding: 0,
+                          textAlign: 'center',
+                          fontSize: '12px',
+                        },
+                        '.ms-DatePicker-day': {
+                          width: '35px',
+                          height: '35px',
+                          lineHeight: '35px',
+                          padding: 0,
+                          margin: 0,
+                          fontSize: '14px',
+                          textAlign: 'center',
+                        },
+                        'td[class*="dayOutsideNavigatedMonth"] button[class*="dayButton"]': {
+                          color: '#a19f9d',
+                        },
+                        '.ms-DatePicker-table': {
+                          width: '100%',
+                        },
+                      }
+                    },
+                    textField: {
+                      width: '100%',
+                      height: '32px',
+                      selectors: {
+                        '.ms-TextField-field': { height: '32px' },
+                      },
+                    },
+                  }}
+                  calendarProps={{
+                    onDismiss: calendarDismissHandler,
+                    firstDayOfWeek: DayOfWeek.Monday,
+                    showGoToToday: true,
+                    showSixWeeksByDefault: true,
+                    showWeekNumbers: false,
+                  }}
+                  calloutProps={{
+                    styles: {
+                      calloutMain: {
+                        minWidth: calendarMinWidth,
+                      }
+                    }
+                  }}
+                />
+              </div>
               
-              <DatePicker
-                label="Finish Date"
-                value={currentContract.finishDate ? new Date(currentContract.finishDate) : undefined}
-                onSelectDate={(date) => onContractFormChange('finishDate', date || undefined)}
-                formatDate={(date): string => date ? date.toLocaleDateString() : ''}
-              />
+              {/* Полноценный DatePicker для Finish Date */}
+              <div style={{ marginBottom: '15px' }}>
+                <div style={{
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  marginBottom: '5px',
+                  color: '#323130'
+                }}>Finish Date</div>
+                <DatePicker
+                  value={currentContract.finishDate ? new Date(currentContract.finishDate) : undefined}
+                  onSelectDate={(date) => onContractFormChange('finishDate', date || undefined)}
+                  firstDayOfWeek={DayOfWeek.Monday}
+                  strings={datePickerStringsEN}
+                  formatDate={formatDate}
+                  allowTextInput={false}
+                  showGoToToday={true}
+                  showMonthPickerAsOverlay={true}
+                  styles={{
+                    root: {
+                      width: '220px',
+                      selectors: {
+                        '.ms-DatePicker-weekday': {
+                          width: '35px',
+                          height: '35px',
+                          lineHeight: '35px',
+                          padding: 0,
+                          textAlign: 'center',
+                          fontSize: '12px',
+                        },
+                        '.ms-DatePicker-day': {
+                          width: '35px',
+                          height: '35px',
+                          lineHeight: '35px',
+                          padding: 0,
+                          margin: 0,
+                          fontSize: '14px',
+                          textAlign: 'center',
+                        },
+                        'td[class*="dayOutsideNavigatedMonth"] button[class*="dayButton"]': {
+                          color: '#a19f9d',
+                        },
+                        '.ms-DatePicker-table': {
+                          width: '100%',
+                        },
+                      }
+                    },
+                    textField: {
+                      width: '100%',
+                      height: '32px',
+                      selectors: {
+                        '.ms-TextField-field': { height: '32px' },
+                      },
+                    },
+                  }}
+                  calendarProps={{
+                    onDismiss: calendarDismissHandler,
+                    firstDayOfWeek: DayOfWeek.Monday,
+                    showGoToToday: true,
+                    showSixWeeksByDefault: true,
+                    showWeekNumbers: false,
+                  }}
+                  calloutProps={{
+                    styles: {
+                      calloutMain: {
+                        minWidth: calendarMinWidth,
+                      }
+                    }
+                  }}
+                />
+              </div>
               
               <div className={styles.formButtons}>
                 <PrimaryButton
                   text="Save"
                   onClick={() => {
-                    // Используем .then().catch() для обработки Promise
                     onSaveContract({
                       ...currentContract,
                       staffMemberId: staffMemberId,
