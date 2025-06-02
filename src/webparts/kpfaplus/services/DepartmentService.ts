@@ -1,4 +1,5 @@
-// src/webparts/kpfaplus/services/DepartmentService.ts
+// 6. src/webparts/kpfaplus/services/DepartmentService.ts (ОБНОВЛЕННЫЙ)
+// ============================================================================
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { RemoteSiteService } from "./RemoteSiteService";
 
@@ -22,9 +23,20 @@ export interface IRemoteListItem {
   fields?: Record<string, unknown>;
 }
 
+// Интерфейс для данных создания группы
+interface ICreateGroupData {
+  Title: string;
+  DayOfStartWeek: number;
+  EnterLunchTime: boolean;
+  LeaveExportFolder: string;
+  ManagerLookupId: number;
+  Deleted: number;
+}
+
 export class DepartmentService {
   private logSource: string = "DepartmentService";
   private remoteSiteService: RemoteSiteService;
+  private listName: string = "StaffGroups";
 
   constructor(context: WebPartContext) {
     // Получаем экземпляр RemoteSiteService
@@ -41,10 +53,10 @@ export class DepartmentService {
       
       // Получаем элементы списка StaffGroups с удаленного сайта
       const items = await this.remoteSiteService.getListItems(
-        "StaffGroups", 
+        this.listName, 
         true,
         undefined, 
-        { field: "Title", ascending: true } // Префикс fields/ будет добавлен в getListItems
+        { field: "Title", ascending: true }
       );
       
       this.logInfo(`Fetched ${items.length} departments from remote site`);
@@ -76,7 +88,7 @@ export class DepartmentService {
       
       // Проверяем структуру данных, запрашивая один элемент для анализа
       const sampleItems = await this.remoteSiteService.getListItems(
-        "StaffGroups", 
+        this.listName, 
         true,
         undefined,
         undefined
@@ -91,7 +103,6 @@ export class DepartmentService {
         this.logInfo(`Sample StaffGroup item structure: ${JSON.stringify(fields, null, 2)}`);
         
         // Определяем, какое поле использовать для фильтрации менеджера
-        // Из логов видно, что поле может называться ManagerLookupId вместо ManagerId
         let managerFieldName = "ManagerId";
         
         if (Object.prototype.hasOwnProperty.call(fields, 'ManagerLookupId')) {
@@ -116,7 +127,7 @@ export class DepartmentService {
         
         // Запрашиваем элементы с фильтрацией на сервере
         const items = await this.remoteSiteService.getListItems(
-          "StaffGroups", 
+          this.listName, 
           true,
           filter,
           { field: "Title", ascending: true }
@@ -136,6 +147,192 @@ export class DepartmentService {
       this.logError(`Error in fetchDepartmentsByManager from remote site: ${error}`);
       // Возвращаем пустой массив вместо выбрасывания исключения
       return [];
+    }
+  }
+
+  /**
+   * Помечает группу как удаленную (не удаляет физически)
+   * @param groupId ID группы
+   * @returns Promise с результатом операции
+   */
+  public async markGroupAsDeleted(groupId: string): Promise<boolean> {
+    try {
+      this.logInfo(`Marking group as deleted, ID: ${groupId}`);
+      
+      if (!groupId) {
+        throw new Error("Group ID is empty or invalid");
+      }
+      
+      const groupIdNumber = parseInt(groupId);
+      if (isNaN(groupIdNumber)) {
+        throw new Error(`Invalid group ID format: ${groupId}`);
+      }
+      
+      // Используем метод updateListItem из RemoteSiteService
+      const success = await this.remoteSiteService.updateListItem(
+        this.listName,
+        groupIdNumber,
+        {
+          Deleted: 1
+        }
+      );
+      
+      if (success) {
+        this.logInfo(`Successfully marked group as deleted, ID: ${groupId}`);
+        return true;
+      } else {
+        throw new Error(`Failed to mark group as deleted, ID: ${groupId}`);
+      }
+    } catch (error) {
+      this.logError(`Error marking group as deleted: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Снимает отметку удаления с группы
+   * @param groupId ID группы
+   * @returns Promise с результатом операции
+   */
+  public async markGroupAsActive(groupId: string): Promise<boolean> {
+    try {
+      this.logInfo(`Marking group as active, ID: ${groupId}`);
+      
+      if (!groupId) {
+        throw new Error("Group ID is empty or invalid");
+      }
+      
+      const groupIdNumber = parseInt(groupId);
+      if (isNaN(groupIdNumber)) {
+        throw new Error(`Invalid group ID format: ${groupId}`);
+      }
+      
+      // Используем метод updateListItem из RemoteSiteService
+      const success = await this.remoteSiteService.updateListItem(
+        this.listName,
+        groupIdNumber,
+        {
+          Deleted: 0
+        }
+      );
+      
+      if (success) {
+        this.logInfo(`Successfully marked group as active, ID: ${groupId}`);
+        return true;
+      } else {
+        throw new Error(`Failed to mark group as active, ID: ${groupId}`);
+      }
+    } catch (error) {
+      this.logError(`Error marking group as active: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Обновляет данные группы
+   * @param groupId ID группы
+   * @param updateData Данные для обновления
+   * @returns Promise с результатом операции
+   */
+  public async updateGroup(groupId: string, updateData: Partial<IDepartment>): Promise<boolean> {
+    try {
+      this.logInfo(`Updating group, ID: ${groupId}`);
+      
+      if (!groupId) {
+        throw new Error("Group ID is empty or invalid");
+      }
+      
+      const groupIdNumber = parseInt(groupId);
+      if (isNaN(groupIdNumber)) {
+        throw new Error(`Invalid group ID format: ${groupId}`);
+      }
+      
+      // Подготавливаем данные для обновления в формате SharePoint
+      const itemData: Record<string, unknown> = {};
+      
+      if (updateData.Title !== undefined) {
+        itemData.Title = updateData.Title;
+      }
+      
+      if (updateData.DayOfStartWeek !== undefined) {
+        itemData.DayOfStartWeek = updateData.DayOfStartWeek;
+      }
+      
+      if (updateData.EnterLunchTime !== undefined) {
+        itemData.EnterLunchTime = updateData.EnterLunchTime;
+      }
+      
+      if (updateData.LeaveExportFolder !== undefined) {
+        itemData.LeaveExportFolder = updateData.LeaveExportFolder;
+      }
+      
+      if (updateData.Deleted !== undefined) {
+        itemData.Deleted = updateData.Deleted ? 1 : 0;
+      }
+      
+      this.logInfo(`Prepared update data: ${JSON.stringify(itemData, null, 2)}`);
+      
+      // Используем метод updateListItem из RemoteSiteService
+      const success = await this.remoteSiteService.updateListItem(
+        this.listName,
+        groupIdNumber,
+        itemData
+      );
+      
+      if (success) {
+        this.logInfo(`Successfully updated group, ID: ${groupId}`);
+        return true;
+      } else {
+        throw new Error(`Failed to update group, ID: ${groupId}`);
+      }
+    } catch (error) {
+      this.logError(`Error updating group: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Создает новую группу
+   * @param groupData Данные новой группы
+   * @returns Promise с ID новой группы или undefined при ошибке
+   */
+  public async createGroup(groupData: ICreateGroupData): Promise<string | undefined> {
+    try {
+      this.logInfo(`Creating new group`);
+      
+      // Подготавливаем данные для создания в формате SharePoint
+      const itemData: Record<string, unknown> = {
+        Title: groupData.Title || 'New Group',
+        DayOfStartWeek: groupData.DayOfStartWeek || 1,
+        EnterLunchTime: groupData.EnterLunchTime !== undefined ? groupData.EnterLunchTime : true,
+        LeaveExportFolder: groupData.LeaveExportFolder || '',
+        ManagerLookupId: groupData.ManagerLookupId,
+        Deleted: groupData.Deleted || 0
+      };
+      
+      this.logInfo(`Prepared create data: ${JSON.stringify(itemData, null, 2)}`);
+      
+      try {
+        // Создаем новый элемент через RemoteSiteService
+        const response = await this.remoteSiteService.addListItem(
+          this.listName,
+          itemData
+        );
+        
+        if (response && response.id) {
+          const newGroupId = String(response.id);
+          this.logInfo(`Created new group with ID: ${newGroupId}`);
+          return newGroupId;
+        } else {
+          throw new Error('Failed to get ID from the created item');
+        }
+      } catch (createError) {
+        this.logError(`Error creating new group: ${createError}`);
+        throw createError;
+      }
+    } catch (error) {
+      this.logError(`Error creating group: ${error}`);
+      return undefined;
     }
   }
 
