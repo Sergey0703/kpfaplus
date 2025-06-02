@@ -43,6 +43,9 @@ export interface UseScheduleTabLogicReturn extends IScheduleTabState {
   // Добавлены showDeleted и onToggleShowDeleted, как часть возвращаемого значения оркестратора
   showDeleted: boolean; // <-- showDeleted state from orchestrator
   onToggleShowDeleted: (checked: boolean) => void; // <-- onToggleShowDeleted handler from orchestrator
+
+  // *** ДОБАВЛЯЕМ НОВЫЕ ФУНКЦИИ ДЛЯ ГРУППОВОГО УДАЛЕНИЯ: ***
+  onBulkDeleteStaffRecords: (recordIds: string[]) => Promise<{ successCount: number; failedIds: string[] }>;
 }
 
 export const useScheduleTabLogic = (props: ITabProps): UseScheduleTabLogicReturn => {
@@ -108,6 +111,8 @@ export const useScheduleTabLogic = (props: ITabProps): UseScheduleTabLogicReturn
     handleCreateStaffRecord,
     handleDeleteStaffRecord,
     handleRestoreStaffRecord,
+    // *** ДОБАВЛЯЕМ НОВУЮ ФУНКЦИЮ ГРУППОВОГО УДАЛЕНИЯ: ***
+    handleBulkDeleteStaffRecords: mutationsBulkDelete, // ← ПЕРЕИМЕНОВЫВАЕМ ДЛЯ ИЗБЕЖАНИЯ КОНФЛИКТА
   } = useStaffRecordsMutations({
     context,
     selectedDate: state.selectedDate,
@@ -227,6 +232,49 @@ export const useScheduleTabLogic = (props: ITabProps): UseScheduleTabLogicReturn
       setState(prevState => ({ ...prevState, showDeleted: checked }));
   }, [setState]); // Зависит от setState
 
+  // *** ФУНКЦИЯ ГРУППОВОГО УДАЛЕНИЯ БЕЗ АВТОПЕРЕЗАГРУЗКИ (ПЕРЕИМЕНОВАННАЯ) ***
+  const handleBulkDeleteWithoutReload = useCallback(async (recordIds: string[]): Promise<{ successCount: number; failedIds: string[] }> => {
+    console.log(`[useScheduleTabLogic] handleBulkDeleteWithoutReload called for ${recordIds.length} records`);
+    
+    if (!mutationsBulkDelete) {
+      // Fallback к обычному удалению БЕЗ автоперезагрузки
+      console.log('[useScheduleTabLogic] mutationsBulkDelete not available, using fallback without auto-reload');
+      let successCount = 0;
+      const failedIds: string[] = [];
+      
+      for (const recordId of recordIds) {
+        try {
+          // *** ВАЖНО: Используем прямой вызов сервиса БЕЗ handleMutation ***
+          // handleDeleteStaffRecord вызывает handleMutation, которая делает reloadRecords
+          // Мы этого НЕ хотим для группового удаления
+          if (services.staffRecordsService) {
+            const success = await services.staffRecordsService.markRecordAsDeleted(recordId);
+            if (success) {
+              successCount++;
+              console.log(`[useScheduleTabLogic] ✓ Direct service call: deleted record ${recordId}`);
+            } else {
+              failedIds.push(recordId);
+              console.error(`[useScheduleTabLogic] ✗ Direct service call: failed to delete record ${recordId}`);
+            }
+          } else {
+            failedIds.push(recordId);
+            console.error(`[useScheduleTabLogic] ✗ Staff records service not available for record ${recordId}`);
+          }
+        } catch (error) {
+          console.error(`[useScheduleTabLogic] ✗ Error deleting record ${recordId}:`, error);
+          failedIds.push(recordId);
+        }
+      }
+      
+      console.log(`[useScheduleTabLogic] Fallback bulk deletion completed: ${successCount}/${recordIds.length} successful, ${failedIds.length} failed`);
+      return { successCount, failedIds };
+    }
+    
+    // Используем оптимизированную функцию из useStaffRecordsMutations
+    console.log('[useScheduleTabLogic] Using optimized bulk delete function from useStaffRecordsMutations');
+    return await mutationsBulkDelete(recordIds);
+  }, [mutationsBulkDelete, services.staffRecordsService]);
+
 
   // --- ОСНОВНЫЕ ЭФФЕКТЫ (реагируют на смену сотрудника/контекста) ---
   // Эффекты загрузки данных, зависящие от даты/контракта/пагинации, находятся внутри useStaffRecordsData и других хуков.
@@ -305,7 +353,10 @@ export const useScheduleTabLogic = (props: ITabProps): UseScheduleTabLogicReturn
     onUpdateStaffRecord: handleUpdateStaffRecord,
     onCreateStaffRecord: handleCreateStaffRecord,
     onDeleteStaffRecord: handleDeleteStaffRecord,
-    onRestoreStaffRecord: handleRestoreStaffRecord
+    onRestoreStaffRecord: handleRestoreStaffRecord,
+
+    // *** ДОБАВЛЯЕМ НОВУЮ ФУНКЦИЮ ГРУППОВОГО УДАЛЕНИЯ: ***
+    onBulkDeleteStaffRecords: handleBulkDeleteWithoutReload, // ← ИСПОЛЬЗУЕМ ПЕРЕИМЕНОВАННУЮ ФУНКЦИЮ
   }), [
     state, // Зависит от всех свойств состояния
     handleDateChange,
@@ -321,7 +372,9 @@ export const useScheduleTabLogic = (props: ITabProps): UseScheduleTabLogicReturn
     handleUpdateStaffRecord,
     handleCreateStaffRecord,
     handleDeleteStaffRecord,
-    handleRestoreStaffRecord
+    handleRestoreStaffRecord,
+    // *** ДОБАВЛЯЕМ В ЗАВИСИМОСТИ: ***
+    handleBulkDeleteWithoutReload, // ← ИСПОЛЬЗУЕМ ПЕРЕИМЕНОВАННУЮ ФУНКЦИЮ
   ]);
 
   return hookReturn;

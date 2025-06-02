@@ -25,8 +25,15 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
   const hookProps: UseScheduleTabLogicReturn = useScheduleTabLogic(props);
 
   // Извлекаем showDeleted и onToggleShowDeleted ИЗ результата хука
-  const { showDeleted, onToggleShowDeleted, ...restHookProps } = hookProps;
+  const { showDeleted, onToggleShowDeleted, onBulkDeleteStaffRecords, ...restHookProps } = hookProps;
 
+  console.log('[ScheduleTab] Hook props extracted:', {
+    hasShowDeleted: showDeleted !== undefined,
+    showDeleted: showDeleted,
+    hasOnToggleShowDeleted: !!onToggleShowDeleted,
+    hasOnBulkDeleteStaffRecords: !!onBulkDeleteStaffRecords,
+    restHookPropsKeys: Object.keys(restHookProps)
+  });
 
   // Render the content component, passing original props AND hook results
   // Явно передаем showDeleted и onToggleShowDeleted, а остальные пропсы распространяем
@@ -40,6 +47,8 @@ export const ScheduleTab: React.FC<ITabProps> = (props) => {
         // --- ПЕРЕДАЧА SHOWDELETED И TOGGLE ---
         showDeleted={showDeleted} // <-- Передаем из результата хука
         onToggleShowDeleted={onToggleShowDeleted} // <-- Передаем из результата хука
+        // --- ПЕРЕДАЧА НОВОЙ ФУНКЦИИ ГРУППОВОГО УДАЛЕНИЯ ---
+        onBulkDeleteStaffRecords={onBulkDeleteStaffRecords} // <-- НОВОЕ
         // -------------------------------------
         {...restHookProps} // Spread the rest of the state and handlers from the hook result
       />

@@ -38,6 +38,8 @@ export interface UseStaffRecordsMutationsReturn {
   ) => Promise<string | undefined>;
   handleDeleteStaffRecord: (recordId: string) => Promise<boolean>;
   handleRestoreStaffRecord: (recordId: string) => Promise<boolean>;
+  // *** ДОБАВЛЯЕМ НОВУЮ ФУНКЦИЮ ГРУППОВОГО УДАЛЕНИЯ: ***
+  handleBulkDeleteStaffRecords: (recordIds: string[]) => Promise<{ successCount: number; failedIds: string[] }>;
 }
 
 // Custom hook for staff records mutation actions
@@ -250,6 +252,84 @@ export const useStaffRecordsMutations = (
     return result === true; // Результат handleMutation может быть undefined (для создания), поэтому явное сравнение с true
   }, [staffRecordsService, handleMutation, setError]); // Зависит от restoreDeletedRecord
 
+  // *** НОВАЯ ФУНКЦИЯ ГРУППОВОГО УДАЛЕНИЯ БЕЗ АВТОПЕРЕЗАГРУЗКИ ***
+  const handleBulkDeleteStaffRecords = useCallback(async (recordIds: string[]): Promise<{ successCount: number; failedIds: string[] }> => {
+    console.log(`[useStaffRecordsMutations] *** BULK DELETE FUNCTION CALLED ***`);
+    console.log(`[useStaffRecordsMutations] handleBulkDeleteStaffRecords called for ${recordIds.length} records`);
+    
+    // Проверяем наличие сервиса
+    if (!staffRecordsService) {
+      console.error('[useStaffRecordsMutations] Cannot perform bulk delete: staffRecordsService is not available');
+      setError('Service not available.');
+      return { successCount: 0, failedIds: recordIds };
+    }
+
+    console.log(`[useStaffRecordsMutations] *** IMPORTANT: NO AUTO-RELOAD - PARENT WILL HANDLE REFRESH ***`);
+    
+    // Устанавливаем состояние загрузки
+    setIsLoading(true);
+    setError(undefined);
+
+    let successCount = 0;
+    const failedIds: string[] = [];
+    
+    try {
+      // *** УДАЛЯЕМ ЗАПИСИ БЕЗ АВТОМАТИЧЕСКОЙ ПЕРЕЗАГРУЗКИ ПОСЛЕ КАЖДОЙ ***
+      for (const recordId of recordIds) {
+        try {
+          console.log(`[useStaffRecordsMutations] Processing record ${successCount + 1}/${recordIds.length}: ${recordId}`);
+          
+          // *** ВЫЗЫВАЕМ СЕРВИС НАПРЯМУЮ БЕЗ handleMutation ***
+          // handleMutation делает reloadRecords после каждого вызова - мы этого НЕ хотим
+          const success = await staffRecordsService.markRecordAsDeleted(recordId);
+          
+          if (success) {
+            successCount++;
+            console.log(`[useStaffRecordsMutations] ✓ Successfully deleted record ${recordId} (${successCount}/${recordIds.length})`);
+          } else {
+            failedIds.push(recordId);
+            console.error(`[useStaffRecordsMutations] ✗ Failed to delete record ${recordId}`);
+          }
+        } catch (error) {
+          console.error(`[useStaffRecordsMutations] ✗ Error deleting record ${recordId}:`, error);
+          failedIds.push(recordId);
+        }
+        
+        // Небольшая пауза между удалениями для предотвращения перегрузки сервера
+        if (recordIds.length > 1 && successCount + failedIds.length < recordIds.length) {
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+      }
+      
+      console.log(`[useStaffRecordsMutations] *** BULK DELETION COMPLETED ***`);
+      console.log(`[useStaffRecordsMutations] Final result: ${successCount}/${recordIds.length} successful, ${failedIds.length} failed`);
+      
+      if (failedIds.length > 0) {
+        console.error('[useStaffRecordsMutations] Failed to delete records:', failedIds);
+        setError(`Failed to delete ${failedIds.length} of ${recordIds.length} records.`);
+      }
+
+      // *** НЕ ВЫЗЫВАЕМ reloadRecords() ЗДЕСЬ - ЭТО СДЕЛАЕТ РОДИТЕЛЬСКИЙ КОМПОНЕНТ ***
+      console.log(`[useStaffRecordsMutations] *** NO AUTO-RELOAD - PARENT COMPONENT WILL HANDLE REFRESH ***`);
+      
+      return { successCount, failedIds };
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('[useStaffRecordsMutations] Error during bulk deletion:', error);
+      setError(`Error during bulk deletion: ${errorMessage}`);
+      
+      // Если произошла критическая ошибка, считаем что все записи не удалены
+      return { successCount, failedIds: recordIds };
+      
+    } finally {
+      // Убираем состояние загрузки через небольшую задержку
+      setTimeout(() => {
+        setIsLoading(false);
+      }, 300);
+    }
+  }, [staffRecordsService, setIsLoading, setError]);
+
 
   // ИСПРАВЛЕНО: Возвращаем useMemo с явным типом возврата
   return useMemo((): UseStaffRecordsMutationsReturn => ({
@@ -258,11 +338,15 @@ export const useStaffRecordsMutations = (
     handleCreateStaffRecord,
     handleDeleteStaffRecord,
     handleRestoreStaffRecord,
+    // *** ДОБАВЛЯЕМ НОВУЮ ФУНКЦИЮ: ***
+    handleBulkDeleteStaffRecords,
   }), [
       handleAddShift,
       handleUpdateStaffRecord,
       handleCreateStaffRecord,
       handleDeleteStaffRecord,
       handleRestoreStaffRecord,
+      // *** ДОБАВЛЯЕМ В ЗАВИСИМОСТИ: ***
+      handleBulkDeleteStaffRecords,
   ]);
 };
