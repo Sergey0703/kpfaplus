@@ -47,6 +47,11 @@ export const useLeavesData = (props: IUseLeavesDataProps): IUseLeavesDataReturn 
   // Функция для загрузки всех данных
   const loadData = useCallback(async (): Promise<void> => {
     console.log('[useLeavesData] Starting data load');
+    console.log('[useLeavesData] Period dates:', {
+      start: selectedPeriodStart.toLocaleDateString(),
+      end: selectedPeriodEnd.toLocaleDateString()
+    });
+    
     setIsLoading(true);
     setError(undefined);
 

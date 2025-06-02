@@ -97,6 +97,15 @@ export const LeavesFilterPanel: React.FC<ILeavesFilterPanelProps> = (props) => {
       // Автоматически устанавливаем конец периода как последний день того же месяца
       const lastDayOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0);
       console.log('[LeavesFilterPanel] Auto-setting end date to last day of month:', formatDate(lastDayOfMonth));
+      
+      // Сохраняем автоматически установленную дату окончания в sessionStorage
+      try {
+        sessionStorage.setItem('leavesTab_periodEnd', lastDayOfMonth.toISOString());
+        console.log('[LeavesFilterPanel] Auto-set period end saved to sessionStorage:', lastDayOfMonth.toISOString());
+      } catch (error) {
+        console.warn('[LeavesFilterPanel] Error saving auto-set period end to sessionStorage:', error);
+      }
+      
       onPeriodEndChange(lastDayOfMonth);
     }
   };
@@ -104,7 +113,7 @@ export const LeavesFilterPanel: React.FC<ILeavesFilterPanelProps> = (props) => {
   // Обработчик для второго датапикера (конец периода)
   const handleEndDateSelect = (date: Date | null | undefined): void => {
     if (date) {
-      console.log('[LeavesFilterPanel] End date selected:', formatDate(date));
+      console.log('[LeavesFilterPanel] End date manually selected:', formatDate(date));
       onPeriodEndChange(date);
     }
   };

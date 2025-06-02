@@ -16,6 +16,63 @@ interface IInfoMessage {
   type: MessageBarType;
 }
 
+// Функции для работы с сохраненными датами
+const getFirstDayOfCurrentMonth = (): Date => {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), 1);
+};
+
+const getLastDayOfCurrentMonth = (): Date => {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth() + 1, 0);
+};
+
+const getSavedPeriodStart = (): Date => {
+  try {
+    const savedDate = sessionStorage.getItem('leavesTab_periodStart');
+    if (savedDate) {
+      const parsedDate = new Date(savedDate);
+      if (!isNaN(parsedDate.getTime())) {
+        console.log('[LeavesTabContent] Restored period start from sessionStorage:', parsedDate.toISOString());
+        return parsedDate;
+      } else {
+        console.warn('[LeavesTabContent] Invalid start date found in sessionStorage, using first day of current month');
+      }
+    } else {
+      console.log('[LeavesTabContent] No saved start date found in sessionStorage, using first day of current month');
+    }
+  } catch (error) {
+    console.warn('[LeavesTabContent] Error reading saved start date from sessionStorage:', error);
+  }
+  
+  const firstDay = getFirstDayOfCurrentMonth();
+  console.log('[LeavesTabContent] Using first day of current month as default start:', firstDay.toISOString());
+  return firstDay;
+};
+
+const getSavedPeriodEnd = (): Date => {
+  try {
+    const savedDate = sessionStorage.getItem('leavesTab_periodEnd');
+    if (savedDate) {
+      const parsedDate = new Date(savedDate);
+      if (!isNaN(parsedDate.getTime())) {
+        console.log('[LeavesTabContent] Restored period end from sessionStorage:', parsedDate.toISOString());
+        return parsedDate;
+      } else {
+        console.warn('[LeavesTabContent] Invalid end date found in sessionStorage, using last day of current month');
+      }
+    } else {
+      console.log('[LeavesTabContent] No saved end date found in sessionStorage, using last day of current month');
+    }
+  } catch (error) {
+    console.warn('[LeavesTabContent] Error reading saved end date from sessionStorage:', error);
+  }
+  
+  const lastDay = getLastDayOfCurrentMonth();
+  console.log('[LeavesTabContent] Using last day of current month as default end:', lastDay.toISOString());
+  return lastDay;
+};
+
 export const LeavesTabContent: React.FC<ITabProps> = (props) => {
   const { selectedStaff, context } = props;
 
@@ -38,18 +95,9 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
     return undefined;
   }, [context]);
 
-  // Функция для получения первого и последнего дня текущего месяца
-  const getCurrentMonthDates = (): { firstDay: Date; lastDay: Date } => {
-    const now = new Date();
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    return { firstDay, lastDay };
-  };
-
-  // Базовые состояния с правильной инициализацией дат
-  const { firstDay, lastDay } = getCurrentMonthDates();
-  const [selectedPeriodStart, setSelectedPeriodStart] = useState<Date>(firstDay);
-  const [selectedPeriodEnd, setSelectedPeriodEnd] = useState<Date>(lastDay);
+  // Базовые состояния с инициализацией из sessionStorage
+  const [selectedPeriodStart, setSelectedPeriodStart] = useState<Date>(getSavedPeriodStart());
+  const [selectedPeriodEnd, setSelectedPeriodEnd] = useState<Date>(getSavedPeriodEnd());
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('');
   const [showDeleted, setShowDeleted] = useState<boolean>(false);
 
@@ -132,6 +180,15 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
   const handlePeriodStartChange = (date: Date | null | undefined): void => {
     if (date) {
       console.log('[LeavesTabContent] Period start changed:', date.toLocaleDateString());
+      
+      // Сохраняем дату в sessionStorage
+      try {
+        sessionStorage.setItem('leavesTab_periodStart', date.toISOString());
+        console.log('[LeavesTabContent] Period start saved to sessionStorage:', date.toISOString());
+      } catch (error) {
+        console.warn('[LeavesTabContent] Error saving period start to sessionStorage:', error);
+      }
+      
       setSelectedPeriodStart(date);
     }
   };
@@ -139,6 +196,15 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
   const handlePeriodEndChange = (date: Date | null | undefined): void => {
     if (date) {
       console.log('[LeavesTabContent] Period end changed:', date.toLocaleDateString());
+      
+      // Сохраняем дату в sessionStorage
+      try {
+        sessionStorage.setItem('leavesTab_periodEnd', date.toISOString());
+        console.log('[LeavesTabContent] Period end saved to sessionStorage:', date.toISOString());
+      } catch (error) {
+        console.warn('[LeavesTabContent] Error saving period end to sessionStorage:', error);
+      }
+      
       setSelectedPeriodEnd(date);
     }
   };
