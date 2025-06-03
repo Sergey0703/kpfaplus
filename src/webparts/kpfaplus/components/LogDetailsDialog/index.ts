@@ -1,9 +1,8 @@
 // src/webparts/kpfaplus/components/LogDetailsDialog/index.ts
 
+// Именованный экспорт
 export { LogDetailsDialog } from './LogDetailsDialog';
-export type { 
-  // Можно экспортировать типы, если они понадобятся в других компонентах
-  // ILogDetailsDialogProps 
-} from './LogDetailsDialog';
 
-export default LogDetailsDialog;
+// Экспорт по умолчанию
+import LogDetailsDialogComponent from './LogDetailsDialog';
+export default LogDetailsDialogComponent;

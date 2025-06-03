@@ -1,4 +1,5 @@
-// src/webparts/kpfaplus/services/ScheduleLogsService.ts
+// src/webparts/kpfaplus/services/ScheduleLogsService.ts - ИСПРАВЛЕННАЯ ВЕРСИЯ
+
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { RemoteSiteService } from "./RemoteSiteService";
 import { 
@@ -7,33 +8,25 @@ import {
   IRemoteListItemResponse 
 } from "./RemoteSiteInterfaces";
 
-/**
- * Интерфейс для записи лога операций заполнения расписания
- */
+// Интерфейсы остаются без изменений...
 export interface IScheduleLog {
-  ID: string;                    // Уникальный идентификатор записи
-  Title: string;                 // Заголовок записи
-  Manager: IScheduleLogLookup | undefined;         // Менеджер (lookup)
-  StaffMember: IScheduleLogLookup | undefined;     // Сотрудник (lookup)
-  StaffGroup: IScheduleLogLookup | undefined;      // Группа сотрудников (lookup)
-  WeeklyTimeTable: IScheduleLogLookup | undefined; // Недельное расписание (lookup)
-  Result: number;                // Результат операции: 1 = ошибка, 2 = успех
-  Message: string;               // Детальный лог операции
-  Created: Date;                 // Дата создания записи
-  Modified: Date;                // Дата изменения записи
+  ID: string;
+  Title: string;
+  Manager: IScheduleLogLookup | undefined;
+  StaffMember: IScheduleLogLookup | undefined;
+  StaffGroup: IScheduleLogLookup | undefined;
+  WeeklyTimeTable: IScheduleLogLookup | undefined;
+  Result: number;
+  Message: string;
+  Created: Date;
+  Modified: Date;
 }
 
-/**
- * Интерфейс для lookup полей
- */
 export interface IScheduleLogLookup {
   Id: string;
   Title: string;
 }
 
-/**
- * Интерфейс для сырых данных из SharePoint
- */
 export interface IRawScheduleLog {
   ID?: string | number;
   Title?: string;
@@ -64,22 +57,16 @@ export interface IRawScheduleLog {
   [key: string]: unknown;
 }
 
-/**
- * Интерфейс для параметров создания лога
- */
 export interface ICreateScheduleLogParams {
-  title: string;                 // Заголовок записи
-  managerId?: string | number;   // ID менеджера (опционально)
-  staffMemberId?: string | number; // ID сотрудника (опционально)
-  staffGroupId?: string | number;  // ID группы сотрудников (опционально)
-  weeklyTimeTableId?: string | number; // ID недельного расписания (опционально)
-  result: number;                // Результат операции (1 = ошибка, 2 = успех)
-  message: string;               // Детальное сообщение
+  title: string;
+  managerId?: string | number;
+  staffMemberId?: string | number;
+  staffGroupId?: string | number;
+  weeklyTimeTableId?: string | number;
+  result: number;
+  message: string;
 }
 
-/**
- * Интерфейс для параметров обновления лога
- */
 export interface IUpdateScheduleLogParams {
   title?: string;
   managerId?: string | number;
@@ -90,80 +77,50 @@ export interface IUpdateScheduleLogParams {
   message?: string;
 }
 
-/**
- * Интерфейс для результатов запроса логов
- */
 export interface IScheduleLogsResult {
   logs: IScheduleLog[];
   totalCount: number;
   error?: string;
 }
 
-/**
- * Интерфейс для параметров запроса логов
- */
 export interface IScheduleLogsQueryParams {
-  startDate?: Date;              // Дата начала периода (опционально)
-  endDate?: Date;                // Дата окончания периода (опционально)
-  managerId?: string | number;   // ID менеджера для фильтрации (опционально)
-  staffMemberId?: string | number; // ID сотрудника для фильтрации (опционально)
-  staffGroupId?: string | number;  // ID группы для фильтрации (опционально)
-  result?: number;               // Фильтр по результату (опционально)
-  skip?: number;                 // Количество записей для пропуска (пагинация)
-  top?: number;                  // Максимальное количество записей
+  startDate?: Date;
+  endDate?: Date;
+  managerId?: string | number;
+  staffMemberId?: string | number;
+  staffGroupId?: string | number;
+  result?: number;
+  skip?: number;
+  top?: number;
 }
 
-/**
- * Сервис для работы с логами операций заполнения расписания
- */
 export class ScheduleLogsService {
   private static _instance: ScheduleLogsService;
   private _logSource: string = "ScheduleLogsService";
   private _listName: string = "ScheduleLogs";
   private _remoteSiteService: RemoteSiteService;
 
-  /**
-   * Приватный конструктор для паттерна Singleton
-   */
   private constructor(context: WebPartContext) {
-    console.log('[ScheduleLogsService] Инициализация сервиса с контекстом');
+    console.log('[ScheduleLogsService] Инициализация с исправленными полями фильтрации');
     this._remoteSiteService = RemoteSiteService.getInstance(context);
-    this.logInfo("ScheduleLogsService инициализирован с RemoteSiteService");
+    this.logInfo("ScheduleLogsService инициализирован с исправлениями фильтрации");
   }
 
-  /**
-   * Получение экземпляра сервиса (Singleton паттерн)
-   */
   public static getInstance(context: WebPartContext): ScheduleLogsService {
     if (!ScheduleLogsService._instance) {
-      console.log('[ScheduleLogsService] Создание нового экземпляра');
+      console.log('[ScheduleLogsService] Создание нового экземпляра с исправлениями');
       ScheduleLogsService._instance = new ScheduleLogsService(context);
-    } else {
-      console.log('[ScheduleLogsService] Возврат существующего экземпляра');
     }
     return ScheduleLogsService._instance;
   }
 
-  /**
-   * Создает новую запись лога
-   */
   public async createScheduleLog(params: ICreateScheduleLogParams): Promise<string | undefined> {
     try {
       this.logInfo(`[DEBUG] Создание нового лога: ${params.title}`);
-      this.logInfo(`[DEBUG] Параметры лога:
-        managerId: ${params.managerId || 'не указан'}
-        staffMemberId: ${params.staffMemberId || 'не указан'}
-        staffGroupId: ${params.staffGroupId || 'не указан'}
-        weeklyTimeTableId: ${params.weeklyTimeTableId || 'не указан'}
-        result: ${params.result}
-        messageLength: ${params.message.length} символов`);
-
-      // Подготавливаем поля для создания
+      
       const fields = this.prepareFieldsForCreate(params);
-
       this.logInfo(`[DEBUG] Подготовленные поля для создания: ${JSON.stringify(fields, null, 2)}`);
 
-      // Создаем запись через RemoteSiteService
       const result = await this._remoteSiteService.createListItem(this._listName, fields);
 
       if (result && result.id) {
@@ -176,35 +133,30 @@ export class ScheduleLogsService {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logError(`[ERROR] Ошибка при создании лога: ${errorMessage}`);
-      console.error('[ScheduleLogsService] Подробности ошибки:', error);
       return undefined;
     }
   }
 
-  /**
-   * Получает записи логов с возможностью фильтрации
-   */
   public async getScheduleLogs(params?: IScheduleLogsQueryParams): Promise<IScheduleLogsResult> {
     try {
-      this.logInfo(`[DEBUG] Получение логов с параметрами: ${JSON.stringify(params || {})}`);
+      this.logInfo(`[DEBUG] Получение логов с исправленными параметрами: ${JSON.stringify(params || {})}`);
 
-      // Строим фильтр для запроса
+      // ИСПРАВЛЕНО: Строим фильтр для запроса с правильными полями
       const filter = this.buildFilter(params);
-      const orderBy = { field: 'Created', ascending: false }; // Сортируем по дате создания (новые сначала)
+      // ИСПРАВЛЕНО: Правильное поле для сортировки через fields
+      const orderBy = { field: 'fields/Created', ascending: false };
 
-      this.logInfo(`[DEBUG] Фильтр: ${filter || 'отсутствует'}`);
-      this.logInfo(`[DEBUG] Сортировка: ${JSON.stringify(orderBy)}`);
+      this.logInfo(`[DEBUG] Исправленный фильтр: ${filter || 'отсутствует'}`);
+      this.logInfo(`[DEBUG] Исправленная сортировка: ${JSON.stringify(orderBy)}`);
 
-      // Определяем опции для запроса
       const options: IGetPaginatedListItemsOptions = {
-        expandFields: true, // Включаем expand для lookup полей
+        expandFields: true,
         filter: filter,
         orderBy: orderBy,
         top: params?.top || 50,
         skip: params?.skip || 0
       };
 
-      // Получаем данные через RemoteSiteService
       const response: IRemotePaginatedItemsResponse = await this._remoteSiteService.getPaginatedItemsFromList(
         this._listName,
         options
@@ -212,7 +164,6 @@ export class ScheduleLogsService {
 
       this.logInfo(`[DEBUG] Получено ${response.items.length} записей из ${response.totalCount} общих`);
 
-      // Преобразуем сырые данные в типизированные
       const mappedLogs = response.items.map((item: IRemoteListItemResponse) => this.mapRawToScheduleLog(item));
 
       return {
@@ -224,7 +175,6 @@ export class ScheduleLogsService {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logError(`[ERROR] Ошибка при получении логов: ${errorMessage}`);
-      console.error('[ScheduleLogsService] Подробности ошибки:', error);
 
       return {
         logs: [],
@@ -234,9 +184,6 @@ export class ScheduleLogsService {
     }
   }
 
-  /**
-   * Получает один лог по ID
-   */
   public async getScheduleLogById(logId: string | number): Promise<IScheduleLog | undefined> {
     try {
       this.logInfo(`[DEBUG] Получение лога по ID: ${logId}`);
@@ -244,7 +191,7 @@ export class ScheduleLogsService {
       const item = await this._remoteSiteService.getListItem(
         this._listName,
         Number(logId),
-        true // expandFields = true
+        true
       );
 
       if (!item) {
@@ -264,27 +211,17 @@ export class ScheduleLogsService {
     }
   }
 
-  /**
-   * Обновляет существующий лог
-   */
-  public async updateScheduleLog(
-    logId: string | number, 
-    params: IUpdateScheduleLogParams
-  ): Promise<boolean> {
+  public async updateScheduleLog(logId: string | number, params: IUpdateScheduleLogParams): Promise<boolean> {
     try {
       this.logInfo(`[DEBUG] Обновление лога ID: ${logId}`);
 
-      // Подготавливаем поля для обновления
       const fields = this.prepareFieldsForUpdate(params);
 
       if (Object.keys(fields).length === 0) {
         this.logInfo(`[DEBUG] Нет полей для обновления лога ID: ${logId}`);
-        return true; // Считаем успешным если нечего обновлять
+        return true;
       }
 
-      this.logInfo(`[DEBUG] Поля для обновления: ${JSON.stringify(fields)}`);
-
-      // Обновляем через RemoteSiteService
       const success = await this._remoteSiteService.updateListItem(
         this._listName,
         Number(logId),
@@ -306,9 +243,6 @@ export class ScheduleLogsService {
     }
   }
 
-  /**
-   * Удаляет лог (если потребуется)
-   */
   public async deleteScheduleLog(logId: string | number): Promise<boolean> {
     try {
       this.logInfo(`[DEBUG] Удаление лога ID: ${logId}`);
@@ -330,18 +264,14 @@ export class ScheduleLogsService {
     }
   }
 
-  /**
-   * Подготавливает поля для создания записи
-   */
   private prepareFieldsForCreate(params: ICreateScheduleLogParams): Record<string, unknown> {
     const fields: Record<string, unknown> = {};
 
-    // Обязательные поля
     fields.Title = params.title;
     fields.Result = params.result;
     fields.Message = params.message;
 
-    // Lookup поля (опциональные)
+    // ИСПРАВЛЕНО: Lookup поля с правильными названиями
     if (params.managerId && String(params.managerId).trim() !== '' && String(params.managerId) !== '0') {
       try {
         const managerId = parseInt(String(params.managerId), 10);
@@ -393,13 +323,9 @@ export class ScheduleLogsService {
     return fields;
   }
 
-  /**
-   * Подготавливает поля для обновления записи
-   */
   private prepareFieldsForUpdate(params: IUpdateScheduleLogParams): Record<string, unknown> {
     const fields: Record<string, unknown> = {};
 
-    // Обновляем только переданные поля
     if (params.title !== undefined) {
       fields.Title = params.title;
     }
@@ -412,7 +338,7 @@ export class ScheduleLogsService {
       fields.Message = params.message;
     }
 
-    // Lookup поля для обновления
+    // ИСПРАВЛЕНО: Lookup поля для обновления с правильными названиями
     if (params.managerId !== undefined) {
       if (params.managerId === '' || params.managerId === null || params.managerId === '0') {
         fields.ManagerLookupId = null;
@@ -477,48 +403,47 @@ export class ScheduleLogsService {
   }
 
   /**
-   * Строит фильтр для запроса на основе параметров
+   * ИСПРАВЛЕНО: Строит фильтр для запроса с правильными названиями полей
    */
   private buildFilter(params?: IScheduleLogsQueryParams): string | undefined {
     if (!params) return undefined;
 
     const filters: string[] = [];
 
-    // Фильтр по дате создания
+    // Фильтр по дате создания - используем fields/ префикс
     if (params.startDate) {
-      filters.push(`Created ge '${params.startDate.toISOString()}'`);
+      filters.push(`fields/Created ge '${params.startDate.toISOString()}'`);
     }
 
     if (params.endDate) {
-      filters.push(`Created le '${params.endDate.toISOString()}'`);
+      filters.push(`fields/Created le '${params.endDate.toISOString()}'`);
     }
 
-    // Фильтры по lookup полям
+    // ИСПРАВЛЕНО: Фильтры по lookup полям - используем fields/ префикс и LookupId суффикс
     if (params.managerId && String(params.managerId) !== '0') {
-      filters.push(`Manager/Id eq ${params.managerId}`);
+      filters.push(`fields/ManagerLookupId eq ${params.managerId}`);
     }
 
     if (params.staffMemberId && String(params.staffMemberId) !== '0') {
-      filters.push(`StaffMember/Id eq ${params.staffMemberId}`);
+      filters.push(`fields/StaffMemberLookupId eq ${params.staffMemberId}`);
     }
 
     if (params.staffGroupId && String(params.staffGroupId) !== '0') {
-      filters.push(`StaffGroup/Id eq ${params.staffGroupId}`);
+      filters.push(`fields/StaffGroupLookupId eq ${params.staffGroupId}`);
     }
 
-    // Фильтр по результату
+    // Фильтр по результату - используем fields/ префикс
     if (params.result !== undefined) {
-      filters.push(`Result eq ${params.result}`);
+      filters.push(`fields/Result eq ${params.result}`);
     }
 
-    return filters.length > 0 ? filters.join(' and ') : undefined;
+    const resultFilter = filters.length > 0 ? filters.join(' and ') : undefined;
+    this.logInfo(`[DEBUG] Построенный фильтр: ${resultFilter || 'отсутствует'}`);
+    
+    return resultFilter;
   }
 
-  /**
-   * Преобразует сырые данные SharePoint в типизированный объект
-   */
   private mapRawToScheduleLog(raw: IRawScheduleLog): IScheduleLog {
-    // Вспомогательная функция для обработки lookup полей
     const mapLookup = (lookup: any): IScheduleLogLookup | undefined => {
       if (!lookup) return undefined;
       
@@ -549,23 +474,14 @@ export class ScheduleLogsService {
     };
   }
 
-  /**
-   * Логирование информационных сообщений
-   */
   private logInfo(message: string): void {
     console.log(`[${this._logSource}] ${message}`);
   }
 
-  /**
-   * Логирование сообщений об ошибках
-   */
   private logError(message: string): void {
     console.error(`[${this._logSource}] ${message}`);
   }
 
-  /**
-   * Очистка экземпляра (для тестирования)
-   */
   public static clearInstance(): void {
     ScheduleLogsService._instance = undefined as any;
     console.log('[ScheduleLogsService] Instance cleared');

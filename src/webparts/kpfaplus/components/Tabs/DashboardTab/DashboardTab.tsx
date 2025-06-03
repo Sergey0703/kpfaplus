@@ -1,13 +1,14 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/DashboardTab.tsx
 import * as React from 'react';
-import { MessageBar } from '@fluentui/react';
+import { useEffect, useCallback } from 'react';
+import { MessageBar, CommandBar, ICommandBarItemProps } from '@fluentui/react';
 import { ITabProps } from '../../../models/types';
 import { DashboardControlPanel } from './components/DashboardControlPanel';
 import { DashboardTable } from './components/DashboardTable';
 import { ConfirmDialog } from '../../ConfirmDialog/ConfirmDialog';
 import { useDashboardLogic } from './hooks/useDashboardLogic';
 
-// Import the interface for proper typing - this interface should match the one in useDashboardLogic.ts
+// Интерфейс для диалога подтверждения
 interface IConfirmDialogState {
   isOpen: boolean;
   title: string;
@@ -19,15 +20,11 @@ interface IConfirmDialogState {
 }
 
 export const DashboardTab: React.FC<ITabProps> = (props) => {
-  const { managingGroupId, currentUserId } = props;
+  const { managingGroupId, currentUserId, context } = props;
 
-  console.log('[DashboardTab] Rendering with props:', {
-    managingGroupId: props.managingGroupId,
-    currentUserId: props.currentUserId,
-    dayOfStartWeek: props.dayOfStartWeek
-  });
+  console.log('[DashboardTab] Rendering with enhanced logging and optimization features');
 
-  // ИСПРАВЛЕНО: Передаем все необходимые параметры в хук
+  // Получаем все функции и данные из оптимизированного хука
   const {
     staffMembersData,
     selectedDate,
@@ -39,28 +36,112 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     handleDateChange,
     handleAutoscheduleToggle,
     handleFillStaff,
-    handleFillAll
+    handleFillAll,
+    logsService,
+    handleLogRefresh,
+    handleBulkLogRefresh,
+    clearLogCache,
+    getLogCacheStats
   } = useDashboardLogic({
-    context: props.context,
-    currentUserId: props.currentUserId,
-    managingGroupId: props.managingGroupId
+    context,
+    currentUserId,
+    managingGroupId
   });
 
-  // FIXED: Обработчик закрытия диалога подтверждения - now correctly typed
-  const handleDismissConfirmDialog = (): void => {
+  // Статистика для отладки
+  const cacheStats = getLogCacheStats();
+
+  // Обработчик закрытия диалога подтверждения
+  const handleDismissConfirmDialog = useCallback((): void => {
     setConfirmDialog((prev: IConfirmDialogState) => ({ ...prev, isOpen: false }));
-  };
+  }, [setConfirmDialog]);
+
+  // Command Bar для дополнительных действий
+  const commandBarItems: ICommandBarItemProps[] = [
+    {
+      key: 'refresh-all-logs',
+      text: 'Refresh All Logs',
+      iconProps: { iconName: 'Refresh' },
+      onClick: (): void => {
+        const staffIds = staffMembersData.map(staff => staff.id);
+        void handleBulkLogRefresh(staffIds);
+      },
+      disabled: !logsService || staffMembersData.length === 0
+    },
+    {
+      key: 'clear-cache',
+      text: 'Clear Log Cache',
+      iconProps: { iconName: 'Clear' },
+      onClick: (): void => {
+        clearLogCache();
+      },
+      disabled: cacheStats.cached === 0
+    }
+  ];
+
+  const commandBarFarItems: ICommandBarItemProps[] = [
+    {
+      key: 'cache-info',
+      text: `Cache: ${cacheStats.cached} active, ${cacheStats.expired} expired`,
+      iconProps: { iconName: 'Info' },
+      disabled: true
+    }
+  ];
+
+  // Логирование состояния для отладки
+  useEffect(() => {
+    console.log('[DashboardTab] State update:', {
+      staffCount: staffMembersData.length,
+      hasLogsService: !!logsService,
+      selectedDate: selectedDate.toLocaleDateString(),
+      isLoading,
+      cacheStats
+    });
+  }, [staffMembersData.length, logsService, selectedDate, isLoading, cacheStats]);
+
+  console.log('[DashboardTab] Rendering dashboard with full optimization:', {
+    staffCount: staffMembersData.length,
+    hasLogsService: !!logsService,
+    hasContext: !!context,
+    cacheActive: cacheStats.cached,
+    cacheExpired: cacheStats.expired
+  });
 
   return (
     <div style={{ padding: '20px', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ marginBottom: '20px' }}>
+      {/* Заголовок и информация */}
+      <div style={{ marginBottom: '15px' }}>
         <h2 style={{ margin: '0 0 10px 0' }}>
           Dashboard
         </h2>
         <p style={{ margin: '0', color: '#666', fontSize: '14px' }}>
           Group ID: {managingGroupId} | Current User ID: {currentUserId} | Active Staff: {staffMembersData.length}
+          {logsService && (
+            <span style={{ marginLeft: '10px', color: '#0078d4' }}>
+              • Logs Service Active (Cache: {cacheStats.cached}/{cacheStats.cached + cacheStats.expired})
+            </span>
+          )}
         </p>
       </div>
+
+      {/* Command Bar для управления */}
+      {logsService && (
+        <div style={{ marginBottom: '10px' }}>
+          <CommandBar
+            items={commandBarItems}
+            farItems={commandBarFarItems}
+            styles={{
+              root: {
+                padding: 0,
+                height: '40px',
+                backgroundColor: '#faf9f8',
+                border: '1px solid #e1e5e9',
+                borderRadius: '4px'
+              }
+            }}
+          />
+        </div>
+      )}
 
       {/* Информационное сообщение */}
       {infoMessage && (
@@ -69,13 +150,14 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
             messageBarType={infoMessage.type}
             onDismiss={() => setInfoMessage(undefined)}
             dismissButtonAriaLabel="Close"
+            isMultiline={false}
           >
             {infoMessage.text}
           </MessageBar>
         </div>
       )}
 
-      {/* Command Panel */}
+      {/* Панель управления */}
       <DashboardControlPanel
         selectedDate={selectedDate}
         isLoading={isLoading}
@@ -84,12 +166,15 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
         onFillAll={handleFillAll}
       />
 
-      {/* Staff Members Table */}
+      {/* Основная таблица сотрудников */}
       <DashboardTable
         staffMembersData={staffMembersData}
         isLoading={isLoading}
         onAutoscheduleToggle={handleAutoscheduleToggle}
         onFillStaff={handleFillStaff}
+        context={context}
+        logsService={logsService}
+        onLogRefresh={handleLogRefresh}
       />
 
       {/* Диалог подтверждения */}
@@ -105,4 +190,4 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
       />
     </div>
   );
-}
+};

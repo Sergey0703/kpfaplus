@@ -1,6 +1,6 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/components/DashboardTable.tsx
 import * as React from 'react';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   DetailsList, 
   DetailsListLayoutMode, 
@@ -11,12 +11,17 @@ import {
   Spinner,
   SpinnerSize,
   IconButton,
-  TooltipHost
+  TooltipHost,
+  CommandBar,
+  ICommandBarItemProps,
+  MessageBar,
+  MessageBarType
 } from '@fluentui/react';
 import { useDataContext } from '../../../../context';
 import { ScheduleLogsService, IScheduleLog } from '../../../../services/ScheduleLogsService';
+import { LogDetailsDialog } from '../../../../components/LogDetailsDialog';
 
-// Интерфейс для расширенного staff member с состоянием autoschedule
+// Интерфейсы
 export interface IStaffMemberWithAutoschedule {
   id: string;
   name: string;
@@ -25,10 +30,23 @@ export interface IStaffMemberWithAutoschedule {
   deleted: number;
 }
 
-// Интерфейс для расширенного staff member с логами
 export interface IStaffMemberWithLog extends IStaffMemberWithAutoschedule {
   lastLog?: IScheduleLog;
   isLoadingLog?: boolean;
+  logError?: string;
+}
+
+interface ILogDialogState {
+  isOpen: boolean;
+  logId?: string;
+  staffName?: string;
+}
+
+enum LogStatusFilter {
+  All = 'all',
+  Success = 'success', 
+  Error = 'error',
+  NoLogs = 'no-logs'
 }
 
 interface IDashboardTableProps {
@@ -36,16 +54,19 @@ interface IDashboardTableProps {
   isLoading: boolean;
   onAutoscheduleToggle: (staffId: string, checked: boolean) => Promise<void>;
   onFillStaff: (staffId: string, staffName: string) => Promise<void>;
-  // Новые пропсы для работы с логами
-  context?: any; // WebPartContext
+  context?: any;
+  logsService?: ScheduleLogsService;
+  onLogRefresh?: (staffId: string) => Promise<void>;
 }
 
-// Компонент для отображения статуса лога
+// Компонент индикатора статуса лога
 const LogStatusIndicator: React.FC<{
   log?: IScheduleLog;
   isLoading?: boolean;
+  error?: string;
   onClick?: () => void;
-}> = ({ log, isLoading, onClick }) => {
+  onRetry?: () => void;
+}> = ({ log, isLoading, error, onClick, onRetry }) => {
   if (isLoading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
@@ -55,29 +76,41 @@ const LogStatusIndicator: React.FC<{
     );
   }
 
+  if (error) {
+    return (
+      <TooltipHost content={`Error loading log: ${error}`}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <IconButton
+            iconProps={{ iconName: 'ErrorBadge' }}
+            title="Error loading log - click to retry"
+            onClick={onRetry}
+            styles={{
+              root: { width: '20px', height: '20px', color: '#d13438' }
+            }}
+          />
+          <span style={{ fontSize: '11px', color: '#d13438' }}>Error</span>
+        </div>
+      </TooltipHost>
+    );
+  }
+
   if (!log) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-        <div 
-          style={{
-            width: '12px',
-            height: '12px',
-            borderRadius: '50%',
-            backgroundColor: '#d1d1d1', // Серый для "нет логов"
-            border: '1px solid #ccc'
-          }}
-        />
+        <div style={{
+          width: '12px', height: '12px', borderRadius: '50%',
+          backgroundColor: '#d1d1d1', border: '1px solid #ccc'
+        }} />
         <span style={{ fontSize: '12px', color: '#666' }}>No logs</span>
       </div>
     );
   }
 
-  // Определяем цвет на основе результата
   const getStatusColor = (result: number): string => {
     switch (result) {
-      case 2: return '#107c10'; // Зеленый для успеха
-      case 1: return '#d13438'; // Красный для ошибки
-      default: return '#ffaa44'; // Оранжевый для неизвестного
+      case 2: return '#107c10';
+      case 1: return '#d13438';
+      default: return '#ffaa44';
     }
   };
 
@@ -95,39 +128,42 @@ const LogStatusIndicator: React.FC<{
   const logTime = log.Created.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   return (
-    <TooltipHost content={`Last operation: ${statusText} at ${logDate} ${logTime}`}>
+    <TooltipHost content={`Last operation: ${statusText} at ${logDate} ${logTime}\nClick to view details`}>
       <div 
         style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '5px',
-          cursor: onClick ? 'pointer' : 'default'
+          display: 'flex', alignItems: 'center', gap: '8px',
+          cursor: onClick ? 'pointer' : 'default', padding: '4px 8px',
+          borderRadius: '4px', transition: 'background-color 0.2s ease',
+          minHeight: '28px'
         }}
         onClick={onClick}
+        onMouseEnter={(e) => {
+          if (onClick) (e.target as HTMLElement).style.backgroundColor = '#f3f2f1';
+        }}
+        onMouseLeave={(e) => {
+          if (onClick) (e.target as HTMLElement).style.backgroundColor = 'transparent';
+        }}
       >
-        <div 
-          style={{
-            width: '12px',
-            height: '12px',
-            borderRadius: '50%',
-            backgroundColor: statusColor,
-            border: '1px solid #fff',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
-          }}
-        />
-        <span style={{ fontSize: '12px', color: '#323130' }}>
-          {logDate}
-        </span>
+        <div style={{
+          width: '12px', height: '12px', borderRadius: '50%',
+          backgroundColor: statusColor, border: '1px solid #fff',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.2)', flexShrink: 0
+        }} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+          <span style={{ fontSize: '11px', color: '#323130', fontWeight: '500' }}>
+            {statusText}
+          </span>
+          <span style={{ fontSize: '10px', color: '#666' }}>
+            {logDate} {logTime}
+          </span>
+        </div>
         {onClick && (
           <IconButton
             iconProps={{ iconName: 'Info' }}
             title="View log details"
             styles={{
-              root: { 
-                width: '16px', 
-                height: '16px',
-                color: '#605e5c'
-              }
+              root: { width: '20px', height: '20px', color: '#605e5c', flexShrink: 0 },
+              icon: { fontSize: '12px' }
             }}
           />
         )}
@@ -142,252 +178,333 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     isLoading,
     onAutoscheduleToggle,
     onFillStaff,
-    context
+  ///  context,
+    logsService,
+    onLogRefresh
   } = props;
 
   const { selectedDepartmentId } = useDataContext();
 
-  // Состояние для данных с логами
+  // Состояния
   const [staffMembersWithLogs, setStaffMembersWithLogs] = useState<IStaffMemberWithLog[]>([]);
-  const [logsService, setLogsService] = useState<ScheduleLogsService | undefined>(undefined);
+  const [logDialog, setLogDialog] = useState<ILogDialogState>({
+    isOpen: false, logId: undefined, staffName: undefined
+  });
+  const [statusFilter, setStatusFilter] = useState<LogStatusFilter>(LogStatusFilter.All);
+  const [isRefreshingAllLogs, setIsRefreshingAllLogs] = useState<boolean>(false);
+  const [logStats, setLogStats] = useState({ success: 0, error: 0, noLogs: 0, loading: 0 });
 
-  console.log('[DashboardTable] Rendering with staff count:', staffMembersData.length);
-
-  // Инициализация сервиса логов
+  // Конвертация данных
   useEffect(() => {
-    if (context) {
-      console.log('[DashboardTable] Initializing ScheduleLogsService...');
-      const service = ScheduleLogsService.getInstance(context);
-      setLogsService(service);
-    }
-  }, [context]);
-
-  // Конвертируем staffMembersData в staffMembersWithLogs
-  useEffect(() => {
-    const membersWithLogs: IStaffMemberWithLog[] = staffMembersData.map(member => ({
-      ...member,
-      lastLog: undefined,
-      isLoadingLog: false
-    }));
-    
+    const membersWithLogs: IStaffMemberWithLog[] = staffMembersData.map(member => {
+      const existingMember = staffMembersWithLogs.find(m => m.id === member.id);
+      return {
+        ...member,
+        lastLog: existingMember?.lastLog,
+        isLoadingLog: existingMember?.isLoadingLog || false,
+        logError: existingMember?.logError
+      };
+    });
     setStaffMembersWithLogs(membersWithLogs);
-    console.log('[DashboardTable] Converted staff members to members with logs:', membersWithLogs.length);
   }, [staffMembersData]);
 
-  // Функция для загрузки последнего лога для конкретного сотрудника
-  const loadLastLogForStaff = useCallback(async (staffMember: IStaffMemberWithLog): Promise<void> => {
-    if (!logsService || !staffMember.employeeId) {
-      console.log(`[DashboardTable] Cannot load log for ${staffMember.name}: missing service or employeeId`);
-      return;
-    }
+  // Подсчет статистики
+  useEffect(() => {
+    const stats = staffMembersWithLogs.reduce((acc, member) => {
+      if (member.isLoadingLog) acc.loading++;
+      else if (member.logError) acc.error++;
+      else if (member.lastLog) {
+        if (member.lastLog.Result === 2) acc.success++;
+        else acc.error++;
+      } else acc.noLogs++;
+      return acc;
+    }, { success: 0, error: 0, noLogs: 0, loading: 0 });
+    setLogStats(stats);
+  }, [staffMembersWithLogs]);
 
-    console.log(`[DashboardTable] Loading last log for staff: ${staffMember.name} (ID: ${staffMember.employeeId})`);
+  // Загрузка лога
+  const loadLastLogForStaff = useCallback(async (staffMember: IStaffMemberWithLog, retryCount = 0): Promise<void> => {
+    if (!logsService || !staffMember.employeeId) return;
 
-    // Обновляем состояние - показываем загрузку
+    const maxRetries = 2;
+    const retryDelay = 1000 * (retryCount + 1);
+
     setStaffMembersWithLogs(prev => prev.map(member => 
-      member.id === staffMember.id 
-        ? { ...member, isLoadingLog: true }
-        : member
+      member.id === staffMember.id ? { ...member, isLoadingLog: true, logError: undefined } : member
     ));
 
     try {
-      // Получаем последний лог для этого сотрудника
       const logsResult = await logsService.getScheduleLogs({
         staffMemberId: staffMember.employeeId,
-        top: 1, // Берем только последний
-        skip: 0
+        top: 1, skip: 0
       });
 
-      if (logsResult.error) {
-        console.error(`[DashboardTable] Error loading logs for ${staffMember.name}:`, logsResult.error);
-        return;
-      }
+      if (logsResult.error) throw new Error(logsResult.error);
 
       const lastLog = logsResult.logs.length > 0 ? logsResult.logs[0] : undefined;
       
-      console.log(`[DashboardTable] Loaded log for ${staffMember.name}:`, lastLog ? {
-        id: lastLog.ID,
-        result: lastLog.Result,
-        created: lastLog.Created.toLocaleString()
-      } : 'No logs found');
-
-      // Обновляем состояние с полученным логом
       setStaffMembersWithLogs(prev => prev.map(member => 
-        member.id === staffMember.id 
-          ? { 
-              ...member, 
-              lastLog: lastLog,
-              isLoadingLog: false 
-            }
-          : member
+        member.id === staffMember.id ? { 
+          ...member, lastLog, isLoadingLog: false, logError: undefined
+        } : member
       ));
 
     } catch (error) {
-      console.error(`[DashboardTable] Error loading logs for ${staffMember.name}:`, error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       
-      // Обновляем состояние - убираем загрузку
-      setStaffMembersWithLogs(prev => prev.map(member => 
-        member.id === staffMember.id 
-          ? { ...member, isLoadingLog: false }
-          : member
-      ));
+      if (retryCount < maxRetries) {
+        setTimeout(() => {
+          void loadLastLogForStaff(staffMember, retryCount + 1);
+        }, retryDelay);
+      } else {
+        setStaffMembersWithLogs(prev => prev.map(member => 
+          member.id === staffMember.id ? { 
+            ...member, isLoadingLog: false, logError: errorMessage
+          } : member
+        ));
+      }
     }
   }, [logsService]);
 
-  // Загружаем логи для всех сотрудников при инициализации
+  // Загрузка логов для всех
   useEffect(() => {
     if (logsService && staffMembersWithLogs.length > 0) {
-      console.log('[DashboardTable] Loading logs for all staff members...');
-      
-      // Загружаем логи для каждого сотрудника с небольшой задержкой
       staffMembersWithLogs.forEach((member, index) => {
-        setTimeout(() => {
-          void loadLastLogForStaff(member);
-        }, index * 200); // 200ms между запросами для предотвращения перегрузки
+        if (!member.lastLog && !member.isLoadingLog && !member.logError) {
+          setTimeout(() => {
+            void loadLastLogForStaff(member);
+          }, index * 150);
+        }
       });
     }
-  }, [logsService, staffMembersWithLogs.length]); // Используем length вместо всего массива
+  }, [logsService, staffMembersWithLogs.length]);
 
-  // Функция для обработки клика по логу (пока заглушка)
+  // Обновление всех логов - НЕ async
+  const refreshAllLogs = useCallback((): void => {
+    if (!logsService || staffMembersWithLogs.length === 0) return;
+
+    console.log('[DashboardTable] Refreshing all logs...');
+    setIsRefreshingAllLogs(true);
+
+    // Сбрасываем состояние
+    setStaffMembersWithLogs(prev => prev.map(member => ({
+      ...member, lastLog: undefined, logError: undefined, isLoadingLog: false
+    })));
+
+    // Перезагружаем логи
+    staffMembersWithLogs.forEach((member, i) => {
+      setTimeout(() => {
+        void loadLastLogForStaff(member);
+      }, i * 100);
+    });
+
+    setTimeout(() => {
+      setIsRefreshingAllLogs(false);
+    }, 2000);
+  }, [logsService, staffMembersWithLogs, loadLastLogForStaff]);
+
+  // Обработчики
   const handleLogClick = useCallback((staffMember: IStaffMemberWithLog): void => {
     if (!staffMember.lastLog) return;
-    
-    console.log('[DashboardTable] Log clicked for staff:', staffMember.name, 'Log:', staffMember.lastLog);
-    // TODO: Здесь будет открытие диалога с деталями лога (Этап 2)
-    alert(`Log details will be shown here.\n\nStaff: ${staffMember.name}\nResult: ${staffMember.lastLog.Result === 2 ? 'Success' : 'Error'}\nDate: ${staffMember.lastLog.Created.toLocaleString()}\n\nMessage (first 100 chars):\n${staffMember.lastLog.Message.substring(0, 100)}...`);
+    setLogDialog({
+      isOpen: true,
+      logId: staffMember.lastLog.ID,
+      staffName: staffMember.name
+    });
   }, []);
 
-  // Рендер ячейки с toggle для autoschedule
-  const renderAutoscheduleCell = (item: IStaffMemberWithLog): JSX.Element => {
-    return (
-      <Toggle
-        checked={item.autoschedule}
-        onChange={(_, checked): void => {
-          if (checked !== undefined) {
-            // Используем .then().catch() для обработки Promise
-            onAutoscheduleToggle(item.id, checked)
-              .then(() => {
-                console.log(`[DashboardTable] Autoschedule updated for ${item.name}`);
-              })
-              .catch(error => {
-                console.error(`[DashboardTable] Error updating autoschedule for ${item.name}:`, error);
-              });
+  const handleLogDialogDismiss = useCallback((): void => {
+    setLogDialog({ isOpen: false, logId: undefined, staffName: undefined });
+  }, []);
+
+  const handleLogRetry = useCallback((staffMember: IStaffMemberWithLog): void => {
+    void loadLastLogForStaff(staffMember);
+  }, [loadLastLogForStaff]);
+
+  const handlePostFillLogRefresh = useCallback(async (staffId: string, staffName: string): Promise<void> => {
+    if (onLogRefresh) {
+      await onLogRefresh(staffId);
+    } else {
+      const staffMember = staffMembersWithLogs.find(member => member.id === staffId);
+      if (staffMember) {
+        setTimeout(() => {
+          void loadLastLogForStaff(staffMember);
+        }, 1500);
+      }
+    }
+  }, [onLogRefresh, staffMembersWithLogs, loadLastLogForStaff]);
+
+  // Фильтрация
+  const filteredStaffMembers = useMemo(() => {
+    return staffMembersWithLogs.filter(member => {
+      switch (statusFilter) {
+        case LogStatusFilter.Success: return member.lastLog?.Result === 2;
+        case LogStatusFilter.Error: return member.logError || member.lastLog?.Result === 1;
+        case LogStatusFilter.NoLogs: return !member.lastLog && !member.isLoadingLog && !member.logError;
+        default: return true;
+      }
+    });
+  }, [staffMembersWithLogs, statusFilter]);
+
+  // Command Bar - все обработчики НЕ async
+  const commandBarItems: ICommandBarItemProps[] = [
+    {
+      key: 'filter',
+      text: 'Filter',
+      iconProps: { iconName: 'Filter' },
+      subMenuProps: {
+        items: [
+          {
+            key: 'all',
+            text: `All (${staffMembersWithLogs.length})`,
+            iconProps: { iconName: statusFilter === LogStatusFilter.All ? 'CheckMark' : undefined },
+            onClick: () => setStatusFilter(LogStatusFilter.All)
+          },
+          {
+            key: 'success', 
+            text: `Success (${logStats.success})`,
+            iconProps: { iconName: statusFilter === LogStatusFilter.Success ? 'CheckMark' : 'Completed' },
+            onClick: () => setStatusFilter(LogStatusFilter.Success)
+          },
+          {
+            key: 'error',
+            text: `Errors (${logStats.error})`,
+            iconProps: { iconName: statusFilter === LogStatusFilter.Error ? 'CheckMark' : 'ErrorBadge' },
+            onClick: () => setStatusFilter(LogStatusFilter.Error)
+          },
+          {
+            key: 'no-logs',
+            text: `No Logs (${logStats.noLogs})`,
+            iconProps: { iconName: statusFilter === LogStatusFilter.NoLogs ? 'CheckMark' : 'CircleRing' },
+            onClick: () => setStatusFilter(LogStatusFilter.NoLogs)
           }
-        }}
-        disabled={isLoading}
-      />
-    );
-  };
+        ]
+      }
+    },
+    {
+      key: 'refresh',
+      text: 'Refresh Logs',
+      iconProps: { iconName: 'Refresh' },
+      onClick: refreshAllLogs, // НЕ async!
+      disabled: isRefreshingAllLogs || !logsService
+    }
+  ];
 
-  // Рендер ячейки с кнопкой Fill
-  const renderFillCell = (item: IStaffMemberWithLog): JSX.Element => {
-    return (
-      <PrimaryButton
-        text="Fill"
-        onClick={(): void => {
-          // Используем .then().catch() для обработки Promise
-          onFillStaff(item.id, item.name)
-            .then(() => {
-              console.log(`[DashboardTable] Fill completed for ${item.name}`);
-              // После успешного выполнения Fill перезагружаем лог для этого сотрудника
-              void loadLastLogForStaff(item);
-            })
-            .catch(error => {
-              console.error(`[DashboardTable] Error in Fill for ${item.name}:`, error);
-              // При ошибке тоже перезагружаем лог (может появиться лог об ошибке)
-              void loadLastLogForStaff(item);
-            });
-        }}
-        disabled={isLoading}
-        styles={{
-          root: {
-            backgroundColor: '#0078d4',
-            borderColor: '#0078d4',
-            minWidth: '60px'
-          }
-        }}
-      />
-    );
-  };
+  // Рендеры ячеек
+  const renderAutoscheduleCell = (item: IStaffMemberWithLog): JSX.Element => (
+    <Toggle
+      checked={item.autoschedule}
+      onChange={(_, checked): void => {
+        if (checked !== undefined) {
+          onAutoscheduleToggle(item.id, checked).catch(console.error);
+        }
+      }}
+      disabled={isLoading}
+    />
+  );
 
-  // Рендер ячейки с индикатором лога
-  const renderLogStatusCell = (item: IStaffMemberWithLog): JSX.Element => {
-    return (
-      <LogStatusIndicator
-        log={item.lastLog}
-        isLoading={item.isLoadingLog}
-        onClick={item.lastLog ? () => handleLogClick(item) : undefined}
-      />
-    );
-  };
+  const renderFillCell = (item: IStaffMemberWithLog): JSX.Element => (
+    <PrimaryButton
+      text="Fill"
+      onClick={(): void => {
+        onFillStaff(item.id, item.name)
+          .then(() => void handlePostFillLogRefresh(item.id, item.name))
+          .catch(error => {
+            console.error(`Error in Fill for ${item.name}:`, error);
+            void handlePostFillLogRefresh(item.id, item.name);
+          });
+      }}
+      disabled={isLoading}
+      styles={{
+        root: { backgroundColor: '#0078d4', borderColor: '#0078d4', minWidth: '60px' }
+      }}
+    />
+  );
 
-  // Колонки таблицы
+  const renderLogStatusCell = (item: IStaffMemberWithLog): JSX.Element => (
+    <LogStatusIndicator
+      log={item.lastLog}
+      isLoading={item.isLoadingLog}
+      error={item.logError}
+      onClick={item.lastLog ? () => handleLogClick(item) : undefined}
+      onRetry={() => handleLogRetry(item)}
+    />
+  );
+
+  // Колонки
   const columns: IColumn[] = [
     {
-      key: 'name',
-      name: 'Staff Member',
-      fieldName: 'name',
-      minWidth: 180,
-      maxWidth: 250,
-      isResizable: true,
-      onRender: (item: IStaffMemberWithLog): JSX.Element => (
+      key: 'name', name: 'Staff Member', fieldName: 'name',
+      minWidth: 160, maxWidth: 220, isResizable: true,
+      onRender: (item: IStaffMemberWithLog) => (
         <span style={{ fontWeight: '500' }}>{item.name}</span>
       )
     },
     {
-      key: 'id',
-      name: 'ID',
-      fieldName: 'id',
-      minWidth: 60,
-      maxWidth: 80,
-      onRender: (item: IStaffMemberWithLog): JSX.Element => (
+      key: 'id', name: 'ID', fieldName: 'id', 
+      minWidth: 50, maxWidth: 70,
+      onRender: (item: IStaffMemberWithLog) => (
         <span style={{ fontSize: '12px', color: '#666' }}>{item.id}</span>
       )
     },
     {
-      key: 'employeeId',
-      name: 'Employee ID',
-      fieldName: 'employeeId',
-      minWidth: 90,
-      maxWidth: 110,
-      onRender: (item: IStaffMemberWithLog): JSX.Element => (
+      key: 'employeeId', name: 'Employee ID', fieldName: 'employeeId',
+      minWidth: 80, maxWidth: 100,
+      onRender: (item: IStaffMemberWithLog) => (
         <span style={{ fontSize: '12px', color: '#666' }}>{item.employeeId}</span>
       )
     },
     {
-      key: 'autoschedule',
-      name: 'Autoschedule',
-      minWidth: 100,
-      maxWidth: 120,
+      key: 'autoschedule', name: 'Autoschedule',
+      minWidth: 90, maxWidth: 110,
       onRender: renderAutoscheduleCell
     },
     {
-      key: 'lastLog',
-      name: 'Last Log',
-      minWidth: 100,
-      maxWidth: 150,
+      key: 'lastLog', name: 'Last Operation',
+      minWidth: 120, maxWidth: 180,
       onRender: renderLogStatusCell
     },
     {
-      key: 'fill',
-      name: 'Action',
-      minWidth: 80,
-      maxWidth: 100,
+      key: 'fill', name: 'Action',
+      minWidth: 70, maxWidth: 90,
       onRender: renderFillCell
     }
   ];
 
   return (
     <div style={{ flex: 1 }}>
-      <p style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}>
-        Showing {staffMembersWithLogs.length} active staff members (deleted staff excluded)
+      {/* Информация и Command Bar */}
+      <div style={{ marginBottom: '10px' }}>
+        <p style={{ fontSize: '12px', color: '#666', margin: '0 0 10px 0' }}>
+          Showing {filteredStaffMembers.length} of {staffMembersWithLogs.length} staff members
+          {statusFilter !== LogStatusFilter.All && ` (filtered by ${statusFilter})`}
+          {logsService && (
+            <span style={{ marginLeft: '10px', color: '#0078d4' }}>
+              • Logs: {logStats.success} success, {logStats.error} errors, {logStats.noLogs} no logs
+              {logStats.loading > 0 && `, ${logStats.loading} loading`}
+            </span>
+          )}
+        </p>
+
         {logsService && (
-          <span style={{ marginLeft: '10px', color: '#0078d4' }}>
-            • Logs service active
-          </span>
+          <CommandBar
+            items={commandBarItems}
+            styles={{ root: { padding: 0, height: '40px' } }}
+          />
         )}
-      </p>
+      </div>
+
+      {/* Сообщение о статусе */}
+      {isRefreshingAllLogs && (
+        <MessageBar
+          messageBarType={MessageBarType.info}
+          styles={{ root: { marginBottom: '10px' } }}
+        >
+          Refreshing logs for all staff members...
+        </MessageBar>
+      )}
       
+      {/* Таблица */}
       {staffMembersWithLogs.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '40px' }}>
           <p>No active staff members found in the selected department.</p>
@@ -397,7 +514,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
         </div>
       ) : (
         <DetailsList
-          items={staffMembersWithLogs}
+          items={filteredStaffMembers}
           columns={columns}
           layoutMode={DetailsListLayoutMode.justified}
           selectionMode={SelectionMode.none}
@@ -405,6 +522,17 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
           compact={true}
         />
       )}
+
+      {/* Диалог просмотра лога */}
+      <LogDetailsDialog
+        isOpen={logDialog.isOpen}
+        logId={logDialog.logId}
+        staffName={logDialog.staffName}
+        logsService={logsService}
+        onDismiss={handleLogDialogDismiss}
+        title="Fill Operation Log Details"
+        subtitle={logDialog.staffName ? `Staff Member: ${logDialog.staffName}` : undefined}
+      />
     </div>
   );
 };
