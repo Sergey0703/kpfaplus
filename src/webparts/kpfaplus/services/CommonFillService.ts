@@ -89,42 +89,49 @@ export class CommonFillService {
         };
       }
 
-      // FIXED: Convert employeeId to string and provide proper Date parameter if needed
-      // Based on error, first parameter might expect Date, so let's check the method signature
+      // FIXED: Use the correct method signature based on the service interface
+      // Instead of getStaffRecords, use getAllStaffRecordsForTimetable or getStaffRecordsWithOptions
       const employeeId = params.staffMember.employeeId;
       const managerId = params.currentUserId || '0';
       const groupId = params.managingGroupId || '0';
       
-      const allRecords = await this.staffRecordsService.getStaffRecords(
-        employeeId, // Keep as string
-        managerId,  // Keep as string
-        groupId,    // Keep as string
-        1, // page
-        60, // pageSize
-        false // showDeleted
-      );
+      // Use the method that queries for a specific time period
+      const queryParams = {
+        startDate: startOfMonth,
+        endDate: endOfMonth,
+        currentUserID: managerId,
+        staffGroupID: groupId,
+        employeeID: employeeId,
+        // Don't specify timeTableID to get all records regardless of contract
+      };
 
-      // Фильтруем записи по периоду и удаленным (исправленные названия полей)
+      const result = await this.staffRecordsService.getAllStaffRecordsForTimetable(queryParams);
+      
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      const allRecords = result.records;
+
+      // Фильтруем записи по удаленным (исправленные названия полей)
       const existingRecords = allRecords.filter((record: IStaffRecord) => {
-        const recordDate = new Date(record.Date);
-        const inPeriod = recordDate >= startOfMonth && recordDate <= endOfMonth;
-        const notDeleted = !record.Deleted; // Исправлено: Deleted вместо deleted
-        return inPeriod && notDeleted;
+        const notDeleted = record.Deleted !== 1; // Only non-deleted records
+        return notDeleted;
       });
 
-      console.log(`[CommonFillService] Found ${allRecords.length} total records, ${existingRecords.length} in period and not deleted`);
+      console.log(`[CommonFillService] Found ${allRecords.length} total records, ${existingRecords.length} active (not deleted)`);
 
       // Проверяем, есть ли обработанные записи (исправленные названия полей)
       const processedRecords = existingRecords.filter((record: IStaffRecord) => {
-        const isProcessed = (record.Checked && record.Checked > 0) || // Исправлено: Checked вместо checked
-                           (record.ExportResult && record.ExportResult.trim() !== '' && record.ExportResult !== '0'); // Исправлено: ExportResult вместо exportResult
+        const isProcessed = (record.Checked && record.Checked > 0) || 
+                           (record.ExportResult && record.ExportResult.trim() !== '' && record.ExportResult !== '0');
         if (isProcessed) {
           console.log(`[CommonFillService] Found processed record ID=${record.ID}: Checked=${record.Checked}, ExportResult="${record.ExportResult}"`);
         }
         return isProcessed;
       });
 
-      const result: IExistingRecordsCheck = {
+      const result_check: IExistingRecordsCheck = {
         hasExistingRecords: existingRecords.length > 0,
         recordsCount: existingRecords.length,
         hasProcessedRecords: processedRecords.length > 0,
@@ -133,13 +140,13 @@ export class CommonFillService {
       };
 
       console.log('[CommonFillService] Existing records check result:', {
-        hasExisting: result.hasExistingRecords,
-        totalActive: result.recordsCount,
-        hasProcessed: result.hasProcessedRecords,
-        processedCount: result.processedCount
+        hasExisting: result_check.hasExistingRecords,
+        totalActive: result_check.recordsCount,
+        hasProcessed: result_check.hasProcessedRecords,
+        processedCount: result_check.processedCount
       });
 
-      return result;
+      return result_check;
 
     } catch (error) {
       console.error('[CommonFillService] Error checking existing records:', error);
@@ -758,8 +765,17 @@ export class CommonFillService {
     };
 
     try {
-      // FIXED: Use string parameters instead of numbers for getStaffRecords
-      await this.staffRecordsService.getStaffRecords('1', '1', '1', 1, 60, false);
+      // FIXED: Use getAllStaffRecordsForTimetable instead of getStaffRecords
+      // with proper date parameters
+      const testDate = new Date();
+      const queryParams = {
+        startDate: new Date(testDate.getFullYear(), testDate.getMonth(), 1),
+        endDate: new Date(testDate.getFullYear(), testDate.getMonth() + 1, 0),
+        currentUserID: '1',
+        staffGroupID: '1',
+        employeeID: '1'
+      };
+      await this.staffRecordsService.getAllStaffRecordsForTimetable(queryParams);
       results.staffRecords = true;
     } catch (error) {
       results.errors.push(`StaffRecords: ${error}`);
@@ -782,7 +798,7 @@ export class CommonFillService {
     }
 
     try {
-      // Тестируем DaysOfLeavesService
+      // FIXED: Pass numbers instead of strings for employee IDs
       await this.daysOfLeavesService.getLeavesForMonthAndYear(new Date(), 1, 1, 1);
       results.leaves = true;
     } catch (error) {

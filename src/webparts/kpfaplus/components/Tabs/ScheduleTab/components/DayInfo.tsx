@@ -202,22 +202,7 @@ export const DayInfo: React.FC<IDayInfoProps> = ({
          No holidays found for {selectedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}.
        </div>
      )}
-
-     {/* Дополнительное сообщение, если вообще нет данных */}
-     {holidays.length === 0 && activeLeaves.length === 0 && (
-       <div style={{
-         backgroundColor: '#F8F9FA',
-         padding: '10px',
-         marginBottom: '10px',
-         borderRadius: '4px',
-         borderLeft: '4px solid #DADCE0',
-         fontSize: '12px',
-         color: '#666',
-         fontStyle: 'italic'
-       }}>
-         No holidays or active leave days data available.
-       </div>
-     )}
+     
    </div>
  );
 };
