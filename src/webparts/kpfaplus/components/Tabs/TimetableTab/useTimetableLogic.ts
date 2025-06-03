@@ -1,4 +1,4 @@
-// src/webparts/kpfaplus/components/Tabs/TimetableTab/utils/useTimetableLogic.ts
+// МИНИМАЛИСТИЧНАЯ ВЕРСИЯ useTimetableLogic.ts - БЕЗ ЦИКЛИЧЕСКИХ ПЕРЕЗАГРУЗОК
 
 import { useEffect, useMemo, useCallback, useState } from 'react';
 import * as ExcelJS from 'exceljs';
@@ -16,7 +16,6 @@ import { TimetableWeekCalculator } from './utils/TimetableWeekCalculator';
 import { TimetableShiftCalculatorLeaveTypes } from './utils/TimetableShiftCalculatorLeaveTypes';
 import { TimetableDataProcessor } from './utils/TimetableDataProcessor';
 import { useTimetableTabState } from './utils/useTimetableTabState';
-import { useTimetableStaffRecordsData } from './utils/useTimetableStaffRecordsData';
 import { 
   formatDayCellWithMarkers, 
   formatDateForExcel, 
@@ -70,6 +69,9 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
 
   const [typesOfLeave, setTypesOfLeave] = useState<ITypeOfLeave[]>([]);
   const [isLoadingTypesOfLeave, setIsLoadingTypesOfLeave] = useState<boolean>(false);
+  
+  // МИНИМАЛИСТИЧНОЕ РЕШЕНИЕ: Простой manual refresh флаг
+  const [lastDateKey, setLastDateKey] = useState<string>('');
 
   const staffRecordsService = useMemo(() => {
     if (context) {
@@ -91,12 +93,6 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
       try {
         setIsLoadingTypesOfLeave(true);
         const types = await typeOfLeaveService.getAllTypesOfLeave();
-        
-        const invalidTypes = types.filter(type => !type.title || !type.color);
-        if (invalidTypes.length > 0) {
-          console.warn(`[useTimetableLogic] ${invalidTypes.length} leave types missing title or color`);
-        }
-        
         setTypesOfLeave(types);
       } catch (error) {
         console.error('[useTimetableLogic] Error loading types of leave:', error);
@@ -105,7 +101,7 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
         setIsLoadingTypesOfLeave(false);
       }
     };
-    loadTypesOfLeave().catch(error => console.error('[useTimetableLogic] Failed to load types of leave:', error));
+    loadTypesOfLeave().catch((error: unknown) => console.error('[useTimetableLogic] Failed to load types of leave:', error));
   }, [typeOfLeaveService]);
 
   const getLeaveTypeColor = useCallback((typeOfLeaveId: string): string | undefined => {
@@ -134,29 +130,103 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
     return typesOfLeave.find(t => t.id === typeOfLeaveId);
   }, [typesOfLeave]);
 
+  // ПРОСТОЙ РАСЧЕТ НЕДЕЛЬ БЕЗ СЛОЖНЫХ ЗАВИСИМОСТЕЙ
   const weeks: IWeekInfo[] = useMemo(() => {
     const weekCalculationParams: IWeekCalculationParams = {
       selectedDate: state.selectedDate,
       startWeekDay: dayOfStartWeek || 7
     };
-    return TimetableWeekCalculator.calculateWeeksForMonth(weekCalculationParams);
+    
+    const calculatedWeeks = TimetableWeekCalculator.calculateWeeksForMonth(weekCalculationParams);
+    
+    console.log('[useTimetableLogic] *** WEEKS CALCULATED ***', {
+      selectedMonth: state.selectedDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }),
+      weeksCount: calculatedWeeks.length,
+      firstWeek: calculatedWeeks[0]?.weekLabel
+    });
+    
+    return calculatedWeeks;
   }, [state.selectedDate, dayOfStartWeek]);
 
+  // ПРОСТОЕ ОБНОВЛЕНИЕ WEEKS В STATE
   useEffect(() => {
-    if (weeks.length > 0 && weeks.length !== state.weeks.length) {
+    if (weeks.length > 0 && weeks !== state.weeks) {
+      console.log('[useTimetableLogic] *** SETTING WEEKS IN STATE ***', {
+        weeksCount: weeks.length,
+        firstWeek: weeks[0]?.weekLabel
+      });
       setWeeks(weeks);
     }
-  }, [weeks, state.weeks.length, setWeeks]);
+  }, [weeks, state.weeks, setWeeks]);
 
-  const { refreshTimetableData } = useTimetableStaffRecordsData({
-    context,
-    selectedDate: state.selectedDate,
-    currentUserId,
-    managingGroupId,
-    staffRecordsService,
-    weeks: state.weeks,
-    staffMembers,
-    setWeeksData: (weeksData) => {
+  // МИНИМАЛИСТИЧНАЯ ЗАГРУЗКА ДАННЫХ
+  const loadDataForCurrentPeriod = useCallback(async (): Promise<void> => {
+    if (!context || !staffRecordsService || !managingGroupId || !currentUserId || weeks.length === 0 || staffMembers.length === 0) {
+      console.log('[useTimetableLogic] *** MISSING REQUIREMENTS FOR LOADING ***');
+      setStaffRecords([]);
+      setWeeksData([]);
+      setIsLoadingStaffRecords(false);
+      return;
+    }
+
+    const currentDateKey = `${state.selectedDate.getTime()}-${managingGroupId}-${weeks.length}`;
+    
+    if (currentDateKey === lastDateKey) {
+      console.log('[useTimetableLogic] *** DATA ALREADY LOADED FOR THIS PERIOD ***');
+      return;
+    }
+
+    try {
+      setIsLoadingStaffRecords(true);
+      setErrorStaffRecords(undefined);
+      
+      console.log('[useTimetableLogic] *** LOADING DATA FOR PERIOD ***', {
+        selectedMonth: state.selectedDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }),
+        weeksCount: weeks.length,
+        dateKey: currentDateKey
+      });
+
+      const startDate = new Date(state.selectedDate.getFullYear(), state.selectedDate.getMonth(), 1);
+      const endDate = new Date(state.selectedDate.getFullYear(), state.selectedDate.getMonth() + 1, 0);
+
+      const activeStaffMembers = staffMembers.filter(staffMember => {
+        const isDeleted = staffMember.deleted === 1;
+        const hasEmployeeId = staffMember.employeeId && staffMember.employeeId !== '0';
+        return !isDeleted && hasEmployeeId;
+      });
+
+      const queryParams = {
+        startDate,
+        endDate,
+        currentUserID: currentUserId,
+        staffGroupID: managingGroupId,
+        employeeID: '',
+        timeTableID: undefined
+      };
+
+      const result = await staffRecordsService.getAllActiveStaffRecordsForTimetable(queryParams);
+      
+      if (result.error) {
+        throw new Error(`Failed to load data: ${result.error}`);
+      }
+
+      const allRecords = result.records;
+
+      const filteredRecords = allRecords.filter(record => {
+        const recordStaffMemberId = record.StaffMemberLookupId?.toString();
+        return recordStaffMemberId && activeStaffMembers.some(staff => staff.employeeId?.toString() === recordStaffMemberId);
+      });
+
+      setStaffRecords(filteredRecords);
+
+      const weeksData = TimetableDataProcessor.processDataByWeeks({
+        staffRecords: filteredRecords,
+        staffMembers: activeStaffMembers,
+        weeks: weeks,
+        getLeaveTypeColor,
+        holidayColor: TIMETABLE_COLORS.HOLIDAY
+      });
+
       const enhancedWeeksData = weeksData.map(weekGroup => ({
         ...weekGroup,
         staffRows: weekGroup.staffRows.map(staffRow => ({
@@ -171,13 +241,11 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
                 
                 let enhancedFormattedContent = dayInfo.formattedContent;
                 
-                if (dayInfo.hasLeave && !dayInfo.hasData && dayInfo.formattedContent) {
-                  if (dayInfo.formattedContent.startsWith('Type ')) {
-                    const leaveTypeId = dayInfo.formattedContent;
-                    const fullTitle = getLeaveTypeTitle(leaveTypeId);
-                    if (fullTitle) {
-                      enhancedFormattedContent = fullTitle;
-                    }
+                if (dayInfo.hasLeave && !dayInfo.hasData && dayInfo.formattedContent?.startsWith('Type ')) {
+                  const leaveTypeId = dayInfo.formattedContent;
+                  const fullTitle = getLeaveTypeTitle(leaveTypeId);
+                  if (fullTitle) {
+                    enhancedFormattedContent = fullTitle;
                   }
                 }
                 
@@ -206,21 +274,92 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
           }
         }))
       }));
-      
-      setWeeksData(enhancedWeeksData);
-    },
-    setStaffRecords,
-    setIsLoadingStaffRecords,
-    setErrorStaffRecords,
-    getLeaveTypeColor
-  });
 
-  const handleMonthChange = (date: Date | undefined): void => {
-    if (date) {
-      saveTimetableDate(date);
-      setState(prevState => ({ ...prevState, selectedDate: date }));
+      setWeeksData(enhancedWeeksData);
+      setLastDateKey(currentDateKey);
+
+      console.log('[useTimetableLogic] *** DATA LOADED SUCCESSFULLY ***', {
+        recordsCount: filteredRecords.length,
+        weeksDataCount: enhancedWeeksData.length,
+        dateKey: currentDateKey
+      });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('[useTimetableLogic] *** ERROR LOADING DATA ***', errorMessage);
+      setErrorStaffRecords(`Failed to load timetable data: ${errorMessage}`);
+      setStaffRecords([]);
+      setWeeksData([]);
+    } finally {
+      setIsLoadingStaffRecords(false);
     }
-  };
+  }, [
+    context,
+    staffRecordsService,
+    managingGroupId,
+    currentUserId,
+    state.selectedDate,
+    weeks,
+    staffMembers,
+    lastDateKey,
+    getLeaveTypeColor,
+    getLeaveTypeTitle,
+    setStaffRecords,
+    setWeeksData,
+    setIsLoadingStaffRecords,
+    setErrorStaffRecords
+  ]);
+
+  // ПРОСТОЙ TRIGGER ДЛЯ ЗАГРУЗКИ ДАННЫХ
+  useEffect(() => {
+    const currentDateKey = `${state.selectedDate.getTime()}-${managingGroupId}-${weeks.length}`;
+    
+    if (currentDateKey !== lastDateKey && weeks.length > 0 && staffMembers.length > 0) {
+      console.log('[useTimetableLogic] *** TRIGGERING DATA LOAD ***', {
+        selectedMonth: state.selectedDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }),
+        currentDateKey,
+        lastDateKey,
+        weeksCount: weeks.length
+      });
+      
+      const timeoutId = window.setTimeout(() => {
+        loadDataForCurrentPeriod().catch((error: unknown) => {
+          console.error('[useTimetableLogic] Error loading data:', error);
+        });
+      }, 500);
+
+      return () => {
+        window.clearTimeout(timeoutId);
+      };
+    }
+  }, [state.selectedDate, managingGroupId, weeks.length, staffMembers.length, lastDateKey, loadDataForCurrentPeriod]);
+
+  const refreshTimetableData = useCallback(async (): Promise<void> => {
+    console.log('[useTimetableLogic] *** MANUAL REFRESH TRIGGERED ***');
+    setLastDateKey(''); // Сбрасываем ключ для принудительной перезагрузки
+    await loadDataForCurrentPeriod();
+  }, [loadDataForCurrentPeriod]);
+
+  // УПРОЩЕННАЯ ФУНКЦИЯ ИЗМЕНЕНИЯ МЕСЯЦА
+  const handleMonthChange = useCallback((date: Date | undefined): void => {
+    if (date) {
+      console.log('[useTimetableLogic] *** MONTH CHANGE ***', {
+        newDate: date.toISOString(),
+        newMonth: date.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+      });
+      
+      saveTimetableDate(date);
+      
+      setState(prevState => ({ 
+        ...prevState, 
+        selectedDate: date,
+        expandedWeeks: new Set([1])
+      }));
+      
+      // Сбрасываем ключ для загрузки новых данных
+      setLastDateKey('');
+    }
+  }, [setState]);
 
   const handleExportToExcel = async (): Promise<void> => {
     try {

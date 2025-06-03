@@ -1,4 +1,4 @@
-// src/webparts/kpfaplus/components/Tabs/TimetableTab/utils/useTimetableStaffRecordsData.ts
+// ИСПРАВЛЕННЫЙ useTimetableStaffRecordsData.ts
 
 import { useEffect, useCallback, useRef } from 'react';
 import { WebPartContext } from '@microsoft/sp-webpart-base';
@@ -50,6 +50,7 @@ export const useTimetableStaffRecordsData = (
 
  const isLoadingRef = useRef(false);
  const lastRequestParamsRef = useRef<string>('');
+ const abortControllerRef = useRef<AbortController | null>(null);
 
  const loadWithTimetableStrategy = async (
    startDate: Date, 
@@ -78,24 +79,39 @@ export const useTimetableStaffRecordsData = (
 
  const loadTimetableData = useCallback(async (overrideDate?: Date): Promise<void> => {
    const dateToUse = overrideDate || selectedDate;
-   const requestKey = `${dateToUse.toISOString()}-${managingGroupId}-${currentUserId}-${staffMembers.length}-${weeks.length}-${!!getLeaveTypeColor}`;
    
-   if (isLoadingRef.current || lastRequestParamsRef.current === requestKey) {
+   // ИСПРАВЛЕНИЕ: Создаем более точный ключ запроса включая время
+   const requestKey = `${dateToUse.getTime()}-${managingGroupId}-${currentUserId}-${staffMembers.length}-${weeks.length}-${JSON.stringify(weeks.map(w => w.weekStart.getTime()))}-${!!getLeaveTypeColor}`;
+   
+   console.log('[useTimetableStaffRecordsData] *** LOAD TIMETABLE DATA CALLED ***', {
+     dateToUse: dateToUse.toISOString(),
+     selectedDate: selectedDate.toISOString(),
+     requestKey,
+     lastRequestKey: lastRequestParamsRef.current,
+     isLoading: isLoadingRef.current,
+     weeksCount: weeks.length,
+     staffMembersCount: staffMembers.length
+   });
+   
+   if (isLoadingRef.current && lastRequestParamsRef.current === requestKey) {
+     console.log('[useTimetableStaffRecordsData] *** SKIPPING - SAME REQUEST IN PROGRESS ***');
      return;
    }
    
-   let shouldProceed = false;
-   if (!isLoadingRef.current) {
-     isLoadingRef.current = true;
-     lastRequestParamsRef.current = requestKey;
-     shouldProceed = true;
+   // Отменяем предыдущий запрос если он есть
+   if (abortControllerRef.current) {
+     console.log('[useTimetableStaffRecordsData] *** ABORTING PREVIOUS REQUEST ***');
+     abortControllerRef.current.abort();
    }
    
-   if (!shouldProceed) {
-     return;
-   }
+   // Создаем новый AbortController
+   abortControllerRef.current = new AbortController();
+   
+   isLoadingRef.current = true;
+   lastRequestParamsRef.current = requestKey;
 
    if (!context || !staffRecordsService || !managingGroupId || !currentUserId) {
+     console.log('[useTimetableStaffRecordsData] *** MISSING REQUIRED SERVICES ***');
      setStaffRecords([]);
      setWeeksData([]);
      setIsLoadingStaffRecords(false);
@@ -105,6 +121,10 @@ export const useTimetableStaffRecordsData = (
    }
 
    if (weeks.length === 0 || staffMembers.length === 0) {
+     console.log('[useTimetableStaffRecordsData] *** NO WEEKS OR STAFF MEMBERS ***', {
+       weeksCount: weeks.length,
+       staffMembersCount: staffMembers.length
+     });
      setStaffRecords([]);
      setWeeksData([]);
      setIsLoadingStaffRecords(false);
@@ -116,8 +136,15 @@ export const useTimetableStaffRecordsData = (
      setIsLoadingStaffRecords(true);
      setErrorStaffRecords(undefined);
 
+     // ИСПРАВЛЕНИЕ: Используем точную дату для расчета диапазона
      const startDate = new Date(dateToUse.getFullYear(), dateToUse.getMonth(), 1);
      const endDate = new Date(dateToUse.getFullYear(), dateToUse.getMonth() + 1, 0);
+
+     console.log('[useTimetableStaffRecordsData] *** LOADING DATA FOR PERIOD ***', {
+       startDate: startDate.toISOString(),
+       endDate: endDate.toISOString(),
+       selectedMonth: dateToUse.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+     });
 
      const activeStaffMembers = staffMembers.filter(staffMember => {
        const isDeleted = staffMember.deleted === 1;
@@ -126,6 +153,7 @@ export const useTimetableStaffRecordsData = (
      });
 
      if (activeStaffMembers.length === 0) {
+       console.log('[useTimetableStaffRecordsData] *** NO ACTIVE STAFF MEMBERS ***');
        setStaffRecords([]);
        setWeeksData([]);
        setIsLoadingStaffRecords(false);
@@ -133,29 +161,52 @@ export const useTimetableStaffRecordsData = (
        return;
      }
 
+     console.log('[useTimetableStaffRecordsData] *** LOADING RECORDS ***', {
+       activeStaffCount: activeStaffMembers.length,
+       strategy: 'TIMETABLE_STRATEGY_v3.7'
+     });
+
      const allRecords = await loadWithTimetableStrategy(startDate, endDate, currentUserId, managingGroupId, staffRecordsService);
+
+     console.log('[useTimetableStaffRecordsData] *** RECORDS LOADED ***', {
+       recordsCount: allRecords.length,
+       dateRange: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
+     });
+
+     // Проверяем, не был ли запрос отменен
+     if (abortControllerRef.current?.signal.aborted) {
+       console.log('[useTimetableStaffRecordsData] *** REQUEST WAS ABORTED ***');
+       return;
+     }
 
      await processAndSetResults(
        allRecords, 
        activeStaffMembers, 
        weeks, 
        'UPDATED_TIMETABLE_STRATEGY_v3.7',
-       selectedDate,
+       dateToUse, // ИСПРАВЛЕНИЕ: Используем dateToUse вместо selectedDate
        setStaffRecords,
        setWeeksData,
        getLeaveTypeColor
      );
 
+     console.log('[useTimetableStaffRecordsData] *** DATA PROCESSING COMPLETED ***');
+
    } catch (error) {
+     if (error instanceof Error && error.name === 'AbortError') {
+       console.log('[useTimetableStaffRecordsData] *** REQUEST ABORTED ***');
+       return;
+     }
+     
      const errorMessage = error instanceof Error ? error.message : String(error);
+     console.error('[useTimetableStaffRecordsData] *** ERROR LOADING DATA ***', errorMessage);
      setErrorStaffRecords(`Failed to load timetable data: ${errorMessage}`);
      setStaffRecords([]);
      setWeeksData([]);
    } finally {
      setIsLoadingStaffRecords(false);
-     setTimeout(() => {
-       isLoadingRef.current = false;
-     }, 0);
+     isLoadingRef.current = false;
+     abortControllerRef.current = null;
    }
  }, [
    context,
@@ -173,9 +224,13 @@ export const useTimetableStaffRecordsData = (
  ]);
 
  const refreshTimetableData = useCallback(async (): Promise<void> => {
+   console.log('[useTimetableStaffRecordsData] *** REFRESH TRIGGERED ***');
+   // Сбрасываем кеш для принудительной перезагрузки
+   lastRequestParamsRef.current = '';
    await loadTimetableData();
  }, [loadTimetableData]);
 
+ // ИСПРАВЛЕННЫЙ useEffect с более точным отслеживанием изменений
  useEffect(() => {
    const hasAllRequiredDeps = context && 
      staffRecordsService && 
@@ -184,7 +239,18 @@ export const useTimetableStaffRecordsData = (
      weeks.length > 0 &&
      staffMembers.length > 0;
 
+   console.log('[useTimetableStaffRecordsData] *** EFFECT TRIGGERED ***', {
+     selectedDate: selectedDate.toISOString(),
+     selectedMonth: selectedDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }),
+     weeksCount: weeks.length,
+     staffMembersCount: staffMembers.length,
+     hasAllRequiredDeps,
+     firstWeekStart: weeks[0]?.weekStart.toISOString(),
+     firstWeekLabel: weeks[0]?.weekLabel
+   });
+
    if (!hasAllRequiredDeps) {
+     console.log('[useTimetableStaffRecordsData] *** CLEARING DATA - MISSING DEPENDENCIES ***');
      setStaffRecords([]);
      setWeeksData([]);
      setIsLoadingStaffRecords(false);
@@ -193,22 +259,34 @@ export const useTimetableStaffRecordsData = (
    }
 
    const timeoutId = setTimeout(() => {
+     console.log('[useTimetableStaffRecordsData] *** TIMEOUT TRIGGERED - LOADING DATA ***');
      loadTimetableData().catch(error => {
        console.error('[useTimetableStaffRecordsData] Error in useEffect:', error);
      });
    }, 300);
 
    return () => {
+     console.log('[useTimetableStaffRecordsData] *** CLEANING UP TIMEOUT ***');
      clearTimeout(timeoutId);
    };
  }, [
-   selectedDate.toISOString(),
+   selectedDate.getTime(), // КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Используем время в миллисекундах для точного сравнения
    weeks.length,
+   weeks[0]?.weekStart.getTime(), // Отслеживаем изменение первой недели
    staffMembers.length,
    managingGroupId,
    currentUserId,
-   getLeaveTypeColor,
+   loadTimetableData
  ]);
+
+ // Cleanup при размонтировании
+ useEffect(() => {
+   return () => {
+     if (abortControllerRef.current) {
+       abortControllerRef.current.abort();
+     }
+   };
+ }, []);
 
  return {
    loadTimetableData,
