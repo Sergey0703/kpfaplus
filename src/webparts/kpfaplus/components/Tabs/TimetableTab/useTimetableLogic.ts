@@ -1,4 +1,5 @@
-// МИНИМАЛИСТИЧНАЯ ВЕРСИЯ useTimetableLogic.ts - БЕЗ ЦИКЛИЧЕСКИХ ПЕРЕЗАГРУЗОК
+// src/webparts/kpfaplus/components/Tabs/TimetableTab/useTimetableLogic.ts
+// ФИНАЛЬНАЯ АВТОНОМНАЯ ВЕРСИЯ БЕЗ ВНЕШНИХ ХУКОВ
 
 import { useEffect, useMemo, useCallback, useState } from 'react';
 import * as ExcelJS from 'exceljs';
@@ -70,8 +71,9 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
   const [typesOfLeave, setTypesOfLeave] = useState<ITypeOfLeave[]>([]);
   const [isLoadingTypesOfLeave, setIsLoadingTypesOfLeave] = useState<boolean>(false);
   
-  // МИНИМАЛИСТИЧНОЕ РЕШЕНИЕ: Простой manual refresh флаг
-  const [lastDateKey, setLastDateKey] = useState<string>('');
+  // ПРОСТАЯ СИСТЕМА ПРЕДОТВРАЩЕНИЯ ПЕРЕЗАГРУЗОК
+  const [dataLoadKey, setDataLoadKey] = useState<string>('');
+  const [isManualLoading, setIsManualLoading] = useState<boolean>(false);
 
   const staffRecordsService = useMemo(() => {
     if (context) {
@@ -130,7 +132,7 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
     return typesOfLeave.find(t => t.id === typeOfLeaveId);
   }, [typesOfLeave]);
 
-  // ПРОСТОЙ РАСЧЕТ НЕДЕЛЬ БЕЗ СЛОЖНЫХ ЗАВИСИМОСТЕЙ
+  // СТАБИЛЬНЫЙ РАСЧЕТ НЕДЕЛЬ
   const weeks: IWeekInfo[] = useMemo(() => {
     const weekCalculationParams: IWeekCalculationParams = {
       selectedDate: state.selectedDate,
@@ -148,10 +150,10 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
     return calculatedWeeks;
   }, [state.selectedDate, dayOfStartWeek]);
 
-  // ПРОСТОЕ ОБНОВЛЕНИЕ WEEKS В STATE
+  // ОБНОВЛЕНИЕ WEEKS В STATE
   useEffect(() => {
     if (weeks.length > 0 && weeks !== state.weeks) {
-      console.log('[useTimetableLogic] *** SETTING WEEKS IN STATE ***', {
+      console.log('[useTimetableLogic] *** UPDATING WEEKS IN STATE ***', {
         weeksCount: weeks.length,
         firstWeek: weeks[0]?.weekLabel
       });
@@ -159,31 +161,43 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
     }
   }, [weeks, state.weeks, setWeeks]);
 
-  // МИНИМАЛИСТИЧНАЯ ЗАГРУЗКА ДАННЫХ
-  const loadDataForCurrentPeriod = useCallback(async (): Promise<void> => {
-    if (!context || !staffRecordsService || !managingGroupId || !currentUserId || weeks.length === 0 || staffMembers.length === 0) {
-      console.log('[useTimetableLogic] *** MISSING REQUIREMENTS FOR LOADING ***');
-      setStaffRecords([]);
-      setWeeksData([]);
-      setIsLoadingStaffRecords(false);
+  // ЕДИНСТВЕННАЯ ФУНКЦИЯ ЗАГРУЗКИ ДАННЫХ
+  const loadDataInternal = useCallback(async (forceReload = false): Promise<void> => {
+    // Создаем уникальный ключ для текущего состояния
+    const currentKey = `${state.selectedDate.getTime()}-${managingGroupId}-${weeks.length}-${staffMembers.length}`;
+    
+    // Проверяем, нужна ли загрузка
+    if (!forceReload && currentKey === dataLoadKey) {
+      console.log('[useTimetableLogic] *** DATA ALREADY LOADED FOR THIS STATE ***', { currentKey });
       return;
     }
 
-    const currentDateKey = `${state.selectedDate.getTime()}-${managingGroupId}-${weeks.length}`;
-    
-    if (currentDateKey === lastDateKey) {
-      console.log('[useTimetableLogic] *** DATA ALREADY LOADED FOR THIS PERIOD ***');
+    // Проверяем обязательные условия
+    if (!context || !staffRecordsService || !managingGroupId || !currentUserId || weeks.length === 0 || staffMembers.length === 0) {
+      console.log('[useTimetableLogic] *** CLEARING DATA - MISSING REQUIREMENTS ***');
+      setStaffRecords([]);
+      setWeeksData([]);
+      setIsLoadingStaffRecords(false);
+      setErrorStaffRecords(undefined);
+      return;
+    }
+
+    if (isManualLoading) {
+      console.log('[useTimetableLogic] *** SKIPPING - ALREADY LOADING ***');
       return;
     }
 
     try {
+      setIsManualLoading(true);
       setIsLoadingStaffRecords(true);
       setErrorStaffRecords(undefined);
       
-      console.log('[useTimetableLogic] *** LOADING DATA FOR PERIOD ***', {
+      console.log('[useTimetableLogic] *** LOADING DATA ***', {
         selectedMonth: state.selectedDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }),
         weeksCount: weeks.length,
-        dateKey: currentDateKey
+        staffMembersCount: staffMembers.length,
+        currentKey,
+        forceReload
       });
 
       const startDate = new Date(state.selectedDate.getFullYear(), state.selectedDate.getMonth(), 1);
@@ -194,6 +208,14 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
         const hasEmployeeId = staffMember.employeeId && staffMember.employeeId !== '0';
         return !isDeleted && hasEmployeeId;
       });
+
+      if (activeStaffMembers.length === 0) {
+        console.log('[useTimetableLogic] *** NO ACTIVE STAFF MEMBERS ***');
+        setStaffRecords([]);
+        setWeeksData([]);
+        setDataLoadKey(currentKey);
+        return;
+      }
 
       const queryParams = {
         startDate,
@@ -212,13 +234,16 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
 
       const allRecords = result.records;
 
+      // Фильтруем записи по активным сотрудникам
+      const activeEmployeeIds = new Set(activeStaffMembers.map(staff => staff.employeeId?.toString()).filter(id => id && id !== '0'));
       const filteredRecords = allRecords.filter(record => {
         const recordStaffMemberId = record.StaffMemberLookupId?.toString();
-        return recordStaffMemberId && activeStaffMembers.some(staff => staff.employeeId?.toString() === recordStaffMemberId);
+        return recordStaffMemberId && activeEmployeeIds.has(recordStaffMemberId);
       });
 
       setStaffRecords(filteredRecords);
 
+      // Обрабатываем данные
       const weeksData = TimetableDataProcessor.processDataByWeeks({
         staffRecords: filteredRecords,
         staffMembers: activeStaffMembers,
@@ -227,6 +252,7 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
         holidayColor: TIMETABLE_COLORS.HOLIDAY
       });
 
+      // Обогащаем данные названиями типов отпусков
       const enhancedWeeksData = weeksData.map(weekGroup => ({
         ...weekGroup,
         staffRows: weekGroup.staffRows.map(staffRow => ({
@@ -276,12 +302,12 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
       }));
 
       setWeeksData(enhancedWeeksData);
-      setLastDateKey(currentDateKey);
+      setDataLoadKey(currentKey);
 
       console.log('[useTimetableLogic] *** DATA LOADED SUCCESSFULLY ***', {
         recordsCount: filteredRecords.length,
         weeksDataCount: enhancedWeeksData.length,
-        dateKey: currentDateKey
+        currentKey
       });
 
     } catch (error) {
@@ -292,16 +318,18 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
       setWeeksData([]);
     } finally {
       setIsLoadingStaffRecords(false);
+      setIsManualLoading(false);
     }
   }, [
-    context,
-    staffRecordsService,
-    managingGroupId,
-    currentUserId,
     state.selectedDate,
+    managingGroupId,
     weeks,
     staffMembers,
-    lastDateKey,
+    dataLoadKey,
+    context,
+    staffRecordsService,
+    currentUserId,
+    isManualLoading,
     getLeaveTypeColor,
     getLeaveTypeTitle,
     setStaffRecords,
@@ -310,37 +338,35 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
     setErrorStaffRecords
   ]);
 
-  // ПРОСТОЙ TRIGGER ДЛЯ ЗАГРУЗКИ ДАННЫХ
+  // АВТОМАТИЧЕСКИЙ ТРИГГЕР ЗАГРУЗКИ
   useEffect(() => {
-    const currentDateKey = `${state.selectedDate.getTime()}-${managingGroupId}-${weeks.length}`;
+    const currentKey = `${state.selectedDate.getTime()}-${managingGroupId}-${weeks.length}-${staffMembers.length}`;
     
-    if (currentDateKey !== lastDateKey && weeks.length > 0 && staffMembers.length > 0) {
-      console.log('[useTimetableLogic] *** TRIGGERING DATA LOAD ***', {
-        selectedMonth: state.selectedDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }),
-        currentDateKey,
-        lastDateKey,
-        weeksCount: weeks.length
+    if (currentKey !== dataLoadKey && weeks.length > 0 && staffMembers.length > 0 && !isManualLoading) {
+      console.log('[useTimetableLogic] *** AUTO TRIGGER DATA LOAD ***', {
+        currentKey,
+        dataLoadKey,
+        selectedMonth: state.selectedDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
       });
       
       const timeoutId = window.setTimeout(() => {
-        loadDataForCurrentPeriod().catch((error: unknown) => {
-          console.error('[useTimetableLogic] Error loading data:', error);
+        loadDataInternal(false).catch((error: unknown) => {
+          console.error('[useTimetableLogic] Error in auto load:', error);
         });
-      }, 500);
+      }, 300);
 
       return () => {
         window.clearTimeout(timeoutId);
       };
     }
-  }, [state.selectedDate, managingGroupId, weeks.length, staffMembers.length, lastDateKey, loadDataForCurrentPeriod]);
+  }, [state.selectedDate, managingGroupId, weeks.length, staffMembers.length, dataLoadKey, isManualLoading, loadDataInternal]);
 
+  // ПУБЛИЧНЫЕ ФУНКЦИИ
   const refreshTimetableData = useCallback(async (): Promise<void> => {
-    console.log('[useTimetableLogic] *** MANUAL REFRESH TRIGGERED ***');
-    setLastDateKey(''); // Сбрасываем ключ для принудительной перезагрузки
-    await loadDataForCurrentPeriod();
-  }, [loadDataForCurrentPeriod]);
+    console.log('[useTimetableLogic] *** MANUAL REFRESH ***');
+    await loadDataInternal(true);
+  }, [loadDataInternal]);
 
-  // УПРОЩЕННАЯ ФУНКЦИЯ ИЗМЕНЕНИЯ МЕСЯЦА
   const handleMonthChange = useCallback((date: Date | undefined): void => {
     if (date) {
       console.log('[useTimetableLogic] *** MONTH CHANGE ***', {
@@ -356,8 +382,7 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
         expandedWeeks: new Set([1])
       }));
       
-      // Сбрасываем ключ для загрузки новых данных
-      setLastDateKey('');
+      // НЕ сбрасываем dataLoadKey здесь - пусть useEffect сработает автоматически
     }
   }, [setState]);
 
