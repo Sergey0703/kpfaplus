@@ -27,6 +27,7 @@ import { LeaveTimeByYearsTab } from './Tabs/LeaveTimeByYearsTab/LeaveTimeByYears
 import { SRSTab } from './Tabs/SRSTab/SRSTab';
 import { SRSReportsTab } from './Tabs/SRSReportsTab/SRSReportsTab';
 import { TimetableTab } from './Tabs/TimetableTab/TimetableTab';
+import { DashboardTab } from './Tabs/DashboardTab/DashboardTab';
 
 const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
  // Настроим логирование
@@ -547,6 +548,8 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
       return <TimetableTab {...tabProps} />;
      case 'notes':
        return <NotesTab {...tabProps} />;
+     case 'dashboard': // ADD THIS CASE
+           return <DashboardTab {...tabProps} />;  
      case 'leaveTimeByYears':
        return <LeaveTimeByYearsTab {...tabProps} />;
      case 'srs':
@@ -801,6 +804,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
                <PivotItem itemKey="contracts" headerText="Contracts" />
                <PivotItem itemKey="leaves" headerText="Leaves" />
                <PivotItem itemKey="schedule" headerText="Schedule" />
+               <PivotItem itemKey="dashboard" headerText="Dashboard" />
                <PivotItem itemKey="timetable" headerText="Timetable" />
                <PivotItem itemKey="srs" headerText="SRS" />
                <PivotItem itemKey="srsReports" headerText="SRS Reports" />
