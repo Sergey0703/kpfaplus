@@ -89,20 +89,16 @@ export class CommonFillService {
         };
       }
 
-      // FIXED: Use the correct method signature based on the service interface
-      // Instead of getStaffRecords, use getAllStaffRecordsForTimetable or getStaffRecordsWithOptions
       const employeeId = params.staffMember.employeeId;
       const managerId = params.currentUserId || '0';
       const groupId = params.managingGroupId || '0';
       
-      // Use the method that queries for a specific time period
       const queryParams = {
         startDate: startOfMonth,
         endDate: endOfMonth,
         currentUserID: managerId,
         staffGroupID: groupId,
         employeeID: employeeId,
-        // Don't specify timeTableID to get all records regardless of contract
       };
 
       const result = await this.staffRecordsService.getAllStaffRecordsForTimetable(queryParams);
@@ -113,15 +109,15 @@ export class CommonFillService {
 
       const allRecords = result.records;
 
-      // Фильтруем записи по удаленным (исправленные названия полей)
+      // Фильтруем записи по удаленным
       const existingRecords = allRecords.filter((record: IStaffRecord) => {
-        const notDeleted = record.Deleted !== 1; // Only non-deleted records
+        const notDeleted = record.Deleted !== 1;
         return notDeleted;
       });
 
       console.log(`[CommonFillService] Found ${allRecords.length} total records, ${existingRecords.length} active (not deleted)`);
 
-      // Проверяем, есть ли обработанные записи (исправленные названия полей)
+      // Проверяем, есть ли обработанные записи
       const processedRecords = existingRecords.filter((record: IStaffRecord) => {
         const isProcessed = (record.Checked && record.Checked > 0) || 
                            (record.ExportResult && record.ExportResult.trim() !== '' && record.ExportResult !== '0');
@@ -165,7 +161,6 @@ export class CommonFillService {
 
       for (const record of existingRecords) {
         try {
-          // Используем правильное название метода и поля ID
           const success = await this.staffRecordsService.markRecordAsDeleted(record.ID);
           if (success) {
             successCount++;
@@ -203,6 +198,17 @@ export class CommonFillService {
       replaceExisting
     });
 
+    // ДОБАВЛЯЕМ ДОПОЛНИТЕЛЬНУЮ ВАЛИДАЦИЮ ПАРАМЕТРОВ
+    if (!params.currentUserId || params.currentUserId === '0' || params.currentUserId.trim() === '') {
+      console.warn('[CommonFillService] WARNING: currentUserId is missing or invalid:', params.currentUserId);
+      console.warn('[CommonFillService] Manager lookup field will not be set correctly');
+    }
+    
+    if (!params.managingGroupId || params.managingGroupId === '0' || params.managingGroupId.trim() === '') {
+      console.warn('[CommonFillService] WARNING: managingGroupId is missing or invalid:', params.managingGroupId);
+      console.warn('[CommonFillService] StaffGroup lookup field will not be set correctly');
+    }
+
     try {
       // Валидация входных параметров
       if (!params.staffMember.employeeId) {
@@ -214,6 +220,7 @@ export class CommonFillService {
       }
 
       // 1. Проверяем существующие записи
+      let deletedRecordsCount = 0;
       if (!replaceExisting) {
         const existingCheck = await this.checkExistingRecords(params);
         
@@ -235,7 +242,6 @@ export class CommonFillService {
       }
 
       // 2. Если нужно заменить существующие записи
-      let deletedRecordsCount = 0;
       if (replaceExisting) {
         const existingCheck = await this.checkExistingRecords(params);
         
@@ -293,7 +299,7 @@ export class CommonFillService {
       const [holidays, leaves, weeklyTemplates] = await Promise.all([
         this.loadHolidays(params.selectedDate),
         this.loadLeaves(params),
-        this.loadWeeklyTemplates(selectedContract.id, params.dayOfStartWeek || 7) // Исправлено: передаем dayOfStartWeek
+        this.loadWeeklyTemplates(selectedContract.id, params.dayOfStartWeek || 7)
       ]);
 
       console.log(`[CommonFillService] Loaded data: ${holidays.length} holidays, ${leaves.length} leaves, ${weeklyTemplates.length} weekly templates`);
@@ -555,7 +561,6 @@ export class CommonFillService {
       const currentDate = new Date(d);
       
       // Получаем шаблоны для этого дня (упрощенная логика - используем первый шаблон)
-      // TODO: Реализовать полную логику выбора шаблонов по дням недели и номеру недели
       if (weeklyTemplates.length > 0) {
         // Берем первый шаблон (можно улучшить логику выбора)
         const template = weeklyTemplates[0];
@@ -633,9 +638,8 @@ export class CommonFillService {
       Holiday: isHoliday ? 1 : 0,
       WeeklyTimeTableID: contract.id,
       WeeklyTimeTableTitle: contract.template || '',
-      // Поля для связи с пользователем и группой будут установлены при сохранении
-      Checked: 0, // Исправлено: Checked вместо checked
-      Deleted: 0 // FIXED: Changed from boolean to number
+      Checked: 0,
+      Deleted: 0
     };
 
     // Добавляем тип отпуска если сотрудник в отпуске
@@ -671,17 +675,43 @@ export class CommonFillService {
       try {
         console.log(`[CommonFillService] Saving record ${i + 1}/${records.length} for ${record.Date?.toLocaleDateString()}`);
         
-        // FIXED: Correct parameters for createStaffRecord call
+        // ИСПРАВЛЕНИЕ: Правильная передача параметров для createStaffRecord
+        const employeeId = params.staffMember.employeeId;
+        const managerId = params.currentUserId;
+        const staffGroupId = params.managingGroupId;
+        
+        console.log(`[CommonFillService] Creating record with IDs:
+          employeeId: ${employeeId} (${typeof employeeId})
+          managerId: ${managerId} (${typeof managerId})  
+          staffGroupId: ${staffGroupId} (${typeof staffGroupId})`);
+        
+        // Проверяем, что employeeId не пустой
+        if (!employeeId || employeeId === '0' || employeeId.trim() === '') {
+          const errorMsg = `Missing or invalid employeeId for record ${i + 1}: "${employeeId}"`;
+          errors.push(errorMsg);
+          console.error(`[CommonFillService] ✗ ${errorMsg}`);
+          continue;
+        }
+        
+        // ИСПРАВЛЕНО: Корректный вызов createStaffRecord с правильными параметрами
         const newRecordId = await this.staffRecordsService.createStaffRecord(
-          record,
-          params.currentUserId || '',    // Manager ID
-          params.managingGroupId || '',  // Staff Group ID
-          params.staffMember.employeeId || '' // Employee ID
+          record,                    // createData: Partial<IStaffRecord>
+          managerId || '0',         // currentUserID (Manager) - строка или число
+          staffGroupId || '0',      // staffGroupID - строка или число  
+          employeeId                // staffMemberID (Employee) - строка или число
         );
 
         if (newRecordId) {
           successCount++;
           console.log(`[CommonFillService] ✓ Created record ID=${newRecordId} for ${record.Date?.toLocaleDateString()}`);
+          
+          // Дополнительное логирование для отладки
+          if (record.TypeOfLeaveID) {
+            console.log(`[CommonFillService] ✓ Record ${newRecordId} created with leave type: ${record.TypeOfLeaveID}`);
+          }
+          if (record.Holiday === 1) {
+            console.log(`[CommonFillService] ✓ Record ${newRecordId} created for holiday`);
+          }
         } else {
           const errorMsg = `Failed to create record for ${record.Date?.toLocaleDateString()}: No ID returned`;
           errors.push(errorMsg);
@@ -765,8 +795,6 @@ export class CommonFillService {
     };
 
     try {
-      // FIXED: Use getAllStaffRecordsForTimetable instead of getStaffRecords
-      // with proper date parameters
       const testDate = new Date();
       const queryParams = {
         startDate: new Date(testDate.getFullYear(), testDate.getMonth(), 1),
@@ -782,7 +810,6 @@ export class CommonFillService {
     }
 
     try {
-      // Тестируем ContractsService
       await this.contractsService.getContractsForStaffMember('1', '1', '1');
       results.contracts = true;
     } catch (error) {
@@ -790,7 +817,6 @@ export class CommonFillService {
     }
 
     try {
-      // Тестируем HolidaysService
       await this.holidaysService.getHolidaysByMonthAndYear(new Date());
       results.holidays = true;
     } catch (error) {
@@ -798,7 +824,6 @@ export class CommonFillService {
     }
 
     try {
-      // FIXED: Pass numbers instead of strings for employee IDs
       await this.daysOfLeavesService.getLeavesForMonthAndYear(new Date(), 1, 1, 1);
       results.leaves = true;
     } catch (error) {
@@ -806,7 +831,6 @@ export class CommonFillService {
     }
 
     try {
-      // Тестируем WeeklyTimeTableService
       await this.weeklyTimeTableService.getWeeklyTimeTableByContractId('1');
       results.weeklyTimeTable = true;
     } catch (error) {

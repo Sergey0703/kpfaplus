@@ -27,7 +27,7 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     dayOfStartWeek: props.dayOfStartWeek
   });
 
-  // Используем кастомный хук для всей логики
+  // ИСПРАВЛЕНО: Передаем все необходимые параметры в хук
   const {
     staffMembersData,
     selectedDate,
@@ -40,7 +40,11 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     handleAutoscheduleToggle,
     handleFillStaff,
     handleFillAll
-  } = useDashboardLogic(props.context);
+  } = useDashboardLogic({
+    context: props.context,
+    currentUserId: props.currentUserId,
+    managingGroupId: props.managingGroupId
+  });
 
   // FIXED: Обработчик закрытия диалога подтверждения - now correctly typed
   const handleDismissConfirmDialog = (): void => {

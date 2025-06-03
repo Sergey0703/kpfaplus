@@ -1,7 +1,7 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/hooks/useDashboardLogic.ts
 import { useState, useEffect, useMemo } from 'react';
 import { MessageBarType } from '@fluentui/react';
-import { WebPartContext } from "@microsoft/sp-webpart-base"; // ADD THIS IMPORT
+import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { useDataContext } from '../../../../context';
 import { IStaffMember } from '../../../../models/types';
 import { IStaffMemberWithAutoschedule } from '../components/DashboardTable';
@@ -22,6 +22,13 @@ interface IConfirmDialogState {
   cancelButtonText: string;
   confirmButtonColor: string;
   onConfirm: () => void;
+}
+
+// ДОБАВЛЕН: Интерфейс для параметров хука
+interface IUseDashboardLogicParams {
+  context?: WebPartContext;
+  currentUserId?: string;
+  managingGroupId?: string;
 }
 
 // Форматирование даты в формате dd.mm.yyyy
@@ -72,15 +79,22 @@ interface IUseDashboardLogicReturn {
   infoMessage: IInfoMessage | undefined;
   confirmDialog: IConfirmDialogState;
   setInfoMessage: (message: IInfoMessage | undefined) => void;
-  setConfirmDialog: (dialog: IConfirmDialogState | ((prev: IConfirmDialogState) => IConfirmDialogState)) => void; // FIX THIS TYPE
+  setConfirmDialog: (dialog: IConfirmDialogState | ((prev: IConfirmDialogState) => IConfirmDialogState)) => void;
   handleDateChange: (date: Date | undefined) => void;
   handleAutoscheduleToggle: (staffId: string, checked: boolean) => Promise<void>;
   handleFillStaff: (staffId: string, staffName: string) => Promise<void>;
   handleFillAll: () => Promise<void>;
 }
 
-export const useDashboardLogic = (context?: WebPartContext): IUseDashboardLogicReturn => {
-  console.log('[useDashboardLogic] Hook initialized');
+// ИСПРАВЛЕНА: Сигнатура хука для принятия параметров
+export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboardLogicReturn => {
+  const { context, currentUserId, managingGroupId } = params;
+  
+  console.log('[useDashboardLogic] Hook initialized with params:', {
+    hasContext: !!context,
+    currentUserId,
+    managingGroupId
+  });
 
   // Получаем данные из контекста
   const {
@@ -187,7 +201,7 @@ export const useDashboardLogic = (context?: WebPartContext): IUseDashboardLogicR
     }
   };
 
-  // Вспомогательная функция для создания параметров заполнения
+  // ИСПРАВЛЕНА: Вспомогательная функция для создания параметров заполнения
   const createFillParams = (staffMember: IStaffMemberWithAutoschedule): IFillParams | undefined => {
     if (!context) {
       console.error('[useDashboardLogic] Context not available for fill operation');
@@ -201,11 +215,18 @@ export const useDashboardLogic = (context?: WebPartContext): IUseDashboardLogicR
       return undefined;
     }
 
+    // ИСПРАВЛЕНО: используем реальные значения параметров
+    console.log('[useDashboardLogic] Creating fill params with:', {
+      currentUserId,
+      managingGroupId,
+      staffMemberName: fullStaffMember.name
+    });
+
     return {
       selectedDate,
       staffMember: fullStaffMember,
-      currentUserId: undefined, // Will be set by calling function
-      managingGroupId: undefined, // Will be set by calling function  
+      currentUserId: currentUserId, // ← ИСПРАВЛЕНО: передаем реальное значение
+      managingGroupId: managingGroupId, // ← ИСПРАВЛЕНО: передаем реальное значение
       dayOfStartWeek: 7, // Суббота по умолчанию
       context
     };
