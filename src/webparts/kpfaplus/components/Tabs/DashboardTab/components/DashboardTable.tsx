@@ -144,10 +144,15 @@ const LogStatusIndicator: React.FC<{
   const statusColor = getStatusColor(log.Result);
   const statusText = getStatusText(log.Result);
   const logDate = log.Created.toLocaleDateString();
-  const logTime = log.Created.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   
   // *** НОВАЯ ИНФОРМАЦИЯ: Дата периода лога ***
   const logPeriodDate = log.Date ? new Date(log.Date).toLocaleDateString() : 'N/A';
+
+  // *** ОБНОВЛЕННЫЙ TOOLTIP БЕЗ ВРЕМЕНИ СОЗДАНИЯ ***
+  const tooltipContent = `Operation: ${statusText}
+Period: ${logPeriodDate}${!isLogForSelectedPeriod ? ' (Different period!)' : ''}
+Created: ${logDate}
+Click to view details`;
 
   // *** СТИЛЬ ДЛЯ ИНДИКАЦИИ НЕСООТВЕТСТВИЯ ПЕРИОДУ ***
   const containerStyle: React.CSSProperties = {
@@ -159,11 +164,6 @@ const LogStatusIndicator: React.FC<{
     opacity: isLogForSelectedPeriod ? 1 : 0.6,
     border: isLogForSelectedPeriod ? 'none' : '1px dashed #ffaa44'
   };
-
-  // *** ОБНОВЛЕННЫЙ TOOLTIP С ИНФОРМАЦИЕЙ О ПЕРИОДЕ ***
-  const tooltipContent = `Last operation: ${statusText} at ${logDate} ${logTime}
-Period: ${logPeriodDate}${!isLogForSelectedPeriod ? ' (Different period!)' : ''}
-Click to view details`;
 
   return (
     <TooltipHost content={tooltipContent}>
@@ -190,11 +190,8 @@ Click to view details`;
               <span style={{ color: '#ffaa44', marginLeft: '4px' }}>⚠</span>
             )}
           </span>
+          {/* *** ПОКАЗЫВАЕМ ТОЛЬКО ДАТУ ПЕРИОДА, БЕЗ ВРЕМЕНИ СОЗДАНИЯ *** */}
           <span style={{ fontSize: '10px', color: '#666' }}>
-            {logDate} {logTime}
-          </span>
-          {/* *** ДОПОЛНИТЕЛЬНАЯ СТРОКА С ИНФОРМАЦИЕЙ О ПЕРИОДЕ *** */}
-          <span style={{ fontSize: '9px', color: isLogForSelectedPeriod ? '#666' : '#ffaa44' }}>
             Period: {logPeriodDate}
           </span>
         </div>

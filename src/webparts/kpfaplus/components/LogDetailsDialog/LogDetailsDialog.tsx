@@ -209,9 +209,9 @@ export const LogDetailsDialog: React.FC<ILogDetailsDialogProps> = (props) => {
     logsService,
     onDismiss,
     title = 'Operation Log Details',
-    subtitle,
-    width = '700px',
-    height = '500px'
+    subtitle
+ //   width = '700px',
+   // height = '500px'
   } = props;
 
   const [state, setState] = useState<ILogDetailsState>({
@@ -377,7 +377,7 @@ export const LogDetailsDialog: React.FC<ILogDetailsDialogProps> = (props) => {
       <div style={{ padding: '20px' }}>
         <ScrollablePane 
           scrollbarVisibility={ScrollbarVisibility.auto}
-          style={{ height: height }}
+          style={{ height: '400px', maxHeight: '60vh' }}  // *** ФИКСИРОВАННАЯ ВЫСОТА ***
         >
           <Stack tokens={{ childrenGap: 16 }}>
             {/* Заголовок и основная информация */}
@@ -401,6 +401,14 @@ export const LogDetailsDialog: React.FC<ILogDetailsDialogProps> = (props) => {
               valueType="status"
             />
 
+            {/* *** ДАТА ПЕРИОДА В НАЧАЛЕ *** */}
+            <LogField
+              label="Period Date"
+              value={log.Date}
+              valueType="date"
+              icon="Calendar"
+            />
+
             {/* Основные поля */}
             <LogField
               label="Title"
@@ -412,7 +420,7 @@ export const LogDetailsDialog: React.FC<ILogDetailsDialogProps> = (props) => {
               label="Created Date"
               value={log.Created}
               valueType="date"
-              icon="Calendar"
+              icon="DateTime"
             />
 
             <LogField
@@ -484,10 +492,10 @@ export const LogDetailsDialog: React.FC<ILogDetailsDialogProps> = (props) => {
         isBlocking: false,
         styles: { 
           main: { 
-            minWidth: width,
+            minWidth: '800px',  // *** УВЕЛИЧИЛИ ШИРИНУ ***
             maxWidth: '90vw',
-            minHeight: '400px',
-            maxHeight: '90vh'
+            minHeight: '500px',
+            maxHeight: '85vh'   // *** НЕМНОГО УМЕНЬШИЛИ ВЫСОТУ ***
           } 
         }
       }}
@@ -495,21 +503,29 @@ export const LogDetailsDialog: React.FC<ILogDetailsDialogProps> = (props) => {
       {renderDialogContent()}
       
       <DialogFooter>
-        {state.log && !state.isLoading && !state.error && (
-          <TooltipHost content="Reload log data">
-            <DefaultButton
-              text="Refresh"
-              iconProps={{ iconName: 'Refresh' }}
-              onClick={handleRetry}
+        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+          <div>
+            {/* Кнопка обновления слева */}
+            {state.log && !state.isLoading && !state.error && (
+              <TooltipHost content="Reload log data">
+                <DefaultButton
+                  text="Refresh"
+                  iconProps={{ iconName: 'Refresh' }}
+                  onClick={handleRetry}
+                  disabled={state.isLoading}
+                />
+              </TooltipHost>
+            )}
+          </div>
+          <div>
+            {/* Кнопка закрытия справа */}
+            <PrimaryButton
+              text="Close"
+              onClick={handleDismiss}
               disabled={state.isLoading}
             />
-          </TooltipHost>
-        )}
-        <PrimaryButton
-          text="Close"
-          onClick={handleDismiss}
-          disabled={state.isLoading}
-        />
+          </div>
+        </div>
       </DialogFooter>
     </Dialog>
   );
