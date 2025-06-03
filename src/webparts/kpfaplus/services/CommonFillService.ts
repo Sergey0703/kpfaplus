@@ -89,29 +89,29 @@ export class CommonFillService {
         };
       }
 
-      // Используем существующий метод из StaffRecordsService
-      const allRecords = await this.staffRecordsService.getAllStaffRecords(
+      // Используем существующий метод из StaffRecordsService (исправленное название)
+      const allRecords = await this.staffRecordsService.getStaffRecords(
         parseInt(params.staffMember.employeeId, 10),
         parseInt(params.currentUserId || '0', 10),
         parseInt(params.managingGroupId || '0', 10)
       );
 
-      // Фильтруем записи по периоду и удаленным
+      // Фильтруем записи по периоду и удаленным (исправленные названия полей)
       const existingRecords = allRecords.filter((record: IStaffRecord) => {
         const recordDate = new Date(record.Date);
         const inPeriod = recordDate >= startOfMonth && recordDate <= endOfMonth;
-        const notDeleted = !record.deleted;
+        const notDeleted = !record.Deleted; // Исправлено: Deleted вместо deleted
         return inPeriod && notDeleted;
       });
 
       console.log(`[CommonFillService] Found ${allRecords.length} total records, ${existingRecords.length} in period and not deleted`);
 
-      // Проверяем, есть ли обработанные записи (checked > 0 или exportResult не пустое)
+      // Проверяем, есть ли обработанные записи (исправленные названия полей)
       const processedRecords = existingRecords.filter((record: IStaffRecord) => {
-        const isProcessed = (record.checked && record.checked > 0) || 
-                           (record.exportResult && record.exportResult.trim() !== '' && record.exportResult !== '0');
+        const isProcessed = (record.Checked && record.Checked > 0) || // Исправлено: Checked вместо checked
+                           (record.ExportResult && record.ExportResult.trim() !== '' && record.ExportResult !== '0'); // Исправлено: ExportResult вместо exportResult
         if (isProcessed) {
-          console.log(`[CommonFillService] Found processed record ID=${record.ID}: checked=${record.checked}, exportResult="${record.exportResult}"`);
+          console.log(`[CommonFillService] Found processed record ID=${record.ID}: Checked=${record.Checked}, ExportResult="${record.ExportResult}"`);
         }
         return isProcessed;
       });
@@ -278,7 +278,7 @@ export class CommonFillService {
       const [holidays, leaves, weeklyTemplates] = await Promise.all([
         this.loadHolidays(params.selectedDate),
         this.loadLeaves(params),
-        this.loadWeeklyTemplates(selectedContract.id)
+        this.loadWeeklyTemplates(selectedContract.id, params.dayOfStartWeek || 7) // Исправлено: передаем dayOfStartWeek
       ]);
 
       console.log(`[CommonFillService] Loaded data: ${holidays.length} holidays, ${leaves.length} leaves, ${weeklyTemplates.length} weekly templates`);
@@ -445,7 +445,7 @@ export class CommonFillService {
   /**
    * Загружает шаблоны недельного расписания
    */
-  private async loadWeeklyTemplates(contractId: string): Promise<any[]> {
+  private async loadWeeklyTemplates(contractId: string, dayOfStartWeek: number): Promise<any[]> {
     try {
       console.log(`[CommonFillService] Loading weekly templates for contract ${contractId}`);
       const weeklyTimeItems = await this.weeklyTimeTableService.getWeeklyTimeTableByContractId(contractId);
@@ -471,7 +471,7 @@ export class CommonFillService {
       }
 
       // Форматируем шаблоны
-      const formattedTemplates = WeeklyTimeTableUtils.formatWeeklyTimeTableData(activeItems, params.dayOfStartWeek || 7);
+      const formattedTemplates = WeeklyTimeTableUtils.formatWeeklyTimeTableData(activeItems, dayOfStartWeek);
       
       if (!formattedTemplates) {
         console.log('[CommonFillService] Failed to format weekly templates');
@@ -596,7 +596,6 @@ export class CommonFillService {
     
     // Проверяем, является ли день праздником
     const isHoliday = holidayCache.has(dateKey);
-    const holidayInfo = isHoliday ? holidayCache.get(dateKey) : undefined;
     
     // Проверяем, находится ли сотрудник в отпуске в этот день
     const leaveForDay = leavePeriods.find(leave => 
@@ -620,8 +619,8 @@ export class CommonFillService {
       WeeklyTimeTableID: contract.id,
       WeeklyTimeTableTitle: contract.template || '',
       // Поля для связи с пользователем и группой будут установлены при сохранении
-      checked: 0,
-      deleted: false
+      Checked: 0, // Исправлено: Checked вместо checked
+      Deleted: false // Исправлено: Deleted вместо deleted
     };
 
     // Добавляем тип отпуска если сотрудник в отпуске
@@ -695,113 +694,6 @@ export class CommonFillService {
   }
 
   /**
-   * Вспомогательный метод для создания времени с конкретными часами и минутами
-   */
-  private createDateWithTime(baseDate: Date, hours: number, minutes: number): Date {
-    const result = new Date(baseDate);
-    result.setHours(hours, minutes, 0, 0);
-    return result;
-  }
-
-  /**
-   * Получает текстовое описание дня недели
-   */
-  private getDayName(date: Date): string {
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    return days[date.getDay()];
-  }
-
-  /**
-   * Определяет номер недели в месяце
-   */
-  private getWeekNumberInMonth(date: Date): number {
-    const firstDayOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
-    const dayOfMonth = date.getDate();
-    return Math.ceil((dayOfMonth + firstDayOfMonth.getDay()) / 7);
-  }
-
-  /**
-   * Проверяет, является ли дата рабочим днем (понедельник-пятница)
-   */
-  private isWorkingDay(date: Date): boolean {
-    const dayOfWeek = date.getDay();
-    return dayOfWeek >= 1 && dayOfWeek <= 5; // 1=Monday, 5=Friday
-  }
-
-  /**
-   * Форматирует время в читаемый вид для логирования
-   */
-  private formatTimeForLogging(hours: number, minutes: number): string {
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-  }
-
-  /**
-   * Проверяет валидность параметров заполнения
-   */
-  private validateFillParams(params: IFillParams): string[] {
-    const errors: string[] = [];
-
-    if (!params.selectedDate) {
-      errors.push('Selected date is required');
-    }
-
-    if (!params.staffMember) {
-      errors.push('Staff member is required');
-    } else {
-      if (!params.staffMember.employeeId) {
-        errors.push('Staff member must have an employee ID');
-      }
-      if (!params.staffMember.name) {
-        errors.push('Staff member must have a name');
-      }
-    }
-
-    if (!params.context) {
-      errors.push('WebPart context is required');
-    }
-
-    return errors;
-  }
-
-  /**
-   * Получает статистику по генерации записей
-   */
-  private getGenerationStatistics(
-    records: Partial<IStaffRecord>[],
-    holidays: IHoliday[],
-    leaves: ILeaveDay[]
-  ): {
-    totalRecords: number;
-    holidayRecords: number;
-    leaveRecords: number;
-    regularRecords: number;
-  } {
-    let holidayRecords = 0;
-    let leaveRecords = 0;
-
-    records.forEach(record => {
-      if (record.Holiday === 1) {
-        holidayRecords++;
-      }
-      if (record.TypeOfLeaveID) {
-        leaveRecords++;
-      }
-    });
-
-    const regularRecords = records.length - holidayRecords - leaveRecords;
-
-    const stats = {
-      totalRecords: records.length,
-      holidayRecords,
-      leaveRecords,
-      regularRecords
-    };
-
-    console.log('[CommonFillService] Generation statistics:', stats);
-    return stats;
-  }
-
-  /**
    * Очищает кэш сервиса (может понадобиться для тестирования)
    */
   public static clearInstance(): void {
@@ -857,8 +749,8 @@ export class CommonFillService {
     };
 
     try {
-      // Тестируем StaffRecordsService
-      await this.staffRecordsService.getAllStaffRecords(1, 1, 1);
+      // Тестируем StaffRecordsService (исправленное название метода)
+      await this.staffRecordsService.getStaffRecords(1, 1, 1);
       results.staffRecords = true;
     } catch (error) {
       results.errors.push(`StaffRecords: ${error}`);
