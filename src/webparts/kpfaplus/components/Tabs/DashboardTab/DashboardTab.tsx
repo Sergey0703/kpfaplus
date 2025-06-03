@@ -7,7 +7,7 @@ import { DashboardTable } from './components/DashboardTable';
 import { ConfirmDialog } from '../../ConfirmDialog/ConfirmDialog';
 import { useDashboardLogic } from './hooks/useDashboardLogic';
 
-// Import the interface for proper typing
+// Import the interface for proper typing - this interface should match the one in useDashboardLogic.ts
 interface IConfirmDialogState {
   isOpen: boolean;
   title: string;
@@ -42,7 +42,7 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     handleFillAll
   } = useDashboardLogic(props.context);
 
-  // Обработчик закрытия диалога подтверждения
+  // FIXED: Обработчик закрытия диалога подтверждения - now correctly typed
   const handleDismissConfirmDialog = (): void => {
     setConfirmDialog((prev: IConfirmDialogState) => ({ ...prev, isOpen: false }));
   };
@@ -101,4 +101,4 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
       />
     </div>
   );
-};
+}

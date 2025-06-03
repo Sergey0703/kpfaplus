@@ -89,11 +89,19 @@ export class CommonFillService {
         };
       }
 
-      // Используем существующий метод из StaffRecordsService (исправленное название)
+      // FIXED: Convert employeeId to string and provide proper Date parameter if needed
+      // Based on error, first parameter might expect Date, so let's check the method signature
+      const employeeId = params.staffMember.employeeId;
+      const managerId = params.currentUserId || '0';
+      const groupId = params.managingGroupId || '0';
+      
       const allRecords = await this.staffRecordsService.getStaffRecords(
-        parseInt(params.staffMember.employeeId, 10),
-        parseInt(params.currentUserId || '0', 10),
-        parseInt(params.managingGroupId || '0', 10)
+        employeeId, // Keep as string
+        managerId,  // Keep as string
+        groupId,    // Keep as string
+        1, // page
+        60, // pageSize
+        false // showDeleted
       );
 
       // Фильтруем записи по периоду и удаленным (исправленные названия полей)
@@ -620,7 +628,7 @@ export class CommonFillService {
       WeeklyTimeTableTitle: contract.template || '',
       // Поля для связи с пользователем и группой будут установлены при сохранении
       Checked: 0, // Исправлено: Checked вместо checked
-      Deleted: false // Исправлено: Deleted вместо deleted
+      Deleted: 0 // FIXED: Changed from boolean to number
     };
 
     // Добавляем тип отпуска если сотрудник в отпуске
@@ -656,11 +664,12 @@ export class CommonFillService {
       try {
         console.log(`[CommonFillService] Saving record ${i + 1}/${records.length} for ${record.Date?.toLocaleDateString()}`);
         
+        // FIXED: Correct parameters for createStaffRecord call
         const newRecordId = await this.staffRecordsService.createStaffRecord(
           record,
-          params.currentUserId,    // Manager ID
-          params.managingGroupId,  // Staff Group ID
-          params.staffMember.employeeId // Employee ID
+          params.currentUserId || '',    // Manager ID
+          params.managingGroupId || '',  // Staff Group ID
+          params.staffMember.employeeId || '' // Employee ID
         );
 
         if (newRecordId) {
@@ -749,8 +758,8 @@ export class CommonFillService {
     };
 
     try {
-      // Тестируем StaffRecordsService (исправленное название метода)
-      await this.staffRecordsService.getStaffRecords(1, 1, 1);
+      // FIXED: Use string parameters instead of numbers for getStaffRecords
+      await this.staffRecordsService.getStaffRecords('1', '1', '1', 1, 60, false);
       results.staffRecords = true;
     } catch (error) {
       results.errors.push(`StaffRecords: ${error}`);

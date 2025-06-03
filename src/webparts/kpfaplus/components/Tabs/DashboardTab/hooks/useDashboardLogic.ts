@@ -1,6 +1,7 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/hooks/useDashboardLogic.ts
 import { useState, useEffect, useMemo } from 'react';
 import { MessageBarType } from '@fluentui/react';
+import { WebPartContext } from "@microsoft/sp-webpart-base"; // ADD THIS IMPORT
 import { useDataContext } from '../../../../context';
 import { IStaffMember } from '../../../../models/types';
 import { IStaffMemberWithAutoschedule } from '../components/DashboardTable';
@@ -71,7 +72,7 @@ interface IUseDashboardLogicReturn {
   infoMessage: IInfoMessage | undefined;
   confirmDialog: IConfirmDialogState;
   setInfoMessage: (message: IInfoMessage | undefined) => void;
-  setConfirmDialog: (dialog: IConfirmDialogState) => void;
+  setConfirmDialog: (dialog: IConfirmDialogState | ((prev: IConfirmDialogState) => IConfirmDialogState)) => void; // FIX THIS TYPE
   handleDateChange: (date: Date | undefined) => void;
   handleAutoscheduleToggle: (staffId: string, checked: boolean) => Promise<void>;
   handleFillStaff: (staffId: string, staffName: string) => Promise<void>;
