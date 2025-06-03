@@ -32,12 +32,13 @@ interface IUseDashboardLogicParams {
   managingGroupId?: string;
 }
 
-// Интерфейс для кэша логов
+// *** ОБНОВЛЕННЫЙ ИНТЕРФЕЙС ДЛЯ КЭША ЛОГОВ С ПОДДЕРЖКОЙ Date ***
 interface ILogCache {
   [staffId: string]: {
     lastFetch: number;
     data: any;
     error?: string;
+    periodDate?: Date; // *** НОВОЕ ПОЛЕ: Дата периода для которого кэширован лог ***
   };
 }
 
@@ -78,7 +79,16 @@ const getSavedSelectedDate = (): Date => {
   return getFirstDayOfCurrentMonth();
 };
 
-// Возвращаемый интерфейс хука - УБРАЛИ ДУБЛИРОВАНИЕ
+// *** НОВАЯ УТИЛИТА: Проверка соответствия дат периодов ***
+const isSamePeriod = (date1?: Date, date2?: Date): boolean => {
+  if (!date1 || !date2) return false;
+  
+  // Сравниваем год и месяц
+  return date1.getFullYear() === date2.getFullYear() && 
+         date1.getMonth() === date2.getMonth();
+};
+
+// Возвращаемый интерфейс хука
 interface IUseDashboardLogicReturn {
   staffMembersData: IStaffMemberWithAutoschedule[];
   selectedDate: Date;
@@ -103,7 +113,7 @@ interface IUseDashboardLogicReturn {
 export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboardLogicReturn => {
   const { context, currentUserId, managingGroupId } = params;
   
-  console.log('[useDashboardLogic] Hook initialized with optimizations enabled');
+  console.log('[useDashboardLogic] Hook initialized with Date field support');
 
   // Данные из контекста
   const { staffMembers, updateStaffMember } = useDataContext();
@@ -122,7 +132,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     onConfirm: () => {}
   });
 
-  // Реф для кэширования и оптимизации
+  // *** ОБНОВЛЕННЫЙ РЕФ ДЛЯ КЭШИРОВАНИЯ С ПОДДЕРЖКОЙ Date ***
   const logCacheRef = useRef<ILogCache>({});
   const abortControllerRef = useRef<AbortController | null>(null);
   const debounceTimerRef = useRef<number | null>(null);
@@ -138,7 +148,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
 
   const logsService = useMemo(() => {
     if (context) {
-      console.log('[useDashboardLogic] Initializing ScheduleLogsService...');
+      console.log('[useDashboardLogic] Initializing ScheduleLogsService with Date support...');
       return ScheduleLogsService.getInstance(context);
     }
     return undefined;
@@ -146,7 +156,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
 
   // Подготовка данных сотрудников с оптимизацией
   const staffMembersData = useMemo((): IStaffMemberWithAutoschedule[] => {
-    console.log('[useDashboardLogic] Processing staff members with optimization:', staffMembers.length);
+    console.log('[useDashboardLogic] Processing staff members with Date optimization:', staffMembers.length);
     
     const activeStaff = staffMembers
       .filter((staff: IStaffMember) => staff.deleted !== 1)
@@ -185,9 +195,9 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     };
   }, []);
 
-  // Функции для работы с кэшем логов
+  // *** ОБНОВЛЕННЫЕ ФУНКЦИИ ДЛЯ РАБОТЫ С КЭШЕМ ЛОГОВ С УЧЕТОМ Date ***
   const clearLogCache = useCallback((): void => {
-    console.log('[useDashboardLogic] Clearing log cache');
+    console.log('[useDashboardLogic] Clearing log cache with Date support');
     logCacheRef.current = {};
   }, []);
 
@@ -207,18 +217,30 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     return { cached, expired };
   }, []);
 
-  const isLogCacheValid = useCallback((staffId: string): boolean => {
+  // *** ОБНОВЛЕННАЯ ФУНКЦИЯ: Проверка валидности кэша с учетом даты периода ***
+  const isLogCacheValid = useCallback((staffId: string, periodDate: Date): boolean => {
     const entry = logCacheRef.current[staffId];
     if (!entry) return false;
     
     const now = Date.now();
-    return (now - entry.lastFetch) < CACHE_TIMEOUT;
+    const isNotExpired = (now - entry.lastFetch) < CACHE_TIMEOUT;
+    
+    // *** ПРОВЕРЯЕМ ТАКЖЕ СООТВЕТСТВИЕ ПЕРИОДА ***
+    const isSamePeriodCache = isSamePeriod(entry.periodDate, periodDate);
+    
+    const isValid = isNotExpired && isSamePeriodCache;
+    
+    if (!isValid) {
+      console.log(`[useDashboardLogic] Cache invalid for ${staffId}: expired=${!isNotExpired}, periodMismatch=${!isSamePeriodCache}`);
+    }
+    
+    return isValid;
   }, []);
 
-  // Простой debounced обработчик изменения даты
+  // *** ОБНОВЛЕННЫЙ ОБРАБОТЧИК ИЗМЕНЕНИЯ ДАТЫ С ОЧИСТКОЙ КЭША ***
   const handleDateChange = useCallback((date: Date | undefined): void => {
     if (date) {
-      console.log('[useDashboardLogic] Date change requested:', formatDate(date));
+      console.log('[useDashboardLogic] Date change requested with cache invalidation:', formatDate(date));
       
       // Отменяем предыдущий таймер
       if (debounceTimerRef.current) {
@@ -236,7 +258,9 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
         }
         
         setSelectedDate(date);
-        // Очищаем кэш при смене даты
+        
+        // *** ОЧИЩАЕМ КЭША ПРИ СМЕНЕ ДАТЫ, ТАК КАК ПЕРИОД ИЗМЕНИЛСЯ ***
+        console.log('[useDashboardLogic] Clearing cache due to period change');
         clearLogCache();
       }, DEBOUNCE_DELAY);
     }
@@ -285,7 +309,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     };
   }, [context, staffMembers, selectedDate, currentUserId, managingGroupId]);
 
-  // Оптимизированное обновление лога
+  // *** ОБНОВЛЕННОЕ ОБНОВЛЕНИЕ ЛОГА С УЧЕТОМ ДАТЫ ПЕРИОДА ***
   const handleLogRefresh = useCallback(async (staffId: string): Promise<void> => {
     if (!logsService) {
       console.log('[useDashboardLogic] Cannot refresh log: service not available');
@@ -298,13 +322,20 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
       return;
     }
 
-    // Проверяем кэш
-    if (isLogCacheValid(staffId)) {
-      console.log(`[useDashboardLogic] Using cached log for ${staffMember.name}`);
+    // *** ПРОВЕРЯЕМ КЭШ С УЧЕТОМ ТЕКУЩЕГО ПЕРИОДА ***
+    if (isLogCacheValid(staffId, selectedDate)) {
+      console.log(`[useDashboardLogic] Using cached log for ${staffMember.name} (period: ${formatDate(selectedDate)})`);
       return;
     }
 
-    console.log(`[useDashboardLogic] Refreshing log for ${staffMember.name}`);
+    console.log(`[useDashboardLogic] Refreshing log for ${staffMember.name} (period: ${formatDate(selectedDate)})`);
+
+    // *** ОБНОВЛЯЕМ КЭША СРАЗУ, УКАЗЫВАЯ ПЕРИОД ***
+    logCacheRef.current[staffId] = {
+      lastFetch: Date.now(),
+      data: undefined,
+      periodDate: new Date(selectedDate) // *** СОХРАНЯЕМ ПЕРИОД ***
+    };
 
     try {
       // Отменяем предыдущий запрос если есть
@@ -315,8 +346,10 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
       // Создаем новый AbortController
       abortControllerRef.current = new AbortController();
 
+      // *** ИСПОЛЬЗУЕМ НОВЫЕ ПАРАМЕТРЫ ФИЛЬТРАЦИИ ПО ДАТЕ ПЕРИОДА ***
       const logsResult = await logsService.getScheduleLogs({
         staffMemberId: staffMember.employeeId,
+        periodDate: selectedDate, // *** ФИЛЬТРУЕМ ПО ДАТЕ ПЕРИОДА ***
         top: 1,
         skip: 0
       });
@@ -327,13 +360,14 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
 
       const lastLog = logsResult.logs.length > 0 ? logsResult.logs[0] : undefined;
       
-      // Обновляем кэш
+      // *** ОБНОВЛЯЕМ КЭШ С РЕЗУЛЬТАТОМ И ПЕРИОДОМ ***
       logCacheRef.current[staffId] = {
         lastFetch: Date.now(),
-        data: lastLog
+        data: lastLog,
+        periodDate: new Date(selectedDate) // *** СОХРАНЯЕМ ПЕРИОД ***
       };
 
-      console.log(`[useDashboardLogic] Log refreshed and cached for ${staffMember.name}`);
+      console.log(`[useDashboardLogic] Log refreshed and cached for ${staffMember.name} (period: ${formatDate(selectedDate)})`);
 
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
@@ -344,22 +378,23 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(`[useDashboardLogic] Error refreshing log for ${staffMember.name}:`, errorMessage);
       
-      // Кэшируем ошибку
+      // *** КЭШИРУЕМ ОШИБКУ С ПЕРИОДОМ ***
       logCacheRef.current[staffId] = {
         lastFetch: Date.now(),
         data: undefined,
-        error: errorMessage
+        error: errorMessage,
+        periodDate: new Date(selectedDate) // *** СОХРАНЯЕМ ПЕРИОД ***
       };
     }
-  }, [logsService, staffMembersData, isLogCacheValid]);
+  }, [logsService, staffMembersData, selectedDate, isLogCacheValid]);
 
-  // Групповое обновление логов
+  // *** ОБНОВЛЕННОЕ ГРУППОВОЕ ОБНОВЛЕНИЕ ЛОГОВ С УЧЕТОМ ПЕРИОДА ***
   const handleBulkLogRefresh = useCallback(async (staffIds: string[]): Promise<void> => {
     if (!logsService || staffIds.length === 0) {
       return;
     }
 
-    console.log(`[useDashboardLogic] Bulk refresh for ${staffIds.length} staff members`);
+    console.log(`[useDashboardLogic] Bulk refresh for ${staffIds.length} staff members (period: ${formatDate(selectedDate)})`);
 
     const batchSize = 3; // Обрабатываем по 3 одновременно
     const batches: string[][] = [];
@@ -384,8 +419,8 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
       }
     }
 
-    console.log('[useDashboardLogic] Bulk refresh completed');
-  }, [logsService, handleLogRefresh]);
+    console.log(`[useDashboardLogic] Bulk refresh completed for period: ${formatDate(selectedDate)}`);
+  }, [logsService, selectedDate, handleLogRefresh]);
 
   // Операции заполнения с оптимизацией
   const performFillOperation = useCallback(async (
@@ -404,7 +439,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
 
     try {
       setIsLoading(true);
-      console.log(`[useDashboardLogic] Starting optimized fill for ${staffName}`);
+      console.log(`[useDashboardLogic] Starting optimized fill for ${staffName} (period: ${formatDate(selectedDate)})`);
 
       const result = await fillService.fillScheduleForStaff(fillParams, replaceExisting);
 
@@ -416,7 +451,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
       if (result.success) {
         console.log(`[useDashboardLogic] Fill successful for ${staffName}`);
         
-        // Очищаем кэш лога для этого сотрудника
+        // *** ОЧИЩАЕМ КЭША ЛОГА ДЛЯ ЭТОГО СОТРУДНИКА И ПЕРИОДА ***
         delete logCacheRef.current[fillParams.staffMember.id];
         
         // Планируем обновление лога
@@ -434,7 +469,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     } finally {
       setIsLoading(false);
     }
-  }, [fillService, handleLogRefresh]);
+  }, [fillService, selectedDate, handleLogRefresh]);
 
   // Обработчик autoschedule с оптимизацией
   const handleAutoscheduleToggle = useCallback(async (staffId: string, checked: boolean): Promise<void> => {
@@ -465,7 +500,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
 
   // Обработчик заполнения для одного сотрудника
   const handleFillStaff = useCallback(async (staffId: string, staffName: string): Promise<void> => {
-    console.log('[useDashboardLogic] Fill staff operation:', staffId, staffName);
+    console.log(`[useDashboardLogic] Fill staff operation: ${staffId}, ${staffName} (period: ${formatDate(selectedDate)})`);
     
     const staffMember = staffMembersData.find(staff => staff.id === staffId);
     if (!staffMember) {
@@ -505,7 +540,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
           setConfirmDialog({
             isOpen: true,
             title: 'Replace Existing Records',
-            message: `Found ${existingCheck.recordsCount} existing unprocessed records for ${staffName}. Replace them?`,
+            message: `Found ${existingCheck.recordsCount} existing unprocessed records for ${staffName} in ${formatDate(selectedDate)} period. Replace them?`,
             confirmButtonText: 'Replace',
             cancelButtonText: 'Cancel',
             confirmButtonColor: '#d83b01',
@@ -529,11 +564,11 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     } finally {
       setIsLoading(false);
     }
-  }, [staffMembersData, createFillParams, fillService, performFillOperation]);
+  }, [staffMembersData, selectedDate, createFillParams, fillService, performFillOperation]);
 
   // Обработчик заполнения для всех сотрудников
   const handleFillAll = useCallback(async (): Promise<void> => {
-    console.log('[useDashboardLogic] Fill all operation started');
+    console.log(`[useDashboardLogic] Fill all operation started for period: ${formatDate(selectedDate)}`);
     
     if (!fillService) {
       setInfoMessage({
@@ -586,7 +621,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
         setConfirmDialog({
           isOpen: true,
           title: 'Replace All Existing Records',
-          message: `Found ${totalExistingRecords} existing records for ${staffWithExistingRecords.length} staff members. Replace all?`,
+          message: `Found ${totalExistingRecords} existing records for ${staffWithExistingRecords.length} staff members in ${formatDate(selectedDate)} period. Replace all?`,
           confirmButtonText: 'Replace All',
           cancelButtonText: 'Cancel',
           confirmButtonColor: '#d83b01',
@@ -609,7 +644,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     } finally {
       setIsLoading(false);
     }
-  }, [staffMembersData, fillService, createFillParams]);
+  }, [staffMembersData, selectedDate, fillService, createFillParams]);
 
   // Вспомогательная функция для заполнения всех
   const performFillAllOperation = useCallback(async (replaceExisting: boolean): Promise<void> => {
@@ -620,6 +655,8 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     let totalCreatedRecords = 0;
     let totalDeletedRecords = 0;
     const processedStaffIds: string[] = [];
+
+    console.log(`[useDashboardLogic] Performing fill all operation for period: ${formatDate(selectedDate)}`);
 
     for (const staffMember of staffMembersData) {
       const fillParams = createFillParams(staffMember);
@@ -633,7 +670,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
             totalDeletedRecords += result.deletedRecordsCount || 0;
             processedStaffIds.push(staffMember.id);
             
-            // Очищаем кэш для обработанного сотрудника
+            // *** ОЧИЩАЕМ КЭША ДЛЯ ОБРАБОТАННОГО СОТРУДНИКА ***
             delete logCacheRef.current[staffMember.id];
           } else {
             errorCount++;
@@ -653,23 +690,23 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     // Показываем результат
     if (errorCount === 0) {
       setInfoMessage({
-        text: `Successfully filled schedule for all ${successCount} staff members. Created ${totalCreatedRecords} records.`,
+        text: `Successfully filled schedule for all ${successCount} staff members for ${formatDate(selectedDate)} period. Created ${totalCreatedRecords} records.`,
         type: MessageBarType.success
       });
     } else {
       setInfoMessage({
-        text: `Filled ${successCount} of ${staffMembersData.length} staff members. ${errorCount} failed.`,
+        text: `Filled ${successCount} of ${staffMembersData.length} staff members for ${formatDate(selectedDate)} period. ${errorCount} failed.`,
         type: MessageBarType.warning
       });
     }
 
-    // Планируем массовое обновление логов
+    // *** ПЛАНИРУЕМ МАССОВОЕ ОБНОВЛЕНИЕ ЛОГОВ ДЛЯ ЭТОГО ПЕРИОДА ***
     if (processedStaffIds.length > 0) {
       setTimeout(() => {
         void handleBulkLogRefresh(processedStaffIds);
       }, 2000);
     }
-  }, [fillService, staffMembersData, createFillParams, handleBulkLogRefresh]);
+  }, [fillService, selectedDate, staffMembersData, createFillParams, handleBulkLogRefresh]);
 
   return {
     staffMembersData,

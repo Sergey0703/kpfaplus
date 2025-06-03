@@ -49,6 +49,7 @@ enum LogStatusFilter {
   NoLogs = 'no-logs'
 }
 
+// *** ОБНОВЛЕННЫЙ ИНТЕРФЕЙС PROPS С ПОДДЕРЖКОЙ Date ***
 interface IDashboardTableProps {
   staffMembersData: IStaffMemberWithAutoschedule[];
   isLoading: boolean;
@@ -57,16 +58,32 @@ interface IDashboardTableProps {
   context?: any;
   logsService?: ScheduleLogsService;
   onLogRefresh?: (staffId: string) => Promise<void>;
+  selectedDate?: Date; // *** НОВОЕ ПОЛЕ: Выбранная дата периода ***
 }
 
-// Компонент индикатора статуса лога
+// *** ОБНОВЛЕННЫЙ КОМПОНЕНТ ИНДИКАТОРА СТАТУСА ЛОГА С ИНФОРМАЦИЕЙ О ПЕРИОДЕ ***
 const LogStatusIndicator: React.FC<{
   log?: IScheduleLog;
   isLoading?: boolean;
   error?: string;
   onClick?: () => void;
   onRetry?: () => void;
-}> = ({ log, isLoading, error, onClick, onRetry }) => {
+  selectedDate?: Date; // *** НОВОЕ ПОЛЕ: Для отображения соответствия периоду ***
+}> = ({ log, isLoading, error, onClick, onRetry, selectedDate }) => {
+  
+  // *** НОВАЯ ФУНКЦИЯ: Проверка соответствия лога выбранному периоду ***
+  const isLogForSelectedPeriod = useMemo((): boolean => {
+    if (!log || !log.Date || !selectedDate) return true; // Если нет данных, считаем соответствующим
+    
+    const logDate = new Date(log.Date);
+    const selectedMonth = selectedDate.getMonth();
+    const selectedYear = selectedDate.getFullYear();
+    const logMonth = logDate.getMonth();
+    const logYear = logDate.getFullYear();
+    
+    return selectedMonth === logMonth && selectedYear === logYear;
+  }, [log, selectedDate]);
+
   if (isLoading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
@@ -108,9 +125,10 @@ const LogStatusIndicator: React.FC<{
 
   const getStatusColor = (result: number): string => {
     switch (result) {
-      case 2: return '#107c10';
-      case 1: return '#d13438';
-      default: return '#ffaa44';
+      case 2: return '#107c10'; // Success - зеленый
+      case 1: return '#d13438'; // Error - красный  
+      case 0: return '#ffaa44'; // Unknown/Warning - оранжевый
+      default: return '#a19f9d'; // Undefined - серый
     }
   };
 
@@ -118,6 +136,7 @@ const LogStatusIndicator: React.FC<{
     switch (result) {
       case 2: return 'Success';
       case 1: return 'Error';
+      case 0: return 'Warning'; // *** ИЗМЕНЕНО: было Unknown, стало Warning ***
       default: return 'Unknown';
     }
   };
@@ -126,16 +145,30 @@ const LogStatusIndicator: React.FC<{
   const statusText = getStatusText(log.Result);
   const logDate = log.Created.toLocaleDateString();
   const logTime = log.Created.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  
+  // *** НОВАЯ ИНФОРМАЦИЯ: Дата периода лога ***
+  const logPeriodDate = log.Date ? new Date(log.Date).toLocaleDateString() : 'N/A';
+
+  // *** СТИЛЬ ДЛЯ ИНДИКАЦИИ НЕСООТВЕТСТВИЯ ПЕРИОДУ ***
+  const containerStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', gap: '8px',
+    cursor: onClick ? 'pointer' : 'default', padding: '4px 8px',
+    borderRadius: '4px', transition: 'background-color 0.2s ease',
+    minHeight: '28px',
+    // *** ДОБАВЛЯЕМ ВИЗУАЛЬНУЮ ИНДИКАЦИЮ НЕСООТВЕТСТВИЯ ПЕРИОДУ ***
+    opacity: isLogForSelectedPeriod ? 1 : 0.6,
+    border: isLogForSelectedPeriod ? 'none' : '1px dashed #ffaa44'
+  };
+
+  // *** ОБНОВЛЕННЫЙ TOOLTIP С ИНФОРМАЦИЕЙ О ПЕРИОДЕ ***
+  const tooltipContent = `Last operation: ${statusText} at ${logDate} ${logTime}
+Period: ${logPeriodDate}${!isLogForSelectedPeriod ? ' (Different period!)' : ''}
+Click to view details`;
 
   return (
-    <TooltipHost content={`Last operation: ${statusText} at ${logDate} ${logTime}\nClick to view details`}>
+    <TooltipHost content={tooltipContent}>
       <div 
-        style={{ 
-          display: 'flex', alignItems: 'center', gap: '8px',
-          cursor: onClick ? 'pointer' : 'default', padding: '4px 8px',
-          borderRadius: '4px', transition: 'background-color 0.2s ease',
-          minHeight: '28px'
-        }}
+        style={containerStyle}
         onClick={onClick}
         onMouseEnter={(e) => {
           if (onClick) (e.target as HTMLElement).style.backgroundColor = '#f3f2f1';
@@ -152,9 +185,17 @@ const LogStatusIndicator: React.FC<{
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
           <span style={{ fontSize: '11px', color: '#323130', fontWeight: '500' }}>
             {statusText}
+            {/* *** ИНДИКАТОР НЕСООТВЕТСТВИЯ ПЕРИОДУ *** */}
+            {!isLogForSelectedPeriod && (
+              <span style={{ color: '#ffaa44', marginLeft: '4px' }}>⚠</span>
+            )}
           </span>
           <span style={{ fontSize: '10px', color: '#666' }}>
             {logDate} {logTime}
+          </span>
+          {/* *** ДОПОЛНИТЕЛЬНАЯ СТРОКА С ИНФОРМАЦИЕЙ О ПЕРИОДЕ *** */}
+          <span style={{ fontSize: '9px', color: isLogForSelectedPeriod ? '#666' : '#ffaa44' }}>
+            Period: {logPeriodDate}
           </span>
         </div>
         {onClick && (
@@ -178,9 +219,10 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     isLoading,
     onAutoscheduleToggle,
     onFillStaff,
-  ///  context,
+    // context, // Убираем неиспользуемую переменную
     logsService,
-    onLogRefresh
+    onLogRefresh,
+    selectedDate // *** НОВЫЙ PROP: Выбранная дата периода ***
   } = props;
 
   const { selectedDepartmentId } = useDataContext();
@@ -193,6 +235,12 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
   const [statusFilter, setStatusFilter] = useState<LogStatusFilter>(LogStatusFilter.All);
   const [isRefreshingAllLogs, setIsRefreshingAllLogs] = useState<boolean>(false);
   const [logStats, setLogStats] = useState({ success: 0, error: 0, noLogs: 0, loading: 0 });
+
+  // *** ФОРМАТИРОВАНИЕ ВЫБРАННОЙ ДАТЫ ДЛЯ ОТОБРАЖЕНИЯ ***
+  const formatSelectedDate = useCallback((): string => {
+    if (!selectedDate) return 'N/A';
+    return selectedDate.toLocaleDateString();
+  }, [selectedDate]);
 
   // Конвертация данных
   useEffect(() => {
@@ -222,26 +270,54 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     setLogStats(stats);
   }, [staffMembersWithLogs]);
 
-  // Загрузка лога
+  // *** ОБНОВЛЕННАЯ ЗАГРУЗКА ЛОГА С УЛУЧШЕННОЙ ОТЛАДКОЙ ***
   const loadLastLogForStaff = useCallback(async (staffMember: IStaffMemberWithLog, retryCount = 0): Promise<void> => {
-    if (!logsService || !staffMember.employeeId) return;
+    if (!logsService || !staffMember.employeeId) {
+      console.log(`[DashboardTable] Cannot load log for ${staffMember.name}: no service or employeeId`);
+      return;
+    }
 
     const maxRetries = 2;
     const retryDelay = 1000 * (retryCount + 1);
+
+    console.log(`[DashboardTable] Loading log for ${staffMember.name} (ID: ${staffMember.employeeId}, period: ${formatSelectedDate()})`);
 
     setStaffMembersWithLogs(prev => prev.map(member => 
       member.id === staffMember.id ? { ...member, isLoadingLog: true, logError: undefined } : member
     ));
 
     try {
-      const logsResult = await logsService.getScheduleLogs({
+      // *** ИСПОЛЬЗУЕМ ПРАВИЛЬНЫЕ ПАРАМЕТРЫ ФИЛЬТРАЦИИ ***
+      const queryParams: any = {
         staffMemberId: staffMember.employeeId,
-        top: 1, skip: 0
-      });
+        top: 1, 
+        skip: 0
+      };
 
-      if (logsResult.error) throw new Error(logsResult.error);
+      // *** ДОБАВЛЯЕМ ФИЛЬТРАЦИЮ ПО ДАТЕ ПЕРИОДА ЕСЛИ ЕСТЬ ***
+      if (selectedDate) {
+        queryParams.periodDate = selectedDate;
+        console.log(`[DashboardTable] Searching logs for period: ${selectedDate.toLocaleDateString()}`);
+      }
+
+      console.log(`[DashboardTable] Query params:`, queryParams);
+
+      const logsResult = await logsService.getScheduleLogs(queryParams);
+
+      if (logsResult.error) {
+        throw new Error(logsResult.error);
+      }
 
       const lastLog = logsResult.logs.length > 0 ? logsResult.logs[0] : undefined;
+      
+      console.log(`[DashboardTable] Log search result for ${staffMember.name}:`, {
+        found: !!lastLog,
+        logId: lastLog?.ID,
+        result: lastLog?.Result,
+        logPeriod: lastLog?.Date ? lastLog.Date.toLocaleDateString() : 'N/A',
+        searchPeriod: selectedDate?.toLocaleDateString(),
+        totalLogs: logsResult.logs.length
+      });
       
       setStaffMembersWithLogs(prev => prev.map(member => 
         member.id === staffMember.id ? { 
@@ -251,12 +327,15 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`[DashboardTable] Error loading log for ${staffMember.name}:`, errorMessage);
       
       if (retryCount < maxRetries) {
+        console.log(`[DashboardTable] Retrying log load for ${staffMember.name} (attempt ${retryCount + 1}/${maxRetries + 1})`);
         setTimeout(() => {
           void loadLastLogForStaff(staffMember, retryCount + 1);
         }, retryDelay);
       } else {
+        console.error(`[DashboardTable] Failed to load log for ${staffMember.name} after ${maxRetries + 1} attempts`);
         setStaffMembersWithLogs(prev => prev.map(member => 
           member.id === staffMember.id ? { 
             ...member, isLoadingLog: false, logError: errorMessage
@@ -264,44 +343,115 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
         ));
       }
     }
-  }, [logsService]);
+  }, [logsService, selectedDate, formatSelectedDate]);
 
-  // Загрузка логов для всех
+  // *** УЛУЧШЕННАЯ АВТОМАТИЧЕСКАЯ ПЕРЕЗАГРУЗКА ЛОГОВ ПРИ СМЕНЕ ПЕРИОДА ***
+  useEffect(() => {
+    if (logsService && staffMembersWithLogs.length > 0 && selectedDate) {
+      console.log(`[DashboardTable] Period changed, reloading logs for ${staffMembersWithLogs.length} staff members`);
+      console.log(`[DashboardTable] New period: ${formatSelectedDate()}`);
+      
+      // Сбрасываем состояние логов
+      setStaffMembersWithLogs(prev => prev.map(member => ({
+        ...member, 
+        lastLog: undefined, 
+        logError: undefined, 
+        isLoadingLog: false
+      })));
+
+      // *** ДОБАВЛЯЕМ НЕБОЛЬШУЮ ЗАДЕРЖКУ ПЕРЕД ЗАГРУЗКОЙ ***
+      const loadTimeout = setTimeout(() => {
+        // Перезагружаем логи с задержкой для каждого сотрудника
+        staffMembersWithLogs.forEach((member, index) => {
+          setTimeout(() => {
+            console.log(`[DashboardTable] Loading log ${index + 1}/${staffMembersWithLogs.length} for ${member.name}`);
+            void loadLastLogForStaff(member);
+          }, index * 150);
+        });
+      }, 300); // Небольшая задержка перед началом загрузки
+
+      return () => {
+        clearTimeout(loadTimeout);
+      };
+    }
+  }, [selectedDate, formatSelectedDate]); // *** УБИРАЕМ logsService и staffMembersWithLogs.length из зависимостей ***
+
+  // Загрузка логов для всех при инициализации
   useEffect(() => {
     if (logsService && staffMembersWithLogs.length > 0) {
-      staffMembersWithLogs.forEach((member, index) => {
-        if (!member.lastLog && !member.isLoadingLog && !member.logError) {
+      const membersWithoutLogs = staffMembersWithLogs.filter(member => 
+        !member.lastLog && !member.isLoadingLog && !member.logError
+      );
+      
+      if (membersWithoutLogs.length > 0) {
+        console.log(`[DashboardTable] Initial log loading for ${membersWithoutLogs.length} members`);
+        membersWithoutLogs.forEach((member, index) => {
           setTimeout(() => {
             void loadLastLogForStaff(member);
           }, index * 150);
-        }
-      });
+        });
+      }
     }
   }, [logsService, staffMembersWithLogs.length]);
 
-  // Обновление всех логов - НЕ async
+  // *** УЛУЧШЕННОЕ ОБНОВЛЕНИЕ ВСЕХ ЛОГОВ ***
   const refreshAllLogs = useCallback((): void => {
-    if (!logsService || staffMembersWithLogs.length === 0) return;
+    if (!logsService || staffMembersWithLogs.length === 0) {
+      console.log('[DashboardTable] Cannot refresh logs: no service or no staff members');
+      return;
+    }
 
-    console.log('[DashboardTable] Refreshing all logs...');
+    console.log(`[DashboardTable] Manual refresh of all logs for period: ${formatSelectedDate()}`);
+    console.log(`[DashboardTable] Staff members to refresh: ${staffMembersWithLogs.length}`);
+    
     setIsRefreshingAllLogs(true);
 
     // Сбрасываем состояние
     setStaffMembersWithLogs(prev => prev.map(member => ({
-      ...member, lastLog: undefined, logError: undefined, isLoadingLog: false
+      ...member, 
+      lastLog: undefined, 
+      logError: undefined, 
+      isLoadingLog: false
     })));
+
+    // *** ИСПРАВЛЕННАЯ ЛОГИКА БЕЗ finally() ***
+    let completedCount = 0;
+    const totalCount = staffMembersWithLogs.length;
+
+    const checkCompletion = () => {
+      completedCount++;
+      console.log(`[DashboardTable] Refresh progress: ${completedCount}/${totalCount}`);
+      if (completedCount >= totalCount) {
+        setTimeout(() => {
+          setIsRefreshingAllLogs(false);
+          console.log('[DashboardTable] All logs refresh completed');
+        }, 500);
+      }
+    };
 
     // Перезагружаем логи
     staffMembersWithLogs.forEach((member, i) => {
       setTimeout(() => {
-        void loadLastLogForStaff(member);
+        console.log(`[DashboardTable] Manual refresh ${i + 1}/${totalCount}: ${member.name}`);
+        
+        // *** ИСПОЛЬЗУЕМ then/catch ВМЕСТО finally ***
+        loadLastLogForStaff(member)
+          .then(() => {
+            checkCompletion();
+          })
+          .catch(() => {
+            checkCompletion(); // Вызываем в любом случае
+          });
       }, i * 100);
     });
 
+    // *** РЕЗЕРВНЫЙ ТАЙМЕР НА СЛУЧАЙ ЗАВИСАНИЯ ***
     setTimeout(() => {
       setIsRefreshingAllLogs(false);
-    }, 2000);
-  }, [logsService, staffMembersWithLogs, loadLastLogForStaff]);
+      console.log('[DashboardTable] Refresh timeout reached, stopping spinner');
+    }, 10000); // 10 секунд максимум
+
+  }, [logsService, staffMembersWithLogs, loadLastLogForStaff, formatSelectedDate]);
 
   // Обработчики
   const handleLogClick = useCallback((staffMember: IStaffMemberWithLog): void => {
@@ -346,7 +496,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     });
   }, [staffMembersWithLogs, statusFilter]);
 
-  // Command Bar - все обработчики НЕ async
+  // *** ОБНОВЛЕННЫЙ COMMAND BAR С ИНФОРМАЦИЕЙ О ПЕРИОДЕ ***
   const commandBarItems: ICommandBarItemProps[] = [
     {
       key: 'filter',
@@ -383,7 +533,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     },
     {
       key: 'refresh',
-      text: 'Refresh Logs',
+      text: `Refresh Logs (${formatSelectedDate()})`, // *** ПОКАЗЫВАЕМ ПЕРИОД В КНОПКЕ ***
       iconProps: { iconName: 'Refresh' },
       onClick: refreshAllLogs, // НЕ async!
       disabled: isRefreshingAllLogs || !logsService
@@ -421,6 +571,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     />
   );
 
+  // *** ОБНОВЛЕННЫЙ РЕНДЕР СТАТУСА ЛОГА С ПЕРЕДАЧЕЙ ВЫБРАННОЙ ДАТЫ ***
   const renderLogStatusCell = (item: IStaffMemberWithLog): JSX.Element => (
     <LogStatusIndicator
       log={item.lastLog}
@@ -428,6 +579,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
       error={item.logError}
       onClick={item.lastLog ? () => handleLogClick(item) : undefined}
       onRetry={() => handleLogRetry(item)}
+      selectedDate={selectedDate} // *** ПЕРЕДАЕМ ВЫБРАННУЮ ДАТУ ***
     />
   );
 
@@ -460,8 +612,8 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
       onRender: renderAutoscheduleCell
     },
     {
-      key: 'lastLog', name: 'Last Operation',
-      minWidth: 120, maxWidth: 180,
+      key: 'lastLog', name: `Last Operation (${formatSelectedDate()})`, // *** ПОКАЗЫВАЕМ ПЕРИОД В ЗАГОЛОВКЕ ***
+      minWidth: 140, maxWidth: 200, // *** УВЕЛИЧИВАЕМ ШИРИНУ ДЛЯ ДОПОЛНИТЕЛЬНОЙ ИНФОРМАЦИИ ***
       onRender: renderLogStatusCell
     },
     {
@@ -473,10 +625,10 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
 
   return (
     <div style={{ flex: 1 }}>
-      {/* Информация и Command Bar */}
+      {/* *** ОБНОВЛЕННАЯ ИНФОРМАЦИЯ С ДАННЫМИ О ПЕРИОДЕ *** */}
       <div style={{ marginBottom: '10px' }}>
         <p style={{ fontSize: '12px', color: '#666', margin: '0 0 10px 0' }}>
-          Showing {filteredStaffMembers.length} of {staffMembersWithLogs.length} staff members
+          Showing {filteredStaffMembers.length} of {staffMembersWithLogs.length} staff members for period: <strong>{formatSelectedDate()}</strong>
           {statusFilter !== LogStatusFilter.All && ` (filtered by ${statusFilter})`}
           {logsService && (
             <span style={{ marginLeft: '10px', color: '#0078d4' }}>
@@ -494,13 +646,13 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
         )}
       </div>
 
-      {/* Сообщение о статусе */}
+      {/* *** ОБНОВЛЕННОЕ СООБЩЕНИЕ О СТАТУСЕ С ИНФОРМАЦИЕЙ О ПЕРИОДЕ *** */}
       {isRefreshingAllLogs && (
         <MessageBar
           messageBarType={MessageBarType.info}
           styles={{ root: { marginBottom: '10px' } }}
         >
-          Refreshing logs for all staff members...
+          Refreshing logs for all staff members (period: {formatSelectedDate()})...
         </MessageBar>
       )}
       
@@ -523,7 +675,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
         />
       )}
 
-      {/* Диалог просмотра лога */}
+      {/* *** ОБНОВЛЕННЫЙ ДИАЛОГ ПРОСМОТРА ЛОГА С ИНФОРМАЦИЕЙ О ПЕРИОДЕ *** */}
       <LogDetailsDialog
         isOpen={logDialog.isOpen}
         logId={logDialog.logId}
@@ -531,7 +683,10 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
         logsService={logsService}
         onDismiss={handleLogDialogDismiss}
         title="Fill Operation Log Details"
-        subtitle={logDialog.staffName ? `Staff Member: ${logDialog.staffName}` : undefined}
+        subtitle={logDialog.staffName ? 
+          `Staff Member: ${logDialog.staffName} | Period: ${formatSelectedDate()}` : 
+          undefined
+        }
       />
     </div>
   );

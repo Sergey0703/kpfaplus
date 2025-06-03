@@ -9,7 +9,7 @@ import { WeeklyTimeTableService } from './WeeklyTimeTableService';
 import { WeeklyTimeTableUtils } from '../models/IWeeklyTimeTable';
 import { IContract } from '../models/IContract';
 import { IStaffMember } from '../models/types';
-// *** ДОБАВЛЯЕМ ИМПОРТ НОВОГО СЕРВИСА ЛОГИРОВАНИЯ ***
+// *** ОБНОВЛЕН ИМПОРТ СЕРВИСА ЛОГИРОВАНИЯ С НОВЫМ ПОЛЕМ Date ***
 import { ScheduleLogsService, ICreateScheduleLogParams } from './ScheduleLogsService';
 
 // Интерфейс для параметров операции заполнения
@@ -50,7 +50,7 @@ export class CommonFillService {
   private holidaysService: HolidaysService;
   private daysOfLeavesService: DaysOfLeavesService;
   private weeklyTimeTableService: WeeklyTimeTableService;
-  // *** ДОБАВЛЯЕМ СЕРВИС ЛОГИРОВАНИЯ ***
+  // *** ОБНОВЛЕН СЕРВИС ЛОГИРОВАНИЯ С ПОДДЕРЖКОЙ ПОЛЯ Date ***
   private scheduleLogsService: ScheduleLogsService;
 
   private constructor(context: WebPartContext) {
@@ -60,7 +60,7 @@ export class CommonFillService {
     this.holidaysService = HolidaysService.getInstance(context);
     this.daysOfLeavesService = DaysOfLeavesService.getInstance(context);
     this.weeklyTimeTableService = new WeeklyTimeTableService(context);
-    // *** ИНИЦИАЛИЗИРУЕМ СЕРВИС ЛОГИРОВАНИЯ ***
+    // *** ИНИЦИАЛИЗИРУЕМ ОБНОВЛЕННЫЙ СЕРВИС ЛОГИРОВАНИЯ ***
     this.scheduleLogsService = ScheduleLogsService.getInstance(context);
   }
 
@@ -192,7 +192,7 @@ export class CommonFillService {
   }
 
   /**
-   * *** НОВЫЙ МЕТОД: Создает лог операции заполнения ***
+   * *** ОБНОВЛЕННЫЙ МЕТОД: Создает лог операции заполнения с новым полем Date ***
    */
   private async createFillLog(
     params: IFillParams, 
@@ -201,12 +201,12 @@ export class CommonFillService {
     additionalDetails?: string
   ): Promise<void> {
     try {
-      console.log('[CommonFillService] Creating fill operation log...');
+      console.log('[CommonFillService] Creating fill operation log with Date field...');
 
       // Формируем детальное сообщение о выполненной операции
       const logMessage = this.buildLogMessage(params, result, contractId, additionalDetails);
 
-      // Параметры для создания лога
+      // *** ОБНОВЛЕННЫЕ ПАРАМЕТРЫ ДЛЯ СОЗДАНИЯ ЛОГА С ПОЛЕМ Date ***
       const logParams: ICreateScheduleLogParams = {
         title: `Fill Operation - ${params.staffMember.name} (${params.selectedDate.toLocaleDateString()})`,
         managerId: params.currentUserId,
@@ -214,14 +214,16 @@ export class CommonFillService {
         staffGroupId: params.managingGroupId,
         weeklyTimeTableId: contractId,
         result: result.success ? 2 : 1, // 2 = успех, 1 = ошибка
-        message: logMessage
+        message: logMessage,
+        date: params.selectedDate // *** НОВОЕ ПОЛЕ: Дата периода заполнения ***
       };
 
-      console.log('[CommonFillService] Log parameters:', {
+      console.log('[CommonFillService] Log parameters with Date field:', {
         title: logParams.title,
         managerId: logParams.managerId,
         staffMemberId: logParams.staffMemberId,
         result: logParams.result,
+        date: logParams.date.toLocaleDateString(), // *** ЛОГИРУЕМ ДАТУ ПЕРИОДА ***
         messageLength: logParams.message.length
       });
 
@@ -229,7 +231,7 @@ export class CommonFillService {
       const logId = await this.scheduleLogsService.createScheduleLog(logParams);
 
       if (logId) {
-        console.log(`[CommonFillService] ✓ Fill operation log created with ID: ${logId}`);
+        console.log(`[CommonFillService] ✓ Fill operation log created with ID: ${logId} for period: ${params.selectedDate.toLocaleDateString()}`);
       } else {
         console.error('[CommonFillService] ✗ Failed to create fill operation log');
       }
@@ -241,7 +243,7 @@ export class CommonFillService {
   }
 
   /**
-   * *** НОВЫЙ МЕТОД: Формирует детальное сообщение для лога ***
+   * *** ОБНОВЛЕННЫЙ МЕТОД: Формирует детальное сообщение для лога с информацией о дате периода ***
    */
   private buildLogMessage(
     params: IFillParams, 
@@ -255,9 +257,17 @@ export class CommonFillService {
     lines.push(`=== FILL OPERATION LOG ===`);
     lines.push(`Date: ${new Date().toLocaleString()}`);
     lines.push(`Staff: ${params.staffMember.name} (ID: ${params.staffMember.employeeId})`);
-    lines.push(`Period: ${params.selectedDate.toLocaleDateString()}`);
+    lines.push(`Period: ${params.selectedDate.toLocaleDateString()}`); // *** ДАТА ПЕРИОДА ЗАПОЛНЕНИЯ ***
     lines.push(`Manager: ${params.currentUserId || 'N/A'}`);
     lines.push(`Staff Group: ${params.managingGroupId || 'N/A'}`);
+    lines.push('');
+
+    // *** ДОПОЛНИТЕЛЬНАЯ ИНФОРМАЦИЯ О ПЕРИОДЕ ***
+    const startOfMonth = new Date(params.selectedDate.getFullYear(), params.selectedDate.getMonth(), 1);
+    const endOfMonth = new Date(params.selectedDate.getFullYear(), params.selectedDate.getMonth() + 1, 0);
+    lines.push(`PERIOD DETAILS:`);
+    lines.push(`Selected Date: ${params.selectedDate.toLocaleDateString()}`);
+    lines.push(`Month Range: ${startOfMonth.toLocaleDateString()} - ${endOfMonth.toLocaleDateString()}`);
     lines.push('');
 
     // Результат операции
@@ -291,11 +301,11 @@ export class CommonFillService {
   }
 
   /**
-   * *** ОБНОВЛЕННЫЙ МЕТОД: Основная функция заполнения расписания для одного сотрудника с логированием ***
+   * *** ОСНОВНАЯ ФУНКЦИЯ ЗАПОЛНЕНИЯ - БЕЗ ИЗМЕНЕНИЙ, УЖЕ ИСПОЛЬЗУЕТ ОБНОВЛЕННЫЕ МЕТОДЫ ***
    */
   public async fillScheduleForStaff(params: IFillParams, replaceExisting: boolean = false): Promise<IFillResult> {
     console.log('[CommonFillService] Starting fill operation for staff:', params.staffMember.name);
-    console.log('[CommonFillService] Fill parameters:', {
+    console.log('[CommonFillService] Fill parameters with Date support:', {
       date: params.selectedDate.toLocaleDateString(),
       employeeId: params.staffMember.employeeId,
       currentUserId: params.currentUserId,
@@ -320,6 +330,7 @@ export class CommonFillService {
 
     try {
       operationDetails.push('STEP 1: Validating input parameters...');
+      operationDetails.push(`Period Date: ${params.selectedDate.toLocaleDateString()}`); // *** ДОБАВЛЯЕМ ДАТУ В ДЕТАЛИ ***
       
       // Валидация входных параметров
       if (!params.staffMember.employeeId) {
@@ -331,7 +342,7 @@ export class CommonFillService {
         
         operationDetails.push('ERROR: Staff member has no employee ID');
         
-        // *** СОЗДАЕМ ЛОГ ОШИБКИ ***
+        // *** СОЗДАЕМ ЛОГ ОШИБКИ С ДАТОЙ ПЕРИОДА ***
         await this.createFillLog(params, result, undefined, operationDetails.join('\n'));
         
         return result;
@@ -359,7 +370,7 @@ export class CommonFillService {
             
             operationDetails.push(`ERROR: ${existingCheck.processedCount} records are already processed`);
             
-            // *** СОЗДАЕМ ЛОГ ОШИБКИ ***
+            // *** СОЗДАЕМ ЛОГ ОШИБКИ С ДАТОЙ ПЕРИОДА ***
             await this.createFillLog(params, result, undefined, operationDetails.join('\n'));
             
             return result;
@@ -373,7 +384,7 @@ export class CommonFillService {
           
           operationDetails.push('WARNING: Found existing unprocessed records, replacement confirmation needed');
           
-          // *** СОЗДАЕМ ЛОГ ПРЕДУПРЕЖДЕНИЯ ***
+          // *** СОЗДАЕМ ЛОГ ПРЕДУПРЕЖДЕНИЯ С ДАТОЙ ПЕРИОДА ***
           await this.createFillLog(params, result, undefined, operationDetails.join('\n'));
           
           return result;
@@ -398,7 +409,7 @@ export class CommonFillService {
             
             operationDetails.push(`ERROR: Cannot replace - ${existingCheck.processedCount} records are processed`);
             
-            // *** СОЗДАЕМ ЛОГ ОШИБКИ ***
+            // *** СОЗДАЕМ ЛОГ ОШИБКИ С ДАТОЙ ПЕРИОДА ***
             await this.createFillLog(params, result, undefined, operationDetails.join('\n'));
             
             return result;
@@ -417,7 +428,7 @@ export class CommonFillService {
             
             operationDetails.push('ERROR: Failed to delete existing records');
             
-            // *** СОЗДАЕМ ЛОГ ОШИБКИ ***
+            // *** СОЗДАЕМ ЛОГ ОШИБКИ С ДАТОЙ ПЕРИОДА ***
             await this.createFillLog(params, result, undefined, operationDetails.join('\n'));
             
             return result;
@@ -456,7 +467,7 @@ export class CommonFillService {
         
         operationDetails.push('ERROR: No active contracts found for the period');
         
-        // *** СОЗДАЕМ ЛОГ ОШИБКИ ***
+        // *** СОЗДАЕМ ЛОГ ОШИБКИ С ДАТОЙ ПЕРИОДА ***
         await this.createFillLog(params, result, undefined, operationDetails.join('\n'));
         
         return result;
@@ -491,7 +502,7 @@ export class CommonFillService {
         
         operationDetails.push('ERROR: No weekly schedule templates found');
         
-        // *** СОЗДАЕМ ЛОГ ОШИБКИ ***
+        // *** СОЗДАЕМ ЛОГ ОШИБКИ С ДАТОЙ ПЕРИОДА ***
         await this.createFillLog(params, result, selectedContractId, operationDetails.join('\n'));
         
         return result;
@@ -520,7 +531,7 @@ export class CommonFillService {
         
         operationDetails.push('ERROR: No schedule records generated');
         
-        // *** СОЗДАЕМ ЛОГ ОШИБКИ ***
+        // *** СОЗДАЕМ ЛОГ ОШИБКИ С ДАТОЙ ПЕРИОДА ***
         await this.createFillLog(params, result, selectedContractId, operationDetails.join('\n'));
         
         return result;
@@ -544,14 +555,15 @@ export class CommonFillService {
         deletedRecordsCount: deletedRecordsCount
       };
 
-      console.log('[CommonFillService] Fill operation completed:', {
+      console.log('[CommonFillService] Fill operation completed with Date logging:', {
         success: result.success,
         created: result.createdRecordsCount,
         deleted: result.deletedRecordsCount,
+        periodDate: params.selectedDate.toLocaleDateString(), // *** ЛОГИРУЕМ ДАТУ ПЕРИОДА ***
         message: result.message
       });
 
-      // *** СОЗДАЕМ ЛОГ УСПЕШНОЙ ОПЕРАЦИИ ***
+      // *** СОЗДАЕМ ЛОГ УСПЕШНОЙ ОПЕРАЦИИ С ДАТОЙ ПЕРИОДА ***
       await this.createFillLog(params, result, selectedContractId, operationDetails.join('\n'));
 
       return result;
@@ -568,7 +580,7 @@ export class CommonFillService {
         messageType: MessageBarType.error
       };
       
-      // *** СОЗДАЕМ ЛОГ КРИТИЧЕСКОЙ ОШИБКИ ***
+      // *** СОЗДАЕМ ЛОГ КРИТИЧЕСКОЙ ОШИБКИ С ДАТОЙ ПЕРИОДА ***
       await this.createFillLog(params, result, selectedContractId, operationDetails.join('\n'));
       
       return result;
@@ -977,7 +989,7 @@ export class CommonFillService {
     };
   } {
     return {
-      version: '1.0.1', // *** ОБНОВЛЯЕМ ВЕРСИЮ ***
+      version: '1.0.2', // *** ОБНОВЛЯЕМ ВЕРСИЮ С ПОДДЕРЖКОЙ Date ***
       context: !!this.webPartContext,
       services: {
         staffRecords: !!this.staffRecordsService,
@@ -991,7 +1003,7 @@ export class CommonFillService {
   }
 
   /**
-   * Метод для тестирования подключения к сервисам
+   * *** ОБНОВЛЕННЫЙ МЕТОД: Тестирование подключения к сервисам с Date поддержкой ***
    */
   public async testServices(): Promise<{
     staffRecords: boolean;
@@ -1055,15 +1067,18 @@ export class CommonFillService {
       results.errors.push(`WeeklyTimeTable: ${error}`);
     }
 
-    // *** ДОБАВЛЯЕМ ТЕСТ СЕРВИСА ЛОГИРОВАНИЯ ***
+    // *** ОБНОВЛЕННЫЙ ТЕСТ СЕРВИСА ЛОГИРОВАНИЯ С ПОДДЕРЖКОЙ Date ***
     try {
-      await this.scheduleLogsService.getScheduleLogs({ top: 1 });
+      await this.scheduleLogsService.getScheduleLogs({ 
+        top: 1,
+        periodDate: new Date() // *** ТЕСТИРУЕМ НОВОЕ ПОЛЕ Date ***
+      });
       results.scheduleLogs = true;
     } catch (error) {
       results.errors.push(`ScheduleLogs: ${error}`);
     }
 
-    console.log('[CommonFillService] Service test results:', results);
+    console.log('[CommonFillService] Service test results with Date support:', results);
     return results;
   }
 }
