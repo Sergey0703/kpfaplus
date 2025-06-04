@@ -1,5 +1,5 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/components/DashboardTable.tsx
-// ИСПРАВЛЕНО: Добавлена синхронизация с загрузкой staff members и перезагрузка логов при смене staff IDs
+// ИСПРАВЛЕНО: Добавлена синхронизация с загрузкой staff members, перезагрузка логов и loading состояние
 import * as React from 'react';
 import { useMemo, useRef, useEffect, useState, useCallback } from 'react';
 import { 
@@ -158,6 +158,10 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
   const lastProcessedKeyRef = useRef<string>('');
   const lastGroupRef = useRef<string>('');
   const lastStaffIdsRef = useRef<string>(''); // *** NEW: Track staff IDs changes ***
+  
+  // *** STATE FOR LOADING DURING LOG RELOAD ***
+  const [isReloadingLogs, setIsReloadingLogs] = useState<boolean>(false);
+  
   const [logDetailsDialog, setLogDetailsDialog] = useState<{
     isOpen: boolean;
     logId?: string;
@@ -205,6 +209,9 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
         action: 'Reloading logs for new staff IDs'
       });
       
+      // *** ПОКАЗАТЬ LOADING ВО ВРЕМЯ ПЕРЕЗАГРУЗКИ ***
+      setIsReloadingLogs(true);
+      
       // *** CLEAR CACHE AND RELOAD LOGS FOR NEW STAFF IDS ***
       if (clearLogCache) {
         console.log('[DashboardTable] 🧹 CLEARING LOG DATA due to staff IDs change');
@@ -230,9 +237,14 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
             key: currentKey,
             staffIds: currentStaffIds
           });
+          
+          // *** СКРЫТЬ LOADING ПОСЛЕ ЗАВЕРШЕНИЯ ***
+          setIsReloadingLogs(false);
         })
         .catch((error: Error) => {
           console.error('[DashboardTable] ❌ Staff IDs change log reload failed:', error);
+          // *** СКРЫТЬ LOADING ДАЖЕ В СЛУЧАЕ ОШИБКИ ***
+          setIsReloadingLogs(false);
         });
     }
     
@@ -558,7 +570,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
 
   // *** RENDER ***
   return (
-    <div style={{ width: '100%', padding: '16px' }}>
+    <div style={{ width: '100%', padding: '16px', position: 'relative' }}>
       {/* INFO MESSAGE */}
       {infoMessage && (
         <MessageBar
@@ -599,6 +611,12 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
               ⏳ Loading staff members...
             </span>
           )}
+          {/* *** NEW: Log reloading indicator *** */}
+          {isReloadingLogs && (
+            <span style={{ color: '#0078d4', fontSize: '12px', fontWeight: 500 }}>
+              🔄 Updating logs...
+            </span>
+          )}
         </div>
         
         <div style={{ display: 'flex', gap: '12px' }}>
@@ -606,13 +624,13 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
             iconProps={{ iconName: 'Refresh' }}
             text="Refresh All"
             onClick={handleRefreshAll}
-            disabled={isLoading || staffMembersData.length === 0}
+            disabled={isLoading || staffMembersData.length === 0 || isReloadingLogs}
           />
           <PrimaryButton
             iconProps={{ iconName: 'AddToShoppingList' }}
             text="Fill All"
             onClick={onFillAll}
-            disabled={isLoading || staffMembersData.length === 0}
+            disabled={isLoading || staffMembersData.length === 0 || isReloadingLogs}
           />
         </div>
       </div>
@@ -633,6 +651,50 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
         </div>
       )}
 
+      {/* *** NEW: LOG RELOADING OVERLAY *** */}
+      {isReloadingLogs && (
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(255, 255, 255, 0.85)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          borderRadius: '8px'
+        }}>
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '12px',
+            padding: '24px',
+            backgroundColor: '#ffffff',
+            borderRadius: '8px',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+            border: '1px solid #e1e5e9'
+          }}>
+            <Spinner size={SpinnerSize.medium} />
+            <span style={{ 
+              fontSize: '14px', 
+              color: '#323130',
+              fontWeight: 500
+            }}>
+              Updating logs for new staff members...
+            </span>
+            <span style={{ 
+              fontSize: '12px', 
+              color: '#605e5c'
+            }}>
+              Please wait while we synchronize the data
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* STAFF TABLE */}
       {staffMembersData.length > 0 ? (
         <DetailsList
@@ -643,7 +705,9 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
           styles={{
             root: {
               border: '1px solid #edebe9',
-              borderRadius: '4px'
+              borderRadius: '4px',
+              opacity: isReloadingLogs ? 0.6 : 1,
+              transition: 'opacity 0.2s ease'
             },
             headerWrapper: {
               backgroundColor: '#f3f2f1'
@@ -657,7 +721,9 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
           color: '#605e5c',
           backgroundColor: '#f8f9fa',
           borderRadius: '4px',
-          border: '1px solid #edebe9'
+          border: '1px solid #edebe9',
+          opacity: isReloadingLogs ? 0.6 : 1,
+          transition: 'opacity 0.2s ease'
         }}>
           <Icon iconName="People" style={{ fontSize: '48px', marginBottom: '16px', color: '#c8c6c4' }} />
           <h3 style={{ margin: '0 0 8px 0', color: '#323130' }}>No staff members found</h3>
