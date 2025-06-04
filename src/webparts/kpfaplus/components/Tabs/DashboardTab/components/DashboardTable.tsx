@@ -290,7 +290,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     setLogStats(stats);
   }, [staffMembersWithLogs]);
 
-  // *** FIXED: TRIGGER INITIAL LOAD WHEN GROUP OR PERIOD CHANGES ***
+  // *** FIXED: TRIGGER INITIAL LOAD WHEN GROUP OR PERIOD CHANGES WITH DETAILED LOGS ***
   useEffect(() => {
     console.log('[DashboardTable] useEffect triggered - checking conditions');
     console.log('[DashboardTable] onBulkLogRefresh available:', !!onBulkLogRefresh);
@@ -298,6 +298,24 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     console.log('[DashboardTable] logsService available:', !!logsService);
     console.log('[DashboardTable] managingGroupId:', managingGroupId);
     console.log('[DashboardTable] selectedDate:', selectedDate?.toLocaleDateString());
+    
+    // *** КРИТИЧЕСКОЕ ЛОГИРОВАНИЕ: ДЕТАЛЬНАЯ ИНФОРМАЦИЯ О STAFF MEMBERS ***
+    console.log('[DashboardTable] 🔍 DETAILED STAFF ANALYSIS:');
+    console.log('[DashboardTable] Current managingGroupId:', managingGroupId);
+    console.log('[DashboardTable] Total staffMembersData received:', staffMembersData.length);
+    
+    if (staffMembersData.length > 0) {
+      console.log('[DashboardTable] 📋 STAFF MEMBERS BREAKDOWN:');
+      staffMembersData.forEach((staff: IStaffMemberWithAutoschedule, index: number) => {
+        console.log(`[DashboardTable] Staff ${index}: ID=${staff.id}, Name="${staff.name}", EmployeeID="${staff.employeeId}", Deleted=${staff.deleted}`);
+      });
+      
+      const staffIds = staffMembersData.map(staff => staff.id);
+      console.log('[DashboardTable] 🆔 EXTRACTED STAFF IDS for bulk refresh:', staffIds);
+      console.log('[DashboardTable] 🆔 These IDs will be passed to useDashboardLogic hook');
+    } else {
+      console.log('[DashboardTable] ⚠️ NO STAFF MEMBERS FOUND for current group:', managingGroupId);
+    }
     
     // Create unique keys to track what was last processed
     const currentGroupKey = managingGroupId || 'no-group';
@@ -320,7 +338,14 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
       lastProcessedDateRef.current = currentDateKey;
       
       const staffIds = staffMembersData.map(staff => staff.id);
-      console.log('[DashboardTable] Staff IDs for initial load:', staffIds);
+      console.log('[DashboardTable] 🚀 FINAL STAFF IDS FOR BULK REFRESH:', staffIds);
+      console.log('[DashboardTable] 🚀 These IDs should match the current group (', managingGroupId, ') staff members');
+      
+      // *** ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА СООТВЕТСТВИЯ ***
+      console.log('[DashboardTable] 🔍 VERIFICATION: Staff data vs Group:');
+      console.log('[DashboardTable] Expected group:', managingGroupId);
+      console.log('[DashboardTable] Staff IDs being sent to hook:', staffIds);
+      console.log('[DashboardTable] Staff names being sent:', staffMembersData.map(s => s.name));
       
       console.log('[DashboardTable] 🚀 Executing initial bulk log refresh NOW');
       void onBulkLogRefresh(staffIds, true);
@@ -332,6 +357,15 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
         isNewGroupOrPeriod,
         reason: !isNewGroupOrPeriod ? 'Same group/period' : 'Missing services/data'
       });
+      
+      // *** ДОПОЛНИТЕЛЬНОЕ ЛОГИРОВАНИЕ ЕСЛИ УСЛОВИЯ НЕ ВЫПОЛНЕНЫ ***
+      if (!isNewGroupOrPeriod) {
+        console.log('[DashboardTable] 🔍 Same group/period - no refresh needed');
+        console.log('[DashboardTable] Current staff count:', staffMembersData.length);
+        if (staffMembersData.length > 0) {
+          console.log('[DashboardTable] Current staff IDs:', staffMembersData.map(s => s.id));
+        }
+      }
     }
   }, [onBulkLogRefresh, logsService, staffMembersData, managingGroupId, selectedDate]);
 

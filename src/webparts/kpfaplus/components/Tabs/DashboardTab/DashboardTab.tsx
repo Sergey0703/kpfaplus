@@ -1,6 +1,6 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/DashboardTab.tsx
 import * as React from 'react';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { MessageBar, CommandBar, ICommandBarItemProps } from '@fluentui/react';
 import { ITabProps } from '../../../models/types';
 import { DashboardControlPanel } from './components/DashboardControlPanel';
@@ -52,11 +52,40 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     handleBulkLogRefresh,
     clearLogCache,
     getLogCacheStats,
-    getCachedLogsForStaff // *** NEW: Get cached logs ***
+    getCachedLogsForStaff // *** CRITICAL: Get live logs function ***
   } = useDashboardLogic({
     context,
     currentUserId,
     managingGroupId: effectiveGroupId // *** FIXED: Use effective group ID ***
+  });
+
+  // *** КРИТИЧЕСКИ ВАЖНО: СТАБИЛИЗИРОВАННЫЕ ДАННЫЕ ДЛЯ ПЕРЕДАЧИ В ТАБЛИЦУ ***
+  const stableCachedLogs = useMemo(() => {
+    const logs = getCachedLogsForStaff();
+    console.log('[DashboardTab] 📊 МЕМОИЗИРОВАННЫЕ ДАННЫЕ ДЛЯ ТАБЛИЦЫ:', {
+      totalLogs: Object.keys(logs).length,
+      effectiveGroupId,
+      logKeys: Object.keys(logs),
+      sampleLogData: Object.keys(logs).slice(0, 2).map(key => ({
+        staffId: key,
+        hasLog: !!logs[key]?.log,
+        logId: logs[key]?.log?.ID,
+        logResult: logs[key]?.log?.Result,
+        isLoading: logs[key]?.isLoading,
+        error: logs[key]?.error
+      }))
+    });
+    return logs;
+  }, [getCachedLogsForStaff, effectiveGroupId]);
+
+  // *** ДОПОЛНИТЕЛЬНОЕ ЛОГИРОВАНИЕ ПЕРЕДАЧИ ДАННЫХ ***
+  console.log('[DashboardTab] 🔍 ПРОВЕРКА ПЕРЕДАЧИ ДАННЫХ В DASHBOARDTABLE:', {
+    effectiveGroupId,
+    staffCount: staffMembersData.length,
+    cachedLogsCount: Object.keys(stableCachedLogs).length,
+    logsServiceAvailable: !!logsService,
+    handleBulkLogRefreshAvailable: !!handleBulkLogRefresh,
+    selectedDate: selectedDate?.toLocaleDateString()
   });
 
   // Cache statistics
@@ -264,12 +293,21 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
         boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
         overflow: 'hidden'
       }}>
-        {/* *** DEBUG: Simple prop check *** */}
-        {console.log('[DashboardTab] Passing to DashboardTable:', {
+        {/* *** КРИТИЧЕСКИ ВАЖНО: ПРОВЕРЯЕМ ПЕРЕДАЧУ ДАННЫХ ПРЯМО ПЕРЕД РЕНДЕРОМ *** */}
+        {console.log('[DashboardTab] 🚀 ПЕРЕДАЧА ДАННЫХ В DASHBOARDTABLE СЕЙЧАС:', {
           effectiveGroupId,
           handleBulkLogRefresh: !!handleBulkLogRefresh,
           staffCount: staffMembersData.length,
-          logsService: !!logsService
+          logsService: !!logsService,
+          cachedLogsKeys: Object.keys(stableCachedLogs),
+          cachedLogsCount: Object.keys(stableCachedLogs).length,
+          selectedDate: selectedDate?.toLocaleDateString(),
+          sampleCachedLogData: Object.keys(stableCachedLogs).slice(0, 1).map(key => ({
+            staffId: key,
+            hasLog: !!stableCachedLogs[key]?.log,
+            logId: stableCachedLogs[key]?.log?.ID,
+            isLoading: stableCachedLogs[key]?.isLoading
+          }))
         })}
         
         <DashboardTable
@@ -282,7 +320,7 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
           onLogRefresh={handleLogRefresh}
           onBulkLogRefresh={handleBulkLogRefresh}
           selectedDate={selectedDate}
-          cachedLogs={getCachedLogsForStaff()}
+          cachedLogs={stableCachedLogs} // *** CRITICAL: СТАБИЛИЗИРОВАННЫЕ ДАННЫЕ ***
           managingGroupId={effectiveGroupId} // *** FIXED: Pass effective group ID ***
         />
       </div>

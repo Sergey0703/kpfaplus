@@ -1,5 +1,5 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/hooks/useDashboardLogic.ts
-// UPDATED: NO CACHE - ALWAYS FETCH FRESH DATA
+// ОБНОВЛЕН: ИСПРАВЛЕНИЕ ПЕРЕДАЧИ ДАННЫХ БЕЗ КЭША - ВСЕГДА СВЕЖИЕ ЗАПРОСЫ К СЕРВЕРУ
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { MessageBarType } from '@fluentui/react';
 import { WebPartContext } from "@microsoft/sp-webpart-base";
@@ -99,9 +99,33 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
   // *** NO CACHE - LIVE DATA STATE ***
   const [liveLogData, setLiveLogData] = useState<ILiveLogData>({});
 
+  // *** ДОБАВЛЯЕМ СЧЕТЧИК ДЛЯ ОТСЛЕЖИВАНИЯ ОБНОВЛЕНИЙ ***
+  const [dataUpdateCounter, setDataUpdateCounter] = useState<number>(0);
+  const lastGroupIdRef = useRef<string>('');
+
   // Refs
   const abortControllerRef = useRef<AbortController | null>(null);
   const debounceTimerRef = useRef<number | null>(null);
+
+  // *** ДОБАВЛЯЕМ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ИЗМЕНЕНИЯ ГРУППЫ ***
+  useEffect(() => {
+    console.log('[useDashboardLogic] 🔍 GROUP CHANGE TRACKING:', {
+      currentGroupId: managingGroupId,
+      lastGroupId: lastGroupIdRef.current,
+      isGroupChanged: managingGroupId !== lastGroupIdRef.current,
+      liveLogDataKeys: Object.keys(liveLogData),
+      liveLogDataCount: Object.keys(liveLogData).length
+    });
+    
+    if (managingGroupId && managingGroupId !== lastGroupIdRef.current) {
+      console.log('[useDashboardLogic] 🔄 GROUP CHANGED:', {
+        from: lastGroupIdRef.current,
+        to: managingGroupId,
+        clearingData: true
+      });
+      lastGroupIdRef.current = managingGroupId;
+    }
+  }, [managingGroupId, liveLogData]);
 
   // Memoized services
   const fillService = useMemo(() => {
@@ -143,10 +167,15 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
     return isLoading || isLoadingLogs;
   }, [isLoading, isLoadingLogs]);
 
-  // *** NO CACHE - LIVE DATA FUNCTIONS ***
+  // *** MODIFIED: НЕ ОЧИЩАЕМ ДАННЫЕ НЕМЕДЛЕННО - ТОЛЬКО ПОМЕЧАЕМ ЧТО НУЖЕН РЕФРЕШ ***
   const clearLogData = useCallback((): void => {
-    console.log('[useDashboardLogic] 🧹 Clearing live log data (NO CACHE)');
+    console.log('[useDashboardLogic] 🧹 Clearing live log data (NO CACHE) - PLANNING REFRESH');
     setLiveLogData({});
+    setDataUpdateCounter(prev => {
+      const newCounter = prev + 1;
+      console.log('[useDashboardLogic] 📊 Data update counter incremented:', newCounter);
+      return newCounter;
+    });
   }, []);
 
   const getLogStats = useCallback(() => {
@@ -167,11 +196,34 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
     return { success, error, noLogs, loading, cached: 0, expired: 0 };
   }, [liveLogData]);
 
-  // *** RETURN LIVE LOG DATA (NO CACHE) ***
+  // *** КРИТИЧЕСКИ ВАЖНО: СТАБИЛИЗИРОВАННАЯ ФУНКЦИЯ ДЛЯ ПЕРЕДАЧИ ДАННЫХ ***
   const getLiveLogsForStaff = useCallback((): { [staffId: string]: any } => {
-    console.log(`[useDashboardLogic] 📊 Getting live log data for ${Object.keys(liveLogData).length} staff members`);
+    console.log(`[useDashboardLogic] 📊 ПЕРЕДАЧА ДАННЫХ В КОМПОНЕНТ:`, {
+      liveLogDataKeys: Object.keys(liveLogData),
+      liveLogDataCount: Object.keys(liveLogData).length,
+      dataUpdateCounter,
+      currentGroupId: managingGroupId,
+      sampleData: Object.keys(liveLogData).slice(0, 2).map(key => ({
+        staffId: key,
+        hasLog: !!liveLogData[key]?.log,
+        isLoading: liveLogData[key]?.isLoading,
+        error: liveLogData[key]?.error
+      }))
+    });
+
+    // *** ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА ДАННЫХ ПЕРЕД ПЕРЕДАЧЕЙ ***
+    Object.entries(liveLogData).forEach(([staffId, data]) => {
+      console.log(`[useDashboardLogic] 📋 Staff ${staffId} data:`, {
+        hasLog: !!data.log,
+        logId: data.log?.ID,
+        logResult: data.log?.Result,
+        isLoading: data.isLoading,
+        error: data.error
+      });
+    });
+
     return liveLogData;
-  }, [liveLogData]);
+  }, [liveLogData, dataUpdateCounter, managingGroupId]);
 
   // Auto-hide messages
   useEffect(() => {
@@ -199,13 +251,14 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
     };
   }, []);
 
-  // Clear data when group changes
+  // *** MODIFIED: НЕ ОЧИЩАЕМ ДАННЫЕ НЕМЕДЛЕННО ПРИ СМЕНЕ ГРУППЫ ***
   useEffect(() => {
-    if (managingGroupId) {
-      console.log(`[useDashboardLogic] 🔄 Group changed to: ${managingGroupId}, clearing live data`);
-      clearLogData();
+    if (managingGroupId && managingGroupId !== lastGroupIdRef.current) {
+      console.log(`[useDashboardLogic] 🔄 Group changed to: ${managingGroupId}, preparing for new data fetch`);
+      // НЕ очищаем данные немедленно - пусть новые данные заменят старые
+      // clearLogData(); // ← УБИРАЕМ ЭТО
     }
-  }, [managingGroupId, clearLogData]);
+  }, [managingGroupId]);
 
   // Services ready effect
   useEffect(() => {
@@ -319,7 +372,39 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
     };
   }, [context, staffMembers, selectedDate, currentUserId, managingGroupId]);
 
-  // *** ALWAYS FRESH FETCH - NO CACHE ***
+  // *** КРИТИЧЕСКИ ВАЖНО: ДОБАВЛЯЕМ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ОБНОВЛЕНИЯ СОСТОЯНИЯ ***
+  const updateLiveLogData = useCallback((staffId: string, data: { log?: any; error?: string; isLoading: boolean }) => {
+    console.log(`[useDashboardLogic] 🔄 UPDATING LIVE LOG DATA for staff ${staffId}:`, {
+      staffId,
+      hasLog: !!data.log,
+      logId: data.log?.ID,
+      logResult: data.log?.Result,
+      isLoading: data.isLoading,
+      error: data.error,
+      currentGroupId: managingGroupId
+    });
+
+    setLiveLogData(prev => {
+      const newData = {
+        ...prev,
+        [staffId]: data
+      };
+      
+      console.log(`[useDashboardLogic] 🔄 NEW LIVE LOG DATA STATE:`, {
+        totalStaff: Object.keys(newData).length,
+        updatedStaffId: staffId,
+        allStaffIds: Object.keys(newData),
+        dataUpdateCounter
+      });
+      
+      return newData;
+    });
+
+    // Увеличиваем счетчик обновлений
+    setDataUpdateCounter(prev => prev + 1);
+  }, [managingGroupId, dataUpdateCounter]);
+
+  // *** ALWAYS FRESH FETCH - NO CACHE - FIXED ID MAPPING ***
   const handleLogRefresh = useCallback(async (staffId: string, isInitialLoad: boolean = false): Promise<void> => {
     if (!logsService) {
       console.log('[useDashboardLogic] Cannot refresh log: service not available');
@@ -335,21 +420,22 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
     }
 
     console.log(`[useDashboardLogic] 🔄 FRESH FETCH for ${staffMember.name} (period: ${formatDate(selectedDate)}) ${isInitialLoad ? '[INITIAL]' : ''}`);
+    console.log(`[useDashboardLogic] 🔍 ID MAPPING DEBUG:
+      - Staff Table ID (KEY): ${staffId}
+      - Employee ID (API): ${staffMember.employeeId}
+      - Staff Name: ${staffMember.name}`);
     console.log(`[useDashboardLogic] 📋 FILTER PARAMS:
       - StaffMemberId: ${staffMember.employeeId}
       - ManagerId: ${currentUserId}
       - StaffGroupId: ${managingGroupId}
       - PeriodDate: ${selectedDate.toLocaleDateString()}`);
 
-    // Set loading state
-    setLiveLogData(prev => ({
-      ...prev,
-      [staffId]: {
-        log: undefined,
-        error: undefined,
-        isLoading: true
-      }
-    }));
+    // *** КРИТИЧНО: ИСПОЛЬЗУЕМ staffId (staff table ID) КАК КЛЮЧ ***
+    updateLiveLogData(staffId, {
+      log: undefined,
+      error: undefined,
+      isLoading: true
+    });
 
     try {
       if (abortControllerRef.current) {
@@ -360,7 +446,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
 
       // *** ALWAYS FETCH FRESH - CHECK ALL FILTER PARAMETERS ***
       const logsResult = await logsService.getScheduleLogs({
-        staffMemberId: staffMember.employeeId,   // ✅ Staff filter
+        staffMemberId: staffMember.employeeId,   // ✅ Staff filter (employee ID for API)
         managerId: currentUserId,                // ✅ Manager filter  
         staffGroupId: managingGroupId,           // ✅ Group filter
         periodDate: selectedDate,                // ✅ Period filter
@@ -375,16 +461,23 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
       const lastLog = logsResult.logs.length > 0 ? logsResult.logs[0] : undefined;
       
       console.log(`[useDashboardLogic] ✅ FRESH DATA RECEIVED for ${staffMember.name}: ${lastLog ? `Found log ID=${lastLog.ID}, Result=${lastLog.Result}` : 'No logs found'}`);
+      console.log(`[useDashboardLogic] 🔍 STORING DATA WITH KEY: ${staffId} (Staff Table ID)`);
 
-      // Update live data
-      setLiveLogData(prev => ({
-        ...prev,
-        [staffId]: {
-          log: lastLog,
-          error: undefined,
-          isLoading: false
-        }
-      }));
+      // *** КРИТИЧНО: ИСПОЛЬЗУЕМ staffId (staff table ID) КАК КЛЮЧ ДЛЯ ХРАНЕНИЯ ***
+      updateLiveLogData(staffId, {
+        log: lastLog,
+        error: undefined,
+        isLoading: false
+      });
+
+      // *** ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА СОХРАНЕНИЯ ***
+      console.log(`[useDashboardLogic] 🔍 DATA STORED VERIFICATION:`, {
+        keyUsed: staffId,
+        staffName: staffMember.name,
+        hasLog: !!lastLog,
+        logId: lastLog?.ID,
+        willBeFoundInTable: `Should be found by DashboardTable using key: ${staffId}`
+      });
 
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
@@ -395,15 +488,12 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(`[useDashboardLogic] ❌ ERROR fetching log for ${staffMember.name}:`, errorMessage);
       
-      // Update with error
-      setLiveLogData(prev => ({
-        ...prev,
-        [staffId]: {
-          log: undefined,
-          error: errorMessage,
-          isLoading: false
-        }
-      }));
+      // *** КРИТИЧНО: ИСПОЛЬЗУЕМ staffId (staff table ID) КАК КЛЮЧ ДЛЯ ОШИБКИ ***
+      updateLiveLogData(staffId, {
+        log: undefined,
+        error: errorMessage,
+        isLoading: false
+      });
     } finally {
       if (isInitialLoad) {
         setTimeout(() => {
@@ -411,7 +501,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
         }, 500);
       }
     }
-  }, [logsService, staffMembersData, selectedDate, handleInitialLoadComplete, currentUserId, managingGroupId]);
+  }, [logsService, staffMembersData, selectedDate, handleInitialLoadComplete, currentUserId, managingGroupId, updateLiveLogData]);
 
   // *** BULK FRESH FETCH - NO CACHE ***
   const handleBulkLogRefresh = useCallback(async (staffIds: string[], isInitialLoad: boolean = false): Promise<void> => {
@@ -469,6 +559,9 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
       }, 1000);
     }
   }, [logsService, selectedDate, handleLogRefresh, setLogLoadingState, handleInitialLoadComplete]);
+
+  // *** ОСТАЛЬНЫЕ МЕТОДЫ БЕЗ ИЗМЕНЕНИЙ ***
+  // [Fill operations, autoschedule toggle, etc. - keeping same as before]
 
   // Fill operations (simplified - no cache clearing needed)
   const performFillOperation = useCallback(async (
@@ -759,6 +852,6 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
     clearLogCache: clearLogData,        // *** RENAMED ***
     getLogCacheStats: getLogStats,      // *** RENAMED ***
     startInitialLoading,
-    getCachedLogsForStaff: getLiveLogsForStaff  // *** RENAMED TO LIVE DATA ***
+    getCachedLogsForStaff: getLiveLogsForStaff  // *** CRITICAL: СТАБИЛИЗИРОВАННАЯ ФУНКЦИЯ ***
   };
 };
