@@ -1,6 +1,6 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/hooks/useDashboardLogs.ts
 // ИСПРАВЛЕНО: Полностью убран кэш - всегда возвращаем пустые данные до явной загрузки
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { ScheduleLogsService } from '../../../../services/ScheduleLogsService';
 import { IStaffMemberWithAutoschedule } from '../components/DashboardTable';
 
@@ -39,6 +39,7 @@ interface IUseDashboardLogsReturn {
   getLogStats: () => ILogStats;
   getLiveLogsForStaff: () => { [staffId: string]: any };
   handleInitialLoadComplete: () => void;
+  isDataCleared: boolean; // *** NEW: Flag to indicate data was cleared ***
 }
 
 // Utility functions
@@ -58,20 +59,39 @@ export const useDashboardLogs = (params: IUseDashboardLogsParams): IUseDashboard
   // *** STATE FOR LIVE LOG DATA - БЕЗ КЭША ***
   const [liveLogData, setLiveLogData] = useState<ILiveLogData>({});
   const [dataUpdateCounter, setDataUpdateCounter] = useState<number>(0);
+  const [isDataCleared, setIsDataCleared] = useState<boolean>(false);
 
   // Refs
   const abortControllerRef = useRef<AbortController | null>(null);
+  const prevStaffIdsRef = useRef<string>('');
 
   // *** CLEAR LOG DATA ***
   const clearLogData = useCallback((): void => {
     console.log('[useDashboardLogs] 🧹 Clearing live log data - NO CACHE');
     setLiveLogData({});
+    setIsDataCleared(true); // *** Set flag that data was cleared ***
     setDataUpdateCounter(prev => {
       const newCounter = prev + 1;
       console.log('[useDashboardLogs] 📊 Data counter incremented to (CLEAR):', newCounter);
       return newCounter;
     });
   }, []);
+
+  // *** AUTO-CLEAR LOG DATA WHEN STAFF MEMBERS CHANGE ***
+  useEffect(() => {
+    const currentStaffIds = staffMembersData.map(staff => staff.id).sort().join(',');
+    
+    if (prevStaffIdsRef.current && prevStaffIdsRef.current !== currentStaffIds) {
+      console.log('[useDashboardLogs] 🔄 STAFF MEMBERS CHANGED - AUTO CLEARING:', {
+        previous: prevStaffIdsRef.current,
+        current: currentStaffIds,
+        action: 'Auto-clearing log data'
+      });
+      clearLogData();
+    }
+    
+    prevStaffIdsRef.current = currentStaffIds;
+  }, [staffMembersData, clearLogData]);
 
   // *** UPDATE LIVE LOG DATA ***
   const updateLiveLogData = useCallback((staffId: string, data: { log?: any; error?: string; isLoading: boolean }) => {
@@ -169,6 +189,7 @@ export const useDashboardLogs = (params: IUseDashboardLogsParams): IUseDashboard
   // *** HANDLE INITIAL LOAD COMPLETE ***
   const handleInitialLoadComplete = useCallback((): void => {
     console.log('[useDashboardLogs] Initial log load completed - NO CACHE');
+    setIsDataCleared(false); // *** Reset flag after successful load ***
   }, []);
 
   // *** SINGLE LOG REFRESH ***
@@ -325,6 +346,7 @@ export const useDashboardLogs = (params: IUseDashboardLogsParams): IUseDashboard
     clearLogData,
     getLogStats,
     getLiveLogsForStaff,
-    handleInitialLoadComplete
+    handleInitialLoadComplete,
+    isDataCleared // *** Return the flag ***
   };
 };
