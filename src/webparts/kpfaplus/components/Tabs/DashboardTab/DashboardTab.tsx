@@ -41,7 +41,8 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     handleLogRefresh,
     handleBulkLogRefresh,
     clearLogCache,
-    getLogCacheStats
+    getLogCacheStats,
+    getCachedLogsForStaff // *** NEW: Get cached logs ***
   } = useDashboardLogic({
     context,
     currentUserId,
@@ -266,6 +267,7 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
           onLogRefresh={handleLogRefresh}
           onBulkLogRefresh={handleBulkLogRefresh}
           selectedDate={selectedDate}
+          cachedLogs={getCachedLogsForStaff()} // *** NEW: Pass cached logs ***
         />
       </div>
 

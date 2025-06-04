@@ -90,7 +90,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
   // State variables
   const [selectedDate, setSelectedDate] = useState<Date>(getSavedSelectedDate());
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [isLoadingLogs, setIsLoadingLogs] = useState<boolean>(true); // *** START WITH LOADING TRUE ***
+  const [isLoadingLogs, setIsLoadingLogs] = useState<boolean>(true);
   const [infoMessage, setInfoMessage] = useState<IInfoMessage | undefined>(undefined);
   const [confirmDialog, setConfirmDialog] = useState<IConfirmDialogState>({
     isOpen: false,
@@ -101,6 +101,8 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
     confirmButtonColor: '#0078d4',
     onConfirm: () => {}
   });
+  // *** NEW: State to trigger updates when cache changes ***
+  const [logCacheVersion, setLogCacheVersion] = useState<number>(0);
 
   // Refs
   const logCacheRef = useRef<ILogCache>({});
@@ -157,24 +159,23 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
     }
   }, [infoMessage]);
 
-  // *** INITIAL LOADING EFFECT - SIMPLIFIED AND MORE STABLE ***
+  // Initial loading effect
   useEffect(() => {
     console.log('[useDashboardLogic] 🔄 Initial mount effect - setting loading to true');
     setIsLoadingLogs(true);
     
-    // Set a fallback timer to stop loading after 6 seconds
     const fallbackTimer = setTimeout(() => {
       console.log('[useDashboardLogic] ⏰ Fallback timer: stopping loading after 6 seconds');
       setIsLoadingLogs(false);
-    }, 6000); // Increased to 6 seconds
+    }, 6000);
     
     return () => {
       console.log('[useDashboardLogic] 🧹 Cleaning up initial mount effect');
       clearTimeout(fallbackTimer);
     };
-  }, []); // *** EMPTY DEPENDENCY ARRAY - RUNS ONLY ON MOUNT ***
+  }, []);
 
-  // *** STOP LOADING WHEN FIRST LOG IS PROCESSED - SIMPLIFIED ***
+  // Services ready effect
   useEffect(() => {
     if (logsService && staffMembersData.length > 0) {
       console.log('[useDashboardLogic] 📊 Services and staff data are ready');
@@ -196,10 +197,11 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
     };
   }, []);
 
-  // Cache management functions (declared first)
+  // Cache management functions
   const clearLogCache = useCallback((): void => {
     console.log('[useDashboardLogic] Clearing log cache with Date support');
     logCacheRef.current = {};
+    setLogCacheVersion(prev => prev + 1); // *** TRIGGER UPDATE ***
   }, []);
 
   const getLogCacheStats = useCallback(() => {
@@ -218,18 +220,37 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
     return { cached, expired };
   }, []);
 
+  // *** NEW: Function to get cached logs for display ***
+  const getCachedLogsForStaff = useCallback((): { [staffId: string]: any } => {
+    const result: { [staffId: string]: any } = {};
+    
+    Object.entries(logCacheRef.current).forEach(([staffId, entry]) => {
+      const now = Date.now();
+      const isNotExpired = (now - entry.lastFetch) < CACHE_TIMEOUT;
+      const isSamePeriodCache = isSamePeriod(entry.periodDate, selectedDate);
+      
+      if (isNotExpired && isSamePeriodCache) {
+        result[staffId] = {
+          log: entry.data,
+          error: entry.error,
+          isLoading: false
+        };
+      }
+    });
+    
+    return result;
+  }, [selectedDate, logCacheVersion]); // *** DEPEND ON CACHE VERSION ***
+
   const setLogLoadingState = useCallback((loading: boolean): void => {
     console.log(`[useDashboardLogic] Setting log loading state: ${loading}`);
     setIsLoadingLogs(loading);
   }, []);
 
-  // *** NEW FUNCTION: Stop initial loading when first logs are loaded ***
   const handleInitialLoadComplete = useCallback((): void => {
     console.log('[useDashboardLogic] Initial load completed, stopping loading spinner');
     setIsLoadingLogs(false);
   }, []);
 
-  // *** NEW FUNCTION: Force start loading (for tab reopening) ***
   const startInitialLoading = useCallback((): void => {
     console.log('[useDashboardLogic] Starting initial loading (tab opened/reopened)');
     setIsLoadingLogs(true);
@@ -381,6 +402,9 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
       };
 
       console.log(`[useDashboardLogic] Log refreshed and cached for ${staffMember.name} (period: ${formatDate(selectedDate)}) ${isInitialLoad ? '[INITIAL]' : ''}`);
+      
+      // *** TRIGGER CACHE UPDATE ***
+      setLogCacheVersion(prev => prev + 1);
 
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
@@ -397,8 +421,10 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
         error: errorMessage,
         periodDate: new Date(selectedDate)
       };
+      
+      // *** TRIGGER CACHE UPDATE ***
+      setLogCacheVersion(prev => prev + 1);
     } finally {
-      // *** STOP INITIAL LOADING WHEN FIRST LOG REQUEST COMPLETES ***
       if (isInitialLoad) {
         setTimeout(() => {
           handleInitialLoadComplete();
@@ -493,6 +519,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
       if (result.success) {
         console.log(`[useDashboardLogic] Fill successful for ${staffName}`);
         delete logCacheRef.current[fillParams.staffMember.id];
+        setLogCacheVersion(prev => prev + 1); // *** TRIGGER UPDATE ***
         
         setTimeout(() => {
           void handleLogRefresh(fillParams.staffMember.id);
@@ -626,6 +653,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
             totalDeletedRecords += result.deletedRecordsCount || 0;
             processedStaffIds.push(staffMember.id);
             delete logCacheRef.current[staffMember.id];
+            setLogCacheVersion(prev => prev + 1); // *** TRIGGER UPDATE ***
           } else {
             errorCount++;
           }
@@ -754,6 +782,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
     handleBulkLogRefresh,
     clearLogCache,
     getLogCacheStats,
-    startInitialLoading
+    startInitialLoading,
+    getCachedLogsForStaff // *** NEW: Export cached logs ***
   };
 };

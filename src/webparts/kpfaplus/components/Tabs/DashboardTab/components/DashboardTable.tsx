@@ -49,7 +49,7 @@ enum LogStatusFilter {
   NoLogs = 'no-logs'
 }
 
-// *** ОБНОВЛЕННЫЙ ИНТЕРФЕЙС PROPS С ПОДДЕРЖКОЙ BULK REFRESH ***
+// *** UPDATED INTERFACE WITH CACHED LOGS ***
 interface IDashboardTableProps {
   staffMembersData: IStaffMemberWithAutoschedule[];
   isLoading: boolean;
@@ -57,12 +57,13 @@ interface IDashboardTableProps {
   onFillStaff: (staffId: string, staffName: string) => Promise<void>;
   context?: any;
   logsService?: ScheduleLogsService;
-  onLogRefresh?: (staffId: string, isInitialLoad?: boolean) => Promise<void>; // *** UPDATED ***
-  onBulkLogRefresh?: (staffIds: string[], isInitialLoad?: boolean) => Promise<void>; // *** NEW ***
+  onLogRefresh?: (staffId: string, isInitialLoad?: boolean) => Promise<void>;
+  onBulkLogRefresh?: (staffIds: string[], isInitialLoad?: boolean) => Promise<void>;
   selectedDate?: Date;
+  cachedLogs?: { [staffId: string]: { log?: any; error?: string; isLoading: boolean } }; // *** NEW ***
 }
 
-// *** ОБНОВЛЕННЫЙ КОМПОНЕНТ ИНДИКАТОРА СТАТУСА ЛОГА ***
+// *** UPDATED LOG STATUS INDICATOR COMPONENT ***
 const LogStatusIndicator: React.FC<{
   log?: IScheduleLog;
   isLoading?: boolean;
@@ -72,7 +73,7 @@ const LogStatusIndicator: React.FC<{
   selectedDate?: Date;
 }> = ({ log, isLoading, error, onClick, onRetry, selectedDate }) => {
   
-  // *** ФУНКЦИЯ: Проверка соответствия лога выбранному периоду ***
+  // Check if log matches selected period
   const isLogForSelectedPeriod = useMemo((): boolean => {
     if (!log || !log.Date || !selectedDate) return true;
     
@@ -213,42 +214,54 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     logsService,
     onLogRefresh,
     onBulkLogRefresh,
-    selectedDate
+    selectedDate,
+    cachedLogs = {} // *** NEW: Cached logs from hook ***
   } = props;
 
   const { selectedDepartmentId } = useDataContext();
 
-  // Состояния
-  const [staffMembersWithLogs, setStaffMembersWithLogs] = useState<IStaffMemberWithLog[]>([]);
+  // *** UPDATED: Use cached logs instead of separate state ***
+  const staffMembersWithLogs = useMemo((): IStaffMemberWithLog[] => {
+    return staffMembersData.map(member => {
+      const cachedData = cachedLogs[member.id];
+      
+      return {
+        ...member,
+        lastLog: cachedData?.log,
+        isLoadingLog: cachedData?.isLoading || false,
+        logError: cachedData?.error
+      };
+    });
+  }, [staffMembersData, cachedLogs]);
+
+  console.log('[DashboardTable] Using cached logs for display:', {
+    staffCount: staffMembersData.length,
+    cachedLogsCount: Object.keys(cachedLogs).length,
+    exampleStaff: staffMembersWithLogs[0] ? {
+      id: staffMembersWithLogs[0].id,
+      name: staffMembersWithLogs[0].name,
+      hasLog: !!staffMembersWithLogs[0].lastLog,
+      logError: staffMembersWithLogs[0].logError,
+      isLoading: staffMembersWithLogs[0].isLoadingLog
+    } : 'No staff'
+  });
+
+  // *** UPDATED: Remove state management since we use cached logs ***
   const [logDialog, setLogDialog] = useState<ILogDialogState>({
     isOpen: false, logId: undefined, staffName: undefined
   });
   const [statusFilter, setStatusFilter] = useState<LogStatusFilter>(LogStatusFilter.All);
   const [isRefreshingAllLogs, setIsRefreshingAllLogs] = useState<boolean>(false);
   const [logStats, setLogStats] = useState({ success: 0, error: 0, noLogs: 0, loading: 0 });
-  const [hasTriggeredInitialLoad, setHasTriggeredInitialLoad] = useState<boolean>(false); // *** NEW STATE ***
+  const [hasTriggeredInitialLoad, setHasTriggeredInitialLoad] = useState<boolean>(false);
 
-  // *** ФОРМАТИРОВАНИЕ ВЫБРАННОЙ ДАТЫ ДЛЯ ОТОБРАЖЕНИЯ ***
+  // Format selected date for display
   const formatSelectedDate = useCallback((): string => {
     if (!selectedDate) return 'N/A';
     return selectedDate.toLocaleDateString();
   }, [selectedDate]);
 
-  // Конвертация данных
-  useEffect(() => {
-    const membersWithLogs: IStaffMemberWithLog[] = staffMembersData.map(member => {
-      const existingMember = staffMembersWithLogs.find(m => m.id === member.id);
-      return {
-        ...member,
-        lastLog: existingMember?.lastLog,
-        isLoadingLog: existingMember?.isLoadingLog || false,
-        logError: existingMember?.logError
-      };
-    });
-    setStaffMembersWithLogs(membersWithLogs);
-  }, [staffMembersData]);
-
-  // Подсчет статистики
+  // Calculate statistics from cached logs
   useEffect(() => {
     const stats = staffMembersWithLogs.reduce((acc, member) => {
       if (member.isLoadingLog) acc.loading++;
@@ -262,7 +275,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     setLogStats(stats);
   }, [staffMembersWithLogs]);
 
-  // *** TRIGGER INITIAL LOAD WHEN SERVICES ARE READY - SIMPLIFIED ***
+  // *** TRIGGER INITIAL LOAD WHEN SERVICES ARE READY ***
   useEffect(() => {
     console.log('[DashboardTable] useEffect triggered - checking initial load conditions');
     console.log('[DashboardTable] onBulkLogRefresh available:', !!onBulkLogRefresh);
@@ -277,15 +290,10 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
       const staffIds = staffMembersData.map(staff => staff.id);
       console.log('[DashboardTable] Staff IDs for initial load:', staffIds);
       
-      // Immediate execution - no delay
       console.log('[DashboardTable] 🚀 Executing initial bulk log refresh NOW');
       void onBulkLogRefresh(staffIds, true);
     } else {
-      console.log('[DashboardTable] ❌ Conditions not met for initial load:');
-      console.log('  - onBulkLogRefresh:', !!onBulkLogRefresh);
-      console.log('  - logsService:', !!logsService);
-      console.log('  - staffMembersData.length:', staffMembersData.length);
-      console.log('  - hasTriggeredInitialLoad:', hasTriggeredInitialLoad);
+      console.log('[DashboardTable] ❌ Conditions not met for initial load');
     }
   }, [onBulkLogRefresh, logsService, staffMembersData, hasTriggeredInitialLoad]);
 
@@ -295,7 +303,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     setHasTriggeredInitialLoad(false);
   }, [selectedDate, formatSelectedDate]);
 
-  // *** ОБНОВЛЕННОЕ ОБНОВЛЕНИЕ ВСЕХ ЛОГОВ ***
+  // *** UPDATED REFRESH ALL LOGS ***
   const refreshAllLogs = useCallback((): void => {
     if (!onBulkLogRefresh || staffMembersWithLogs.length === 0) {
       console.log('[DashboardTable] Cannot refresh logs: no bulk refresh function or no staff members');
@@ -308,7 +316,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
 
     const staffIds = staffMembersWithLogs.map(staff => staff.id);
     
-    onBulkLogRefresh(staffIds, false) // *** USE BULK REFRESH FROM HOOK ***
+    onBulkLogRefresh(staffIds, false)
       .then(() => {
         console.log('[DashboardTable] Bulk refresh completed successfully');
         setTimeout(() => {
@@ -324,7 +332,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
 
   }, [onBulkLogRefresh, staffMembersWithLogs, formatSelectedDate]);
 
-  // Обработчики
+  // Event handlers
   const handleLogClick = useCallback((staffMember: IStaffMemberWithLog): void => {
     if (!staffMember.lastLog) return;
     setLogDialog({
@@ -340,7 +348,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
 
   const handleLogRetry = useCallback((staffMember: IStaffMemberWithLog): void => {
     if (onLogRefresh) {
-      void onLogRefresh(staffMember.id, false); // *** USE HOOK'S LOG REFRESH ***
+      void onLogRefresh(staffMember.id, false);
     }
   }, [onLogRefresh]);
 
@@ -350,7 +358,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     }
   }, [onLogRefresh]);
 
-  // Фильтрация
+  // Filter staff members
   const filteredStaffMembers = useMemo(() => {
     return staffMembersWithLogs.filter(member => {
       switch (statusFilter) {
@@ -362,7 +370,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     });
   }, [staffMembersWithLogs, statusFilter]);
 
-  // *** ОБНОВЛЕННЫЙ COMMAND BAR С ИНФОРМАЦИЕЙ О ПЕРИОДЕ ***
+  // *** UPDATED COMMAND BAR WITH PERIOD INFO ***
   const commandBarItems: ICommandBarItemProps[] = [
     {
       key: 'filter',
@@ -406,7 +414,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     }
   ];
 
-  // Рендеры ячеек
+  // Cell renderers
   const renderAutoscheduleCell = (item: IStaffMemberWithLog): JSX.Element => (
     <Toggle
       checked={item.autoschedule}
@@ -448,7 +456,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     />
   );
 
-  // Колонки
+  // Column definitions
   const columns: IColumn[] = [
     {
       key: 'name', name: 'Staff Member', fieldName: 'name',
@@ -490,7 +498,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
 
   return (
     <div style={{ flex: 1 }}>
-      {/* *** ОБНОВЛЕННАЯ ИНФОРМАЦИЯ С ДАННЫМИ О ПЕРИОДЕ *** */}
+      {/* *** UPDATED INFO WITH PERIOD DATA *** */}
       <div style={{ marginBottom: '10px' }}>
         <p style={{ fontSize: '12px', color: '#666', margin: '0 0 10px 0' }}>
           Showing {filteredStaffMembers.length} of {staffMembersWithLogs.length} staff members for period: <strong>{formatSelectedDate()}</strong>
@@ -511,7 +519,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
         )}
       </div>
 
-      {/* *** СООБЩЕНИЕ О СТАТУСЕ *** */}
+      {/* *** STATUS MESSAGE *** */}
       {isRefreshingAllLogs && (
         <MessageBar
           messageBarType={MessageBarType.info}
@@ -521,7 +529,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
         </MessageBar>
       )}
       
-      {/* Таблица */}
+      {/* Main table */}
       {staffMembersWithLogs.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '40px' }}>
           <p>No active staff members found in the selected department.</p>
@@ -540,7 +548,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
         />
       )}
 
-      {/* *** ДИАЛОГ ПРОСМОТРА ЛОГА *** */}
+      {/* *** LOG DETAILS DIALOG *** */}
       <LogDetailsDialog
         isOpen={logDialog.isOpen}
         logId={logDialog.logId}
