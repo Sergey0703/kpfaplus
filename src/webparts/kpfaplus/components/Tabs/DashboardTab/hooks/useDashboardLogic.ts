@@ -1,13 +1,15 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/hooks/useDashboardLogic.ts
-// ОБНОВЛЕН: ИСПРАВЛЕНИЕ ПЕРЕДАЧИ ДАННЫХ БЕЗ КЭША - ВСЕГДА СВЕЖИЕ ЗАПРОСЫ К СЕРВЕРУ
+// ОБНОВЛЕНО: Главный координирующий хук с разделением ответственности
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { MessageBarType } from '@fluentui/react';
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { useDataContext } from '../../../../context';
 import { IStaffMember } from '../../../../models/types';
 import { IStaffMemberWithAutoschedule } from '../components/DashboardTable';
-import { CommonFillService, IFillParams } from '../../../../services/CommonFillService';
+import { CommonFillService } from '../../../../services/CommonFillService';
 import { ScheduleLogsService } from '../../../../services/ScheduleLogsService';
+import { useDashboardLogs } from './useDashboardLogs';
+import { useDashboardFill } from './useDashboardFill';
 
 // Interfaces
 interface IInfoMessage {
@@ -29,15 +31,6 @@ interface IUseDashboardLogicParams {
   context?: WebPartContext;
   currentUserId?: string;
   managingGroupId?: string;
-}
-
-// *** NO CACHE - LIVE LOG DATA STATE ***
-interface ILiveLogData {
-  [staffId: string]: {
-    log?: any;
-    error?: string;
-    isLoading: boolean;
-  };
 }
 
 // Constants
@@ -76,7 +69,7 @@ const getSavedSelectedDate = (): Date => {
 export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
   const { context, currentUserId, managingGroupId } = params;
   
-  console.log('[useDashboardLogic] Hook initialized - NO CACHE - ALWAYS FRESH FETCH');
+  console.log('[useDashboardLogic] Main coordinator hook initialized - modular architecture');
 
   // Context data
   const { staffMembers, updateStaffMember } = useDataContext();
@@ -96,36 +89,34 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
     onConfirm: () => {}
   });
 
-  // *** NO CACHE - LIVE DATA STATE ***
-  const [liveLogData, setLiveLogData] = useState<ILiveLogData>({});
-
-  // *** ДОБАВЛЯЕМ СЧЕТЧИК ДЛЯ ОТСЛЕЖИВАНИЯ ОБНОВЛЕНИЙ ***
-  const [dataUpdateCounter, setDataUpdateCounter] = useState<number>(0);
+  // Refs
+  const debounceTimerRef = useRef<number | null>(null);
   const lastGroupIdRef = useRef<string>('');
 
-  // Refs
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const debounceTimerRef = useRef<number | null>(null);
-
-  // *** ДОБАВЛЯЕМ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ИЗМЕНЕНИЯ ГРУППЫ ***
+  // *** GROUP CHANGE TRACKING WITH IMMEDIATE DATA CLEARING ***
   useEffect(() => {
     console.log('[useDashboardLogic] 🔍 GROUP CHANGE TRACKING:', {
       currentGroupId: managingGroupId,
       lastGroupId: lastGroupIdRef.current,
-      isGroupChanged: managingGroupId !== lastGroupIdRef.current,
-      liveLogDataKeys: Object.keys(liveLogData),
-      liveLogDataCount: Object.keys(liveLogData).length
+      isGroupChanged: managingGroupId !== lastGroupIdRef.current
     });
     
-    if (managingGroupId && managingGroupId !== lastGroupIdRef.current) {
-      console.log('[useDashboardLogic] 🔄 GROUP CHANGED:', {
+    if (managingGroupId && managingGroupId !== lastGroupIdRef.current && lastGroupIdRef.current !== '') {
+      console.log('[useDashboardLogic] 🔄 GROUP CHANGED - TRIGGERING LOG DATA CLEAR:', {
         from: lastGroupIdRef.current,
         to: managingGroupId,
-        clearingData: true
+        clearingDataImmediately: true
       });
+      
+      // *** CLEAR LOG DATA IMMEDIATELY ON GROUP CHANGE ***
+      logsHook.clearLogData();
+    }
+    
+    // *** UPDATE REF AFTER PROCESSING ***
+    if (managingGroupId) {
       lastGroupIdRef.current = managingGroupId;
     }
-  }, [managingGroupId, liveLogData]);
+  }, [managingGroupId]);
 
   // Memoized services
   const fillService = useMemo(() => {
@@ -162,68 +153,35 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
     return activeStaff;
   }, [staffMembers]);
 
+  // *** LOGS HOOK INTEGRATION ***
+  const logsHook = useDashboardLogs({
+    logsService,
+    staffMembersData,
+    selectedDate,
+    currentUserId,
+    managingGroupId
+  });
+
+  // *** FILL HOOK INTEGRATION ***
+  const fillHook = useDashboardFill({
+    context,
+    currentUserId,
+    managingGroupId,
+    selectedDate,
+    staffMembers,
+    staffMembersData,
+    fillService,
+    setIsLoading,
+    setInfoMessage,
+    setConfirmDialog,
+    handleLogRefresh: logsHook.handleLogRefresh,
+    handleBulkLogRefresh: logsHook.handleBulkLogRefresh
+  });
+
   // Combined loading state
   const combinedIsLoading = useMemo(() => {
     return isLoading || isLoadingLogs;
   }, [isLoading, isLoadingLogs]);
-
-  // *** MODIFIED: НЕ ОЧИЩАЕМ ДАННЫЕ НЕМЕДЛЕННО - ТОЛЬКО ПОМЕЧАЕМ ЧТО НУЖЕН РЕФРЕШ ***
-  const clearLogData = useCallback((): void => {
-    console.log('[useDashboardLogic] 🧹 Clearing live log data (NO CACHE) - PLANNING REFRESH');
-    setLiveLogData({});
-    setDataUpdateCounter(prev => {
-      const newCounter = prev + 1;
-      console.log('[useDashboardLogic] 📊 Data update counter incremented:', newCounter);
-      return newCounter;
-    });
-  }, []);
-
-  const getLogStats = useCallback(() => {
-    let success = 0;
-    let error = 0;
-    let noLogs = 0;
-    let loading = 0;
-
-    Object.values(liveLogData).forEach(entry => {
-      if (entry.isLoading) loading++;
-      else if (entry.error) error++;
-      else if (entry.log) {
-        if (entry.log.Result === 2) success++;
-        else error++;
-      } else noLogs++;
-    });
-
-    return { success, error, noLogs, loading, cached: 0, expired: 0 };
-  }, [liveLogData]);
-
-  // *** КРИТИЧЕСКИ ВАЖНО: СТАБИЛИЗИРОВАННАЯ ФУНКЦИЯ ДЛЯ ПЕРЕДАЧИ ДАННЫХ ***
-  const getLiveLogsForStaff = useCallback((): { [staffId: string]: any } => {
-    console.log(`[useDashboardLogic] 📊 ПЕРЕДАЧА ДАННЫХ В КОМПОНЕНТ:`, {
-      liveLogDataKeys: Object.keys(liveLogData),
-      liveLogDataCount: Object.keys(liveLogData).length,
-      dataUpdateCounter,
-      currentGroupId: managingGroupId,
-      sampleData: Object.keys(liveLogData).slice(0, 2).map(key => ({
-        staffId: key,
-        hasLog: !!liveLogData[key]?.log,
-        isLoading: liveLogData[key]?.isLoading,
-        error: liveLogData[key]?.error
-      }))
-    });
-
-    // *** ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА ДАННЫХ ПЕРЕД ПЕРЕДАЧЕЙ ***
-    Object.entries(liveLogData).forEach(([staffId, data]) => {
-      console.log(`[useDashboardLogic] 📋 Staff ${staffId} data:`, {
-        hasLog: !!data.log,
-        logId: data.log?.ID,
-        logResult: data.log?.Result,
-        isLoading: data.isLoading,
-        error: data.error
-      });
-    });
-
-    return liveLogData;
-  }, [liveLogData, dataUpdateCounter, managingGroupId]);
 
   // Auto-hide messages
   useEffect(() => {
@@ -251,15 +209,6 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
     };
   }, []);
 
-  // *** MODIFIED: НЕ ОЧИЩАЕМ ДАННЫЕ НЕМЕДЛЕННО ПРИ СМЕНЕ ГРУППЫ ***
-  useEffect(() => {
-    if (managingGroupId && managingGroupId !== lastGroupIdRef.current) {
-      console.log(`[useDashboardLogic] 🔄 Group changed to: ${managingGroupId}, preparing for new data fetch`);
-      // НЕ очищаем данные немедленно - пусть новые данные заменят старые
-      // clearLogData(); // ← УБИРАЕМ ЭТО
-    }
-  }, [managingGroupId]);
-
   // Services ready effect
   useEffect(() => {
     if (logsService && staffMembersData.length > 0) {
@@ -276,9 +225,6 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
     };
   }, []);
 
@@ -286,11 +232,6 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
   const setLogLoadingState = useCallback((loading: boolean): void => {
     console.log(`[useDashboardLogic] Setting log loading state: ${loading}`);
     setIsLoadingLogs(loading);
-  }, []);
-
-  const handleInitialLoadComplete = useCallback((): void => {
-    console.log('[useDashboardLogic] Initial load completed, stopping loading spinner');
-    setIsLoadingLogs(false);
   }, []);
 
   const startInitialLoading = useCallback((): void => {
@@ -319,7 +260,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
         }
         
         setSelectedDate(date);
-        clearLogData();
+        logsHook.clearLogData();
         
         setTimeout(() => {
           console.log('[useDashboardLogic] Auto-stopping loading state after period change');
@@ -328,286 +269,9 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
         
       }, DEBOUNCE_DELAY);
     }
-  }, [clearLogData, setLogLoadingState]);
+  }, [logsHook, setLogLoadingState]);
 
-  // Create fill parameters
-  const createFillParams = useCallback((staffMember: IStaffMemberWithAutoschedule): IFillParams | undefined => {
-    if (!context) {
-      console.error('[useDashboardLogic] Context not available');
-      return undefined;
-    }
-
-    const fullStaffMember = staffMembers.find(staff => staff.id === staffMember.id);
-    if (!fullStaffMember) {
-      console.error('[useDashboardLogic] Staff member not found:', staffMember.id);
-      return undefined;
-    }
-
-    const validationErrors: string[] = [];
-    
-    if (!fullStaffMember.employeeId || fullStaffMember.employeeId === 'N/A') {
-      validationErrors.push('Invalid employeeId');
-    }
-    
-    if (!currentUserId || currentUserId === '0') {
-      validationErrors.push('Invalid currentUserId');
-    }
-    
-    if (!managingGroupId || managingGroupId === '0') {
-      validationErrors.push('Invalid managingGroupId');
-    }
-
-    if (validationErrors.length > 0) {
-      console.error('[useDashboardLogic] Validation errors:', validationErrors);
-      return undefined;
-    }
-
-    return {
-      selectedDate,
-      staffMember: fullStaffMember,
-      currentUserId,
-      managingGroupId,
-      dayOfStartWeek: 7,
-      context
-    };
-  }, [context, staffMembers, selectedDate, currentUserId, managingGroupId]);
-
-  // *** КРИТИЧЕСКИ ВАЖНО: ДОБАВЛЯЕМ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ОБНОВЛЕНИЯ СОСТОЯНИЯ ***
-  const updateLiveLogData = useCallback((staffId: string, data: { log?: any; error?: string; isLoading: boolean }) => {
-    console.log(`[useDashboardLogic] 🔄 UPDATING LIVE LOG DATA for staff ${staffId}:`, {
-      staffId,
-      hasLog: !!data.log,
-      logId: data.log?.ID,
-      logResult: data.log?.Result,
-      isLoading: data.isLoading,
-      error: data.error,
-      currentGroupId: managingGroupId
-    });
-
-    setLiveLogData(prev => {
-      const newData = {
-        ...prev,
-        [staffId]: data
-      };
-      
-      console.log(`[useDashboardLogic] 🔄 NEW LIVE LOG DATA STATE:`, {
-        totalStaff: Object.keys(newData).length,
-        updatedStaffId: staffId,
-        allStaffIds: Object.keys(newData),
-        dataUpdateCounter
-      });
-      
-      return newData;
-    });
-
-    // Увеличиваем счетчик обновлений
-    setDataUpdateCounter(prev => prev + 1);
-  }, [managingGroupId, dataUpdateCounter]);
-
-  // *** ALWAYS FRESH FETCH - NO CACHE - FIXED ID MAPPING ***
-  const handleLogRefresh = useCallback(async (staffId: string, isInitialLoad: boolean = false): Promise<void> => {
-    if (!logsService) {
-      console.log('[useDashboardLogic] Cannot refresh log: service not available');
-      if (isInitialLoad) handleInitialLoadComplete();
-      return;
-    }
-
-    const staffMember = staffMembersData.find(staff => staff.id === staffId);
-    if (!staffMember?.employeeId) {
-      console.log('[useDashboardLogic] Cannot refresh log: staff not found or no employeeId');
-      if (isInitialLoad) handleInitialLoadComplete();
-      return;
-    }
-
-    console.log(`[useDashboardLogic] 🔄 FRESH FETCH for ${staffMember.name} (period: ${formatDate(selectedDate)}) ${isInitialLoad ? '[INITIAL]' : ''}`);
-    console.log(`[useDashboardLogic] 🔍 ID MAPPING DEBUG:
-      - Staff Table ID (KEY): ${staffId}
-      - Employee ID (API): ${staffMember.employeeId}
-      - Staff Name: ${staffMember.name}`);
-    console.log(`[useDashboardLogic] 📋 FILTER PARAMS:
-      - StaffMemberId: ${staffMember.employeeId}
-      - ManagerId: ${currentUserId}
-      - StaffGroupId: ${managingGroupId}
-      - PeriodDate: ${selectedDate.toLocaleDateString()}`);
-
-    // *** КРИТИЧНО: ИСПОЛЬЗУЕМ staffId (staff table ID) КАК КЛЮЧ ***
-    updateLiveLogData(staffId, {
-      log: undefined,
-      error: undefined,
-      isLoading: true
-    });
-
-    try {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-
-      abortControllerRef.current = new AbortController();
-
-      // *** ALWAYS FETCH FRESH - CHECK ALL FILTER PARAMETERS ***
-      const logsResult = await logsService.getScheduleLogs({
-        staffMemberId: staffMember.employeeId,   // ✅ Staff filter (employee ID for API)
-        managerId: currentUserId,                // ✅ Manager filter  
-        staffGroupId: managingGroupId,           // ✅ Group filter
-        periodDate: selectedDate,                // ✅ Period filter
-        top: 1,
-        skip: 0
-      });
-
-      if (logsResult.error) {
-        throw new Error(logsResult.error);
-      }
-
-      const lastLog = logsResult.logs.length > 0 ? logsResult.logs[0] : undefined;
-      
-      console.log(`[useDashboardLogic] ✅ FRESH DATA RECEIVED for ${staffMember.name}: ${lastLog ? `Found log ID=${lastLog.ID}, Result=${lastLog.Result}` : 'No logs found'}`);
-      console.log(`[useDashboardLogic] 🔍 STORING DATA WITH KEY: ${staffId} (Staff Table ID)`);
-
-      // *** КРИТИЧНО: ИСПОЛЬЗУЕМ staffId (staff table ID) КАК КЛЮЧ ДЛЯ ХРАНЕНИЯ ***
-      updateLiveLogData(staffId, {
-        log: lastLog,
-        error: undefined,
-        isLoading: false
-      });
-
-      // *** ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА СОХРАНЕНИЯ ***
-      console.log(`[useDashboardLogic] 🔍 DATA STORED VERIFICATION:`, {
-        keyUsed: staffId,
-        staffName: staffMember.name,
-        hasLog: !!lastLog,
-        logId: lastLog?.ID,
-        willBeFoundInTable: `Should be found by DashboardTable using key: ${staffId}`
-      });
-
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        console.log(`[useDashboardLogic] Log refresh aborted for ${staffMember.name}`);
-        return;
-      }
-      
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`[useDashboardLogic] ❌ ERROR fetching log for ${staffMember.name}:`, errorMessage);
-      
-      // *** КРИТИЧНО: ИСПОЛЬЗУЕМ staffId (staff table ID) КАК КЛЮЧ ДЛЯ ОШИБКИ ***
-      updateLiveLogData(staffId, {
-        log: undefined,
-        error: errorMessage,
-        isLoading: false
-      });
-    } finally {
-      if (isInitialLoad) {
-        setTimeout(() => {
-          handleInitialLoadComplete();
-        }, 500);
-      }
-    }
-  }, [logsService, staffMembersData, selectedDate, handleInitialLoadComplete, currentUserId, managingGroupId, updateLiveLogData]);
-
-  // *** BULK FRESH FETCH - NO CACHE ***
-  const handleBulkLogRefresh = useCallback(async (staffIds: string[], isInitialLoad: boolean = false): Promise<void> => {
-    console.log(`[useDashboardLogic] 🔄 BULK FRESH FETCH called with ${staffIds.length} staff IDs, isInitialLoad: ${isInitialLoad}`);
-    console.log(`[useDashboardLogic] Staff IDs: ${staffIds.join(', ')}`);
-    console.log(`[useDashboardLogic] Logs service available: ${!!logsService}`);
-    
-    if (!logsService || staffIds.length === 0) {
-      console.log('[useDashboardLogic] Cannot execute bulk refresh: no service or no staff IDs');
-      if (isInitialLoad) handleInitialLoadComplete();
-      return;
-    }
-
-    console.log(`[useDashboardLogic] 🚀 BULK FRESH FETCH for ${staffIds.length} staff members (period: ${formatDate(selectedDate)}) ${isInitialLoad ? '[INITIAL]' : ''}`);
-
-    if (!isInitialLoad) {
-      setLogLoadingState(true);
-    }
-
-    const batchSize = 3;
-    const batches: string[][] = [];
-    
-    for (let i = 0; i < staffIds.length; i += batchSize) {
-      batches.push(staffIds.slice(i, i + batchSize));
-    }
-
-    let completedFirstBatch = false;
-
-    for (const batch of batches) {
-      console.log(`[useDashboardLogic] Processing batch: ${batch.join(', ')}`);
-      
-      const promises = batch.map(staffId => 
-        handleLogRefresh(staffId, isInitialLoad && !completedFirstBatch)
-      );
-      
-      try {
-        await Promise.all(promises);
-        console.log(`[useDashboardLogic] Batch completed: ${batch.join(', ')}`);
-      } catch (error) {
-        console.warn('[useDashboardLogic] Some log refreshes failed:', error);
-      }
-
-      completedFirstBatch = true;
-      
-      if (batch !== batches[batches.length - 1]) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-    }
-
-    console.log(`[useDashboardLogic] Bulk refresh completed for period: ${formatDate(selectedDate)} ${isInitialLoad ? '[INITIAL]' : ''}`);
-    
-    if (!isInitialLoad) {
-      setTimeout(() => {
-        setLogLoadingState(false);
-      }, 1000);
-    }
-  }, [logsService, selectedDate, handleLogRefresh, setLogLoadingState, handleInitialLoadComplete]);
-
-  // *** ОСТАЛЬНЫЕ МЕТОДЫ БЕЗ ИЗМЕНЕНИЙ ***
-  // [Fill operations, autoschedule toggle, etc. - keeping same as before]
-
-  // Fill operations (simplified - no cache clearing needed)
-  const performFillOperation = useCallback(async (
-    fillParams: IFillParams, 
-    staffName: string, 
-    replaceExisting: boolean
-  ): Promise<void> => {
-    if (!fillService) {
-      console.error('[useDashboardLogic] Fill service not available');
-      setInfoMessage({
-        text: 'Fill service not available',
-        type: MessageBarType.error
-      });
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      console.log(`[useDashboardLogic] Starting fill for ${staffName} (period: ${formatDate(selectedDate)})`);
-
-      const result = await fillService.fillScheduleForStaff(fillParams, replaceExisting);
-
-      setInfoMessage({
-        text: result.message,
-        type: result.messageType
-      });
-
-      if (result.success) {
-        console.log(`[useDashboardLogic] Fill successful for ${staffName} - will refresh log`);
-        
-        setTimeout(() => {
-          void handleLogRefresh(fillParams.staffMember.id);
-        }, 1500);
-      }
-
-    } catch (error) {
-      console.error(`[useDashboardLogic] Fill error for ${staffName}:`, error);
-      setInfoMessage({
-        text: `Error filling schedule for ${staffName}: ${error}`,
-        type: MessageBarType.error
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [fillService, selectedDate, handleLogRefresh]);
-
+  // *** ENHANCED AUTOSCHEDULE TOGGLE WITH PROPER SERVICE INTEGRATION ***
   const handleAutoscheduleToggle = useCallback(async (staffId: string, checked: boolean): Promise<void> => {
     console.log('[useDashboardLogic] Autoschedule toggle:', staffId, checked);
     
@@ -632,209 +296,10 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
     } finally {
       setIsLoading(false);
     }
-  }, [updateStaffMember]);
-
-  const handleFillStaff = useCallback(async (staffId: string, staffName: string): Promise<void> => {
-    console.log(`[useDashboardLogic] Fill staff operation: ${staffId}, ${staffName} (period: ${formatDate(selectedDate)})`);
-    
-    const staffMember = staffMembersData.find(staff => staff.id === staffId);
-    if (!staffMember) {
-      setInfoMessage({
-        text: `Staff member not found: ${staffName}`,
-        type: MessageBarType.error
-      });
-      return;
-    }
-
-    const fillParams = createFillParams(staffMember);
-    if (!fillParams) {
-      setInfoMessage({
-        text: 'Cannot create fill parameters - check staff data and context',
-        type: MessageBarType.error
-      });
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-
-      if (!fillService) {
-        throw new Error('Fill service not available');
-      }
-
-      const existingCheck = await fillService.checkExistingRecords(fillParams);
-
-      if (existingCheck.hasExistingRecords) {
-        if (existingCheck.hasProcessedRecords) {
-          setInfoMessage({
-            text: `Cannot replace records for ${staffName}: ${existingCheck.processedCount} of ${existingCheck.recordsCount} records have been processed.`,
-            type: MessageBarType.error
-          });
-          return;
-        } else {
-          setConfirmDialog({
-            isOpen: true,
-            title: 'Replace Existing Records',
-            message: `Found ${existingCheck.recordsCount} existing unprocessed records for ${staffName} in ${formatDate(selectedDate)} period. Replace them?`,
-            confirmButtonText: 'Replace',
-            cancelButtonText: 'Cancel',
-            confirmButtonColor: '#d83b01',
-            onConfirm: async () => {
-              setConfirmDialog(prev => ({ ...prev, isOpen: false }));
-              await performFillOperation(fillParams, staffName, true);
-            }
-          });
-          return;
-        }
-      } else {
-        await performFillOperation(fillParams, staffName, false);
-      }
-
-    } catch (error) {
-      console.error('[useDashboardLogic] Fill staff error:', error);
-      setInfoMessage({
-        text: `Error in Fill operation: ${error}`,
-        type: MessageBarType.error
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [staffMembersData, selectedDate, createFillParams, fillService, performFillOperation]);
-
-  const performFillAllOperation = useCallback(async (replaceExisting: boolean): Promise<void> => {
-    if (!fillService) return;
-
-    let successCount = 0;
-    let errorCount = 0;
-    let totalCreatedRecords = 0;
-    let totalDeletedRecords = 0;
-    const processedStaffIds: string[] = [];
-
-    console.log(`[useDashboardLogic] Performing fill all operation for period: ${formatDate(selectedDate)}`);
-
-    for (const staffMember of staffMembersData) {
-      const fillParams = createFillParams(staffMember);
-      if (fillParams) {
-        try {
-          const result = await fillService.fillScheduleForStaff(fillParams, replaceExisting);
-          
-          if (result.success) {
-            successCount++;
-            totalCreatedRecords += result.createdRecordsCount || 0;
-            totalDeletedRecords += result.deletedRecordsCount || 0;
-            processedStaffIds.push(staffMember.id);
-          } else {
-            errorCount++;
-          }
-        } catch (error) {
-          errorCount++;
-          console.error(`[useDashboardLogic] Fill error for ${staffMember.name}:`, error);
-        }
-
-        await new Promise(resolve => setTimeout(resolve, 300));
-      } else {
-        errorCount++;
-      }
-    }
-
-    if (errorCount === 0) {
-      setInfoMessage({
-        text: `Successfully filled schedule for all ${successCount} staff members for ${formatDate(selectedDate)} period. Created ${totalCreatedRecords} records.`,
-        type: MessageBarType.success
-      });
-    } else {
-      setInfoMessage({
-        text: `Filled ${successCount} of ${staffMembersData.length} staff members for ${formatDate(selectedDate)} period. ${errorCount} failed.`,
-        type: MessageBarType.warning
-      });
-    }
-
-    if (processedStaffIds.length > 0) {
-      setTimeout(() => {
-        void handleBulkLogRefresh(processedStaffIds);
-      }, 2000);
-    }
-  }, [fillService, selectedDate, staffMembersData, createFillParams, handleBulkLogRefresh]);
-
-  const handleFillAll = useCallback(async (): Promise<void> => {
-    console.log(`[useDashboardLogic] Fill all operation started for period: ${formatDate(selectedDate)}`);
-    
-    if (!fillService) {
-      setInfoMessage({
-        text: 'Fill service not available',
-        type: MessageBarType.error
-      });
-      return;
-    }
-
-    if (staffMembersData.length === 0) {
-      setInfoMessage({
-        text: 'No active staff members to fill',
-        type: MessageBarType.warning
-      });
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-
-      let totalExistingRecords = 0;
-      let totalProcessedRecords = 0;
-      const staffWithExistingRecords: string[] = [];
-
-      for (const staffMember of staffMembersData) {
-        const fillParams = createFillParams(staffMember);
-        if (fillParams) {
-          const existingCheck = await fillService.checkExistingRecords(fillParams);
-          if (existingCheck.hasExistingRecords) {
-            totalExistingRecords += existingCheck.recordsCount;
-            staffWithExistingRecords.push(staffMember.name);
-            
-            if (existingCheck.hasProcessedRecords) {
-              totalProcessedRecords += existingCheck.processedCount;
-            }
-          }
-        }
-      }
-
-      if (totalProcessedRecords > 0) {
-        setInfoMessage({
-          text: `Cannot fill all: Found ${totalProcessedRecords} processed records. Manual review required.`,
-          type: MessageBarType.error
-        });
-        return;
-      }
-
-      if (totalExistingRecords > 0) {
-        setConfirmDialog({
-          isOpen: true,
-          title: 'Replace All Existing Records',
-          message: `Found ${totalExistingRecords} existing records for ${staffWithExistingRecords.length} staff members in ${formatDate(selectedDate)} period. Replace all?`,
-          confirmButtonText: 'Replace All',
-          cancelButtonText: 'Cancel',
-          confirmButtonColor: '#d83b01',
-          onConfirm: async () => {
-            setConfirmDialog(prev => ({ ...prev, isOpen: false }));
-            await performFillAllOperation(true);
-          }
-        });
-        return;
-      } else {
-        await performFillAllOperation(false);
-      }
-
-    } catch (error) {
-      console.error('[useDashboardLogic] Fill all error:', error);
-      setInfoMessage({
-        text: `Error in Fill All operation: ${error}`,
-        type: MessageBarType.error
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [staffMembersData, selectedDate, fillService, createFillParams, performFillAllOperation]);
+  }, [updateStaffMember, setIsLoading, setInfoMessage]);
 
   return {
+    // *** CORE STATE ***
     staffMembersData,
     selectedDate,
     isLoading: combinedIsLoading,
@@ -842,16 +307,26 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
     confirmDialog,
     setInfoMessage,
     setConfirmDialog,
+    
+    // *** DATE HANDLING ***
     handleDateChange,
+    
+    // *** AUTOSCHEDULE (KEPT IN MAIN HOOK) ***
     handleAutoscheduleToggle,
-    handleFillStaff,
-    handleFillAll,
+    
+    // *** FILL OPERATIONS (DELEGATED TO FILL HOOK) ***
+    handleFillStaff: fillHook.handleFillStaff,
+    handleFillAll: fillHook.handleFillAll,
+    
+    // *** LOG OPERATIONS (DELEGATED TO LOGS HOOK) ***
     logsService,
-    handleLogRefresh,
-    handleBulkLogRefresh,
-    clearLogCache: clearLogData,        // *** RENAMED ***
-    getLogCacheStats: getLogStats,      // *** RENAMED ***
-    startInitialLoading,
-    getCachedLogsForStaff: getLiveLogsForStaff  // *** CRITICAL: СТАБИЛИЗИРОВАННАЯ ФУНКЦИЯ ***
+    handleLogRefresh: logsHook.handleLogRefresh,
+    handleBulkLogRefresh: logsHook.handleBulkLogRefresh,
+    clearLogCache: logsHook.clearLogData,
+    getLogCacheStats: logsHook.getLogStats,
+    getCachedLogsForStaff: logsHook.getLiveLogsForStaff,
+    
+    // *** UTILITY FUNCTIONS ***
+    startInitialLoading
   };
 };

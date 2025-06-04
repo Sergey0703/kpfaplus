@@ -1,4 +1,5 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/components/DashboardTable.tsx
+// ИСПРАВЛЕНО: Правильная детекция смены группы - НЕ обновлять ref до выполнения запроса
 import * as React from 'react';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
@@ -49,7 +50,6 @@ enum LogStatusFilter {
   NoLogs = 'no-logs'
 }
 
-// *** FIXED INTERFACE WITH MANAGING GROUP ID ***
 interface IDashboardTableProps {
   staffMembersData: IStaffMemberWithAutoschedule[];
   isLoading: boolean;
@@ -61,7 +61,7 @@ interface IDashboardTableProps {
   onBulkLogRefresh?: (staffIds: string[], isInitialLoad?: boolean) => Promise<void>;
   selectedDate?: Date;
   cachedLogs?: { [staffId: string]: { log?: any; error?: string; isLoading: boolean } };
-  managingGroupId?: string; // *** FIXED: To reset initial load on group change ***
+  managingGroupId?: string;
 }
 
 // *** LOG STATUS INDICATOR COMPONENT (unchanged) ***
@@ -216,8 +216,8 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     onLogRefresh,
     onBulkLogRefresh,
     selectedDate,
-    cachedLogs = {}, // *** LIVE DATA - NO CACHE ***
-    managingGroupId // *** FIXED: Group ID for reset detection ***
+    cachedLogs = {},
+    managingGroupId
   } = props;
 
   const { selectedDepartmentId } = useDataContext();
@@ -266,7 +266,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
   const [isRefreshingAllLogs, setIsRefreshingAllLogs] = useState<boolean>(false);
   const [logStats, setLogStats] = useState({ success: 0, error: 0, noLogs: 0, loading: 0 });
   
-  // *** FIXED: Use refs to persist across re-renders ***
+  // *** ИСПРАВЛЕНО: Use refs для отслеживания ТОЛЬКО после успешного запроса ***
   const lastProcessedGroupRef = useRef<string>('');
   const lastProcessedDateRef = useRef<string>('');
 
@@ -290,7 +290,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     setLogStats(stats);
   }, [staffMembersWithLogs]);
 
-  // *** FIXED: TRIGGER INITIAL LOAD WHEN GROUP OR PERIOD CHANGES WITH DETAILED LOGS ***
+  // *** КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: НЕ ОБНОВЛЯТЬ REF ДО ВЫПОЛНЕНИЯ ЗАПРОСА ***
   useEffect(() => {
     console.log('[DashboardTable] useEffect triggered - checking conditions');
     console.log('[DashboardTable] onBulkLogRefresh available:', !!onBulkLogRefresh);
@@ -299,7 +299,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     console.log('[DashboardTable] managingGroupId:', managingGroupId);
     console.log('[DashboardTable] selectedDate:', selectedDate?.toLocaleDateString());
     
-    // *** КРИТИЧЕСКОЕ ЛОГИРОВАНИЕ: ДЕТАЛЬНАЯ ИНФОРМАЦИЯ О STAFF MEMBERS ***
+    // *** ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ STAFF MEMBERS ***
     console.log('[DashboardTable] 🔍 DETAILED STAFF ANALYSIS:');
     console.log('[DashboardTable] Current managingGroupId:', managingGroupId);
     console.log('[DashboardTable] Total staffMembersData received:', staffMembersData.length);
@@ -315,27 +315,26 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
       console.log('[DashboardTable] 🆔 These IDs will be passed to useDashboardLogic hook');
     } else {
       console.log('[DashboardTable] ⚠️ NO STAFF MEMBERS FOUND for current group:', managingGroupId);
+      return; // *** ВАЖНО: Выходим если нет данных ***
     }
     
-    // Create unique keys to track what was last processed
+    // *** ИСПРАВЛЕНО: Создаем ключи для сравнения БЕЗ ОБНОВЛЕНИЯ REF ***
     const currentGroupKey = managingGroupId || 'no-group';
     const currentDateKey = selectedDate?.toLocaleDateString() || 'no-date';
     const currentKey = `${currentGroupKey}-${currentDateKey}`;
     const lastKey = `${lastProcessedGroupRef.current}-${lastProcessedDateRef.current}`;
     
+    console.log('[DashboardTable] 🔑 KEY COMPARISON:');
     console.log('[DashboardTable] Current key:', currentKey);
     console.log('[DashboardTable] Last processed key (ref):', lastKey);
     
-    // Check if this is a new group/period combination
+    // *** ИСПРАВЛЕНО: Проверяем смену БЕЗ обновления ref ***
     const isNewGroupOrPeriod = currentKey !== lastKey;
+    console.log('[DashboardTable] 🎯 Is new group/period?:', isNewGroupOrPeriod);
     
     if (onBulkLogRefresh && logsService && staffMembersData.length > 0 && isNewGroupOrPeriod) {
       console.log('[DashboardTable] ✅ NEW GROUP/PERIOD DETECTED - Triggering initial bulk log refresh');
       console.log(`[DashboardTable] Changed from "${lastKey}" to "${currentKey}"`);
-      
-      // Update tracking using refs (persists across re-renders)
-      lastProcessedGroupRef.current = currentGroupKey;
-      lastProcessedDateRef.current = currentDateKey;
       
       const staffIds = staffMembersData.map(staff => staff.id);
       console.log('[DashboardTable] 🚀 FINAL STAFF IDS FOR BULK REFRESH:', staffIds);
@@ -348,7 +347,25 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
       console.log('[DashboardTable] Staff names being sent:', staffMembersData.map(s => s.name));
       
       console.log('[DashboardTable] 🚀 Executing initial bulk log refresh NOW');
-      void onBulkLogRefresh(staffIds, true);
+      
+      // *** ВЫПОЛНЯЕМ ЗАПРОС ***
+      onBulkLogRefresh(staffIds, true)
+        .then(() => {
+          console.log('[DashboardTable] 🎉 Bulk refresh completed successfully - updating tracking refs');
+          // *** КРИТИЧНО: Обновляем refs ТОЛЬКО после успешного запроса ***
+          lastProcessedGroupRef.current = currentGroupKey;
+          lastProcessedDateRef.current = currentDateKey;
+          console.log('[DashboardTable] 📝 Updated refs to:', {
+            group: lastProcessedGroupRef.current,
+            date: lastProcessedDateRef.current,
+            key: `${lastProcessedGroupRef.current}-${lastProcessedDateRef.current}`
+          });
+        })
+        .catch((error) => {
+          console.error('[DashboardTable] ❌ Bulk refresh failed:', error);
+          // НЕ обновляем refs при ошибке - позволим повторить попытку
+        });
+      
     } else {
       console.log('[DashboardTable] ❌ Conditions not met for initial load:', {
         hasRefreshFunction: !!onBulkLogRefresh,
