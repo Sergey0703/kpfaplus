@@ -1,5 +1,5 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/hooks/useDashboardLogs.ts
-// ИСПРАВЛЕНО: Убран бесконечный цикл обновлений dataUpdateCounter
+// ИСПРАВЛЕНО: Полностью убран кэш - всегда возвращаем пустые данные до явной загрузки
 import { useState, useCallback, useRef } from 'react';
 import { ScheduleLogsService } from '../../../../services/ScheduleLogsService';
 import { IStaffMemberWithAutoschedule } from '../components/DashboardTable';
@@ -53,9 +53,9 @@ const formatDate = (date?: Date): string => {
 export const useDashboardLogs = (params: IUseDashboardLogsParams): IUseDashboardLogsReturn => {
   const { logsService, staffMembersData, selectedDate, currentUserId, managingGroupId } = params;
 
-  console.log('[useDashboardLogs] Logs hook initialized');
+  console.log('[useDashboardLogs] Logs hook initialized - NO CACHE MODE');
 
-  // *** STATE FOR LIVE LOG DATA ***
+  // *** STATE FOR LIVE LOG DATA - БЕЗ КЭША ***
   const [liveLogData, setLiveLogData] = useState<ILiveLogData>({});
   const [dataUpdateCounter, setDataUpdateCounter] = useState<number>(0);
 
@@ -64,7 +64,7 @@ export const useDashboardLogs = (params: IUseDashboardLogsParams): IUseDashboard
 
   // *** CLEAR LOG DATA ***
   const clearLogData = useCallback((): void => {
-    console.log('[useDashboardLogs] 🧹 Clearing live log data');
+    console.log('[useDashboardLogs] 🧹 Clearing live log data - NO CACHE');
     setLiveLogData({});
     setDataUpdateCounter(prev => {
       const newCounter = prev + 1;
@@ -73,9 +73,9 @@ export const useDashboardLogs = (params: IUseDashboardLogsParams): IUseDashboard
     });
   }, []);
 
-  // *** UPDATE LIVE LOG DATA - ИСПРАВЛЕНО: НЕ УВЕЛИЧИВАЕМ СЧЕТЧИК ПРИ КАЖДОМ ОБНОВЛЕНИИ ***
+  // *** UPDATE LIVE LOG DATA ***
   const updateLiveLogData = useCallback((staffId: string, data: { log?: any; error?: string; isLoading: boolean }) => {
-    console.log(`[useDashboardLogs] 🔄 UPDATING LOG DATA for staff ${staffId}:`, {
+    console.log(`[useDashboardLogs] 🔄 UPDATING LOG DATA for staff ${staffId} - NO CACHE:`, {
       staffId,
       hasLog: !!data.log,
       logId: data.log?.ID,
@@ -91,7 +91,7 @@ export const useDashboardLogs = (params: IUseDashboardLogsParams): IUseDashboard
         [staffId]: data
       };
       
-      console.log(`[useDashboardLogs] 🔄 UPDATED LOG DATA STATE:`, {
+      console.log(`[useDashboardLogs] 🔄 UPDATED LOG DATA STATE - NO CACHE:`, {
         totalStaff: Object.keys(newData).length,
         updatedStaffId: staffId,
         allStaffIds: Object.keys(newData)
@@ -99,9 +99,6 @@ export const useDashboardLogs = (params: IUseDashboardLogsParams): IUseDashboard
       
       return newData;
     });
-
-    // *** ИСПРАВЛЕНО: НЕ увеличиваем счетчик при каждом обновлении данных ***
-    // setDataUpdateCounter(prev => prev + 1); // ← УБРАНО чтобы избежать бесконечного цикла
   }, [managingGroupId]);
 
   // *** GET LOG STATISTICS ***
@@ -123,9 +120,9 @@ export const useDashboardLogs = (params: IUseDashboardLogsParams): IUseDashboard
     return { success, error, noLogs, loading, cached: 0, expired: 0 };
   }, [liveLogData]);
 
-  // *** ИСПРАВЛЕНО: УБРАНА ЗАВИСИМОСТЬ ОТ dataUpdateCounter ***
+  // *** БЕЗ КЭША - ВСЕГДА ВОЗВРАЩАЕМ ТОЛЬКО АКТУАЛЬНЫЕ ДАННЫЕ ***
   const getLiveLogsForStaff = useCallback((): { [staffId: string]: any } => {
-    console.log(`[useDashboardLogs] 📊 PROVIDING LOG DATA TO COMPONENT:`, {
+    console.log(`[useDashboardLogs] 📊 PROVIDING LOG DATA TO COMPONENT - NO CACHE:`, {
       liveLogDataKeys: Object.keys(liveLogData),
       liveLogDataCount: Object.keys(liveLogData).length,
       currentGroupId: managingGroupId,
@@ -137,9 +134,9 @@ export const useDashboardLogs = (params: IUseDashboardLogsParams): IUseDashboard
       }))
     });
 
-    // *** DETAILED LOG DATA VERIFICATION ***
+    // *** ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ДАННЫХ БЕЗ КЭША ***
     Object.entries(liveLogData).forEach(([staffId, data]) => {
-      console.log(`[useDashboardLogs] 📋 Staff ${staffId} log data:`, {
+      console.log(`[useDashboardLogs] 📋 Staff ${staffId} log data - NO CACHE:`, {
         hasLog: !!data.log,
         logId: data.log?.ID,
         logResult: data.log?.Result,
@@ -148,13 +145,30 @@ export const useDashboardLogs = (params: IUseDashboardLogsParams): IUseDashboard
       });
     });
 
-    return liveLogData;
-  }, [liveLogData, managingGroupId]); // *** ИСПРАВЛЕНО: убрана зависимость от dataUpdateCounter ***
+    // *** ВОЗВРАЩАЕМ ТОЛЬКО ЗАГРУЖЕННЫЕ ДАННЫЕ - БЕЗ КЭША ***
+    const resultData: { [staffId: string]: any } = {};
+    
+    Object.entries(liveLogData).forEach(([staffId, data]) => {
+      resultData[staffId] = {
+        hasLog: !!data.log,
+        logId: data.log?.ID,
+        logResult: data.log?.Result,
+        isLoading: data.isLoading,
+        error: data.error
+      };
+    });
+
+    console.log('[useDashboardLogs] 🚀 RETURNING DATA - NO CACHE:', {
+      returnedKeys: Object.keys(resultData),
+      returnedCount: Object.keys(resultData).length
+    });
+
+    return resultData;
+  }, [liveLogData, managingGroupId]);
 
   // *** HANDLE INITIAL LOAD COMPLETE ***
   const handleInitialLoadComplete = useCallback((): void => {
-    console.log('[useDashboardLogs] Initial log load completed');
-    // Note: Loading state is managed by parent component
+    console.log('[useDashboardLogs] Initial log load completed - NO CACHE');
   }, []);
 
   // *** SINGLE LOG REFRESH ***
@@ -172,12 +186,12 @@ export const useDashboardLogs = (params: IUseDashboardLogsParams): IUseDashboard
       return;
     }
 
-    console.log(`[useDashboardLogs] 🔄 FRESH LOG FETCH for ${staffMember.name} (period: ${formatDate(selectedDate)}) ${isInitialLoad ? '[INITIAL]' : ''}`);
-    console.log(`[useDashboardLogs] 🔍 ID MAPPING DEBUG:
+    console.log(`[useDashboardLogs] 🔄 FRESH LOG FETCH - NO CACHE for ${staffMember.name} (period: ${formatDate(selectedDate)}) ${isInitialLoad ? '[INITIAL]' : ''}`);
+    console.log(`[useDashboardLogs] 🔍 ID MAPPING DEBUG - NO CACHE:
       - Staff Table ID (KEY): ${staffId}
       - Employee ID (API): ${staffMember.employeeId}
       - Staff Name: ${staffMember.name}`);
-    console.log(`[useDashboardLogs] 📋 FILTER PARAMS:
+    console.log(`[useDashboardLogs] 📋 FILTER PARAMS - NO CACHE:
       - StaffMemberId: ${staffMember.employeeId}
       - ManagerId: ${currentUserId}
       - StaffGroupId: ${managingGroupId}
@@ -213,8 +227,8 @@ export const useDashboardLogs = (params: IUseDashboardLogsParams): IUseDashboard
 
       const lastLog = logsResult.logs.length > 0 ? logsResult.logs[0] : undefined;
       
-      console.log(`[useDashboardLogs] ✅ FRESH LOG DATA RECEIVED for ${staffMember.name}: ${lastLog ? `Found log ID=${lastLog.ID}, Result=${lastLog.Result}` : 'No logs found'}`);
-      console.log(`[useDashboardLogs] 🔍 STORING DATA WITH KEY: ${staffId} (Staff Table ID)`);
+      console.log(`[useDashboardLogs] ✅ FRESH LOG DATA RECEIVED - NO CACHE for ${staffMember.name}: ${lastLog ? `Found log ID=${lastLog.ID}, Result=${lastLog.Result}` : 'No logs found'}`);
+      console.log(`[useDashboardLogs] 🔍 STORING DATA WITH KEY - NO CACHE: ${staffId} (Staff Table ID)`);
 
       // *** STORE LOG DATA WITH STAFF TABLE ID AS KEY ***
       updateLiveLogData(staffId, {
@@ -224,7 +238,7 @@ export const useDashboardLogs = (params: IUseDashboardLogsParams): IUseDashboard
       });
 
       // *** VERIFICATION OF STORED DATA ***
-      console.log(`[useDashboardLogs] 🔍 LOG DATA STORED VERIFICATION:`, {
+      console.log(`[useDashboardLogs] 🔍 LOG DATA STORED VERIFICATION - NO CACHE:`, {
         keyUsed: staffId,
         staffName: staffMember.name,
         hasLog: !!lastLog,
@@ -258,8 +272,8 @@ export const useDashboardLogs = (params: IUseDashboardLogsParams): IUseDashboard
 
   // *** BULK LOG REFRESH ***
   const handleBulkLogRefresh = useCallback(async (staffIds: string[], isInitialLoad: boolean = false): Promise<void> => {
-    console.log(`[useDashboardLogs] 🔄 BULK LOG REFRESH called with ${staffIds.length} staff IDs, isInitialLoad: ${isInitialLoad}`);
-    console.log(`[useDashboardLogs] Staff IDs: ${staffIds.join(', ')}`);
+    console.log(`[useDashboardLogs] 🔄 BULK LOG REFRESH called - NO CACHE with ${staffIds.length} staff IDs, isInitialLoad: ${isInitialLoad}`);
+    console.log(`[useDashboardLogs] Staff IDs - NO CACHE: ${staffIds.join(', ')}`);
     console.log(`[useDashboardLogs] Logs service available: ${!!logsService}`);
     
     if (!logsService || staffIds.length === 0) {
@@ -268,9 +282,7 @@ export const useDashboardLogs = (params: IUseDashboardLogsParams): IUseDashboard
       return;
     }
 
-    console.log(`[useDashboardLogs] 🚀 BULK LOG REFRESH for ${staffIds.length} staff members (period: ${formatDate(selectedDate)}) ${isInitialLoad ? '[INITIAL]' : ''}`);
-
-    // Note: Loading state is managed by parent component
+    console.log(`[useDashboardLogs] 🚀 BULK LOG REFRESH - NO CACHE for ${staffIds.length} staff members (period: ${formatDate(selectedDate)}) ${isInitialLoad ? '[INITIAL]' : ''}`);
 
     const batchSize = 3;
     const batches: string[][] = [];
@@ -282,7 +294,7 @@ export const useDashboardLogs = (params: IUseDashboardLogsParams): IUseDashboard
     let completedFirstBatch = false;
 
     for (const batch of batches) {
-      console.log(`[useDashboardLogs] Processing batch: ${batch.join(', ')}`);
+      console.log(`[useDashboardLogs] Processing batch - NO CACHE: ${batch.join(', ')}`);
       
       const promises = batch.map(staffId => 
         handleLogRefresh(staffId, isInitialLoad && !completedFirstBatch)
@@ -290,7 +302,7 @@ export const useDashboardLogs = (params: IUseDashboardLogsParams): IUseDashboard
       
       try {
         await Promise.all(promises);
-        console.log(`[useDashboardLogs] Batch completed: ${batch.join(', ')}`);
+        console.log(`[useDashboardLogs] Batch completed - NO CACHE: ${batch.join(', ')}`);
       } catch (error) {
         console.warn('[useDashboardLogs] Some log refreshes failed:', error);
       }
@@ -302,9 +314,7 @@ export const useDashboardLogs = (params: IUseDashboardLogsParams): IUseDashboard
       }
     }
 
-    console.log(`[useDashboardLogs] Bulk log refresh completed for period: ${formatDate(selectedDate)} ${isInitialLoad ? '[INITIAL]' : ''}`);
-    
-    // Note: Loading state cleanup is managed by parent component
+    console.log(`[useDashboardLogs] Bulk log refresh completed - NO CACHE for period: ${formatDate(selectedDate)} ${isInitialLoad ? '[INITIAL]' : ''}`);
   }, [logsService, selectedDate, handleLogRefresh, handleInitialLoadComplete]);
 
   return {

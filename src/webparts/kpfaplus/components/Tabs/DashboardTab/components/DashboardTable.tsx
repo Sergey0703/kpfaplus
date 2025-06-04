@@ -137,9 +137,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     logsService,
     isLoading,
     infoMessage,
-    confirmDialog,
     setInfoMessage,
-    setConfirmDialog,
     managingGroupId,
     onBulkLogRefresh,
     onLogRefresh,
@@ -158,6 +156,20 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     staffName?: string;
   }>({ isOpen: false });
 
+  // *** DEBUG: ПРОВЕРЯЕМ ЧТО ВОЗВРАЩАЕТ getCachedLogsForStaff ***
+  console.log('[DashboardTable] *** DEBUG CACHED LOGS FUNCTION ***');
+  staffMembersData.forEach((staff: IStaffMemberWithAutoschedule) => {
+    const logData = getCachedLogsForStaff(staff.id);
+    console.log(`[DashboardTable] *** DEBUG *** Staff ID=${staff.id}, Name="${staff.name}":`, {
+      logData,
+      hasLog: logData?.hasLog,
+      logId: logData?.logId,
+      logResult: logData?.logResult,
+      isLoading: logData?.isLoading,
+      error: logData?.error
+    });
+  });
+
   // *** MEMOIZED STAFF DATA WITH LOG STATUS ***
   const staffMembersWithLogs = useMemo((): IStaffWithLogs[] => {
     console.log('[DashboardTable] Recalculating staffMembersWithLogs:', {
@@ -173,7 +185,14 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     return staffMembersData.map((staff: IStaffMemberWithAutoschedule): IStaffWithLogs => {
       const logData = getCachedLogsForStaff(staff.id);
       
-      console.log(`[DashboardTable] Staff ${staff.name}: hasLog=${logData?.hasLog}, isLoading=${logData?.isLoading}, error=${logData?.error}`);
+      console.log(`[DashboardTable] *** PROCESSING STAFF *** ${staff.name} (ID=${staff.id}):`, {
+        originalLogData: logData,
+        hasLog: logData?.hasLog,
+        logId: logData?.logId,
+        logResult: logData?.logResult,
+        isLoading: logData?.isLoading,
+        error: logData?.error
+      });
       
       return {
         ...staff,
@@ -188,7 +207,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     exampleStaff: staffMembersWithLogs[0]
   });
 
-  // *** BULK REFRESH EFFECT ***
+  // *** ПРОСТАЯ ЛОГИКА АВТОМАТИЧЕСКОЙ ЗАГРУЗКИ ПРИ СМЕНЕ ГРУППЫ/ДАТЫ ***
   useEffect(() => {
     console.log('[DashboardTable] useEffect triggered - checking conditions');
     console.log('[DashboardTable] onBulkLogRefresh available:', !!onBulkLogRefresh);
@@ -210,7 +229,6 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
 
       const staffIds = staffMembersData.map((staff: IStaffMemberWithAutoschedule) => staff.id);
       console.log('[DashboardTable] 🆔 EXTRACTED STAFF IDS for bulk refresh:', staffIds);
-      console.log('[DashboardTable] 🆔 These IDs will be passed to useDashboardLogic hook');
 
       // Create unique key for current group/period combination
       const currentKey = `${managingGroupId}-${formatDate(selectedDate)}`;
@@ -227,20 +245,13 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
         console.log('[DashboardTable] ✅ NEW GROUP/PERIOD DETECTED - Triggering initial bulk log refresh');
         console.log('[DashboardTable] Changed from "' + lastKey + '" to "' + currentKey + '"');
 
-        // *** ДОБАВЛЯЕМ ОЧИСТКУ ДАННЫХ ЗДЕСЬ ***
+        // *** ОЧИСТКА ДАННЫХ ПЕРЕД ЗАГРУЗКОЙ ***
         if (clearLogCache) {
           console.log('[DashboardTable] 🧹 CLEARING LOG DATA due to group/period change');
           clearLogCache();
         }
 
         console.log('[DashboardTable] 🚀 FINAL STAFF IDS FOR BULK REFRESH:', staffIds);
-        console.log('[DashboardTable] 🚀 These IDs should match the current group (' + managingGroupId + ') staff members');
-
-        console.log('[DashboardTable] 🔍 VERIFICATION: Staff data vs Group:');
-        console.log('[DashboardTable] Expected group:', managingGroupId);
-        console.log('[DashboardTable] Staff IDs being sent to hook:', staffIds);
-        console.log('[DashboardTable] Staff names being sent:', staffMembersData.map((s: IStaffMemberWithAutoschedule) => s.name));
-
         console.log('[DashboardTable] 🚀 Executing initial bulk log refresh NOW');
         
         // Execute bulk refresh with isInitialLoad flag
@@ -305,12 +316,13 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
       isResizable: true,
       onRender: (item: IStaffWithLogs) => {
         const logData = item.logData;
-        console.log(`[DashboardTable] Rendering log status for ${item.name}:`, {
+        console.log(`[DashboardTable] *** RENDERING LOG STATUS *** for ${item.name} (ID=${item.id}):`, {
           hasLog: logData?.hasLog,
           logId: logData?.logId,
           logResult: logData?.logResult,
           isLoading: logData?.isLoading,
-          error: logData?.error
+          error: logData?.error,
+          rawLogData: logData
         });
 
         return (
@@ -336,7 +348,10 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
             <DefaultButton
               iconProps={{ iconName: 'Refresh' }}
               text="Refresh"
-              onClick={() => onLogRefresh(item.id)}
+              onClick={() => {
+                console.log(`[DashboardTable] *** MANUAL REFRESH CLICKED *** for staff ID=${item.id}, Name="${item.name}"`);
+                onLogRefresh(item.id);
+              }}
               disabled={isLoading}
               styles={{
                 root: { minWidth: '70px', height: '28px' },
@@ -399,7 +414,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
   const handleRefreshAll = useCallback(async () => {
     if (staffMembersData.length > 0) {
       const staffIds = staffMembersData.map((staff: IStaffMemberWithAutoschedule) => staff.id);
-      console.log('[DashboardTable] Manual refresh all triggered for staff IDs:', staffIds);
+      console.log('[DashboardTable] *** MANUAL REFRESH ALL CLICKED *** for staff IDs:', staffIds);
       await onBulkLogRefresh(staffIds, false);
     }
   }, [staffMembersData, onBulkLogRefresh]);
@@ -511,8 +526,9 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
         isOpen={logDetailsDialog.isOpen}
         logId={logDetailsDialog.logId}
         staffName={logDetailsDialog.staffName}
-        hasLogsService={!!logsService}
+        logsService={logsService}
         title="Fill Operation Log Details"
+        onDismiss={handleCloseLogDetails}
       />
     </div>
   );
