@@ -6,6 +6,7 @@ import { ITabProps } from '../../../models/types';
 import { DashboardControlPanel } from './components/DashboardControlPanel';
 import { DashboardTable } from './components/DashboardTable';
 import { ConfirmDialog } from '../../ConfirmDialog/ConfirmDialog';
+import { LoadingSpinner } from '../../LoadingSpinner/LoadingSpinner'; // *** ДОБАВЛЯЕМ ИМПОРТ СПИННЕРА ***
 import { useDashboardLogic } from './hooks/useDashboardLogic';
 
 // Интерфейс для диалога подтверждения
@@ -25,6 +26,12 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
   console.log('[DashboardTab] Rendering with enhanced logging, optimization and Date field support');
 
   // Получаем все функции и данные из оптимизированного хука с поддержкой Date
+  const hookReturn = useDashboardLogic({
+    context,
+    currentUserId,
+    managingGroupId
+  });
+
   const {
     staffMembersData,
     selectedDate,
@@ -41,12 +48,9 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     handleLogRefresh,
     handleBulkLogRefresh,
     clearLogCache,
-    getLogCacheStats
-  } = useDashboardLogic({
-    context,
-    currentUserId,
-    managingGroupId
-  });
+    getLogCacheStats,
+    startInitialLoading
+  } = hookReturn;
 
   // Статистика для отладки с поддержкой Date
   const cacheStats = getLogCacheStats();
@@ -159,18 +163,24 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     getPeriodDisplayName
   ]);
 
-  // *** ЭФФЕКТ: Уведомление об изменении периода ***
+  // *** ЭФФЕКТ: Уведомление об изменении периода (ЗАКОММЕНТИРОВАН) ***
   useEffect(() => {
     console.log(`[DashboardTab] Period changed to: ${formatSelectedDate()} (${getPeriodDisplayName()})`);
     
-    // Показываем информационное сообщение о смене периода только если есть логи
-    if (logsService && staffMembersData.length > 0) {
-      setInfoMessage({
-        text: `Switched to period: ${getPeriodDisplayName()}. Logs will be refreshed automatically.`,
-        type: 1 // MessageBarType.success
-      });
-    }
+    // *** ЗАКОММЕНТИРОВАНО: КРАСНОЕ СООБЩЕНИЕ О СМЕНЕ ПЕРИОДА ***
+    // if (logsService && staffMembersData.length > 0) {
+    //   setInfoMessage({
+    //     text: `Switched to period: ${getPeriodDisplayName()}. Logs will be refreshed automatically.`,
+    //     type: 1 // MessageBarType.success
+    //   });
+    // }
   }, [selectedDate]); // Зависимость только от selectedDate
+
+  // *** НОВЫЙ ЭФФЕКТ: Запуск загрузки при первом открытии таба ***
+  useEffect(() => {
+    console.log('[DashboardTab] Tab mounted/remounted, triggering initial loading');
+    startInitialLoading();
+  }, []); // *** ПУСТЫЕ ЗАВИСИМОСТИ - ВЫПОЛНЯЕТСЯ ТОЛЬКО ПРИ МОНТИРОВАНИИ ***
 
   console.log('[DashboardTab] Rendering dashboard with full optimization and Date support:', {
     staffCount: staffMembersData.length,
@@ -183,6 +193,23 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     managingGroupId,
     currentUserId
   });
+
+  // *** ПОКАЗЫВАЕМ СПИННЕР ЗАГРУЗКИ ВМЕСТО КРАСНОГО СООБЩЕНИЯ ***
+  if (isLoading) {
+    return (
+      <div style={{ 
+        padding: '20px', 
+        height: '100vh', 
+        display: 'flex', 
+        flexDirection: 'column',
+        backgroundColor: '#fafafa',
+        justifyContent: 'center',
+        alignItems: 'center'
+      }}>
+        <LoadingSpinner showDetails={true} />
+      </div>
+    );
+  }
 
   return (
     <div style={{ 
@@ -257,8 +284,8 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
         </div>
       )}
 
-      {/* *** ИНФОРМАЦИОННОЕ СООБЩЕНИЕ *** */}
-      {infoMessage && (
+      {/* *** ИНФОРМАЦИОННОЕ СООБЩЕНИЕ (ТОЛЬКО ДЛЯ ВАЖНЫХ УВЕДОМЛЕНИЙ) *** */}
+      {infoMessage && infoMessage.type !== 4 && ( // *** НЕ ПОКАЗЫВАЕМ ИНФОРМАЦИОННЫЕ СООБЩЕНИЯ (type 4) ***
         <div style={{ marginBottom: '15px' }}>
           <MessageBar 
             messageBarType={infoMessage.type}

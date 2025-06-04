@@ -30,8 +30,6 @@ interface ILogDetailsDialogProps {
   // Дополнительные опции для кастомизации
   title?: string;
   subtitle?: string;
-  width?: string;
-  height?: string;
 }
 
 interface ILogDetailsState {
@@ -210,8 +208,6 @@ export const LogDetailsDialog: React.FC<ILogDetailsDialogProps> = (props) => {
     onDismiss,
     title = 'Operation Log Details',
     subtitle
- //   width = '700px',
-   // height = '500px'
   } = props;
 
   const [state, setState] = useState<ILogDetailsState>({
@@ -374,10 +370,19 @@ export const LogDetailsDialog: React.FC<ILogDetailsDialogProps> = (props) => {
     const log = state.log;
     
     return (
-      <div style={{ padding: '20px' }}>
+      <div style={{ 
+        padding: '24px',
+        minHeight: '500px',
+        width: '100%',
+        boxSizing: 'border-box'
+      }}>
         <ScrollablePane 
           scrollbarVisibility={ScrollbarVisibility.auto}
-          style={{ height: '400px', maxHeight: '60vh' }}  // *** ФИКСИРОВАННАЯ ВЫСОТА ***
+          style={{ 
+            height: '500px', 
+            maxHeight: '60vh',
+            width: '100%'
+          }}
         >
           <Stack tokens={{ childrenGap: 16 }}>
             {/* Заголовок и основная информация */}
@@ -385,9 +390,9 @@ export const LogDetailsDialog: React.FC<ILogDetailsDialogProps> = (props) => {
               <Text variant="xLarge" style={{ fontWeight: '600', marginBottom: '8px', display: 'block' }}>
                 {log.Title || 'Operation Log'}
               </Text>
-              {(staffName || subtitle) && (
+              {staffName && !subtitle && (
                 <Text variant="medium" style={{ color: '#666' }}>
-                  {subtitle || (staffName && `Staff Member: ${staffName}`)}
+                  Staff Member: {staffName}
                 </Text>
               )}
             </div>
@@ -401,7 +406,7 @@ export const LogDetailsDialog: React.FC<ILogDetailsDialogProps> = (props) => {
               valueType="status"
             />
 
-            {/* *** ДАТА ПЕРИОДА В НАЧАЛЕ *** */}
+            {/* Дата периода в начале */}
             <LogField
               label="Period Date"
               value={log.Date}
@@ -486,24 +491,73 @@ export const LogDetailsDialog: React.FC<ILogDetailsDialogProps> = (props) => {
       dialogContentProps={{
         type: DialogType.largeHeader,
         title: title,
-        subText: logId ? `Log ID: ${logId}` : undefined
+        subText: logId ? `Log ID: ${logId}` : undefined,
+        styles: {
+          content: {
+            width: '900px',
+            maxWidth: '95vw',
+            minWidth: '700px',
+          },
+          innerContent: {
+            padding: '0',
+          },
+          header: {
+            padding: '24px 24px 0 24px',
+          },
+          subText: {
+            padding: '0 24px',
+          }
+        }
       }}
       modalProps={{
         isBlocking: false,
+        dragOptions: undefined,
         styles: { 
           main: { 
-            minWidth: '800px',  // *** УВЕЛИЧИЛИ ШИРИНУ ***
-            maxWidth: '90vw',
-            minHeight: '500px',
-            maxHeight: '85vh'   // *** НЕМНОГО УМЕНЬШИЛИ ВЫСОТУ ***
-          } 
+            width: '900px !important',
+            maxWidth: '95vw !important',
+            minWidth: '700px !important',
+            height: 'auto',
+            maxHeight: '90vh',
+            minHeight: '600px',
+            selectors: {
+              '@media (max-width: 768px)': {
+                width: '95vw !important',
+                minWidth: 'auto !important',
+                height: '90vh',
+                margin: '5vh auto'
+              }
+            }
+          },
+          root: {
+            selectors: {
+              '.ms-Dialog-main': {
+                width: '900px !important',
+                maxWidth: '95vw !important',
+                minWidth: '700px !important',
+              }
+            }
+          }
         }
       }}
     >
       {renderDialogContent()}
       
-      <DialogFooter>
-        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+      <DialogFooter
+        styles={{
+          actions: {
+            margin: '0',
+            padding: '20px 24px',
+            width: '100%'
+          }
+        }}
+      >
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          width: '100%'
+        }}>
           <div>
             {/* Кнопка обновления слева */}
             {state.log && !state.isLoading && !state.error && (
@@ -517,6 +571,7 @@ export const LogDetailsDialog: React.FC<ILogDetailsDialogProps> = (props) => {
               </TooltipHost>
             )}
           </div>
+          
           <div>
             {/* Кнопка закрытия справа */}
             <PrimaryButton
