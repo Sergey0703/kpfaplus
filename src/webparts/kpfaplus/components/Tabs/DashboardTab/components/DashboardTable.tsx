@@ -1,5 +1,5 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/components/DashboardTable.tsx
-// ИСПРАВЛЕНО: Добавлен сброс состояния при смене группы
+// ИСПРАВЛЕНО: Добавлена синхронизация с загрузкой staff members через loadingState
 import * as React from 'react';
 import { useMemo, useRef, useEffect, useState, useCallback } from 'react';
 import { 
@@ -19,6 +19,7 @@ import {
 } from '@fluentui/react';
 import { ScheduleLogsService } from '../../../../services/ScheduleLogsService';
 import { LogDetailsDialog } from '../../../LogDetailsDialog';
+import { ILoadingState } from '../../../../context/types'; // *** NEW IMPORT ***
 
 // *** INTERFACES ***
 export interface IStaffMemberWithAutoschedule {
@@ -73,7 +74,8 @@ interface IDashboardTableProps {
   onAutoscheduleToggle: (staffId: string, checked: boolean) => Promise<void>;
   getCachedLogsForStaff: (staffId: string) => ILogData;
   clearLogCache?: () => void;
-  registerTableResetCallback?: (callback: () => void) => void; // *** NEW: Callback registration function ***
+  registerTableResetCallback?: (callback: () => void) => void;
+  loadingState?: ILoadingState; // *** NEW PROP ***
 }
 
 // *** UTILITY FUNCTIONS ***
@@ -148,19 +150,20 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     onAutoscheduleToggle,
     getCachedLogsForStaff,
     clearLogCache,
-    registerTableResetCallback // *** NEW: Get the callback registration function ***
+    registerTableResetCallback,
+    loadingState // *** NEW PROP ***
   } = props;
 
   // *** REFS FOR TRACKING ***
   const lastProcessedKeyRef = useRef<string>('');
-  const lastGroupRef = useRef<string>(''); // *** NEW: Track group changes ***
+  const lastGroupRef = useRef<string>('');
   const [logDetailsDialog, setLogDetailsDialog] = useState<{
     isOpen: boolean;
     logId?: string;
     staffName?: string;
   }>({ isOpen: false });
 
-  // *** NEW: Register reset callback on mount ***
+  // *** Register reset callback on mount ***
   useEffect(() => {
     if (registerTableResetCallback) {
       const resetCallback = () => {
@@ -173,7 +176,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     }
   }, [registerTableResetCallback]);
 
-  // *** NEW: Track group changes and reset key (BACKUP SOLUTION) ***
+  // *** Track group changes and reset key (BACKUP SOLUTION) ***
   useEffect(() => {
     if (managingGroupId && managingGroupId !== lastGroupRef.current && lastGroupRef.current !== '') {
       console.log('[DashboardTable] 🔄 GROUP CHANGED DETECTED - BACKUP RESET:', {
@@ -182,7 +185,6 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
         action: 'Resetting lastProcessedKeyRef as backup'
       });
       
-      // *** RESET THE TRACKING KEY - аналогично смене даты ***
       lastProcessedKeyRef.current = '';
     }
     lastGroupRef.current = managingGroupId || '';
@@ -239,9 +241,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     exampleStaff: staffMembersWithLogs[0]
   });
 
-  // *** IMPROVED LOGIC FOR AUTO-LOADING WITH STAFF ID TRACKING ***
-  const lastStaffIdsRef = useRef<string>('');
-
+  // *** IMPROVED LOGIC FOR AUTO-LOADING WITH STAFF LOADING SYNCHRONIZATION ***
   useEffect(() => {
     console.log('[DashboardTable] useEffect triggered - checking conditions');
     console.log('[DashboardTable] onBulkLogRefresh available:', !!onBulkLogRefresh);
@@ -249,6 +249,31 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     console.log('[DashboardTable] logsService available:', !!logsService);
     console.log('[DashboardTable] managingGroupId:', managingGroupId);
     console.log('[DashboardTable] selectedDate:', formatDate(selectedDate));
+
+    // *** 🎯 НОВАЯ ПРОВЕРКА: НЕ загружаем логи, если staff members загружаются ***
+    if (loadingState) {
+      // ✅ УЛУЧШЕННАЯ ПРОВЕРКА: Используем общий флаг isLoading
+      // Это работает надежнее, чем проверка конкретных шагов
+      const isAppLoading = loadingState.isLoading;
+      
+      // ✅ ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: Если есть активные загрузки staff
+      const isStaffRelatedLoading = loadingState.loadingSteps.some(step => 
+        (step.id === 'fetch-group-members' || step.id === 'refresh-staff') && 
+        step.status === 'loading'
+      );
+      
+      if (isAppLoading || isStaffRelatedLoading) {
+        console.log('[DashboardTable] ⏳ Staff members are loading, waiting...');
+        console.log('[DashboardTable] Loading state:', {
+          isAppLoading,
+          isStaffRelatedLoading,
+          activeSteps: loadingState.loadingSteps
+            .filter(step => step.status === 'loading')
+            .map(step => `${step.id}: ${step.status}`)
+        });
+        return; // НЕ ЗАГРУЖАЕМ ЛОГИ!
+      }
+    }
 
     if (onBulkLogRefresh && staffMembersData.length > 0 && logsService && managingGroupId) {
       console.log('[DashboardTable] 🔍 DETAILED STAFF ANALYSIS:');
@@ -262,41 +287,27 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
       });
 
       const currentStaffIds = staffMembersData.map((staff: IStaffMemberWithAutoschedule) => staff.id);
-      const currentStaffIdsString = currentStaffIds.sort().join(',');
       console.log('[DashboardTable] 🆔 EXTRACTED STAFF IDS for bulk refresh:', currentStaffIds);
 
       // Create unique key for current group/period combination
       const currentKey = `${managingGroupId}-${formatDate(selectedDate)}`;
       const lastKey = lastProcessedKeyRef.current;
-      const lastStaffIds = lastStaffIdsRef.current;
 
       console.log('[DashboardTable] 🔑 KEY COMPARISON:');
       console.log('[DashboardTable] Current key:', currentKey);
       console.log('[DashboardTable] Last processed key (ref):', lastKey);
-      console.log('[DashboardTable] Current staff IDs:', currentStaffIdsString);
-      console.log('[DashboardTable] Last staff IDs:', lastStaffIds);
 
       const isNewGroupOrPeriod = currentKey !== lastKey;
-      const isStaffChanged = currentStaffIdsString !== lastStaffIds && lastStaffIds !== '';
       
       console.log('[DashboardTable] 🎯 Is new group/period?:', isNewGroupOrPeriod);
-      console.log('[DashboardTable] 🎯 Is staff changed?:', isStaffChanged);
 
-      // *** NEW LOGIC: Trigger refresh if new group/period OR if staff changed ***
-      if (isNewGroupOrPeriod || isStaffChanged) {
-        const reason = isNewGroupOrPeriod ? 'New group/period' : 'Staff members changed';
-        console.log(`[DashboardTable] ✅ ${reason.toUpperCase()} DETECTED - Triggering initial bulk log refresh`);
+      // *** УПРОЩЕННАЯ ЛОГИКА: Только проверка нового периода/группы ***
+      if (isNewGroupOrPeriod) {
+        console.log('[DashboardTable] ✅ NEW GROUP/PERIOD DETECTED - Triggering initial bulk log refresh');
+        console.log('[DashboardTable] Changed from "' + lastKey + '" to "' + currentKey + '"');
         
-        if (isNewGroupOrPeriod) {
-          console.log('[DashboardTable] Changed from "' + lastKey + '" to "' + currentKey + '"');
-        }
-        
-        if (isStaffChanged) {
-          console.log('[DashboardTable] Staff changed from "' + lastStaffIds + '" to "' + currentStaffIdsString + '"');
-        }
-        
-        // Clear cache for group/period changes (but not for staff changes - already cleared by auto-clear)
-        if (isNewGroupOrPeriod && clearLogCache) {
+        // Clear cache for group/period changes
+        if (clearLogCache) {
           console.log('[DashboardTable] 🧹 CLEARING LOG DATA due to group/period change');
           clearLogCache();
         }
@@ -311,12 +322,11 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
             
             // Update refs to prevent duplicate calls
             lastProcessedKeyRef.current = currentKey;
-            lastStaffIdsRef.current = currentStaffIdsString;
             console.log('[DashboardTable] 📝 Updated refs to:', {
               group: managingGroupId, 
               date: formatDate(selectedDate), 
               key: currentKey,
-              staffIds: currentStaffIdsString
+              staffIds: currentStaffIds.join(',')
             });
           })
           .catch((error: Error) => {
@@ -328,21 +338,26 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
           hasLogsService: !!logsService,
           hasStaff: staffMembersData.length > 0,
           isNewGroupOrPeriod: isNewGroupOrPeriod,
-          isStaffChanged: isStaffChanged,
-          reason: 'Same group/period and same staff'
+          reason: 'Same group/period - no refresh needed'
         });
 
-        if (!isNewGroupOrPeriod && !isStaffChanged) {
-          console.log('[DashboardTable] 🔍 Same group/period and same staff - no refresh needed');
+        if (!isNewGroupOrPeriod) {
+          console.log('[DashboardTable] 🔍 Same group/period - no refresh needed');
           console.log('[DashboardTable] Current staff count:', staffMembersData.length);
           console.log('[DashboardTable] Current staff IDs:', currentStaffIds);
         }
-        
-        // *** IMPORTANT: Still update staff IDs tracking even if no refresh ***
-        lastStaffIdsRef.current = currentStaffIdsString;
       }
+    } else {
+      console.log('[DashboardTable] ❌ Basic conditions not met:', {
+        hasRefreshFunction: !!onBulkLogRefresh,
+        hasStaff: staffMembersData.length > 0,
+        hasLogsService: !!logsService,
+        hasGroupId: !!managingGroupId
+      });
     }
   }, [
+    // *** ДОБАВЛЯЕМ loadingState В DEPENDENCIES ***
+    loadingState,
     onBulkLogRefresh, 
     staffMembersData, 
     logsService, 
@@ -525,6 +540,14 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
           <span style={{ color: '#0078d4', fontSize: '12px', fontWeight: 500 }}>
             🔄 Auto-refresh enabled
           </span>
+          {/* *** NEW: Staff loading indicator *** */}
+          {loadingState && loadingState.loadingSteps.some(step => 
+            step.id === 'fetch-group-members' && step.status === 'loading'
+          ) && (
+            <span style={{ color: '#ff8c00', fontSize: '12px', fontWeight: 500 }}>
+              ⏳ Loading staff members...
+            </span>
+          )}
         </div>
         
         <div style={{ display: 'flex', gap: '12px' }}>

@@ -1,5 +1,5 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/DashboardTab.tsx
-// ИСПРАВЛЕНО: Добавлена передача функции сброса состояния таблицы
+// ИСПРАВЛЕНО: Добавлена передача loadingState для синхронизации загрузки
 import * as React from 'react';
 import { useCallback, useMemo } from 'react';
 import { MessageBar, CommandBar, ICommandBarItemProps } from '@fluentui/react';
@@ -24,8 +24,8 @@ interface IConfirmDialogState {
 export const DashboardTab: React.FC<ITabProps> = (props) => {
   const { managingGroupId, currentUserId, context } = props;
   
-  // *** GET GROUP ID FROM CONTEXT IF NOT IN PROPS ***
-  const { selectedDepartmentId } = useDataContext();
+  // *** GET GROUP ID AND LOADING STATE FROM CONTEXT ***
+  const { selectedDepartmentId, loadingState } = useDataContext();
   const effectiveGroupId = managingGroupId || selectedDepartmentId;
 
   console.log('[DashboardTab] Rendering with enhanced logging, optimization and Date field support');
@@ -54,11 +54,11 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     clearLogCache,
     getLogCacheStats,
     getCachedLogsForStaff,
-    registerTableResetCallback // *** NEW: Get the callback registration function ***
+    registerTableResetCallback
   } = useDashboardLogic({
     context,
     currentUserId,
-    managingGroupId: effectiveGroupId // *** FIXED: Use effective group ID ***
+    managingGroupId: effectiveGroupId
   });
 
   // *** КРИТИЧЕСКИ ВАЖНО: СТАБИЛИЗИРОВАННЫЕ ДАННЫЕ ДЛЯ ПЕРЕДАЧИ В ТАБЛИЦУ ***
@@ -88,8 +88,13 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     logsServiceAvailable: !!logsService,
     handleBulkLogRefreshAvailable: !!handleBulkLogRefresh,
     clearLogCacheAvailable: !!clearLogCache,
-    registerTableResetCallbackAvailable: !!registerTableResetCallback, // *** NEW LOG ***
-    selectedDate: selectedDate?.toLocaleDateString()
+    registerTableResetCallbackAvailable: !!registerTableResetCallback,
+    selectedDate: selectedDate?.toLocaleDateString(),
+    // *** NEW: LoadingState info ***
+    loadingStateAvailable: !!loadingState,
+    isStaffLoading: loadingState?.loadingSteps.some(step => 
+      step.id === 'fetch-group-members' && step.status === 'loading'
+    )
   });
 
   // Cache statistics
@@ -311,8 +316,11 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
           cachedLogsKeys: Object.keys(stableCachedLogs),
           cachedLogsCount: Object.keys(stableCachedLogs).length,
           clearLogCache: !!clearLogCache,
-          registerTableResetCallback: !!registerTableResetCallback, // *** NEW LOG ***
+          registerTableResetCallback: !!registerTableResetCallback,
           selectedDate: selectedDate?.toLocaleDateString(),
+          // *** NEW: LoadingState передача ***
+          loadingState: !!loadingState,
+          loadingStepsCount: loadingState?.loadingSteps.length,
           sampleCachedLogData: Object.keys(stableCachedLogs).slice(0, 1).map(key => ({
             staffId: key,
             hasLog: !!stableCachedLogs[key]?.log,
@@ -338,7 +346,8 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
           onAutoscheduleToggle={handleAutoscheduleToggle}
           getCachedLogsForStaff={getCachedLogsForStaffMember}
           clearLogCache={clearLogCache}
-          registerTableResetCallback={registerTableResetCallback} // *** NEW: Pass the callback registration function ***
+          registerTableResetCallback={registerTableResetCallback}
+          loadingState={loadingState} // *** NEW: Передаем loadingState ***
         />
       </div>
 
