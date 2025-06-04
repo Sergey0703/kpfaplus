@@ -1,6 +1,6 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/components/DashboardTable.tsx
 import * as React from 'react';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   DetailsList, 
   DetailsListLayoutMode, 
@@ -49,7 +49,7 @@ enum LogStatusFilter {
   NoLogs = 'no-logs'
 }
 
-// *** UPDATED INTERFACE WITH MANAGING GROUP ID ***
+// *** FIXED INTERFACE WITH MANAGING GROUP ID ***
 interface IDashboardTableProps {
   staffMembersData: IStaffMemberWithAutoschedule[];
   isLoading: boolean;
@@ -61,10 +61,10 @@ interface IDashboardTableProps {
   onBulkLogRefresh?: (staffIds: string[], isInitialLoad?: boolean) => Promise<void>;
   selectedDate?: Date;
   cachedLogs?: { [staffId: string]: { log?: any; error?: string; isLoading: boolean } };
-  managingGroupId?: string; // *** NEW: To reset initial load on group change ***
+  managingGroupId?: string; // *** FIXED: To reset initial load on group change ***
 }
 
-// *** UPDATED LOG STATUS INDICATOR COMPONENT ***
+// *** LOG STATUS INDICATOR COMPONENT (unchanged) ***
 const LogStatusIndicator: React.FC<{
   log?: IScheduleLog;
   isLoading?: boolean;
@@ -217,22 +217,32 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     onBulkLogRefresh,
     selectedDate,
     cachedLogs = {}, // *** LIVE DATA - NO CACHE ***
-    managingGroupId // *** NEW: Group ID for reset detection ***
+    managingGroupId // *** FIXED: Group ID for reset detection ***
   } = props;
 
   const { selectedDepartmentId } = useDataContext();
 
-  // *** UPDATED: Use cached logs instead of separate state ***
+  // *** Use cached logs instead of separate state ***
   const staffMembersWithLogs = useMemo((): IStaffMemberWithLog[] => {
+    console.log('[DashboardTable] Recalculating staffMembersWithLogs:', {
+      staffCount: staffMembersData.length,
+      cachedLogsCount: Object.keys(cachedLogs).length,
+      cachedLogSample: Object.keys(cachedLogs).slice(0, 2)
+    });
+    
     return staffMembersData.map(member => {
       const cachedData = cachedLogs[member.id];
       
-      return {
+      const result = {
         ...member,
         lastLog: cachedData?.log,
         isLoadingLog: cachedData?.isLoading || false,
         logError: cachedData?.error
       };
+      
+      console.log(`[DashboardTable] Staff ${member.name}: hasLog=${!!result.lastLog}, isLoading=${result.isLoadingLog}, error=${result.logError}`);
+      
+      return result;
     });
   }, [staffMembersData, cachedLogs]);
 
@@ -248,14 +258,17 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     } : 'No staff'
   });
 
-  // *** UPDATED: Remove state management since we use cached logs ***
+  // *** State management ***
   const [logDialog, setLogDialog] = useState<ILogDialogState>({
     isOpen: false, logId: undefined, staffName: undefined
   });
   const [statusFilter, setStatusFilter] = useState<LogStatusFilter>(LogStatusFilter.All);
   const [isRefreshingAllLogs, setIsRefreshingAllLogs] = useState<boolean>(false);
   const [logStats, setLogStats] = useState({ success: 0, error: 0, noLogs: 0, loading: 0 });
-  const [hasTriggeredInitialLoad, setHasTriggeredInitialLoad] = useState<boolean>(false);
+  
+  // *** FIXED: Use refs to persist across re-renders ***
+  const lastProcessedGroupRef = useRef<string>('');
+  const lastProcessedDateRef = useRef<string>('');
 
   // Format selected date for display
   const formatSelectedDate = useCallback((): string => {
@@ -277,17 +290,34 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     setLogStats(stats);
   }, [staffMembersWithLogs]);
 
-  // *** TRIGGER INITIAL LOAD WHEN SERVICES ARE READY ***
+  // *** FIXED: TRIGGER INITIAL LOAD WHEN GROUP OR PERIOD CHANGES ***
   useEffect(() => {
-    console.log('[DashboardTable] useEffect triggered - checking initial load conditions');
+    console.log('[DashboardTable] useEffect triggered - checking conditions');
     console.log('[DashboardTable] onBulkLogRefresh available:', !!onBulkLogRefresh);
     console.log('[DashboardTable] staffMembersData.length:', staffMembersData.length);
-    console.log('[DashboardTable] hasTriggeredInitialLoad:', hasTriggeredInitialLoad);
     console.log('[DashboardTable] logsService available:', !!logsService);
+    console.log('[DashboardTable] managingGroupId:', managingGroupId);
+    console.log('[DashboardTable] selectedDate:', selectedDate?.toLocaleDateString());
     
-    if (onBulkLogRefresh && logsService && staffMembersData.length > 0 && !hasTriggeredInitialLoad) {
-      console.log('[DashboardTable] ✅ ALL CONDITIONS MET - Triggering initial bulk log refresh for', staffMembersData.length, 'staff members');
-      setHasTriggeredInitialLoad(true);
+    // Create unique keys to track what was last processed
+    const currentGroupKey = managingGroupId || 'no-group';
+    const currentDateKey = selectedDate?.toLocaleDateString() || 'no-date';
+    const currentKey = `${currentGroupKey}-${currentDateKey}`;
+    const lastKey = `${lastProcessedGroupRef.current}-${lastProcessedDateRef.current}`;
+    
+    console.log('[DashboardTable] Current key:', currentKey);
+    console.log('[DashboardTable] Last processed key (ref):', lastKey);
+    
+    // Check if this is a new group/period combination
+    const isNewGroupOrPeriod = currentKey !== lastKey;
+    
+    if (onBulkLogRefresh && logsService && staffMembersData.length > 0 && isNewGroupOrPeriod) {
+      console.log('[DashboardTable] ✅ NEW GROUP/PERIOD DETECTED - Triggering initial bulk log refresh');
+      console.log(`[DashboardTable] Changed from "${lastKey}" to "${currentKey}"`);
+      
+      // Update tracking using refs (persists across re-renders)
+      lastProcessedGroupRef.current = currentGroupKey;
+      lastProcessedDateRef.current = currentDateKey;
       
       const staffIds = staffMembersData.map(staff => staff.id);
       console.log('[DashboardTable] Staff IDs for initial load:', staffIds);
@@ -295,15 +325,15 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
       console.log('[DashboardTable] 🚀 Executing initial bulk log refresh NOW');
       void onBulkLogRefresh(staffIds, true);
     } else {
-      console.log('[DashboardTable] ❌ Conditions not met for initial load');
+      console.log('[DashboardTable] ❌ Conditions not met for initial load:', {
+        hasRefreshFunction: !!onBulkLogRefresh,
+        hasLogsService: !!logsService,
+        hasStaff: staffMembersData.length > 0,
+        isNewGroupOrPeriod,
+        reason: !isNewGroupOrPeriod ? 'Same group/period' : 'Missing services/data'
+      });
     }
-  }, [onBulkLogRefresh, logsService, staffMembersData, hasTriggeredInitialLoad]);
-
-  // *** RESET INITIAL LOAD FLAG WHEN GROUP CHANGES ***
-  useEffect(() => {
-    console.log(`[DashboardTable] Group or period changed, resetting initial load flag`);
-    setHasTriggeredInitialLoad(false);
-  }, [managingGroupId, selectedDate]);
+  }, [onBulkLogRefresh, logsService, staffMembersData, managingGroupId, selectedDate]);
 
   // *** UPDATED REFRESH ALL LOGS ***
   const refreshAllLogs = useCallback((): void => {
@@ -372,7 +402,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     });
   }, [staffMembersWithLogs, statusFilter]);
 
-  // *** UPDATED COMMAND BAR WITH PERIOD INFO ***
+  // *** COMMAND BAR WITH PERIOD INFO ***
   const commandBarItems: ICommandBarItemProps[] = [
     {
       key: 'filter',
@@ -447,16 +477,26 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     />
   );
 
-  const renderLogStatusCell = (item: IStaffMemberWithLog): JSX.Element => (
-    <LogStatusIndicator
-      log={item.lastLog}
-      isLoading={item.isLoadingLog}
-      error={item.logError}
-      onClick={item.lastLog ? () => handleLogClick(item) : undefined}
-      onRetry={() => handleLogRetry(item)}
-      selectedDate={selectedDate}
-    />
-  );
+  const renderLogStatusCell = (item: IStaffMemberWithLog): JSX.Element => {
+    console.log(`[DashboardTable] Rendering log status for ${item.name}:`, {
+      hasLog: !!item.lastLog,
+      logId: item.lastLog?.ID,
+      logResult: item.lastLog?.Result,
+      isLoading: item.isLoadingLog,
+      error: item.logError
+    });
+    
+    return (
+      <LogStatusIndicator
+        log={item.lastLog}
+        isLoading={item.isLoadingLog}
+        error={item.logError}
+        onClick={item.lastLog ? () => handleLogClick(item) : undefined}
+        onRetry={() => handleLogRetry(item)}
+        selectedDate={selectedDate}
+      />
+    );
+  };
 
   // Column definitions
   const columns: IColumn[] = [
@@ -500,7 +540,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
 
   return (
     <div style={{ flex: 1 }}>
-      {/* *** UPDATED INFO WITH PERIOD DATA *** */}
+      {/* *** INFO WITH PERIOD DATA *** */}
       <div style={{ marginBottom: '10px' }}>
         <p style={{ fontSize: '12px', color: '#666', margin: '0 0 10px 0' }}>
           Showing {filteredStaffMembers.length} of {staffMembersWithLogs.length} staff members for period: <strong>{formatSelectedDate()}</strong>

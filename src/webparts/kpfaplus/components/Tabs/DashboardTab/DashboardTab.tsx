@@ -8,6 +8,7 @@ import { DashboardTable } from './components/DashboardTable';
 import { ConfirmDialog } from '../../ConfirmDialog/ConfirmDialog';
 import { LoadingSpinner } from '../../LoadingSpinner/LoadingSpinner';
 import { useDashboardLogic } from './hooks/useDashboardLogic';
+import { useDataContext } from '../../../context';
 
 interface IConfirmDialogState {
   isOpen: boolean;
@@ -21,8 +22,17 @@ interface IConfirmDialogState {
 
 export const DashboardTab: React.FC<ITabProps> = (props) => {
   const { managingGroupId, currentUserId, context } = props;
+  
+  // *** GET GROUP ID FROM CONTEXT IF NOT IN PROPS ***
+  const { selectedDepartmentId } = useDataContext();
+  const effectiveGroupId = managingGroupId || selectedDepartmentId;
 
   console.log('[DashboardTab] Rendering with enhanced logging, optimization and Date field support');
+  console.log('[DashboardTab] Group ID resolution:', {
+    propsGroupId: managingGroupId,
+    contextGroupId: selectedDepartmentId,
+    effectiveGroupId
+  });
 
   // Get all functions and data from the hook
   const {
@@ -46,7 +56,7 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
   } = useDashboardLogic({
     context,
     currentUserId,
-    managingGroupId
+    managingGroupId: effectiveGroupId // *** FIXED: Use effective group ID ***
   });
 
   // Cache statistics
@@ -182,7 +192,7 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
           fontSize: '14px',
           color: '#666'
         }}>
-          <span><strong>Group ID:</strong> {managingGroupId || 'N/A'}</span>
+          <span><strong>Group ID:</strong> {effectiveGroupId || 'N/A'}</span>
           <span><strong>User ID:</strong> {currentUserId || 'N/A'}</span>
           <span><strong>Active Staff:</strong> {staffMembersData.length}</span>
           <span><strong>Selected Period:</strong> {formatSelectedDate()}</span>
@@ -255,7 +265,12 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
         overflow: 'hidden'
       }}>
         {/* *** DEBUG: Simple prop check *** */}
-        {console.log('[DashboardTab] Passing handleBulkLogRefresh:', !!handleBulkLogRefresh)}
+        {console.log('[DashboardTab] Passing to DashboardTable:', {
+          effectiveGroupId,
+          handleBulkLogRefresh: !!handleBulkLogRefresh,
+          staffCount: staffMembersData.length,
+          logsService: !!logsService
+        })}
         
         <DashboardTable
           staffMembersData={staffMembersData}
@@ -267,7 +282,8 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
           onLogRefresh={handleLogRefresh}
           onBulkLogRefresh={handleBulkLogRefresh}
           selectedDate={selectedDate}
-          cachedLogs={getCachedLogsForStaff()} // *** NEW: Pass cached logs ***
+          cachedLogs={getCachedLogsForStaff()}
+          managingGroupId={effectiveGroupId} // *** FIXED: Pass effective group ID ***
         />
       </div>
 
