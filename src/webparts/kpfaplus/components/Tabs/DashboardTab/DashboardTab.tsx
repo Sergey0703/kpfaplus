@@ -1,4 +1,5 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/DashboardTab.tsx
+// ИСПРАВЛЕНО: Добавлена передача функции сброса состояния таблицы
 import * as React from 'react';
 import { useCallback, useMemo } from 'react';
 import { MessageBar, CommandBar, ICommandBarItemProps } from '@fluentui/react';
@@ -52,7 +53,8 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     handleBulkLogRefresh,
     clearLogCache,
     getLogCacheStats,
-    getCachedLogsForStaff // *** CRITICAL: Get live logs function ***
+    getCachedLogsForStaff,
+    registerTableResetCallback // *** NEW: Get the callback registration function ***
   } = useDashboardLogic({
     context,
     currentUserId,
@@ -85,7 +87,8 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     cachedLogsCount: Object.keys(stableCachedLogs).length,
     logsServiceAvailable: !!logsService,
     handleBulkLogRefreshAvailable: !!handleBulkLogRefresh,
-    clearLogCacheAvailable: !!clearLogCache, // *** ДОБАВЛЕНО ***
+    clearLogCacheAvailable: !!clearLogCache,
+    registerTableResetCallbackAvailable: !!registerTableResetCallback, // *** NEW LOG ***
     selectedDate: selectedDate?.toLocaleDateString()
   });
 
@@ -307,7 +310,8 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
           logsService: !!logsService,
           cachedLogsKeys: Object.keys(stableCachedLogs),
           cachedLogsCount: Object.keys(stableCachedLogs).length,
-          clearLogCache: !!clearLogCache, // *** ДОБАВЛЕНО ***
+          clearLogCache: !!clearLogCache,
+          registerTableResetCallback: !!registerTableResetCallback, // *** NEW LOG ***
           selectedDate: selectedDate?.toLocaleDateString(),
           sampleCachedLogData: Object.keys(stableCachedLogs).slice(0, 1).map(key => ({
             staffId: key,
@@ -333,7 +337,8 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
           onFillAll={handleFillAll}
           onAutoscheduleToggle={handleAutoscheduleToggle}
           getCachedLogsForStaff={getCachedLogsForStaffMember}
-          clearLogCache={clearLogCache} // *** ДОБАВЛЕНО: ПЕРЕДАЧА clearLogCache ***
+          clearLogCache={clearLogCache}
+          registerTableResetCallback={registerTableResetCallback} // *** NEW: Pass the callback registration function ***
         />
       </div>
 

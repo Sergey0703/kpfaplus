@@ -1,4 +1,5 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/components/DashboardTable.tsx
+// ИСПРАВЛЕНО: Добавлен сброс состояния при смене группы
 import * as React from 'react';
 import { useMemo, useRef, useEffect, useState, useCallback } from 'react';
 import { 
@@ -72,7 +73,7 @@ interface IDashboardTableProps {
   onAutoscheduleToggle: (staffId: string, checked: boolean) => Promise<void>;
   getCachedLogsForStaff: (staffId: string) => ILogData;
   clearLogCache?: () => void;
-  isLogDataCleared?: boolean; // *** NEW: Flag indicating data was cleared ***
+  registerTableResetCallback?: (callback: () => void) => void; // *** NEW: Callback registration function ***
 }
 
 // *** UTILITY FUNCTIONS ***
@@ -147,16 +148,45 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     onAutoscheduleToggle,
     getCachedLogsForStaff,
     clearLogCache,
-    isLogDataCleared = false // *** NEW: Get the flag ***
+    registerTableResetCallback // *** NEW: Get the callback registration function ***
   } = props;
 
   // *** REFS FOR TRACKING ***
   const lastProcessedKeyRef = useRef<string>('');
+  const lastGroupRef = useRef<string>(''); // *** NEW: Track group changes ***
   const [logDetailsDialog, setLogDetailsDialog] = useState<{
     isOpen: boolean;
     logId?: string;
     staffName?: string;
   }>({ isOpen: false });
+
+  // *** NEW: Register reset callback on mount ***
+  useEffect(() => {
+    if (registerTableResetCallback) {
+      const resetCallback = () => {
+        console.log('[DashboardTable] 🔄 RESETTING TABLE STATE - clearing lastProcessedKeyRef');
+        lastProcessedKeyRef.current = '';
+      };
+      
+      console.log('[DashboardTable] 📝 Registering reset callback with useDashboardLogic');
+      registerTableResetCallback(resetCallback);
+    }
+  }, [registerTableResetCallback]);
+
+  // *** NEW: Track group changes and reset key (BACKUP SOLUTION) ***
+  useEffect(() => {
+    if (managingGroupId && managingGroupId !== lastGroupRef.current && lastGroupRef.current !== '') {
+      console.log('[DashboardTable] 🔄 GROUP CHANGED DETECTED - BACKUP RESET:', {
+        from: lastGroupRef.current,
+        to: managingGroupId,
+        action: 'Resetting lastProcessedKeyRef as backup'
+      });
+      
+      // *** RESET THE TRACKING KEY - аналогично смене даты ***
+      lastProcessedKeyRef.current = '';
+    }
+    lastGroupRef.current = managingGroupId || '';
+  }, [managingGroupId]);
 
   // *** DEBUG: ПРОВЕРЯЕМ ЧТО ВОЗВРАЩАЕТ getCachedLogsForStaff ***
   console.log('[DashboardTable] *** DEBUG CACHED LOGS FUNCTION ***');
@@ -209,7 +239,9 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     exampleStaff: staffMembersWithLogs[0]
   });
 
-  // *** IMPROVED LOGIC FOR AUTO-LOADING WITH DATA CLEARED FLAG ***
+  // *** IMPROVED LOGIC FOR AUTO-LOADING WITH STAFF ID TRACKING ***
+  const lastStaffIdsRef = useRef<string>('');
+
   useEffect(() => {
     console.log('[DashboardTable] useEffect triggered - checking conditions');
     console.log('[DashboardTable] onBulkLogRefresh available:', !!onBulkLogRefresh);
@@ -217,7 +249,6 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     console.log('[DashboardTable] logsService available:', !!logsService);
     console.log('[DashboardTable] managingGroupId:', managingGroupId);
     console.log('[DashboardTable] selectedDate:', formatDate(selectedDate));
-    console.log('[DashboardTable] isLogDataCleared:', isLogDataCleared); // *** NEW LOG ***
 
     if (onBulkLogRefresh && staffMembersData.length > 0 && logsService && managingGroupId) {
       console.log('[DashboardTable] 🔍 DETAILED STAFF ANALYSIS:');
@@ -231,41 +262,43 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
       });
 
       const currentStaffIds = staffMembersData.map((staff: IStaffMemberWithAutoschedule) => staff.id);
+      const currentStaffIdsString = currentStaffIds.sort().join(',');
       console.log('[DashboardTable] 🆔 EXTRACTED STAFF IDS for bulk refresh:', currentStaffIds);
 
       // Create unique key for current group/period combination
       const currentKey = `${managingGroupId}-${formatDate(selectedDate)}`;
       const lastKey = lastProcessedKeyRef.current;
+      const lastStaffIds = lastStaffIdsRef.current;
 
       console.log('[DashboardTable] 🔑 KEY COMPARISON:');
       console.log('[DashboardTable] Current key:', currentKey);
       console.log('[DashboardTable] Last processed key (ref):', lastKey);
+      console.log('[DashboardTable] Current staff IDs:', currentStaffIdsString);
+      console.log('[DashboardTable] Last staff IDs:', lastStaffIds);
 
       const isNewGroupOrPeriod = currentKey !== lastKey;
+      const isStaffChanged = currentStaffIdsString !== lastStaffIds && lastStaffIds !== '';
+      
       console.log('[DashboardTable] 🎯 Is new group/period?:', isNewGroupOrPeriod);
-      console.log('[DashboardTable] 🧹 Is data was cleared?:', isLogDataCleared); // *** NEW LOG ***
+      console.log('[DashboardTable] 🎯 Is staff changed?:', isStaffChanged);
 
-      // *** NEW LOGIC: TRIGGER REFRESH IF NEW GROUP/PERIOD OR DATA WAS CLEARED ***
-      if (isNewGroupOrPeriod || isLogDataCleared) {
-        const reason = isNewGroupOrPeriod ? 'New group/period' : 'Data was cleared';
-        console.log('[DashboardTable] ✅ TRIGGERING REFRESH:', {
-          reason,
-          action: 'Will refresh with current staff IDs',
-          currentStaffIds
-        });
+      // *** NEW LOGIC: Trigger refresh if new group/period OR if staff changed ***
+      if (isNewGroupOrPeriod || isStaffChanged) {
+        const reason = isNewGroupOrPeriod ? 'New group/period' : 'Staff members changed';
+        console.log(`[DashboardTable] ✅ ${reason.toUpperCase()} DETECTED - Triggering initial bulk log refresh`);
         
         if (isNewGroupOrPeriod) {
-          console.log('[DashboardTable] ✅ NEW GROUP/PERIOD DETECTED - Triggering initial bulk log refresh');
           console.log('[DashboardTable] Changed from "' + lastKey + '" to "' + currentKey + '"');
-          
-          // Only clear cache for group/period changes, not for auto-clear
-          if (clearLogCache) {
-            console.log('[DashboardTable] 🧹 CLEARING LOG DATA due to group/period change');
-            clearLogCache();
-          }
-        } else {
-          console.log('[DashboardTable] ✅ DATA WAS CLEARED - Triggering refresh for new staff IDs');
-          // Don't clear cache here - data was already cleared automatically
+        }
+        
+        if (isStaffChanged) {
+          console.log('[DashboardTable] Staff changed from "' + lastStaffIds + '" to "' + currentStaffIdsString + '"');
+        }
+        
+        // Clear cache for group/period changes (but not for staff changes - already cleared by auto-clear)
+        if (isNewGroupOrPeriod && clearLogCache) {
+          console.log('[DashboardTable] 🧹 CLEARING LOG DATA due to group/period change');
+          clearLogCache();
         }
 
         console.log('[DashboardTable] 🚀 FINAL STAFF IDS FOR BULK REFRESH:', currentStaffIds);
@@ -278,10 +311,12 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
             
             // Update refs to prevent duplicate calls
             lastProcessedKeyRef.current = currentKey;
+            lastStaffIdsRef.current = currentStaffIdsString;
             console.log('[DashboardTable] 📝 Updated refs to:', {
               group: managingGroupId, 
               date: formatDate(selectedDate), 
-              key: currentKey
+              key: currentKey,
+              staffIds: currentStaffIdsString
             });
           })
           .catch((error: Error) => {
@@ -293,15 +328,18 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
           hasLogsService: !!logsService,
           hasStaff: staffMembersData.length > 0,
           isNewGroupOrPeriod: isNewGroupOrPeriod,
-          isDataWasCleared: isLogDataCleared,
-          reason: 'No trigger conditions met'
+          isStaffChanged: isStaffChanged,
+          reason: 'Same group/period and same staff'
         });
 
-        if (!isNewGroupOrPeriod && !isLogDataCleared) {
-          console.log('[DashboardTable] 🔍 Same group/period and no data cleared - no refresh needed');
+        if (!isNewGroupOrPeriod && !isStaffChanged) {
+          console.log('[DashboardTable] 🔍 Same group/period and same staff - no refresh needed');
           console.log('[DashboardTable] Current staff count:', staffMembersData.length);
           console.log('[DashboardTable] Current staff IDs:', currentStaffIds);
         }
+        
+        // *** IMPORTANT: Still update staff IDs tracking even if no refresh ***
+        lastStaffIdsRef.current = currentStaffIdsString;
       }
     }
   }, [
@@ -310,8 +348,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     logsService, 
     managingGroupId, 
     selectedDate, 
-    clearLogCache,
-    isLogDataCleared // *** NEW DEPENDENCY ***
+    clearLogCache
   ]);
 
   // *** COLUMN DEFINITIONS ***
@@ -485,11 +522,9 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
           <span style={{ color: '#605e5c', fontSize: '14px' }}>
             {formatDate(selectedDate)} • {staffMembersData.length} staff members
           </span>
-          {isLogDataCleared && (
-            <span style={{ color: '#ff8c00', fontSize: '12px', fontWeight: 500 }}>
-              🔄 Data refreshing...
-            </span>
-          )}
+          <span style={{ color: '#0078d4', fontSize: '12px', fontWeight: 500 }}>
+            🔄 Auto-refresh enabled
+          </span>
         </div>
         
         <div style={{ display: 'flex', gap: '12px' }}>

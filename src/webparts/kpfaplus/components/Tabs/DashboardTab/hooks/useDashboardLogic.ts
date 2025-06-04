@@ -1,5 +1,5 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/hooks/useDashboardLogic.ts
-// ИСПРАВЛЕНО: Устранена проблема с преждевременной очисткой данных при смене группы
+// ИСПРАВЛЕНО: Добавлен сброс состояния таблицы при смене группы
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { MessageBarType } from '@fluentui/react';
 import { WebPartContext } from "@microsoft/sp-webpart-base";
@@ -92,6 +92,8 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
   // Refs
   const debounceTimerRef = useRef<number | null>(null);
   const lastGroupIdRef = useRef<string>('');
+  // *** NEW: Callback для сброса состояния таблицы ***
+  const resetTableStateCallbackRef = useRef<(() => void) | null>(null);
 
   // Memoized services
   const fillService = useMemo(() => {
@@ -153,8 +155,13 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
     handleBulkLogRefresh: logsHook.handleBulkLogRefresh
   });
 
-  // *** УБИРАЕМ ОЧИСТКУ ДАННЫХ - ПЕРЕНОСИМ В DASHBOARDTABLE ***
-  // DashboardTable будет очищать данные в нужное время
+  // *** NEW: Функция для регистрации callback сброса состояния таблицы ***
+  const registerTableResetCallback = useCallback((callback: () => void): void => {
+    console.log('[useDashboardLogic] 📝 Registering table reset callback');
+    resetTableStateCallbackRef.current = callback;
+  }, []);
+
+  // *** NEW: Отслеживание смены группы и сброс состояния таблицы ***
   useEffect(() => {
     console.log('[useDashboardLogic] 🔍 GROUP CHANGE TRACKING:', {
       currentGroupId: managingGroupId,
@@ -166,18 +173,25 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
       console.log('[useDashboardLogic] 🔄 GROUP CHANGED:', {
         from: lastGroupIdRef.current,
         to: managingGroupId,
-        action: 'DashboardTable will handle data clearing and refresh'
+        action: 'Will reset table state and clear log data'
       });
       
-      // *** УБРАНО: logsHook.clearLogData(); ***
-      // Очистка данных теперь происходит в DashboardTable
+      // *** СБРОС СОСТОЯНИЯ ТАБЛИЦЫ - аналогично смене даты ***
+      if (resetTableStateCallbackRef.current) {
+        console.log('[useDashboardLogic] 🔄 Calling table reset callback');
+        resetTableStateCallbackRef.current();
+      }
+      
+      // *** ОЧИСТКА ДАННЫХ ЛОГОВ - аналогично смене даты ***
+      console.log('[useDashboardLogic] 🧹 Clearing log data due to group change');
+      logsHook.clearLogData();
     }
     
     // *** UPDATE REF AFTER PROCESSING ***
     if (managingGroupId) {
       lastGroupIdRef.current = managingGroupId;
     }
-  }, [managingGroupId]); // *** УБРАНА ЗАВИСИМОСТЬ ОТ logsHook ***
+  }, [managingGroupId, logsHook]);
 
   // Combined loading state
   const combinedIsLoading = useMemo(() => {
@@ -261,7 +275,14 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
         }
         
         setSelectedDate(date);
-        // *** ОСТАВЛЯЕМ ОЧИСТКУ ТОЛЬКО ДЛЯ СМЕНЫ ДАТЫ ***
+        
+        // *** СБРОС СОСТОЯНИЯ ТАБЛИЦЫ ПРИ СМЕНЕ ДАТЫ ***
+        if (resetTableStateCallbackRef.current) {
+          console.log('[useDashboardLogic] 🔄 Calling table reset callback for date change');
+          resetTableStateCallbackRef.current();
+        }
+        
+        // *** ОЧИСТКА ДАННЫХ ПРИ СМЕНЕ ДАТЫ ***
         logsHook.clearLogData();
         
         setTimeout(() => {
@@ -327,6 +348,9 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
     clearLogCache: logsHook.clearLogData,
     getLogCacheStats: logsHook.getLogStats,
     getCachedLogsForStaff: logsHook.getLiveLogsForStaff,
+    
+    // *** NEW: TABLE RESET FUNCTIONALITY ***
+    registerTableResetCallback,
     
     // *** UTILITY FUNCTIONS ***
     startInitialLoading
