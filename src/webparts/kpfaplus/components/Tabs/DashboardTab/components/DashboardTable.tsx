@@ -1,5 +1,5 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/components/DashboardTable.tsx
-// ИСПРАВЛЕНО: Добавлена синхронизация с загрузкой staff members через loadingState
+// ИСПРАВЛЕНО: Добавлена синхронизация с загрузкой staff members и перезагрузка логов при смене staff IDs
 import * as React from 'react';
 import { useMemo, useRef, useEffect, useState, useCallback } from 'react';
 import { 
@@ -157,6 +157,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
   // *** REFS FOR TRACKING ***
   const lastProcessedKeyRef = useRef<string>('');
   const lastGroupRef = useRef<string>('');
+  const lastStaffIdsRef = useRef<string>(''); // *** NEW: Track staff IDs changes ***
   const [logDetailsDialog, setLogDetailsDialog] = useState<{
     isOpen: boolean;
     logId?: string;
@@ -186,9 +187,58 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
       });
       
       lastProcessedKeyRef.current = '';
+      lastStaffIdsRef.current = ''; // *** NEW: Reset staff IDs tracking ***
     }
     lastGroupRef.current = managingGroupId || '';
   }, [managingGroupId]);
+
+  // *** TRACK STAFF MEMBERS CHANGES AND TRIGGER RELOAD ***
+  useEffect(() => {
+    const currentStaffIds = staffMembersData.map(staff => staff.id).sort().join(',');
+    const previousStaffIds = lastStaffIdsRef.current;
+    
+    // If staff IDs changed and we're not in initial loading
+    if (previousStaffIds && previousStaffIds !== currentStaffIds && onBulkLogRefresh && logsService && managingGroupId) {
+      console.log('[DashboardTable] 🔄 STAFF IDS CHANGED - TRIGGERING LOG RELOAD:', {
+        previous: previousStaffIds,
+        current: currentStaffIds,
+        action: 'Reloading logs for new staff IDs'
+      });
+      
+      // *** CLEAR CACHE AND RELOAD LOGS FOR NEW STAFF IDS ***
+      if (clearLogCache) {
+        console.log('[DashboardTable] 🧹 CLEARING LOG DATA due to staff IDs change');
+        clearLogCache();
+      }
+      
+      // *** TRIGGER RELOAD WITH NEW STAFF IDS ***
+      const currentStaffIdsArray = staffMembersData.map(staff => staff.id);
+      console.log('[DashboardTable] 🚀 RELOADING LOGS FOR NEW STAFF IDS:', currentStaffIdsArray);
+      
+      onBulkLogRefresh(currentStaffIdsArray, true)
+        .then(() => {
+          console.log('[DashboardTable] 🎉 Staff IDs change log reload completed successfully');
+          
+          // Update tracking refs
+          const currentKey = `${managingGroupId}-${formatDate(selectedDate)}`;
+          lastProcessedKeyRef.current = currentKey;
+          lastStaffIdsRef.current = currentStaffIds;
+          
+          console.log('[DashboardTable] 📝 Updated refs after staff IDs reload:', {
+            group: managingGroupId, 
+            date: formatDate(selectedDate), 
+            key: currentKey,
+            staffIds: currentStaffIds
+          });
+        })
+        .catch((error: Error) => {
+          console.error('[DashboardTable] ❌ Staff IDs change log reload failed:', error);
+        });
+    }
+    
+    // *** UPDATE STAFF IDS TRACKING ***
+    lastStaffIdsRef.current = currentStaffIds;
+  }, [staffMembersData, onBulkLogRefresh, logsService, managingGroupId, selectedDate, clearLogCache]);
 
   // *** DEBUG: ПРОВЕРЯЕМ ЧТО ВОЗВРАЩАЕТ getCachedLogsForStaff ***
   console.log('[DashboardTable] *** DEBUG CACHED LOGS FUNCTION ***');
@@ -322,6 +372,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
             
             // Update refs to prevent duplicate calls
             lastProcessedKeyRef.current = currentKey;
+            lastStaffIdsRef.current = currentStaffIds.join(','); // *** NEW: Track staff IDs ***
             console.log('[DashboardTable] 📝 Updated refs to:', {
               group: managingGroupId, 
               date: formatDate(selectedDate), 
