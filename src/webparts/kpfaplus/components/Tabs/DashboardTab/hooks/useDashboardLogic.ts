@@ -157,32 +157,30 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
     }
   }, [infoMessage]);
 
-  // *** INITIAL LOADING EFFECT - ALWAYS START LOADING WHEN TAB OPENS ***
+  // *** INITIAL LOADING EFFECT - SIMPLIFIED AND MORE STABLE ***
   useEffect(() => {
-    console.log('[useDashboardLogic] Tab opened/reopened, starting initial loading');
+    console.log('[useDashboardLogic] 🔄 Initial mount effect - setting loading to true');
     setIsLoadingLogs(true);
     
-    // Set a fallback timer to stop loading after 4 seconds
+    // Set a fallback timer to stop loading after 6 seconds
     const fallbackTimer = setTimeout(() => {
-      console.log('[useDashboardLogic] Fallback timer: stopping loading after 4 seconds');
+      console.log('[useDashboardLogic] ⏰ Fallback timer: stopping loading after 6 seconds');
       setIsLoadingLogs(false);
-    }, 4000);
+    }, 6000); // Increased to 6 seconds
     
-    return () => clearTimeout(fallbackTimer);
+    return () => {
+      console.log('[useDashboardLogic] 🧹 Cleaning up initial mount effect');
+      clearTimeout(fallbackTimer);
+    };
   }, []); // *** EMPTY DEPENDENCY ARRAY - RUNS ONLY ON MOUNT ***
 
-  // *** STOP LOADING WHEN SERVICES AND DATA ARE READY ***
+  // *** STOP LOADING WHEN FIRST LOG IS PROCESSED - SIMPLIFIED ***
   useEffect(() => {
-    if (logsService && staffMembersData.length > 0 && isLoadingLogs) {
-      console.log('[useDashboardLogic] Services and data ready, will stop loading when logs are fetched');
-      
-      // Give some time for log fetching to start, then stop loading
-      const readyTimer = setTimeout(() => {
-        console.log('[useDashboardLogic] Services ready timeout reached, stopping loading');
-        setIsLoadingLogs(false);
-      }, 2000);
-      
-      return () => clearTimeout(readyTimer);
+    if (logsService && staffMembersData.length > 0) {
+      console.log('[useDashboardLogic] 📊 Services and staff data are ready');
+      console.log(`[useDashboardLogic] - LogsService: ${!!logsService}`);
+      console.log(`[useDashboardLogic] - Staff count: ${staffMembersData.length}`);
+      console.log(`[useDashboardLogic] - Currently loading logs: ${isLoadingLogs}`);
     }
   }, [logsService, staffMembersData.length, isLoadingLogs]);
 
@@ -411,7 +409,12 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
 
   // Bulk log refresh
   const handleBulkLogRefresh = useCallback(async (staffIds: string[], isInitialLoad: boolean = false): Promise<void> => {
+    console.log(`[useDashboardLogic] handleBulkLogRefresh called with ${staffIds.length} staff IDs, isInitialLoad: ${isInitialLoad}`);
+    console.log(`[useDashboardLogic] Staff IDs: ${staffIds.join(', ')}`);
+    console.log(`[useDashboardLogic] Logs service available: ${!!logsService}`);
+    
     if (!logsService || staffIds.length === 0) {
+      console.log('[useDashboardLogic] Cannot execute bulk refresh: no service or no staff IDs');
       if (isInitialLoad) handleInitialLoadComplete();
       return;
     }
@@ -432,12 +435,15 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
     let completedFirstBatch = false;
 
     for (const batch of batches) {
+      console.log(`[useDashboardLogic] Processing batch: ${batch.join(', ')}`);
+      
       const promises = batch.map(staffId => 
         handleLogRefresh(staffId, isInitialLoad && !completedFirstBatch)
       );
       
       try {
         await Promise.all(promises);
+        console.log(`[useDashboardLogic] Batch completed: ${batch.join(', ')}`);
       } catch (error) {
         console.warn('[useDashboardLogic] Some log refreshes failed:', error);
       }

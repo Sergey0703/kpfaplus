@@ -1,15 +1,14 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/DashboardTab.tsx
 import * as React from 'react';
-import { useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
 import { MessageBar, CommandBar, ICommandBarItemProps } from '@fluentui/react';
 import { ITabProps } from '../../../models/types';
 import { DashboardControlPanel } from './components/DashboardControlPanel';
 import { DashboardTable } from './components/DashboardTable';
 import { ConfirmDialog } from '../../ConfirmDialog/ConfirmDialog';
-import { LoadingSpinner } from '../../LoadingSpinner/LoadingSpinner'; // *** ДОБАВЛЯЕМ ИМПОРТ СПИННЕРА ***
+import { LoadingSpinner } from '../../LoadingSpinner/LoadingSpinner';
 import { useDashboardLogic } from './hooks/useDashboardLogic';
 
-// Интерфейс для диалога подтверждения
 interface IConfirmDialogState {
   isOpen: boolean;
   title: string;
@@ -25,13 +24,7 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
 
   console.log('[DashboardTab] Rendering with enhanced logging, optimization and Date field support');
 
-  // Получаем все функции и данные из оптимизированного хука с поддержкой Date
-  const hookReturn = useDashboardLogic({
-    context,
-    currentUserId,
-    managingGroupId
-  });
-
+  // Get all functions and data from the hook
   const {
     staffMembersData,
     selectedDate,
@@ -48,14 +41,17 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     handleLogRefresh,
     handleBulkLogRefresh,
     clearLogCache,
-    getLogCacheStats,
-    startInitialLoading
-  } = hookReturn;
+    getLogCacheStats
+  } = useDashboardLogic({
+    context,
+    currentUserId,
+    managingGroupId
+  });
 
-  // Статистика для отладки с поддержкой Date
+  // Cache statistics
   const cacheStats = getLogCacheStats();
 
-  // *** ФУНКЦИЯ: Форматирование выбранной даты ***
+  // Format selected date
   const formatSelectedDate = useCallback((): string => {
     if (!selectedDate) return 'N/A';
     const day = selectedDate.getDate().toString().padStart(2, '0');
@@ -64,7 +60,7 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     return `${day}.${month}.${year}`;
   }, [selectedDate]);
 
-  // *** ФУНКЦИЯ: Получение названия месяца и года для отображения ***
+  // Get period display name
   const getPeriodDisplayName = useCallback((): string => {
     if (!selectedDate) return 'N/A';
     const monthNames = [
@@ -76,19 +72,19 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     return `${monthName} ${year}`;
   }, [selectedDate]);
 
-  // Обработчик закрытия диалога подтверждения
+  // Handle confirm dialog dismiss
   const handleDismissConfirmDialog = useCallback((): void => {
     setConfirmDialog((prev: IConfirmDialogState) => ({ ...prev, isOpen: false }));
   }, [setConfirmDialog]);
 
-  // *** ОБРАБОТЧИК: Массовое обновление логов для всех сотрудников ***
+  // Handle refresh all logs
   const handleRefreshAllLogs = useCallback((): void => {
     console.log(`[DashboardTab] Triggering bulk log refresh for period: ${formatSelectedDate()}`);
     const staffIds = staffMembersData.map(staff => staff.id);
     void handleBulkLogRefresh(staffIds);
   }, [staffMembersData, handleBulkLogRefresh, formatSelectedDate]);
 
-  // *** ОБРАБОТЧИК: Очистка кэша логов ***
+  // Handle clear cache
   const handleClearCache = useCallback((): void => {
     console.log('[DashboardTab] Clearing log cache manually');
     clearLogCache();
@@ -98,7 +94,7 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     });
   }, [clearLogCache, formatSelectedDate, setInfoMessage]);
 
-  // *** COMMAND BAR С ПОДДЕРЖКОЙ Date ***
+  // Command bar items
   const commandBarItems: ICommandBarItemProps[] = [
     {
       key: 'refresh-all-logs',
@@ -118,7 +114,7 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     }
   ];
 
-  // *** FAR ITEMS С ИНФОРМАЦИЕЙ О ПЕРИОДЕ И КЭШЕ ***
+  // Command bar far items
   const commandBarFarItems: ICommandBarItemProps[] = [
     {
       key: 'period-info',
@@ -136,65 +132,7 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     }
   ];
 
-  // *** ЭФФЕКТ: Логирование состояния с информацией о периоде ***
-  useEffect(() => {
-    console.log('[DashboardTab] State update with Date support:', {
-      staffCount: staffMembersData.length,
-      hasLogsService: !!logsService,
-      selectedDate: formatSelectedDate(),
-      selectedDateISO: selectedDate.toISOString(),
-      periodDisplay: getPeriodDisplayName(),
-      isLoading,
-      cacheStats: {
-        active: cacheStats.cached,
-        expired: cacheStats.expired,
-        total: cacheStats.cached + cacheStats.expired
-      },
-      periodMonth: selectedDate.getMonth() + 1,
-      periodYear: selectedDate.getFullYear()
-    });
-  }, [
-    staffMembersData.length, 
-    logsService, 
-    selectedDate, 
-    isLoading, 
-    cacheStats, 
-    formatSelectedDate, 
-    getPeriodDisplayName
-  ]);
-
-  // *** ЭФФЕКТ: Уведомление об изменении периода (ЗАКОММЕНТИРОВАН) ***
-  useEffect(() => {
-    console.log(`[DashboardTab] Period changed to: ${formatSelectedDate()} (${getPeriodDisplayName()})`);
-    
-    // *** ЗАКОММЕНТИРОВАНО: КРАСНОЕ СООБЩЕНИЕ О СМЕНЕ ПЕРИОДА ***
-    // if (logsService && staffMembersData.length > 0) {
-    //   setInfoMessage({
-    //     text: `Switched to period: ${getPeriodDisplayName()}. Logs will be refreshed automatically.`,
-    //     type: 1 // MessageBarType.success
-    //   });
-    // }
-  }, [selectedDate]); // Зависимость только от selectedDate
-
-  // *** НОВЫЙ ЭФФЕКТ: Запуск загрузки при первом открытии таба ***
-  useEffect(() => {
-    console.log('[DashboardTab] Tab mounted/remounted, triggering initial loading');
-    startInitialLoading();
-  }, []); // *** ПУСТЫЕ ЗАВИСИМОСТИ - ВЫПОЛНЯЕТСЯ ТОЛЬКО ПРИ МОНТИРОВАНИИ ***
-
-  console.log('[DashboardTab] Rendering dashboard with full optimization and Date support:', {
-    staffCount: staffMembersData.length,
-    hasLogsService: !!logsService,
-    hasContext: !!context,
-    selectedPeriod: formatSelectedDate(),
-    periodDisplay: getPeriodDisplayName(),
-    cacheActive: cacheStats.cached,
-    cacheExpired: cacheStats.expired,
-    managingGroupId,
-    currentUserId
-  });
-
-  // *** ПОКАЗЫВАЕМ СПИННЕР ЗАГРУЗКИ ВМЕСТО КРАСНОГО СООБЩЕНИЯ ***
+  // Show loading spinner if loading
   if (isLoading) {
     return (
       <div style={{ 
@@ -219,7 +157,7 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
       flexDirection: 'column',
       backgroundColor: '#fafafa'
     }}>
-      {/* *** ЗАГОЛОВОК С ИНФОРМАЦИЕЙ О ПЕРИОДЕ *** */}
+      {/* Header with period information */}
       <div style={{ 
         marginBottom: '15px',
         padding: '15px',
@@ -243,18 +181,10 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
           fontSize: '14px',
           color: '#666'
         }}>
-          <span>
-            <strong>Group ID:</strong> {managingGroupId || 'N/A'}
-          </span>
-          <span>
-            <strong>User ID:</strong> {currentUserId || 'N/A'}
-          </span>
-          <span>
-            <strong>Active Staff:</strong> {staffMembersData.length}
-          </span>
-          <span>
-            <strong>Selected Period:</strong> {formatSelectedDate()}
-          </span>
+          <span><strong>Group ID:</strong> {managingGroupId || 'N/A'}</span>
+          <span><strong>User ID:</strong> {currentUserId || 'N/A'}</span>
+          <span><strong>Active Staff:</strong> {staffMembersData.length}</span>
+          <span><strong>Selected Period:</strong> {formatSelectedDate()}</span>
           {logsService && (
             <span style={{ color: '#0078d4', fontWeight: '500' }}>
               <strong>Logs Service:</strong> Active 
@@ -264,7 +194,7 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
         </div>
       </div>
 
-      {/* *** COMMAND BAR С ИНФОРМАЦИЕЙ О ПЕРИОДЕ *** */}
+      {/* Command bar */}
       {logsService && (
         <div style={{ marginBottom: '15px' }}>
           <CommandBar
@@ -284,8 +214,8 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
         </div>
       )}
 
-      {/* *** ИНФОРМАЦИОННОЕ СООБЩЕНИЕ (ТОЛЬКО ДЛЯ ВАЖНЫХ УВЕДОМЛЕНИЙ) *** */}
-      {infoMessage && infoMessage.type !== 4 && ( // *** НЕ ПОКАЗЫВАЕМ ИНФОРМАЦИОННЫЕ СООБЩЕНИЯ (type 4) ***
+      {/* Info message */}
+      {infoMessage && infoMessage.type !== 4 && (
         <div style={{ marginBottom: '15px' }}>
           <MessageBar 
             messageBarType={infoMessage.type}
@@ -303,7 +233,7 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
         </div>
       )}
 
-      {/* *** ПАНЕЛЬ УПРАВЛЕНИЯ ДАТОЙ И ОПЕРАЦИЯМИ *** */}
+      {/* Control panel */}
       <div style={{ marginBottom: '20px' }}>
         <DashboardControlPanel
           selectedDate={selectedDate}
@@ -314,7 +244,7 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
         />
       </div>
 
-      {/* *** ОСНОВНАЯ ТАБЛИЦА СОТРУДНИКОВ С ПОДДЕРЖКОЙ Date *** */}
+      {/* Main table */}
       <div style={{ 
         flex: 1,
         backgroundColor: '#ffffff',
@@ -323,6 +253,9 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
         boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
         overflow: 'hidden'
       }}>
+        {/* *** DEBUG: Simple prop check *** */}
+        {console.log('[DashboardTab] Passing handleBulkLogRefresh:', !!handleBulkLogRefresh)}
+        
         <DashboardTable
           staffMembersData={staffMembersData}
           isLoading={isLoading}
@@ -331,16 +264,16 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
           context={context}
           logsService={logsService}
           onLogRefresh={handleLogRefresh}
-          selectedDate={selectedDate} // *** ПЕРЕДАЕМ ВЫБРАННУЮ ДАТУ ***
+          onBulkLogRefresh={handleBulkLogRefresh}
+          selectedDate={selectedDate}
         />
       </div>
 
-      {/* *** ДИАЛОГ ПОДТВЕРЖДЕНИЯ С ИНФОРМАЦИЕЙ О ПЕРИОДЕ *** */}
+      {/* Confirm dialog */}
       <ConfirmDialog
         isOpen={confirmDialog.isOpen}
         title={confirmDialog.title}
         message={
-          // *** ДОБАВЛЯЕМ ИНФОРМАЦИЮ О ПЕРИОДЕ ЕСЛИ ЕЕ НЕТ В СООБЩЕНИИ ***
           confirmDialog.message.toLowerCase().includes('period') || 
           confirmDialog.message.toLowerCase().includes(formatSelectedDate().toLowerCase()) 
             ? confirmDialog.message 

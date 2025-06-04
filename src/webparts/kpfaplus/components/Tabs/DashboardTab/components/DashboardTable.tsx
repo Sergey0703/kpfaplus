@@ -212,7 +212,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     onFillStaff,
     logsService,
     onLogRefresh,
-    onBulkLogRefresh, // *** NEW PROP ***
+    onBulkLogRefresh,
     selectedDate
   } = props;
 
@@ -262,16 +262,32 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     setLogStats(stats);
   }, [staffMembersWithLogs]);
 
-  // *** TRIGGER INITIAL LOAD WHEN SERVICES ARE READY ***
+  // *** TRIGGER INITIAL LOAD WHEN SERVICES ARE READY - SIMPLIFIED ***
   useEffect(() => {
-    if (onBulkLogRefresh && staffMembersData.length > 0 && !hasTriggeredInitialLoad) {
-      console.log('[DashboardTable] Triggering initial bulk log refresh');
+    console.log('[DashboardTable] useEffect triggered - checking initial load conditions');
+    console.log('[DashboardTable] onBulkLogRefresh available:', !!onBulkLogRefresh);
+    console.log('[DashboardTable] staffMembersData.length:', staffMembersData.length);
+    console.log('[DashboardTable] hasTriggeredInitialLoad:', hasTriggeredInitialLoad);
+    console.log('[DashboardTable] logsService available:', !!logsService);
+    
+    if (onBulkLogRefresh && logsService && staffMembersData.length > 0 && !hasTriggeredInitialLoad) {
+      console.log('[DashboardTable] ✅ ALL CONDITIONS MET - Triggering initial bulk log refresh for', staffMembersData.length, 'staff members');
       setHasTriggeredInitialLoad(true);
       
       const staffIds = staffMembersData.map(staff => staff.id);
-      void onBulkLogRefresh(staffIds, true); // *** TRIGGER INITIAL LOAD ***
+      console.log('[DashboardTable] Staff IDs for initial load:', staffIds);
+      
+      // Immediate execution - no delay
+      console.log('[DashboardTable] 🚀 Executing initial bulk log refresh NOW');
+      void onBulkLogRefresh(staffIds, true);
+    } else {
+      console.log('[DashboardTable] ❌ Conditions not met for initial load:');
+      console.log('  - onBulkLogRefresh:', !!onBulkLogRefresh);
+      console.log('  - logsService:', !!logsService);
+      console.log('  - staffMembersData.length:', staffMembersData.length);
+      console.log('  - hasTriggeredInitialLoad:', hasTriggeredInitialLoad);
     }
-  }, [onBulkLogRefresh, staffMembersData, hasTriggeredInitialLoad]);
+  }, [onBulkLogRefresh, logsService, staffMembersData, hasTriggeredInitialLoad]);
 
   // *** RESET INITIAL LOAD FLAG WHEN PERIOD CHANGES ***
   useEffect(() => {
