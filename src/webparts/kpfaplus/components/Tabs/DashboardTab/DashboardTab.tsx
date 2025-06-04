@@ -85,6 +85,7 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     cachedLogsCount: Object.keys(stableCachedLogs).length,
     logsServiceAvailable: !!logsService,
     handleBulkLogRefreshAvailable: !!handleBulkLogRefresh,
+    clearLogCacheAvailable: !!clearLogCache, // *** ДОБАВЛЕНО ***
     selectedDate: selectedDate?.toLocaleDateString()
   });
 
@@ -133,6 +134,11 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
       type: 1 // MessageBarType.success
     });
   }, [clearLogCache, formatSelectedDate, setInfoMessage]);
+
+  // *** ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ ЛОГОВ ПО STAFF ID ***
+  const getCachedLogsForStaffMember = useCallback((staffId: string) => {
+    return stableCachedLogs[staffId] || { hasLog: false, isLoading: false, error: undefined };
+  }, [stableCachedLogs]);
 
   // Command bar items
   const commandBarItems: ICommandBarItemProps[] = [
@@ -301,6 +307,7 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
           logsService: !!logsService,
           cachedLogsKeys: Object.keys(stableCachedLogs),
           cachedLogsCount: Object.keys(stableCachedLogs).length,
+          clearLogCache: !!clearLogCache, // *** ДОБАВЛЕНО ***
           selectedDate: selectedDate?.toLocaleDateString(),
           sampleCachedLogData: Object.keys(stableCachedLogs).slice(0, 1).map(key => ({
             staffId: key,
@@ -312,16 +319,21 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
         
         <DashboardTable
           staffMembersData={staffMembersData}
-          isLoading={isLoading}
-          onAutoscheduleToggle={handleAutoscheduleToggle}
-          onFillStaff={handleFillStaff}
-          context={context}
-          logsService={logsService}
-          onLogRefresh={handleLogRefresh}
-          onBulkLogRefresh={handleBulkLogRefresh}
           selectedDate={selectedDate}
-          cachedLogs={stableCachedLogs} // *** CRITICAL: СТАБИЛИЗИРОВАННЫЕ ДАННЫЕ ***
-          managingGroupId={effectiveGroupId} // *** FIXED: Pass effective group ID ***
+          logsService={logsService}
+          isLoading={isLoading}
+          infoMessage={infoMessage}
+          confirmDialog={confirmDialog}
+          setInfoMessage={setInfoMessage}
+          setConfirmDialog={setConfirmDialog}
+          managingGroupId={effectiveGroupId}
+          onBulkLogRefresh={handleBulkLogRefresh}
+          onLogRefresh={handleLogRefresh}
+          onFillStaff={handleFillStaff}
+          onFillAll={handleFillAll}
+          onAutoscheduleToggle={handleAutoscheduleToggle}
+          getCachedLogsForStaff={getCachedLogsForStaffMember}
+          clearLogCache={clearLogCache} // *** ДОБАВЛЕНО: ПЕРЕДАЧА clearLogCache ***
         />
       </div>
 

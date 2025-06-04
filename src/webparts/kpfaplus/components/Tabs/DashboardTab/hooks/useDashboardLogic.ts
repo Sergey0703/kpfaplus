@@ -1,5 +1,5 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/hooks/useDashboardLogic.ts
-// ОБНОВЛЕНО: Главный координирующий хук с разделением ответственности
+// ИСПРАВЛЕНО: Устранена проблема с преждевременной очисткой данных при смене группы
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { MessageBarType } from '@fluentui/react';
 import { WebPartContext } from "@microsoft/sp-webpart-base";
@@ -93,31 +93,6 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
   const debounceTimerRef = useRef<number | null>(null);
   const lastGroupIdRef = useRef<string>('');
 
-  // *** GROUP CHANGE TRACKING WITH IMMEDIATE DATA CLEARING ***
-  useEffect(() => {
-    console.log('[useDashboardLogic] 🔍 GROUP CHANGE TRACKING:', {
-      currentGroupId: managingGroupId,
-      lastGroupId: lastGroupIdRef.current,
-      isGroupChanged: managingGroupId !== lastGroupIdRef.current
-    });
-    
-    if (managingGroupId && managingGroupId !== lastGroupIdRef.current && lastGroupIdRef.current !== '') {
-      console.log('[useDashboardLogic] 🔄 GROUP CHANGED - TRIGGERING LOG DATA CLEAR:', {
-        from: lastGroupIdRef.current,
-        to: managingGroupId,
-        clearingDataImmediately: true
-      });
-      
-      // *** CLEAR LOG DATA IMMEDIATELY ON GROUP CHANGE ***
-      logsHook.clearLogData();
-    }
-    
-    // *** UPDATE REF AFTER PROCESSING ***
-    if (managingGroupId) {
-      lastGroupIdRef.current = managingGroupId;
-    }
-  }, [managingGroupId]);
-
   // Memoized services
   const fillService = useMemo(() => {
     if (context) {
@@ -177,6 +152,32 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
     handleLogRefresh: logsHook.handleLogRefresh,
     handleBulkLogRefresh: logsHook.handleBulkLogRefresh
   });
+
+  // *** УБИРАЕМ ОЧИСТКУ ДАННЫХ - ПЕРЕНОСИМ В DASHBOARDTABLE ***
+  // DashboardTable будет очищать данные в нужное время
+  useEffect(() => {
+    console.log('[useDashboardLogic] 🔍 GROUP CHANGE TRACKING:', {
+      currentGroupId: managingGroupId,
+      lastGroupId: lastGroupIdRef.current,
+      isGroupChanged: managingGroupId !== lastGroupIdRef.current
+    });
+    
+    if (managingGroupId && managingGroupId !== lastGroupIdRef.current && lastGroupIdRef.current !== '') {
+      console.log('[useDashboardLogic] 🔄 GROUP CHANGED:', {
+        from: lastGroupIdRef.current,
+        to: managingGroupId,
+        action: 'DashboardTable will handle data clearing and refresh'
+      });
+      
+      // *** УБРАНО: logsHook.clearLogData(); ***
+      // Очистка данных теперь происходит в DashboardTable
+    }
+    
+    // *** UPDATE REF AFTER PROCESSING ***
+    if (managingGroupId) {
+      lastGroupIdRef.current = managingGroupId;
+    }
+  }, [managingGroupId]); // *** УБРАНА ЗАВИСИМОСТЬ ОТ logsHook ***
 
   // Combined loading state
   const combinedIsLoading = useMemo(() => {
@@ -260,6 +261,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
         }
         
         setSelectedDate(date);
+        // *** ОСТАВЛЯЕМ ОЧИСТКУ ТОЛЬКО ДЛЯ СМЕНЫ ДАТЫ ***
         logsHook.clearLogData();
         
         setTimeout(() => {
