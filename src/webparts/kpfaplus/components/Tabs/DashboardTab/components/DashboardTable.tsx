@@ -49,7 +49,7 @@ enum LogStatusFilter {
   NoLogs = 'no-logs'
 }
 
-// *** UPDATED INTERFACE WITH CACHED LOGS ***
+// *** UPDATED INTERFACE WITH MANAGING GROUP ID ***
 interface IDashboardTableProps {
   staffMembersData: IStaffMemberWithAutoschedule[];
   isLoading: boolean;
@@ -60,7 +60,8 @@ interface IDashboardTableProps {
   onLogRefresh?: (staffId: string, isInitialLoad?: boolean) => Promise<void>;
   onBulkLogRefresh?: (staffIds: string[], isInitialLoad?: boolean) => Promise<void>;
   selectedDate?: Date;
-  cachedLogs?: { [staffId: string]: { log?: any; error?: string; isLoading: boolean } }; // *** NEW ***
+  cachedLogs?: { [staffId: string]: { log?: any; error?: string; isLoading: boolean } };
+  managingGroupId?: string; // *** NEW: To reset initial load on group change ***
 }
 
 // *** UPDATED LOG STATUS INDICATOR COMPONENT ***
@@ -215,7 +216,8 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     onLogRefresh,
     onBulkLogRefresh,
     selectedDate,
-    cachedLogs = {} // *** NEW: Cached logs from hook ***
+    cachedLogs = {}, // *** LIVE DATA - NO CACHE ***
+    managingGroupId // *** NEW: Group ID for reset detection ***
   } = props;
 
   const { selectedDepartmentId } = useDataContext();
@@ -234,9 +236,9 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     });
   }, [staffMembersData, cachedLogs]);
 
-  console.log('[DashboardTable] Using cached logs for display:', {
+  console.log('[DashboardTable] Using LIVE DATA (NO CACHE) for display:', {
     staffCount: staffMembersData.length,
-    cachedLogsCount: Object.keys(cachedLogs).length,
+    liveDataCount: Object.keys(cachedLogs).length,
     exampleStaff: staffMembersWithLogs[0] ? {
       id: staffMembersWithLogs[0].id,
       name: staffMembersWithLogs[0].name,
@@ -297,11 +299,11 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     }
   }, [onBulkLogRefresh, logsService, staffMembersData, hasTriggeredInitialLoad]);
 
-  // *** RESET INITIAL LOAD FLAG WHEN PERIOD CHANGES ***
+  // *** RESET INITIAL LOAD FLAG WHEN GROUP CHANGES ***
   useEffect(() => {
-    console.log(`[DashboardTable] Period changed to: ${formatSelectedDate()}, resetting initial load flag`);
+    console.log(`[DashboardTable] Group or period changed, resetting initial load flag`);
     setHasTriggeredInitialLoad(false);
-  }, [selectedDate, formatSelectedDate]);
+  }, [managingGroupId, selectedDate]);
 
   // *** UPDATED REFRESH ALL LOGS ***
   const refreshAllLogs = useCallback((): void => {

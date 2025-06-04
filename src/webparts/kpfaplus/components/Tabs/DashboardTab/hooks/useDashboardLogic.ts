@@ -1,4 +1,5 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/hooks/useDashboardLogic.ts
+// UPDATED: NO CACHE - ALWAYS FETCH FRESH DATA
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { MessageBarType } from '@fluentui/react';
 import { WebPartContext } from "@microsoft/sp-webpart-base";
@@ -30,17 +31,16 @@ interface IUseDashboardLogicParams {
   managingGroupId?: string;
 }
 
-interface ILogCache {
+// *** NO CACHE - LIVE LOG DATA STATE ***
+interface ILiveLogData {
   [staffId: string]: {
-    lastFetch: number;
-    data: any;
+    log?: any;
     error?: string;
-    periodDate?: Date;
+    isLoading: boolean;
   };
 }
 
 // Constants
-const CACHE_TIMEOUT = 30000; // 30 seconds
 const DEBOUNCE_DELAY = 300; // 300ms for debounce
 
 // Utility functions
@@ -73,16 +73,10 @@ const getSavedSelectedDate = (): Date => {
   return getFirstDayOfCurrentMonth();
 };
 
-const isSamePeriod = (date1?: Date, date2?: Date): boolean => {
-  if (!date1 || !date2) return false;
-  return date1.getFullYear() === date2.getFullYear() && 
-         date1.getMonth() === date2.getMonth();
-};
-
 export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
   const { context, currentUserId, managingGroupId } = params;
   
-  console.log('[useDashboardLogic] Hook initialized with Date field support');
+  console.log('[useDashboardLogic] Hook initialized - NO CACHE - ALWAYS FRESH FETCH');
 
   // Context data
   const { staffMembers, updateStaffMember } = useDataContext();
@@ -101,11 +95,11 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
     confirmButtonColor: '#0078d4',
     onConfirm: () => {}
   });
-  // *** NEW: State to trigger updates when cache changes ***
-  const [logCacheVersion, setLogCacheVersion] = useState<number>(0);
+
+  // *** NO CACHE - LIVE DATA STATE ***
+  const [liveLogData, setLiveLogData] = useState<ILiveLogData>({});
 
   // Refs
-  const logCacheRef = useRef<ILogCache>({});
   const abortControllerRef = useRef<AbortController | null>(null);
   const debounceTimerRef = useRef<number | null>(null);
 
@@ -120,7 +114,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
 
   const logsService = useMemo(() => {
     if (context) {
-      console.log('[useDashboardLogic] Initializing ScheduleLogsService with Date support...');
+      console.log('[useDashboardLogic] Initializing ScheduleLogsService...');
       return ScheduleLogsService.getInstance(context);
     }
     return undefined;
@@ -128,7 +122,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
 
   // Memoized staff data
   const staffMembersData = useMemo((): IStaffMemberWithAutoschedule[] => {
-    console.log('[useDashboardLogic] Processing staff members with Date optimization:', staffMembers.length);
+    console.log('[useDashboardLogic] Processing staff members:', staffMembers.length);
     
     const activeStaff = staffMembers
       .filter((staff: IStaffMember) => staff.deleted !== 1)
@@ -149,6 +143,36 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
     return isLoading || isLoadingLogs;
   }, [isLoading, isLoadingLogs]);
 
+  // *** NO CACHE - LIVE DATA FUNCTIONS ***
+  const clearLogData = useCallback((): void => {
+    console.log('[useDashboardLogic] 🧹 Clearing live log data (NO CACHE)');
+    setLiveLogData({});
+  }, []);
+
+  const getLogStats = useCallback(() => {
+    let success = 0;
+    let error = 0;
+    let noLogs = 0;
+    let loading = 0;
+
+    Object.values(liveLogData).forEach(entry => {
+      if (entry.isLoading) loading++;
+      else if (entry.error) error++;
+      else if (entry.log) {
+        if (entry.log.Result === 2) success++;
+        else error++;
+      } else noLogs++;
+    });
+
+    return { success, error, noLogs, loading, cached: 0, expired: 0 };
+  }, [liveLogData]);
+
+  // *** RETURN LIVE LOG DATA (NO CACHE) ***
+  const getLiveLogsForStaff = useCallback((): { [staffId: string]: any } => {
+    console.log(`[useDashboardLogic] 📊 Getting live log data for ${Object.keys(liveLogData).length} staff members`);
+    return liveLogData;
+  }, [liveLogData]);
+
   // Auto-hide messages
   useEffect(() => {
     if (infoMessage) {
@@ -161,7 +185,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
 
   // Initial loading effect
   useEffect(() => {
-    console.log('[useDashboardLogic] 🔄 Initial mount effect - setting loading to true');
+    console.log('[useDashboardLogic] 🔄 Initial mount effect');
     setIsLoadingLogs(true);
     
     const fallbackTimer = setTimeout(() => {
@@ -174,6 +198,14 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
       clearTimeout(fallbackTimer);
     };
   }, []);
+
+  // Clear data when group changes
+  useEffect(() => {
+    if (managingGroupId) {
+      console.log(`[useDashboardLogic] 🔄 Group changed to: ${managingGroupId}, clearing live data`);
+      clearLogData();
+    }
+  }, [managingGroupId, clearLogData]);
 
   // Services ready effect
   useEffect(() => {
@@ -197,50 +229,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
     };
   }, []);
 
-  // Cache management functions
-  const clearLogCache = useCallback((): void => {
-    console.log('[useDashboardLogic] Clearing log cache with Date support');
-    logCacheRef.current = {};
-    setLogCacheVersion(prev => prev + 1); // *** TRIGGER UPDATE ***
-  }, []);
-
-  const getLogCacheStats = useCallback(() => {
-    const now = Date.now();
-    let cached = 0;
-    let expired = 0;
-
-    Object.values(logCacheRef.current).forEach(entry => {
-      if (now - entry.lastFetch < CACHE_TIMEOUT) {
-        cached++;
-      } else {
-        expired++;
-      }
-    });
-
-    return { cached, expired };
-  }, []);
-
-  // *** NEW: Function to get cached logs for display ***
-  const getCachedLogsForStaff = useCallback((): { [staffId: string]: any } => {
-    const result: { [staffId: string]: any } = {};
-    
-    Object.entries(logCacheRef.current).forEach(([staffId, entry]) => {
-      const now = Date.now();
-      const isNotExpired = (now - entry.lastFetch) < CACHE_TIMEOUT;
-      const isSamePeriodCache = isSamePeriod(entry.periodDate, selectedDate);
-      
-      if (isNotExpired && isSamePeriodCache) {
-        result[staffId] = {
-          log: entry.data,
-          error: entry.error,
-          isLoading: false
-        };
-      }
-    });
-    
-    return result;
-  }, [selectedDate, logCacheVersion]); // *** DEPEND ON CACHE VERSION ***
-
+  // Helper functions
   const setLogLoadingState = useCallback((loading: boolean): void => {
     console.log(`[useDashboardLogic] Setting log loading state: ${loading}`);
     setIsLoadingLogs(loading);
@@ -256,26 +245,10 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
     setIsLoadingLogs(true);
   }, []);
 
-  const isLogCacheValid = useCallback((staffId: string, periodDate: Date): boolean => {
-    const entry = logCacheRef.current[staffId];
-    if (!entry) return false;
-    
-    const now = Date.now();
-    const isNotExpired = (now - entry.lastFetch) < CACHE_TIMEOUT;
-    const isSamePeriodCache = isSamePeriod(entry.periodDate, periodDate);
-    const isValid = isNotExpired && isSamePeriodCache;
-    
-    if (!isValid) {
-      console.log(`[useDashboardLogic] Cache invalid for ${staffId}: expired=${!isNotExpired}, periodMismatch=${!isSamePeriodCache}`);
-    }
-    
-    return isValid;
-  }, []);
-
   // Date change handler
   const handleDateChange = useCallback((date: Date | undefined): void => {
     if (date) {
-      console.log('[useDashboardLogic] Date change requested with loading state:', formatDate(date));
+      console.log('[useDashboardLogic] Date change requested:', formatDate(date));
       
       setLogLoadingState(true);
       
@@ -284,7 +257,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
       }
 
       debounceTimerRef.current = window.setTimeout(() => {
-        console.log('[useDashboardLogic] Applying debounced date change with loading:', formatDate(date));
+        console.log('[useDashboardLogic] Applying debounced date change:', formatDate(date));
         
         try {
           sessionStorage.setItem('dashboardTab_selectedDate', date.toISOString());
@@ -293,7 +266,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
         }
         
         setSelectedDate(date);
-        clearLogCache();
+        clearLogData();
         
         setTimeout(() => {
           console.log('[useDashboardLogic] Auto-stopping loading state after period change');
@@ -302,7 +275,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
         
       }, DEBOUNCE_DELAY);
     }
-  }, [clearLogCache, setLogLoadingState]);
+  }, [clearLogData, setLogLoadingState]);
 
   // Create fill parameters
   const createFillParams = useCallback((staffMember: IStaffMemberWithAutoschedule): IFillParams | undefined => {
@@ -346,7 +319,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
     };
   }, [context, staffMembers, selectedDate, currentUserId, managingGroupId]);
 
-  // Log refresh function
+  // *** ALWAYS FRESH FETCH - NO CACHE ***
   const handleLogRefresh = useCallback(async (staffId: string, isInitialLoad: boolean = false): Promise<void> => {
     if (!logsService) {
       console.log('[useDashboardLogic] Cannot refresh log: service not available');
@@ -361,19 +334,22 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
       return;
     }
 
-    if (isLogCacheValid(staffId, selectedDate)) {
-      console.log(`[useDashboardLogic] Using cached log for ${staffMember.name} (period: ${formatDate(selectedDate)})`);
-      if (isInitialLoad) handleInitialLoadComplete();
-      return;
-    }
+    console.log(`[useDashboardLogic] 🔄 FRESH FETCH for ${staffMember.name} (period: ${formatDate(selectedDate)}) ${isInitialLoad ? '[INITIAL]' : ''}`);
+    console.log(`[useDashboardLogic] 📋 FILTER PARAMS:
+      - StaffMemberId: ${staffMember.employeeId}
+      - ManagerId: ${currentUserId}
+      - StaffGroupId: ${managingGroupId}
+      - PeriodDate: ${selectedDate.toLocaleDateString()}`);
 
-    console.log(`[useDashboardLogic] Refreshing log for ${staffMember.name} (period: ${formatDate(selectedDate)}) ${isInitialLoad ? '[INITIAL]' : ''}`);
-
-    logCacheRef.current[staffId] = {
-      lastFetch: Date.now(),
-      data: undefined,
-      periodDate: new Date(selectedDate)
-    };
+    // Set loading state
+    setLiveLogData(prev => ({
+      ...prev,
+      [staffId]: {
+        log: undefined,
+        error: undefined,
+        isLoading: true
+      }
+    }));
 
     try {
       if (abortControllerRef.current) {
@@ -382,9 +358,12 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
 
       abortControllerRef.current = new AbortController();
 
+      // *** ALWAYS FETCH FRESH - CHECK ALL FILTER PARAMETERS ***
       const logsResult = await logsService.getScheduleLogs({
-        staffMemberId: staffMember.employeeId,
-        periodDate: selectedDate,
+        staffMemberId: staffMember.employeeId,   // ✅ Staff filter
+        managerId: currentUserId,                // ✅ Manager filter  
+        staffGroupId: managingGroupId,           // ✅ Group filter
+        periodDate: selectedDate,                // ✅ Period filter
         top: 1,
         skip: 0
       });
@@ -395,16 +374,17 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
 
       const lastLog = logsResult.logs.length > 0 ? logsResult.logs[0] : undefined;
       
-      logCacheRef.current[staffId] = {
-        lastFetch: Date.now(),
-        data: lastLog,
-        periodDate: new Date(selectedDate)
-      };
+      console.log(`[useDashboardLogic] ✅ FRESH DATA RECEIVED for ${staffMember.name}: ${lastLog ? `Found log ID=${lastLog.ID}, Result=${lastLog.Result}` : 'No logs found'}`);
 
-      console.log(`[useDashboardLogic] Log refreshed and cached for ${staffMember.name} (period: ${formatDate(selectedDate)}) ${isInitialLoad ? '[INITIAL]' : ''}`);
-      
-      // *** TRIGGER CACHE UPDATE ***
-      setLogCacheVersion(prev => prev + 1);
+      // Update live data
+      setLiveLogData(prev => ({
+        ...prev,
+        [staffId]: {
+          log: lastLog,
+          error: undefined,
+          isLoading: false
+        }
+      }));
 
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
@@ -413,17 +393,17 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
       }
       
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`[useDashboardLogic] Error refreshing log for ${staffMember.name}:`, errorMessage);
+      console.error(`[useDashboardLogic] ❌ ERROR fetching log for ${staffMember.name}:`, errorMessage);
       
-      logCacheRef.current[staffId] = {
-        lastFetch: Date.now(),
-        data: undefined,
-        error: errorMessage,
-        periodDate: new Date(selectedDate)
-      };
-      
-      // *** TRIGGER CACHE UPDATE ***
-      setLogCacheVersion(prev => prev + 1);
+      // Update with error
+      setLiveLogData(prev => ({
+        ...prev,
+        [staffId]: {
+          log: undefined,
+          error: errorMessage,
+          isLoading: false
+        }
+      }));
     } finally {
       if (isInitialLoad) {
         setTimeout(() => {
@@ -431,11 +411,11 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
         }, 500);
       }
     }
-  }, [logsService, staffMembersData, selectedDate, isLogCacheValid, handleInitialLoadComplete]);
+  }, [logsService, staffMembersData, selectedDate, handleInitialLoadComplete, currentUserId, managingGroupId]);
 
-  // Bulk log refresh
+  // *** BULK FRESH FETCH - NO CACHE ***
   const handleBulkLogRefresh = useCallback(async (staffIds: string[], isInitialLoad: boolean = false): Promise<void> => {
-    console.log(`[useDashboardLogic] handleBulkLogRefresh called with ${staffIds.length} staff IDs, isInitialLoad: ${isInitialLoad}`);
+    console.log(`[useDashboardLogic] 🔄 BULK FRESH FETCH called with ${staffIds.length} staff IDs, isInitialLoad: ${isInitialLoad}`);
     console.log(`[useDashboardLogic] Staff IDs: ${staffIds.join(', ')}`);
     console.log(`[useDashboardLogic] Logs service available: ${!!logsService}`);
     
@@ -445,7 +425,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
       return;
     }
 
-    console.log(`[useDashboardLogic] Bulk refresh for ${staffIds.length} staff members (period: ${formatDate(selectedDate)}) ${isInitialLoad ? '[INITIAL]' : ''}`);
+    console.log(`[useDashboardLogic] 🚀 BULK FRESH FETCH for ${staffIds.length} staff members (period: ${formatDate(selectedDate)}) ${isInitialLoad ? '[INITIAL]' : ''}`);
 
     if (!isInitialLoad) {
       setLogLoadingState(true);
@@ -490,7 +470,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
     }
   }, [logsService, selectedDate, handleLogRefresh, setLogLoadingState, handleInitialLoadComplete]);
 
-  // Fill operations
+  // Fill operations (simplified - no cache clearing needed)
   const performFillOperation = useCallback(async (
     fillParams: IFillParams, 
     staffName: string, 
@@ -507,7 +487,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
 
     try {
       setIsLoading(true);
-      console.log(`[useDashboardLogic] Starting optimized fill for ${staffName} (period: ${formatDate(selectedDate)})`);
+      console.log(`[useDashboardLogic] Starting fill for ${staffName} (period: ${formatDate(selectedDate)})`);
 
       const result = await fillService.fillScheduleForStaff(fillParams, replaceExisting);
 
@@ -517,9 +497,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
       });
 
       if (result.success) {
-        console.log(`[useDashboardLogic] Fill successful for ${staffName}`);
-        delete logCacheRef.current[fillParams.staffMember.id];
-        setLogCacheVersion(prev => prev + 1); // *** TRIGGER UPDATE ***
+        console.log(`[useDashboardLogic] Fill successful for ${staffName} - will refresh log`);
         
         setTimeout(() => {
           void handleLogRefresh(fillParams.staffMember.id);
@@ -652,8 +630,6 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
             totalCreatedRecords += result.createdRecordsCount || 0;
             totalDeletedRecords += result.deletedRecordsCount || 0;
             processedStaffIds.push(staffMember.id);
-            delete logCacheRef.current[staffMember.id];
-            setLogCacheVersion(prev => prev + 1); // *** TRIGGER UPDATE ***
           } else {
             errorCount++;
           }
@@ -780,9 +756,9 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
     logsService,
     handleLogRefresh,
     handleBulkLogRefresh,
-    clearLogCache,
-    getLogCacheStats,
+    clearLogCache: clearLogData,        // *** RENAMED ***
+    getLogCacheStats: getLogStats,      // *** RENAMED ***
     startInitialLoading,
-    getCachedLogsForStaff // *** NEW: Export cached logs ***
+    getCachedLogsForStaff: getLiveLogsForStaff  // *** RENAMED TO LIVE DATA ***
   };
 };
