@@ -435,12 +435,12 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
       key: 'name',
       name: 'Staff Member',
       fieldName: 'name',
-      minWidth: 200,
-      maxWidth: 300,
+      minWidth: 150,
+      maxWidth: 200,
       isResizable: true,
       onRender: (item: IStaffWithLogs) => (
         <div style={{ display: 'flex', alignItems: 'center' }}>
-          <span style={{ fontWeight: 500 }}>{item.name}</span>
+          <span style={{ fontWeight: 500, fontSize: '13px' }}>{item.name}</span>
         </div>
       )
     },
@@ -448,16 +448,19 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
       key: 'employeeId',
       name: 'Employee ID',
       fieldName: 'employeeId',
-      minWidth: 100,
-      maxWidth: 120,
-      isResizable: true
+      minWidth: 80,
+      maxWidth: 100,
+      isResizable: true,
+      onRender: (item: IStaffWithLogs) => (
+        <span style={{ fontSize: '13px' }}>{item.employeeId}</span>
+      )
     },
     {
       key: 'logStatus',
       name: 'Log Status',
       fieldName: 'logStatus',
-      minWidth: 120,
-      maxWidth: 150,
+      minWidth: 100,
+      maxWidth: 130,
       isResizable: true,
       onRender: (item: IStaffWithLogs) => {
         const logData = item.logData;
@@ -471,9 +474,13 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
         });
 
         return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             {getLogStatusIcon(logData)}
-            <span style={{ color: getLogStatusColor(logData) }}>
+            <span style={{ 
+              color: getLogStatusColor(logData), 
+              fontSize: '12px',
+              fontWeight: 500
+            }}>
               {getLogStatusText(logData)}
             </span>
           </div>
@@ -484,11 +491,11 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
       key: 'actions',
       name: 'Actions',
       fieldName: 'actions',
-      minWidth: 200,
-      maxWidth: 250,
+      minWidth: 280,
+      maxWidth: 320,
       isResizable: true,
       onRender: (item: IStaffWithLogs) => (
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
           <TooltipHost content="Refresh log data for this staff member">
             <DefaultButton
               iconProps={{ iconName: 'Refresh' }}
@@ -499,8 +506,8 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
               }}
               disabled={isLoading}
               styles={{
-                root: { minWidth: '70px', height: '28px' },
-                label: { fontSize: '12px' }
+                root: { minWidth: '65px', height: '28px' },
+                label: { fontSize: '11px' }
               }}
             />
           </TooltipHost>
@@ -512,25 +519,30 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
               onClick={() => onFillStaff(item.id, item.name)}
               disabled={isLoading}
               styles={{
-                root: { minWidth: '60px', height: '28px' },
-                label: { fontSize: '12px' }
+                root: { minWidth: '55px', height: '28px' },
+                label: { fontSize: '11px' }
               }}
             />
           </TooltipHost>
 
           {item.logData?.hasLog && item.logData?.logId && (
-            <TooltipHost content="View log details">
+            <TooltipHost content="View detailed log information">
               <DefaultButton
                 iconProps={{ iconName: 'View' }}
-                text="View"
+                text="View Log"
                 onClick={() => setLogDetailsDialog({
                   isOpen: true,
                   logId: item.logData?.logId,
                   staffName: item.name
                 })}
                 styles={{
-                  root: { minWidth: '60px', height: '28px' },
-                  label: { fontSize: '12px' }
+                  root: { 
+                    minWidth: '70px', 
+                    height: '28px',
+                    backgroundColor: '#f3f2f1',
+                    borderColor: '#8a8886'
+                  },
+                  label: { fontSize: '11px' }
                 }}
               />
             </TooltipHost>
@@ -542,15 +554,17 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
       key: 'autoschedule',
       name: 'Auto Schedule',
       fieldName: 'autoschedule',
-      minWidth: 120,
-      maxWidth: 140,
+      minWidth: 100,
+      maxWidth: 120,
       isResizable: true,
       onRender: (item: IStaffWithLogs) => (
-        <Toggle
-          checked={item.autoschedule}
-          onChange={(_, checked) => onAutoscheduleToggle(item.id, checked || false)}
-          disabled={isLoading}
-        />
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <Toggle
+            checked={item.autoschedule}
+            onChange={(_, checked) => onAutoscheduleToggle(item.id, checked || false)}
+            disabled={isLoading}
+          />
+        </div>
       )
     }
   ];
