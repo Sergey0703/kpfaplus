@@ -1,8 +1,8 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/DashboardTab.tsx
-// ИСПРАВЛЕНО: Добавлена передача loadingState для синхронизации загрузки
+// ИСПРАВЛЕНО: Удалены все элементы кэша, так как кэш не используется
 import * as React from 'react';
 import { useCallback, useMemo } from 'react';
-import { MessageBar, CommandBar, ICommandBarItemProps } from '@fluentui/react';
+import { MessageBar } from '@fluentui/react';
 import { ITabProps } from '../../../models/types';
 import { DashboardControlPanel } from './components/DashboardControlPanel';
 import { DashboardTable } from './components/DashboardTable';
@@ -52,7 +52,6 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     handleLogRefresh,
     handleBulkLogRefresh,
     clearLogCache,
-    getLogCacheStats,
     getCachedLogsForStaff,
     registerTableResetCallback
   } = useDashboardLogic({
@@ -97,9 +96,6 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     )
   });
 
-  // Cache statistics
-  const cacheStats = getLogCacheStats();
-
   // Format selected date
   const formatSelectedDate = useCallback((): string => {
     if (!selectedDate) return 'N/A';
@@ -126,65 +122,10 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     setConfirmDialog((prev: IConfirmDialogState) => ({ ...prev, isOpen: false }));
   }, [setConfirmDialog]);
 
-  // Handle refresh all logs
-  const handleRefreshAllLogs = useCallback((): void => {
-    console.log(`[DashboardTab] Triggering bulk log refresh for period: ${formatSelectedDate()}`);
-    const staffIds = staffMembersData.map(staff => staff.id);
-    void handleBulkLogRefresh(staffIds);
-  }, [staffMembersData, handleBulkLogRefresh, formatSelectedDate]);
-
-  // Handle clear cache
-  const handleClearCache = useCallback((): void => {
-    console.log('[DashboardTab] Clearing log cache manually');
-    clearLogCache();
-    setInfoMessage({
-      text: `Log cache cleared for period ${formatSelectedDate()}`,
-      type: 1 // MessageBarType.success
-    });
-  }, [clearLogCache, formatSelectedDate, setInfoMessage]);
-
   // *** ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ ЛОГОВ ПО STAFF ID ***
   const getCachedLogsForStaffMember = useCallback((staffId: string) => {
     return stableCachedLogs[staffId] || { hasLog: false, isLoading: false, error: undefined };
   }, [stableCachedLogs]);
-
-  // Command bar items
-  const commandBarItems: ICommandBarItemProps[] = [
-    {
-      key: 'refresh-all-logs',
-      text: 'Refresh All Logs',
-      iconProps: { iconName: 'Refresh' },
-      onClick: handleRefreshAllLogs,
-      disabled: !logsService || staffMembersData.length === 0,
-      title: `Refresh logs for all staff members (Period: ${formatSelectedDate()})`
-    },
-    {
-      key: 'clear-cache',
-      text: 'Clear Cache',
-      iconProps: { iconName: 'Clear' },
-      onClick: handleClearCache,
-      disabled: cacheStats.cached === 0,
-      title: 'Clear cached logs to force refresh from server'
-    }
-  ];
-
-  // Command bar far items
-  const commandBarFarItems: ICommandBarItemProps[] = [
-    {
-      key: 'period-info',
-      text: `Period: ${formatSelectedDate()}`,
-      iconProps: { iconName: 'Calendar' },
-      disabled: true,
-      title: `Current selected period: ${getPeriodDisplayName()}`
-    },
-    {
-      key: 'cache-info',
-      text: `Cache: ${cacheStats.cached}/${cacheStats.cached + cacheStats.expired}`,
-      iconProps: { iconName: 'Database' },
-      disabled: true,
-      title: `Log cache status: ${cacheStats.cached} active, ${cacheStats.expired} expired entries`
-    }
-  ];
 
   // Show loading spinner if loading
   if (isLoading) {
@@ -241,32 +182,11 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
           <span><strong>Selected Period:</strong> {formatSelectedDate()}</span>
           {logsService && (
             <span style={{ color: '#0078d4', fontWeight: '500' }}>
-              <strong>Logs Service:</strong> Active 
-              (Cache: {cacheStats.cached}/{cacheStats.cached + cacheStats.expired})
+              <strong>Logs Service:</strong> Active
             </span>
           )}
         </div>
       </div>
-
-      {/* Command bar */}
-      {logsService && (
-        <div style={{ marginBottom: '15px' }}>
-          <CommandBar
-            items={commandBarItems}
-            farItems={commandBarFarItems}
-            styles={{
-              root: {
-                padding: 0,
-                height: '44px',
-                backgroundColor: '#ffffff',
-                border: '1px solid #e1e5e9',
-                borderRadius: '6px',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-              }
-            }}
-          />
-        </div>
-      )}
 
       {/* Info message */}
       {infoMessage && infoMessage.type !== 4 && (
