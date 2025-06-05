@@ -1,5 +1,5 @@
 // src/webparts/kpfaplus/services/CommonFillGeneration.ts
-// ОБНОВЛЕНО: С полной логикой Schedule tab для обработки шаблонов
+// ОБНОВЛЕНО: С детальным логированием всего процесса заполнения
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { IStaffRecord, StaffRecordsService } from './StaffRecordsService';
 import { HolidaysService, IHoliday } from './HolidaysService';
@@ -9,7 +9,7 @@ import { WeeklyTimeTableUtils } from '../models/IWeeklyTimeTable';
 import { IContract } from '../models/IContract';
 import { IFillParams } from './CommonFillValidation';
 
-// *** ИНТЕРФЕЙСЫ ДЛЯ ШАБЛОНОВ (ИЗ SCHEDULE TAB) ***
+// *** ИНТЕРФЕЙСЫ ДЛЯ ШАБЛОНОВ И АНАЛИЗА ***
 interface IScheduleTemplate {
   id: string;
   title: string;
@@ -34,11 +34,50 @@ interface IScheduleTemplate {
   sunday?: { start: string; end: string };
 }
 
-//interface ITemplateForDay {
-//  template: IScheduleTemplate;
-//  weekNumber: number;
-//  dayNumber: number;
-//}
+// *** НОВЫЕ ИНТЕРФЕЙСЫ ДЛЯ ДЕТАЛЬНОГО АНАЛИЗА ***
+interface IContractsAnalysis {
+  totalFound: number;
+  activeInPeriod: IContract[];
+  selectedContract: IContract;
+  selectionReason: string;
+}
+
+interface ITemplatesAnalysis {
+  weeklyScheduleId: string;
+  weeklyScheduleTitle: string;
+  totalTemplatesFound: number;
+  templatesAfterFiltering: number;
+  weeksInSchedule: number[];
+  shiftsAvailable: number[];
+  dayOfStartWeek: number;
+  weekStartDayName: string;
+  templatesByWeek: Map<number, IScheduleTemplate[]>;
+}
+
+interface IDayGenerationInfo {
+  date: string;
+  weekNumber: number;
+  dayNumber: number;
+  dayName: string;
+  templateFound: boolean;
+  templateUsed?: IScheduleTemplate;
+  workingHours?: string;
+  lunchMinutes?: number;
+  isHoliday: boolean;
+  isLeave: boolean;
+  leaveType?: string;
+  skipReason?: string;
+}
+
+interface IGenerationAnalysis {
+  totalDaysInPeriod: number;
+  daysGenerated: number;
+  daysSkipped: number;
+  holidaysDetected: number;
+  leavesDetected: number;
+  dailyInfo: IDayGenerationInfo[];
+  weeklyStats: Map<number, { total: number; generated: number; skipped: number }>;
+}
 
 export class CommonFillGeneration {
   private staffRecordsService: StaffRecordsService;
@@ -46,11 +85,66 @@ export class CommonFillGeneration {
   private daysOfLeavesService: DaysOfLeavesService;
   private weeklyTimeTableService: WeeklyTimeTableService;
 
+  // *** НОВЫЕ ПОЛЯ ДЛЯ ХРАНЕНИЯ АНАЛИЗА ***
+  private contractsAnalysis?: IContractsAnalysis;
+  private templatesAnalysis?: ITemplatesAnalysis;
+  private generationAnalysis?: IGenerationAnalysis;
+
   constructor(context: WebPartContext) {
     this.staffRecordsService = StaffRecordsService.getInstance(context);
     this.holidaysService = HolidaysService.getInstance(context);
     this.daysOfLeavesService = DaysOfLeavesService.getInstance(context);
     this.weeklyTimeTableService = new WeeklyTimeTableService(context);
+  }
+
+  /**
+   * *** НОВЫЙ МЕТОД: Получает детальный анализ всего процесса заполнения ***
+   */
+  public getDetailedAnalysis(): {
+    contracts?: IContractsAnalysis;
+    templates?: ITemplatesAnalysis;
+    generation?: IGenerationAnalysis;
+  } {
+    return {
+      contracts: this.contractsAnalysis,
+      templates: this.templatesAnalysis,
+      generation: this.generationAnalysis
+    };
+  }
+
+  /**
+   * *** НОВЫЙ МЕТОД: Анализирует контракты для детального логирования ***
+   */
+  public analyzeContracts(
+    allContracts: IContract[], 
+    activeContracts: IContract[], 
+    selectedContract: IContract,
+    selectedDate: Date
+  ): void {
+    console.log('[CommonFillGeneration] Performing detailed contracts analysis...');
+
+    let selectionReason = '';
+    if (activeContracts.length === 1) {
+      selectionReason = 'Only one active contract found for the period';
+    } else if (activeContracts.length > 1) {
+      selectionReason = `Selected first of ${activeContracts.length} active contracts`;
+    } else {
+      selectionReason = 'No active contracts found (using fallback)';
+    }
+
+    this.contractsAnalysis = {
+      totalFound: allContracts.length,
+      activeInPeriod: activeContracts,
+      selectedContract: selectedContract,
+      selectionReason: selectionReason
+    };
+
+    console.log('[CommonFillGeneration] Contracts analysis completed:', {
+      total: this.contractsAnalysis.totalFound,
+      active: this.contractsAnalysis.activeInPeriod.length,
+      selected: this.contractsAnalysis.selectedContract.id,
+      reason: this.contractsAnalysis.selectionReason
+    });
   }
 
   /**
@@ -114,21 +208,22 @@ export class CommonFillGeneration {
   }
 
   /**
-   * *** ОБНОВЛЕНО: Загружает шаблоны недельного расписания с логикой Schedule tab ***
+   * *** ОБНОВЛЕНО: Загружает шаблоны с детальным анализом ***
    */
   public async loadWeeklyTemplates(contractId: string, dayOfStartWeek: number): Promise<IScheduleTemplate[]> {
     try {
-      console.log(`[CommonFillGeneration] Loading weekly templates for contract ${contractId} with Schedule tab logic`);
+      console.log(`[CommonFillGeneration] Loading weekly templates with detailed analysis for contract ${contractId}`);
       
       // *** ШАГ 1: ПОЛУЧЕНИЕ ШАБЛОНОВ ИЗ SHAREPOINT ***
       const weeklyTimeItems = await this.weeklyTimeTableService.getWeeklyTimeTableByContractId(contractId);
       
       if (!weeklyTimeItems || weeklyTimeItems.length === 0) {
         console.log('[CommonFillGeneration] No weekly time items found');
+        this.initializeEmptyTemplatesAnalysis(contractId, dayOfStartWeek);
         return [];
       }
 
-      console.log(`[CommonFillGeneration] Retrieved ${weeklyTimeItems.length} weekly time items`);
+      console.log(`[CommonFillGeneration] Retrieved ${weeklyTimeItems.length} weekly time items from SharePoint`);
 
       // *** ШАГ 2: ПЕРВИЧНАЯ ФИЛЬТРАЦИЯ УДАЛЁННЫХ ШАБЛОНОВ ***
       const activeWeeklyTimeItems = weeklyTimeItems.filter((item: any) => {
@@ -138,12 +233,13 @@ export class CommonFillGeneration {
           item.fields?.deleted === 1 ||
           item.deleted === 1;
         
-        return !isDeleted; // Оставляем только неудалённые шаблоны
+        return !isDeleted;
       });
 
       console.log(`[CommonFillGeneration] After primary filtering: ${activeWeeklyTimeItems.length} active weekly time items`);
 
       if (activeWeeklyTimeItems.length === 0) {
+        this.initializeEmptyTemplatesAnalysis(contractId, dayOfStartWeek);
         return [];
       }
 
@@ -153,6 +249,7 @@ export class CommonFillGeneration {
       
       if (!formattedTemplates) {
         console.log('[CommonFillGeneration] Failed to format weekly templates');
+        this.initializeEmptyTemplatesAnalysis(contractId, dayOfStartWeek);
         return [];
       }
 
@@ -170,14 +267,18 @@ export class CommonFillGeneration {
 
       // *** ШАГ 6: ГРУППИРОВКА ШАБЛОНОВ ДЛЯ БЫСТРОГО ДОСТУПА ***
       const groupedTemplates = this.groupTemplatesByWeekAndDay(scheduleTemplates);
-      console.log(`[CommonFillGeneration] Created ${groupedTemplates.size} template groups`);
 
-      // Логируем информацию о шаблонах
-      if (scheduleTemplates.length > 0) {
-        scheduleTemplates.slice(0, 3).forEach((template: IScheduleTemplate, index: number) => {
-          console.log(`[CommonFillGeneration] Template ${index + 1}: Week=${template.NumberOfWeek || template.numberOfWeek || 1}, Shift=${template.NumberOfShift || template.shiftNumber || 1}`);
-        });
-      }
+      // *** ШАГ 7: ДЕТАЛЬНЫЙ АНАЛИЗ ШАБЛОНОВ ***
+      const scheduleTitle = this.extractScheduleTitle(weeklyTimeItems);
+      this.analyzeTemplates(
+        contractId, 
+        scheduleTitle,
+        weeklyTimeItems.length,
+        finalTemplates.length,
+        dayOfStartWeek,
+        scheduleTemplates,
+        groupedTemplates
+      );
 
       // Сохраняем группированные шаблоны для использования в generateScheduleRecords
       (scheduleTemplates as any)._groupedTemplates = groupedTemplates;
@@ -185,12 +286,132 @@ export class CommonFillGeneration {
       return scheduleTemplates;
     } catch (error) {
       console.error('[CommonFillGeneration] Error loading weekly templates:', error);
+      this.initializeEmptyTemplatesAnalysis(contractId, dayOfStartWeek);
       return [];
     }
   }
 
   /**
-   * *** НОВЫЙ МЕТОД: Преобразует отформатированные шаблоны в единый формат ***
+   * *** НОВЫЙ МЕТОД: Инициализирует пустой анализ шаблонов ***
+   */
+  private initializeEmptyTemplatesAnalysis(contractId: string, dayOfStartWeek: number): void {
+    this.templatesAnalysis = {
+      weeklyScheduleId: contractId,
+      weeklyScheduleTitle: 'No schedule found',
+      totalTemplatesFound: 0,
+      templatesAfterFiltering: 0,
+      weeksInSchedule: [],
+      shiftsAvailable: [],
+      dayOfStartWeek: dayOfStartWeek,
+      weekStartDayName: this.getDayName(dayOfStartWeek),
+      templatesByWeek: new Map()
+    };
+  }
+
+  /**
+   * *** НОВЫЙ МЕТОД: Детальный анализ шаблонов ***
+   */
+  private analyzeTemplates(
+    contractId: string,
+    scheduleTitle: string,
+    totalFound: number,
+    afterFiltering: number,
+    dayOfStartWeek: number,
+    scheduleTemplates: IScheduleTemplate[],
+    groupedTemplates: Map<string, IScheduleTemplate[]>
+  ): void {
+    console.log('[CommonFillGeneration] Performing detailed templates analysis...');
+
+    // Анализ недель в расписании
+    const weeksSet = new Set<number>();
+    const shiftsSet = new Set<number>();
+
+    scheduleTemplates.forEach(template => {
+      const weekNum = template.NumberOfWeek || template.numberOfWeek || 1;
+      const shiftNum = template.NumberOfShift || template.shiftNumber || 1;
+      weeksSet.add(weekNum);
+      shiftsSet.add(shiftNum);
+    });
+
+    // Группировка по неделям
+    const templatesByWeek = new Map<number, IScheduleTemplate[]>();
+    scheduleTemplates.forEach(template => {
+      const weekNum = template.NumberOfWeek || template.numberOfWeek || 1;
+      if (!templatesByWeek.has(weekNum)) {
+        templatesByWeek.set(weekNum, []);
+      }
+      templatesByWeek.get(weekNum)?.push(template);
+    });
+
+    this.templatesAnalysis = {
+      weeklyScheduleId: contractId,
+      weeklyScheduleTitle: scheduleTitle,
+      totalTemplatesFound: totalFound,
+      templatesAfterFiltering: afterFiltering,
+      weeksInSchedule: Array.from(weeksSet).sort(),
+      shiftsAvailable: Array.from(shiftsSet).sort(),
+      dayOfStartWeek: dayOfStartWeek,
+      weekStartDayName: this.getDayName(dayOfStartWeek),
+      templatesByWeek: templatesByWeek
+    };
+
+    console.log('[CommonFillGeneration] Templates analysis completed:', {
+      schedule: this.templatesAnalysis.weeklyScheduleTitle,
+      totalFound: this.templatesAnalysis.totalTemplatesFound,
+      afterFiltering: this.templatesAnalysis.templatesAfterFiltering,
+      weeks: this.templatesAnalysis.weeksInSchedule,
+      shifts: this.templatesAnalysis.shiftsAvailable,
+      weekStart: this.templatesAnalysis.weekStartDayName
+    });
+  }
+
+  /**
+   * *** НОВЫЙ МЕТОД: Безопасно извлекает название расписания ***
+   */
+  private extractScheduleTitle(weeklyTimeItems: any[]): string {
+    if (!weeklyTimeItems || weeklyTimeItems.length === 0) {
+      return 'No Schedule Found';
+    }
+
+    const firstItem = weeklyTimeItems[0];
+    if (!firstItem) {
+      return 'Unknown Schedule';
+    }
+
+    // Пробуем разные варианты получения названия
+    let title = '';
+    
+    if (typeof firstItem.Title === 'string') {
+      title = firstItem.Title;
+    } else if (typeof firstItem.title === 'string') {
+      title = firstItem.title;
+    } else if (firstItem.fields && typeof firstItem.fields.Title === 'string') {
+      title = firstItem.fields.Title;
+    } else if (firstItem.fields && typeof firstItem.fields.title === 'string') {
+      title = firstItem.fields.title;
+    }
+
+    return title.trim() || 'Unknown Schedule';
+  }
+
+  /**
+   * *** НОВЫЙ МЕТОД: Получает название дня недели ***
+   */
+  private getDayName(dayNumber: number): string {
+    const dayNames: { [key: number]: string } = {
+      1: 'Monday',
+      2: 'Tuesday', 
+      3: 'Wednesday',
+      4: 'Thursday',
+      5: 'Friday',
+      6: 'Saturday',
+      7: 'Sunday'
+    };
+    return dayNames[dayNumber] || 'Unknown';
+  }
+
+  /**
+   * Преобразует отформатированные шаблоны в единый формат
    */
   private convertToScheduleTemplates(formattedTemplates: any[]): IScheduleTemplate[] {
     const scheduleTemplates: IScheduleTemplate[] = [];
@@ -204,7 +425,7 @@ export class CommonFillGeneration {
       
       for (let i = 0; i < days.length; i++) {
         const day = days[i];
-        const dayInfo = template[day]; // Время начала и окончания для этого дня
+        const dayInfo = template[day];
         
         if (dayInfo && dayInfo.start && dayInfo.end) {
           const scheduleTemplate: IScheduleTemplate = {
@@ -241,7 +462,7 @@ export class CommonFillGeneration {
   }
 
   /**
-   * *** НОВЫЙ МЕТОД: Группировка шаблонов для быстрого доступа (ИЗ SCHEDULE TAB) ***
+   * Группировка шаблонов для быстрого доступа
    */
   private groupTemplatesByWeekAndDay(templates: IScheduleTemplate[]): Map<string, IScheduleTemplate[]> {
     console.log(`[CommonFillGeneration] Grouping ${templates.length} templates by week and day`);
@@ -252,29 +473,21 @@ export class CommonFillGeneration {
       const weekNumber = template.NumberOfWeek || template.numberOfWeek || 1;
       const dayNumber = template.dayOfWeek;
       
-      // Создаём ключ: "1-1" (1-я неделя, 1-й день), "1-2" (1-я неделя, 2-й день) и т.д.
       const key = `${weekNumber}-${dayNumber}`;
       
       if (!templatesByWeekAndDay.has(key)) {
         templatesByWeekAndDay.set(key, []);
       }
       
-      // Добавляем шаблон в соответствующую группу
       templatesByWeekAndDay.get(key)?.push(template);
-      
-      console.log(`[CommonFillGeneration] Added template to group ${key}: ${template.start}-${template.end}, shift ${template.NumberOfShift || template.shiftNumber || 1}`);
     });
 
-    console.log(`[CommonFillGeneration] Created ${templatesByWeekAndDay.size} template groups:`);
-    templatesByWeekAndDay.forEach((templates: IScheduleTemplate[], key: string) => {
-      console.log(`[CommonFillGeneration] Group ${key}: ${templates.length} templates`);
-    });
-
+    console.log(`[CommonFillGeneration] Created ${templatesByWeekAndDay.size} template groups`);
     return templatesByWeekAndDay;
   }
 
   /**
-   * *** ОБНОВЛЕНО: Генерирует записи расписания с логикой Schedule tab ***
+   * *** ОБНОВЛЕНО: Генерирует записи с детальным анализом ***
    */
   public async generateScheduleRecords(
     params: IFillParams,
@@ -283,7 +496,7 @@ export class CommonFillGeneration {
     leaves: ILeaveDay[],
     weeklyTemplates: IScheduleTemplate[]
   ): Promise<Partial<IStaffRecord>[]> {
-    console.log(`[CommonFillGeneration] Generating schedule records for ${params.staffMember.name} with Schedule tab logic`);
+    console.log(`[CommonFillGeneration] Generating schedule records with detailed analysis for ${params.staffMember.name}`);
 
     // Определяем период для генерации
     const startOfMonth = new Date(params.selectedDate.getFullYear(), params.selectedDate.getMonth(), 1);
@@ -292,7 +505,6 @@ export class CommonFillGeneration {
     const contractStartDate = contract.startDate;
     const contractFinishDate = contract.finishDate;
 
-    // Определяем реальный период с учетом контракта
     const firstDay = contractStartDate && contractStartDate > startOfMonth 
       ? new Date(contractStartDate) 
       : new Date(startOfMonth);
@@ -307,7 +519,10 @@ export class CommonFillGeneration {
     const holidayCache = this.createHolidayCache(holidays);
     const leavePeriods = this.createLeavePeriods(leaves);
 
-    // *** ПОЛУЧАЕМ ГРУППИРОВАННЫЕ ШАБЛОНЫ ***
+    // *** ИНИЦИАЛИЗИРУЕМ АНАЛИЗ ГЕНЕРАЦИИ ***
+    this.initializeGenerationAnalysis(firstDay, lastDay);
+
+    // Получаем группированные шаблоны
     const groupedTemplates = (weeklyTemplates as any)._groupedTemplates as Map<string, IScheduleTemplate[]>;
     if (!groupedTemplates) {
       console.error('[CommonFillGeneration] No grouped templates found - using fallback logic');
@@ -316,21 +531,39 @@ export class CommonFillGeneration {
 
     const records: Partial<IStaffRecord>[] = [];
 
-    // *** ПЕРЕБИРАЕМ ВСЕ ДНИ ПЕРИОДА С ЛОГИКОЙ SCHEDULE TAB ***
+    // *** ПЕРЕБИРАЕМ ВСЕ ДНИ ПЕРИОДА С ДЕТАЛЬНЫМ АНАЛИЗОМ ***
     for (let d = new Date(firstDay); d <= lastDay; d.setDate(d.getDate() + 1)) {
       const currentDate = new Date(d);
       
-      // *** ВЫЧИСЛЯЕМ НОМЕР НЕДЕЛИ И ДЕНЬ НЕДЕЛИ ***
+      // Вычисляем номер недели и день недели
       const weekAndDay = this.calculateWeekAndDay(currentDate, startOfMonth, params.dayOfStartWeek || 7);
       
-      // *** ИЩЕМ ПОДХОДЯЩИЕ ШАБЛОНЫ ДЛЯ ЭТОГО ДНЯ ***
+      // Ищем подходящие шаблоны для этого дня
       const templatesForDay = this.findTemplatesForDay(groupedTemplates, weekAndDay.weekNumber, weekAndDay.dayNumber);
       
+      // *** СОЗДАЕМ ИНФОРМАЦИЮ О ДНЕ ДЛЯ АНАЛИЗА ***
+      const dayInfo: IDayGenerationInfo = {
+        date: currentDate.toLocaleDateString(),
+        weekNumber: weekAndDay.weekNumber,
+        dayNumber: weekAndDay.dayNumber,
+        dayName: this.getDayName(weekAndDay.dayNumber),
+        templateFound: templatesForDay.length > 0,
+        isHoliday: this.isHoliday(currentDate, holidayCache),
+        isLeave: this.isLeave(currentDate, leavePeriods)
+      };
+
+      if (dayInfo.isLeave) {
+        const leave = this.getLeaveForDay(currentDate, leavePeriods);
+        dayInfo.leaveType = leave?.typeOfLeave || 'Unknown';
+      }
+
       if (templatesForDay.length > 0) {
-        // Используем первый подходящий шаблон (можно улучшить логику выбора)
         const selectedTemplate = templatesForDay[0];
+        dayInfo.templateUsed = selectedTemplate;
+        dayInfo.workingHours = `${selectedTemplate.start}-${selectedTemplate.end}`;
+        dayInfo.lunchMinutes = parseInt(selectedTemplate.lunch || '30', 10);
         
-        console.log(`[CommonFillGeneration] Date ${currentDate.toLocaleDateString()}: Week ${weekAndDay.weekNumber}, Day ${weekAndDay.dayNumber}, Template: ${selectedTemplate.start}-${selectedTemplate.end}`);
+        console.log(`[CommonFillGeneration] ${dayInfo.date} (${dayInfo.dayName}): Week ${dayInfo.weekNumber}, Template: ${dayInfo.workingHours}, Lunch: ${dayInfo.lunchMinutes}min`);
         
         const record = this.createStaffRecordFromTemplate(
           currentDate, 
@@ -341,44 +574,118 @@ export class CommonFillGeneration {
         );
         
         records.push(record);
+        this.updateGenerationStats(weekAndDay.weekNumber, true);
       } else {
-        console.log(`[CommonFillGeneration] No template found for ${currentDate.toLocaleDateString()} (Week ${weekAndDay.weekNumber}, Day ${weekAndDay.dayNumber})`);
+        dayInfo.skipReason = 'No template found for this week/day combination';
+        console.log(`[CommonFillGeneration] ${dayInfo.date} (${dayInfo.dayName}): Week ${dayInfo.weekNumber}, Day ${dayInfo.dayNumber} - ${dayInfo.skipReason}`);
+        this.updateGenerationStats(weekAndDay.weekNumber, false);
       }
+
+      // Добавляем информацию о дне в анализ
+      this.generationAnalysis?.dailyInfo.push(dayInfo);
     }
 
-    console.log(`[CommonFillGeneration] Generated ${records.length} schedule records using Schedule tab logic`);
+    // *** ЗАВЕРШАЕМ АНАЛИЗ ГЕНЕРАЦИИ ***
+    this.finalizeGenerationAnalysis(records.length, holidays.length, leaves.length);
+
+    console.log(`[CommonFillGeneration] Generated ${records.length} schedule records with detailed analysis`);
     return records;
   }
 
   /**
-   * *** НОВЫЙ МЕТОД: Вычисляет номер недели и день недели как в Schedule tab ***
+   * *** НОВЫЙ МЕТОД: Инициализирует анализ генерации ***
    */
-  private calculateWeekAndDay(date: Date, startOfMonth: Date, dayOfStartWeek: number): { weekNumber: number; dayNumber: number } {
-    // Вычисляем номер недели в месяце (1-4 или 1-5)
-    const dayOfMonth = date.getDate();
-    const weekNumber = Math.ceil(dayOfMonth / 7);
+  private initializeGenerationAnalysis(firstDay: Date, lastDay: Date): void {
+    const totalDays = Math.ceil((lastDay.getTime() - firstDay.getTime()) / (1000 * 60 * 60 * 24)) + 1;
     
-    // Вычисляем день недели с учетом dayOfStartWeek
-    let dayOfWeek = date.getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
-    
-    // Корректируем с учетом начала недели
-    if (dayOfStartWeek === 2) { // Понедельник = начало недели
-      dayOfWeek = dayOfWeek === 0 ? 7 : dayOfWeek; // Воскресенье становится 7
-    } else if (dayOfStartWeek === 7) { // Суббота = начало недели
-      dayOfWeek = (dayOfWeek + 1) % 7 + 1; // Суббота становится 1, воскресенье 2, и т.д.
-    }
-    
-    const result = {
-      weekNumber,
-      dayNumber: dayOfWeek
+    this.generationAnalysis = {
+      totalDaysInPeriod: totalDays,
+      daysGenerated: 0,
+      daysSkipped: 0,
+      holidaysDetected: 0,
+      leavesDetected: 0,
+      dailyInfo: [],
+      weeklyStats: new Map()
     };
-    
-    console.log(`[CommonFillGeneration] Date ${date.toLocaleDateString()}: Week ${result.weekNumber}, Day ${result.dayNumber} (dayOfStartWeek=${dayOfStartWeek})`);
-    return result;
+
+    console.log(`[CommonFillGeneration] Initialized generation analysis for ${totalDays} days`);
   }
 
   /**
-   * *** НОВЫЙ МЕТОД: Находит шаблоны для конкретной недели и дня ***
+   * *** НОВЫЙ МЕТОД: Обновляет статистику генерации ***
+   */
+  private updateGenerationStats(weekNumber: number, generated: boolean): void {
+    if (!this.generationAnalysis?.weeklyStats.has(weekNumber)) {
+      this.generationAnalysis?.weeklyStats.set(weekNumber, { total: 0, generated: 0, skipped: 0 });
+    }
+
+    const weekStats = this.generationAnalysis?.weeklyStats.get(weekNumber);
+    if (weekStats) {
+      weekStats.total++;
+      if (generated) {
+        weekStats.generated++;
+        this.generationAnalysis!.daysGenerated++;
+      } else {
+        weekStats.skipped++;
+        this.generationAnalysis!.daysSkipped++;
+      }
+    }
+  }
+
+  /**
+   * *** НОВЫЙ МЕТОД: Завершает анализ генерации ***
+   */
+  private finalizeGenerationAnalysis(recordsGenerated: number, holidaysCount: number, leavesCount: number): void {
+    if (this.generationAnalysis) {
+      this.generationAnalysis.holidaysDetected = holidaysCount;
+      this.generationAnalysis.leavesDetected = leavesCount;
+      
+      console.log('[CommonFillGeneration] Generation analysis completed:', {
+        totalDays: this.generationAnalysis.totalDaysInPeriod,
+        generated: this.generationAnalysis.daysGenerated,
+        skipped: this.generationAnalysis.daysSkipped,
+        holidays: this.generationAnalysis.holidaysDetected,
+        leaves: this.generationAnalysis.leavesDetected
+      });
+    }
+  }
+
+  /**
+   * *** НОВЫЕ ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ДЛЯ АНАЛИЗА ***
+   */
+  private isHoliday(date: Date, holidayCache: Map<string, IHoliday>): boolean {
+    const dateKey = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+    return holidayCache.has(dateKey);
+  }
+
+  private isLeave(date: Date, leavePeriods: Array<{startDate: Date, endDate: Date, typeOfLeave: string, title: string}>): boolean {
+    return leavePeriods.some(leave => date >= leave.startDate && date <= leave.endDate);
+  }
+
+  private getLeaveForDay(date: Date, leavePeriods: Array<{startDate: Date, endDate: Date, typeOfLeave: string, title: string}>): {typeOfLeave: string, title: string} | undefined {
+    return leavePeriods.find(leave => date >= leave.startDate && date <= leave.endDate);
+  }
+
+  /**
+   * Вычисляет номер недели и день недели
+   */
+  private calculateWeekAndDay(date: Date, startOfMonth: Date, dayOfStartWeek: number): { weekNumber: number; dayNumber: number } {
+    const dayOfMonth = date.getDate();
+    const weekNumber = Math.ceil(dayOfMonth / 7);
+    
+    let dayOfWeek = date.getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
+    
+    if (dayOfStartWeek === 2) { // Понедельник = начало недели
+      dayOfWeek = dayOfWeek === 0 ? 7 : dayOfWeek;
+    } else if (dayOfStartWeek === 7) { // Суббота = начало недели
+      dayOfWeek = (dayOfWeek + 1) % 7 + 1;
+    }
+    
+    return { weekNumber, dayNumber: dayOfWeek };
+  }
+
+  /**
+   * Находит шаблоны для конкретной недели и дня
    */
   private findTemplatesForDay(
     groupedTemplates: Map<string, IScheduleTemplate[]>, 
@@ -389,7 +696,6 @@ export class CommonFillGeneration {
     const templates = groupedTemplates.get(key) || [];
     
     if (templates.length === 0) {
-      // Пробуем найти шаблон для первой недели если не нашли для текущей
       const fallbackKey = `1-${dayNumber}`;
       const fallbackTemplates = groupedTemplates.get(fallbackKey) || [];
       
@@ -403,7 +709,7 @@ export class CommonFillGeneration {
   }
 
   /**
-   * *** ОБНОВЛЕНО: Создает запись расписания из шаблона ***
+   * Создает запись расписания из шаблона
    */
   private createStaffRecordFromTemplate(
     date: Date,
@@ -423,7 +729,7 @@ export class CommonFillGeneration {
     );
     const isLeave = !!leaveForDay;
 
-    // *** ИСПОЛЬЗУЕМ ВРЕМЯ ИЗ ШАБЛОНА ***
+    // Используем время из шаблона
     const startTime = this.parseTimeString(template.start);
     const endTime = this.parseTimeString(template.end);
     const lunchTime = parseInt(template.lunch || '30', 10);
@@ -447,27 +753,14 @@ export class CommonFillGeneration {
       record.TypeOfLeaveID = leaveForDay.typeOfLeave;
     }
 
-    // Логируем создание записи для отладки
-    const logDetails = [
-      `Date: ${date.toLocaleDateString()}`,
-      `Template: ${template.start}-${template.end}`,
-      `Holiday: ${isHoliday ? 'Yes' : 'No'}`,
-      `Leave: ${isLeave ? `Yes (${leaveForDay?.title})` : 'No'}`,
-      `Week: ${template.NumberOfWeek || template.numberOfWeek || 1}`,
-      `Shift: ${template.NumberOfShift || template.shiftNumber || 1}`
-    ].join(', ');
-    
-    console.log(`[CommonFillGeneration] Created record with Schedule tab logic: ${logDetails}`);
-
     return record;
   }
 
   /**
-   * *** НОВЫЙ МЕТОД: Парсит строку времени в часы и минуты ***
+   * Парсит строку времени в часы и минуты
    */
   private parseTimeString(timeStr: string): { hours: number; minutes: number } {
     try {
-      // Поддерживаем форматы: "09:00", "9:00", "09:30", etc.
       const parts = timeStr.split(':');
       const hours = parseInt(parts[0], 10);
       const minutes = parts.length > 1 ? parseInt(parts[1], 10) : 0;
@@ -478,12 +771,12 @@ export class CommonFillGeneration {
       };
     } catch (error) {
       console.error(`[CommonFillGeneration] Error parsing time string "${timeStr}":`, error);
-      return { hours: 9, minutes: 0 }; // Fallback
+      return { hours: 9, minutes: 0 };
     }
   }
 
   /**
-   * *** FALLBACK МЕТОД: Генерация записей с упрощенной логикой ***
+   * Fallback генерация записей с упрощенной логикой
    */
   private generateRecordsWithFallback(
     params: IFillParams,
@@ -502,7 +795,6 @@ export class CommonFillGeneration {
       const currentDate = new Date(d);
       
       if (weeklyTemplates.length > 0) {
-        // Берем первый шаблон
         const template = weeklyTemplates[0];
         const record = this.createStaffRecordFromTemplate(currentDate, template, contract, holidayCache, leavePeriods);
         records.push(record);
@@ -532,7 +824,7 @@ export class CommonFillGeneration {
   private createLeavePeriods(leaves: ILeaveDay[]): Array<{startDate: Date, endDate: Date, typeOfLeave: string, title: string}> {
     const leavePeriods = leaves.map((leave: ILeaveDay) => ({
       startDate: new Date(leave.startDate),
-      endDate: leave.endDate ? new Date(leave.endDate) : new Date(2099, 11, 31), // Далекое будущее для открытых отпусков
+      endDate: leave.endDate ? new Date(leave.endDate) : new Date(2099, 11, 31),
       typeOfLeave: leave.typeOfLeave.toString(),
       title: leave.title || ''
     }));
@@ -545,7 +837,7 @@ export class CommonFillGeneration {
    * Сохраняет сгенерированные записи в SharePoint
    */
   public async saveGeneratedRecords(records: Partial<IStaffRecord>[], params: IFillParams): Promise<number> {
-    console.log(`[CommonFillGeneration] Saving ${records.length} generated records with Schedule tab logic`);
+    console.log(`[CommonFillGeneration] Saving ${records.length} generated records with detailed analysis`);
 
     let successCount = 0;
     const errors: string[] = [];
@@ -560,12 +852,6 @@ export class CommonFillGeneration {
         const managerId = params.currentUserId;
         const staffGroupId = params.managingGroupId;
         
-        console.log(`[CommonFillGeneration] Creating record with IDs:
-          employeeId: ${employeeId} (${typeof employeeId})
-          managerId: ${managerId} (${typeof managerId})  
-          staffGroupId: ${staffGroupId} (${typeof staffGroupId})`);
-        
-        // Проверяем, что employeeId не пустой
         if (!employeeId || employeeId === '0' || employeeId.trim() === '') {
           const errorMsg = `Missing or invalid employeeId for record ${i + 1}: "${employeeId}"`;
           errors.push(errorMsg);
@@ -574,17 +860,16 @@ export class CommonFillGeneration {
         }
         
         const newRecordId = await this.staffRecordsService.createStaffRecord(
-          record,                    // createData: Partial<IStaffRecord>
-          managerId || '0',         // currentUserID (Manager) - строка или число
-          staffGroupId || '0',      // staffGroupID - строка или число  
-          employeeId                // staffMemberID (Employee) - строка или число
+          record,
+          managerId || '0',
+          staffGroupId || '0',
+          employeeId
         );
 
         if (newRecordId) {
           successCount++;
           console.log(`[CommonFillGeneration] ✓ Created record ID=${newRecordId} for ${record.Date?.toLocaleDateString()}`);
           
-          // Дополнительное логирование для отладки Schedule tab логики
           if (record.TypeOfLeaveID) {
             console.log(`[CommonFillGeneration] ✓ Record ${newRecordId} created with leave type: ${record.TypeOfLeaveID}`);
           }
@@ -592,7 +877,6 @@ export class CommonFillGeneration {
             console.log(`[CommonFillGeneration] ✓ Record ${newRecordId} created for holiday`);
           }
           
-          // Логируем информацию о времени из шаблона
           if (record.ShiftDate1 && record.ShiftDate2) {
             const startTime = `${record.ShiftDate1.getHours()}:${record.ShiftDate1.getMinutes().toString().padStart(2, '0')}`;
             const endTime = `${record.ShiftDate2.getHours()}:${record.ShiftDate2.getMinutes().toString().padStart(2, '0')}`;
@@ -609,14 +893,12 @@ export class CommonFillGeneration {
         console.error(`[CommonFillGeneration] ✗ ${errorMsg}`);
       }
 
-      // Небольшая пауза между созданиями записей для предотвращения перегрузки
       if (i < records.length - 1) {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
     }
 
-    // Логируем результаты сохранения
-    console.log(`[CommonFillGeneration] Save operation completed with Schedule tab logic: ${successCount}/${records.length} successful`);
+    console.log(`[CommonFillGeneration] Save operation completed with detailed analysis: ${successCount}/${records.length} successful`);
     
     if (errors.length > 0) {
       console.error(`[CommonFillGeneration] Save errors (${errors.length}):`, errors);

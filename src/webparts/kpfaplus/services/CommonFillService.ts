@@ -1,4 +1,4 @@
-// src/webparts/kpfaplus/services/CommonFillService.ts - WITH RESULT=3 FOR DIALOGS
+// src/webparts/kpfaplus/services/CommonFillService.ts - WITH DETAILED LOGGING
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { MessageBarType } from '@fluentui/react';
 import { ContractsService } from './ContractsService';
@@ -18,22 +18,20 @@ import { ScheduleLogsService, ICreateScheduleLogParams } from './ScheduleLogsSer
 // Export interfaces for compatibility
 export { IFillParams, IExistingRecordsCheck, DialogType, IDialogConfig, IScheduleLogicResult };
 
-// *** РЕЗУЛЬТАТ ОПЕРАЦИИ ЗАПОЛНЕНИЯ С ДИАЛОГОМ ***
+// Результат операции заполнения с диалогом
 export interface IFillResult {
   success: boolean;
   message: string;
   messageType: MessageBarType;
   createdRecordsCount?: number;
   deletedRecordsCount?: number;
-  // *** ПОЛЯ ДЛЯ ПОДДЕРЖКИ ДИАЛОГОВ ***
   requiresDialog?: boolean;
   dialogConfig?: IDialogConfig;
   canProceed?: boolean;
-  // *** НОВОЕ ПОЛЕ: ТИП РЕЗУЛЬТАТА ДЛЯ ЛОГИРОВАНИЯ ***
   logResult?: number; // 1=Error, 2=Success, 3=Info/Refusal
 }
 
-// *** ПАРАМЕТРЫ ДЛЯ ВЫПОЛНЕНИЯ ЗАПОЛНЕНИЯ ПОСЛЕ ПОДТВЕРЖДЕНИЯ ***
+// Параметры для выполнения заполнения после подтверждения
 export interface IPerformFillParams extends IFillParams {
   contractId: string;
   replaceExisting: boolean;
@@ -56,7 +54,7 @@ export class CommonFillService {
     this.validationService = new CommonFillValidation(context);
     this.generationService = new CommonFillGeneration(context);
     
-    console.log('[CommonFillService] Service initialized with Schedule tab logic and Result=3 support');
+    console.log('[CommonFillService] Service initialized with detailed logging support');
   }
 
   public static getInstance(context: WebPartContext): CommonFillService {
@@ -80,14 +78,13 @@ export class CommonFillService {
   }
 
   /**
-   * *** ГЛАВНАЯ ФУНКЦИЯ: Проверяет записи и возвращает конфигурацию диалога (НЕ ЗАПОЛНЯЕТ АВТОМАТИЧЕСКИ) ***
-   * Эта функция заменяет старую автоматическую логику заполнения
+   * Проверяет записи и возвращает конфигурацию диалога (НЕ ЗАПОЛНЯЕТ АВТОМАТИЧЕСКИ)
    */
   public async checkScheduleForFill(params: IFillParams): Promise<IFillResult> {
-    console.log('[CommonFillService] Checking schedule for fill (Schedule tab logic):', params.staffMember.name);
+    console.log('[CommonFillService] Checking schedule for fill with detailed analysis:', params.staffMember.name);
     
     try {
-      // *** ШАГ 1: ВАЛИДАЦИЯ ПАРАМЕТРОВ ***
+      // Валидация параметров
       const validation = this.validationService.validateFillParams(params);
       if (!validation.isValid) {
         const result: IFillResult = {
@@ -96,52 +93,41 @@ export class CommonFillService {
           messageType: MessageBarType.error,
           requiresDialog: false,
           canProceed: false,
-          logResult: 1 // Реальная ошибка
+          logResult: 1
         };
         await this.createFillLog(params, result, undefined, `Validation errors: ${validation.errors.join(', ')}`);
         return result;
       }
 
-      // *** ШАГ 2: ЗАГРУЗКА КОНТРАКТОВ ***
-      const employeeId = params.staffMember.employeeId;
-      const managerId = params.currentUserId || '';
-      const groupId = params.managingGroupId || '';
+      // *** ДЕТАЛЬНЫЙ АНАЛИЗ КОНТРАКТОВ ***
+      const contractsAnalysis = await this.performContractsAnalysis(params);
       
-      if (!employeeId || employeeId.trim() === '' || employeeId === '0') {
-        const result: IFillResult = {
-          success: false,
-          message: 'Invalid employee ID - cannot check schedule.',
-          messageType: MessageBarType.error,
-          requiresDialog: false,
-          canProceed: false,
-          logResult: 1 // Реальная ошибка
-        };
-        await this.createFillLog(params, result, undefined, 'Invalid employee ID');
-        return result;
-      }
-      
-      const contracts = await this.contractsService.getContractsForStaffMember(employeeId, managerId, groupId);
-      const activeContracts = contracts.filter((contract: IContract) => 
-        !contract.isDeleted && this.validationService.isContractActiveInMonth(contract, params.selectedDate)
-      );
-
-      if (activeContracts.length === 0) {
+      if (contractsAnalysis.activeContracts.length === 0) {
         const result: IFillResult = {
           success: false,
           message: 'No active contracts found for this staff member in the selected period.',
           messageType: MessageBarType.warning,
           requiresDialog: false,
           canProceed: false,
-          logResult: 1 // Реальная ошибка
+          logResult: 1
         };
-        await this.createFillLog(params, result, undefined, 'No active contracts found');
+        const detailedLog = this.buildContractsAnalysisLog(contractsAnalysis);
+        await this.createFillLog(params, result, undefined, detailedLog);
         return result;
       }
 
-      const selectedContract = activeContracts[0];
-      console.log(`[CommonFillService] Using contract: ${selectedContract.id}`);
+      const selectedContract = contractsAnalysis.activeContracts[0];
+      console.log(`[CommonFillService] Using contract: ${selectedContract.id} - ${selectedContract.template || 'No name'}`);
 
-      // *** ШАГ 3: ПРИМЕНЕНИЕ SCHEDULE TAB ЛОГИКИ ***
+      // *** ПЕРЕДАЕМ АНАЛИЗ КОНТРАКТОВ В GENERATION SERVICE ***
+      this.generationService.analyzeContracts(
+        contractsAnalysis.allContracts,
+        contractsAnalysis.activeContracts,
+        selectedContract,
+        params.selectedDate
+      );
+
+      // Применение Schedule tab логики
       const scheduleLogicResult = await this.validationService.checkExistingRecordsWithScheduleLogic(
         params, 
         selectedContract.id
@@ -153,9 +139,9 @@ export class CommonFillService {
         canProceed: scheduleLogicResult.canProceed
       });
 
-      // *** ШАГ 4: ВОЗВРАЩАЕМ РЕЗУЛЬТАТ С ДИАЛОГОМ И ПРАВИЛЬНЫМ logResult ***
+      // Возвращаем результат с диалогом и правильным logResult
       const result: IFillResult = {
-        success: false, // НЕ success пока пользователь не подтвердит
+        success: false,
         message: scheduleLogicResult.dialogConfig.message,
         messageType: scheduleLogicResult.dialogConfig.type === DialogType.ProcessedRecordsBlock 
           ? MessageBarType.error 
@@ -163,15 +149,15 @@ export class CommonFillService {
         requiresDialog: true,
         dialogConfig: scheduleLogicResult.dialogConfig,
         canProceed: scheduleLogicResult.canProceed,
-        // *** ИСПРАВЛЕНО: ВСЕ ДИАЛОГИ ЛОГИРУЮТСЯ КАК Result=3 (Info/Refusal) ***
-        logResult: 3 // Все типы диалогов - это информационные сообщения, не ошибки
+        logResult: 3 // Все типы диалогов - это информационные сообщения
       };
 
-      // Логируем проверку с Result=3
+      // *** ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ С АНАЛИЗОМ КОНТРАКТОВ ***
+      const detailedLog = this.buildContractsAnalysisLog(contractsAnalysis);
       await this.createFillLog(params, {
         ...result,
         message: `Schedule check: ${scheduleLogicResult.dialogConfig.type} - ${scheduleLogicResult.dialogConfig.message}`
-      }, selectedContract.id, `Dialog type: ${scheduleLogicResult.dialogConfig.type}`);
+      }, selectedContract.id, detailedLog);
 
       return result;
 
@@ -184,7 +170,7 @@ export class CommonFillService {
         messageType: MessageBarType.error,
         requiresDialog: false,
         canProceed: false,
-        logResult: 1 // Реальная ошибка
+        logResult: 1
       };
       
       await this.createFillLog(params, result, undefined, `Error: ${error}`);
@@ -193,11 +179,94 @@ export class CommonFillService {
   }
 
   /**
-   * *** НОВАЯ ФУНКЦИЯ: Выполняет фактическое заполнение ПОСЛЕ подтверждения пользователя ***
-   * Вызывается только после того, как пользователь подтвердил диалог
+   * *** НОВЫЙ МЕТОД: Детальный анализ контрактов ***
+   */
+  private async performContractsAnalysis(params: IFillParams): Promise<{
+    allContracts: IContract[];
+    activeContracts: IContract[];
+    analysisDetails: string[];
+  }> {
+    console.log('[CommonFillService] Performing detailed contracts analysis...');
+
+    const employeeId = params.staffMember.employeeId;
+    const managerId = params.currentUserId || '';
+    const groupId = params.managingGroupId || '';
+    
+    if (!employeeId || employeeId.trim() === '' || employeeId === '0') {
+      return {
+        allContracts: [],
+        activeContracts: [],
+        analysisDetails: ['ERROR: Invalid employee ID']
+      };
+    }
+    
+    const allContracts = await this.contractsService.getContractsForStaffMember(employeeId, managerId, groupId);
+    const analysisDetails: string[] = [];
+    
+    analysisDetails.push(`CONTRACTS ANALYSIS FOR EMPLOYEE ${employeeId}:`);
+    analysisDetails.push(`Total contracts found: ${allContracts.length}`);
+    analysisDetails.push('');
+
+    if (allContracts.length === 0) {
+      analysisDetails.push('ERROR: No contracts found for this employee');
+      return { allContracts, activeContracts: [], analysisDetails };
+    }
+
+    // Анализируем каждый контракт
+    analysisDetails.push('ALL CONTRACTS DETAILS:');
+    allContracts.forEach((contract, index) => {
+      const startDateStr = contract.startDate ? new Date(contract.startDate).toLocaleDateString() : 'No start date';
+      const endDateStr = contract.finishDate ? new Date(contract.finishDate).toLocaleDateString() : 'Open-ended';
+      const deletedStatus = contract.isDeleted ? 'DELETED' : 'Active';
+      
+      analysisDetails.push(`Contract ${index + 1}: ID=${contract.id}, Name="${contract.template || 'No name'}", Status=${deletedStatus}`);
+      analysisDetails.push(`  Period: ${startDateStr} - ${endDateStr}`);
+    });
+    analysisDetails.push('');
+
+    // Фильтруем активные контракты для выбранного периода
+    const activeContracts = allContracts.filter((contract: IContract) => 
+      !contract.isDeleted && this.validationService.isContractActiveInMonth(contract, params.selectedDate)
+    );
+
+    analysisDetails.push('ACTIVE CONTRACTS IN SELECTED PERIOD:');
+    if (activeContracts.length === 0) {
+      analysisDetails.push('ERROR: No active contracts found for the selected period');
+      analysisDetails.push(`Selected period: ${params.selectedDate.toLocaleDateString()}`);
+    } else {
+      activeContracts.forEach((contract, index) => {
+        const startDateStr = contract.startDate ? new Date(contract.startDate).toLocaleDateString() : 'No start date';
+        const endDateStr = contract.finishDate ? new Date(contract.finishDate).toLocaleDateString() : 'Open-ended';
+        
+        analysisDetails.push(`Active Contract ${index + 1}: ID=${contract.id}, Name="${contract.template || 'No name'}"`);
+        analysisDetails.push(`  Period: ${startDateStr} - ${endDateStr}`);
+        
+        if (index === 0) {
+          analysisDetails.push(`  *** SELECTED FOR USE ***`);
+        }
+      });
+    }
+    analysisDetails.push('');
+
+    return { allContracts, activeContracts, analysisDetails };
+  }
+
+  /**
+   * *** НОВЫЙ МЕТОД: Формирует лог анализа контрактов ***
+   */
+  private buildContractsAnalysisLog(contractsAnalysis: {
+    allContracts: IContract[];
+    activeContracts: IContract[];
+    analysisDetails: string[];
+  }): string {
+    return contractsAnalysis.analysisDetails.join('\n');
+  }
+
+  /**
+   * Выполняет фактическое заполнение ПОСЛЕ подтверждения пользователя
    */
   public async performFillOperation(performParams: IPerformFillParams): Promise<IFillResult> {
-    console.log('[CommonFillService] Performing fill operation after user confirmation:', {
+    console.log('[CommonFillService] Performing fill operation with detailed logging:', {
       staffMember: performParams.staffMember.name,
       contractId: performParams.contractId,
       replaceExisting: performParams.replaceExisting,
@@ -207,19 +276,20 @@ export class CommonFillService {
     const operationDetails: string[] = [];
     
     try {
-      operationDetails.push('=== FILL OPERATION AFTER CONFIRMATION ===');
-      operationDetails.push(`Staff: ${performParams.staffMember.name}`);
+      operationDetails.push('=== DETAILED FILL OPERATION AFTER CONFIRMATION ===');
+      operationDetails.push(`Staff: ${performParams.staffMember.name} (ID: ${performParams.staffMember.employeeId})`);
       operationDetails.push(`Contract: ${performParams.contractId}`);
       operationDetails.push(`Replace existing: ${performParams.replaceExisting}`);
       operationDetails.push(`Period: ${performParams.selectedDate.toLocaleDateString()}`);
+      operationDetails.push(`Manager: ${performParams.currentUserId}`);
+      operationDetails.push(`Staff Group: ${performParams.managingGroupId}`);
       operationDetails.push('');
 
-      // *** ШАГ 1: УДАЛЕНИЕ СУЩЕСТВУЮЩИХ ЗАПИСЕЙ (ЕСЛИ НУЖНО) ***
+      // Удаление существующих записей (если нужно)
       let deletedRecordsCount = 0;
       if (performParams.replaceExisting) {
         operationDetails.push('STEP 1: Deleting existing records...');
         
-        // Получаем записи для удаления
         const scheduleLogicResult = await this.validationService.checkExistingRecordsWithScheduleLogic(
           performParams, 
           performParams.contractId
@@ -232,7 +302,7 @@ export class CommonFillService {
               success: false,
               message: 'Failed to delete existing records.',
               messageType: MessageBarType.error,
-              logResult: 1 // Реальная ошибка
+              logResult: 1
             };
             operationDetails.push('ERROR: Failed to delete existing records');
             await this.createFillLog(performParams, result, performParams.contractId, operationDetails.join('\n'));
@@ -243,8 +313,9 @@ export class CommonFillService {
         }
       }
 
-      // *** ШАГ 2: ЗАГРУЗКА ДАННЫХ ДЛЯ ГЕНЕРАЦИИ ***
-      operationDetails.push('STEP 2: Loading data for generation...');
+      // *** ДЕТАЛЬНАЯ ЗАГРУЗКА ДАННЫХ С АНАЛИЗОМ ***
+      operationDetails.push('STEP 2: Loading data for generation with detailed analysis...');
+      
       const [holidays, leaves, weeklyTemplates] = await Promise.all([
         this.generationService.loadHolidays(performParams.selectedDate),
         this.generationService.loadLeaves(performParams),
@@ -258,14 +329,14 @@ export class CommonFillService {
           success: false,
           message: 'No weekly schedule templates found for the selected contract.',
           messageType: MessageBarType.warning,
-          logResult: 1 // Реальная ошибка
+          logResult: 1
         };
         operationDetails.push('ERROR: No weekly templates found');
         await this.createFillLog(performParams, result, performParams.contractId, operationDetails.join('\n'));
         return result;
       }
 
-      // *** ШАГ 3: ЗАГРУЗКА КОНТРАКТА ***
+      // Загрузка контракта
       const contracts = await this.contractsService.getContractsForStaffMember(
         performParams.staffMember.employeeId || '',
         performParams.currentUserId || '',
@@ -278,15 +349,15 @@ export class CommonFillService {
           success: false,
           message: 'Selected contract not found.',
           messageType: MessageBarType.error,
-          logResult: 1 // Реальная ошибка
+          logResult: 1
         };
         operationDetails.push('ERROR: Contract not found');
         await this.createFillLog(performParams, result, performParams.contractId, operationDetails.join('\n'));
         return result;
       }
 
-      // *** ШАГ 4: ГЕНЕРАЦИЯ ЗАПИСЕЙ ***
-      operationDetails.push('STEP 3: Generating schedule records...');
+      // *** ГЕНЕРАЦИЯ ЗАПИСЕЙ С ДЕТАЛЬНЫМ АНАЛИЗОМ ***
+      operationDetails.push('STEP 3: Generating schedule records with detailed analysis...');
       const generatedRecords = await this.generationService.generateScheduleRecords(
         performParams,
         selectedContract,
@@ -302,19 +373,73 @@ export class CommonFillService {
           success: false,
           message: 'No schedule records generated.',
           messageType: MessageBarType.warning,
-          logResult: 1 // Реальная ошибка
+          logResult: 1
         };
         operationDetails.push('ERROR: No records generated');
         await this.createFillLog(performParams, result, performParams.contractId, operationDetails.join('\n'));
         return result;
       }
 
-      // *** ШАГ 5: СОХРАНЕНИЕ ЗАПИСЕЙ ***
+      // *** ПОЛУЧАЕМ ДЕТАЛЬНЫЙ АНАЛИЗ ОТ GENERATION SERVICE ***
+      const detailedAnalysis = this.generationService.getDetailedAnalysis();
+      
+      // *** ДОБАВЛЯЕМ АНАЛИЗ В ЛОГИ ***
+      if (detailedAnalysis.contracts) {
+        operationDetails.push('');
+        operationDetails.push('DETAILED CONTRACTS ANALYSIS:');
+        operationDetails.push(`Total contracts found: ${detailedAnalysis.contracts.totalFound}`);
+        operationDetails.push(`Active contracts in period: ${detailedAnalysis.contracts.activeInPeriod.length}`);
+        operationDetails.push(`Selected contract: ID=${detailedAnalysis.contracts.selectedContract.id}, Name="${detailedAnalysis.contracts.selectedContract.template || 'No name'}"`);
+        operationDetails.push(`Selection reason: ${detailedAnalysis.contracts.selectionReason}`);
+      }
+
+      if (detailedAnalysis.templates) {
+        operationDetails.push('');
+        operationDetails.push('DETAILED TEMPLATES ANALYSIS:');
+        operationDetails.push(`Weekly schedule: ID=${detailedAnalysis.templates.weeklyScheduleId}, Name="${detailedAnalysis.templates.weeklyScheduleTitle}"`);
+        operationDetails.push(`Templates found: ${detailedAnalysis.templates.totalTemplatesFound} total, ${detailedAnalysis.templates.templatesAfterFiltering} after filtering`);
+        operationDetails.push(`Week start day: ${detailedAnalysis.templates.weekStartDayName} (dayOfStartWeek=${detailedAnalysis.templates.dayOfStartWeek})`);
+        operationDetails.push(`Weeks in schedule: ${detailedAnalysis.templates.weeksInSchedule.join(', ')}`);
+        operationDetails.push(`Shifts available: ${detailedAnalysis.templates.shiftsAvailable.join(', ')}`);
+      }
+
+      if (detailedAnalysis.generation) {
+        operationDetails.push('');
+        operationDetails.push('DETAILED GENERATION ANALYSIS:');
+        operationDetails.push(`Total days in period: ${detailedAnalysis.generation.totalDaysInPeriod}`);
+        operationDetails.push(`Days generated: ${detailedAnalysis.generation.daysGenerated}`);
+        operationDetails.push(`Days skipped: ${detailedAnalysis.generation.daysSkipped}`);
+        operationDetails.push(`Holidays detected: ${detailedAnalysis.generation.holidaysDetected}`);
+        operationDetails.push(`Leaves detected: ${detailedAnalysis.generation.leavesDetected}`);
+        
+        // Добавляем статистику по неделям
+        operationDetails.push('');
+        operationDetails.push('WEEKLY GENERATION STATISTICS:');
+        detailedAnalysis.generation.weeklyStats.forEach((stats, weekNumber) => {
+          operationDetails.push(`Week ${weekNumber}: ${stats.generated}/${stats.total} generated, ${stats.skipped} skipped`);
+        });
+
+        // Добавляем первые несколько дней для примера
+        if (detailedAnalysis.generation.dailyInfo.length > 0) {
+          operationDetails.push('');
+          operationDetails.push('DAILY GENERATION EXAMPLES:');
+          detailedAnalysis.generation.dailyInfo.slice(0, 7).forEach(dayInfo => {
+            if (dayInfo.templateFound) {
+              operationDetails.push(`${dayInfo.date} (${dayInfo.dayName}): Week ${dayInfo.weekNumber}, ${dayInfo.workingHours}, Lunch: ${dayInfo.lunchMinutes}min`);
+            } else {
+              operationDetails.push(`${dayInfo.date} (${dayInfo.dayName}): Week ${dayInfo.weekNumber}, SKIPPED - ${dayInfo.skipReason}`);
+            }
+          });
+        }
+      }
+
+      // Сохранение записей
+      operationDetails.push('');
       operationDetails.push('STEP 4: Saving generated records...');
       const savedCount = await this.generationService.saveGeneratedRecords(generatedRecords, performParams);
       operationDetails.push(`✓ Successfully saved ${savedCount} of ${generatedRecords.length} records`);
 
-      // *** ШАГ 6: ФОРМИРОВАНИЕ РЕЗУЛЬТАТА ***
+      // Формирование результата
       const result: IFillResult = {
         success: savedCount > 0,
         message: savedCount === generatedRecords.length 
@@ -324,10 +449,10 @@ export class CommonFillService {
         createdRecordsCount: savedCount,
         deletedRecordsCount: deletedRecordsCount,
         requiresDialog: false,
-        logResult: savedCount > 0 ? 2 : 1 // 2=Success, 1=Error
+        logResult: savedCount > 0 ? 2 : 1
       };
 
-      console.log('[CommonFillService] Fill operation completed:', {
+      console.log('[CommonFillService] Fill operation completed with detailed analysis:', {
         success: result.success,
         created: result.createdRecordsCount,
         deleted: result.deletedRecordsCount,
@@ -347,7 +472,7 @@ export class CommonFillService {
         success: false,
         message: `Error filling schedule: ${error instanceof Error ? error.message : String(error)}`,
         messageType: MessageBarType.error,
-        logResult: 1 // Реальная ошибка
+        logResult: 1
       };
       
       await this.createFillLog(performParams, result, performParams.contractId, operationDetails.join('\n'));
@@ -356,10 +481,10 @@ export class CommonFillService {
   }
 
   /**
-   * *** НОВАЯ ФУНКЦИЯ: Логирует отказ пользователя ***
+   * Логирует отказ пользователя
    */
   public async logUserRefusal(params: IFillParams, dialogType: DialogType, contractId?: string): Promise<void> {
-    console.log('[CommonFillService] Logging user refusal:', {
+    console.log('[CommonFillService] Logging user refusal with detailed info:', {
       staffMember: params.staffMember.name,
       dialogType,
       period: params.selectedDate.toLocaleDateString()
@@ -371,32 +496,39 @@ export class CommonFillService {
       messageType: MessageBarType.info,
       requiresDialog: false,
       canProceed: false,
-      logResult: 3 // User refusal = Info/Refusal
+      logResult: 3
     };
 
-    await this.createFillLog(params, result, contractId, `User refused ${dialogType} dialog`);
+    const refusalDetails = [
+      'USER REFUSAL DETAILS:',
+      `Dialog type: ${dialogType}`,
+      `Staff member: ${params.staffMember.name} (ID: ${params.staffMember.employeeId})`,
+      `Period: ${params.selectedDate.toLocaleDateString()}`,
+      `Contract ID: ${contractId || 'Not specified'}`,
+      `Action: User cancelled the operation`
+    ];
+
+    await this.createFillLog(params, result, contractId, refusalDetails.join('\n'));
   }
 
   /**
-   * *** УСТАРЕВШАЯ ФУНКЦИЯ: Оставлена для совместимости, но теперь использует новую логику ***
-   * Рекомендуется использовать checkScheduleForFill() + performFillOperation()
+   * УСТАРЕВШАЯ ФУНКЦИЯ: Оставлена для совместимости
    */
   public async fillScheduleForStaff(params: IFillParams, replaceExisting: boolean = false): Promise<IFillResult> {
     console.log('[CommonFillService] DEPRECATED: fillScheduleForStaff called - use checkScheduleForFill + performFillOperation instead');
     
-    // Проверяем записи с новой логикой
     const checkResult = await this.checkScheduleForFill(params);
     
-    // Если требуется диалог, возвращаем результат проверки
     if (checkResult.requiresDialog) {
       return checkResult;
     }
     
-    // Если диалог не требуется (ошибка), возвращаем ошибку
     return checkResult;
   }
 
-  // Create fill log with proper typing
+  /**
+   * *** ОБНОВЛЕНО: Создает лог с детальной информацией ***
+   */
   private async createFillLog(
     params: IFillParams, 
     result: IFillResult, 
@@ -404,12 +536,10 @@ export class CommonFillService {
     additionalDetails: string
   ): Promise<void> {
     try {
-      const logMessage = this.buildLogMessage(params, result, contractId, additionalDetails);
+      const logMessage = this.buildDetailedLogMessage(params, result, contractId, additionalDetails);
       
-      // Base required parameters
       const logParams: ICreateScheduleLogParams = {
         title: `Fill Operation - ${params.staffMember.name} (${params.selectedDate.toLocaleDateString()})`,
-        // *** ИСПРАВЛЕНО: ИСПОЛЬЗУЕМ logResult ВМЕСТО success ***
         result: result.logResult || (result.success ? 2 : 1),
         message: logMessage,
         date: params.selectedDate
@@ -435,16 +565,18 @@ export class CommonFillService {
       const logId = await this.scheduleLogsService.createScheduleLog(logParams);
       
       if (logId) {
-        console.log(`[CommonFillService] Log created with ID: ${logId}, Result: ${logParams.result}`);
+        console.log(`[CommonFillService] Detailed log created with ID: ${logId}, Result: ${logParams.result}`);
       }
 
     } catch (error) {
-      console.error('[CommonFillService] Error creating log:', error);
+      console.error('[CommonFillService] Error creating detailed log:', error);
     }
   }
 
-  // Build log message
-  private buildLogMessage(
+  /**
+   * *** ОБНОВЛЕНО: Формирует детальное сообщение для лога ***
+   */
+  private buildDetailedLogMessage(
     params: IFillParams, 
     result: IFillResult, 
     contractId: string | undefined,
@@ -452,7 +584,7 @@ export class CommonFillService {
   ): string {
     const lines: string[] = [];
     
-    lines.push(`=== FILL OPERATION LOG ===`);
+    lines.push(`=== DETAILED FILL OPERATION LOG ===`);
     lines.push(`Date: ${new Date().toLocaleString()}`);
     lines.push(`Staff: ${params.staffMember.name} (ID: ${params.staffMember.employeeId})`);
     lines.push(`Period: ${params.selectedDate.toLocaleDateString()}`);
@@ -460,14 +592,16 @@ export class CommonFillService {
     lines.push(`Staff Group: ${params.managingGroupId || 'N/A'}`);
     lines.push('');
 
+    // *** ДОПОЛНИТЕЛЬНАЯ ИНФОРМАЦИЯ О ПЕРИОДЕ ***
     const startOfMonth = new Date(params.selectedDate.getFullYear(), params.selectedDate.getMonth(), 1);
     const endOfMonth = new Date(params.selectedDate.getFullYear(), params.selectedDate.getMonth() + 1, 0);
     lines.push(`PERIOD DETAILS:`);
     lines.push(`Selected Date: ${params.selectedDate.toLocaleDateString()}`);
     lines.push(`Month Range: ${startOfMonth.toLocaleDateString()} - ${endOfMonth.toLocaleDateString()}`);
+    lines.push(`Day of Start Week: ${params.dayOfStartWeek || 7}`);
     lines.push('');
 
-    // *** ИСПРАВЛЕНО: ПОКАЗЫВАЕМ ПРАВИЛЬНЫЙ СТАТУС ОПЕРАЦИИ ***
+    // *** ПРАВИЛЬНЫЙ СТАТУС ОПЕРАЦИИ ***
     const logResult = result.logResult || (result.success ? 2 : 1);
     const operationStatus = logResult === 2 ? 'SUCCESS' : 
                            logResult === 3 ? 'INFO/REFUSAL' : 'FAILED';
@@ -494,13 +628,14 @@ export class CommonFillService {
     
     lines.push('');
 
+    // *** ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ***
     if (additionalDetails) {
-      lines.push('OPERATION DETAILS:');
+      lines.push('DETAILED OPERATION ANALYSIS:');
       lines.push(additionalDetails);
       lines.push('');
     }
 
-    lines.push(`=== END LOG ===`);
+    lines.push(`=== END DETAILED LOG ===`);
     
     return lines.join('\n');
   }
@@ -522,7 +657,7 @@ export class CommonFillService {
     };
   } {
     return {
-      version: '2.2.0', // *** ВЕРСИЯ С ПРАВИЛЬНЫМ ЛОГИРОВАНИЕМ Result=3 ***
+      version: '3.0.0', // *** ВЕРСИЯ С ДЕТАЛЬНЫМ ЛОГИРОВАНИЕМ ***
       context: !!this.webPartContext,
       services: {
         contracts: !!this.contractsService,
@@ -583,7 +718,7 @@ export class CommonFillService {
       results.errors.push(`Generation: ${error}`);
     }
 
-    console.log('[CommonFillService] Service test results:', results);
+    console.log('[CommonFillService] Detailed service test results:', results);
     return results;
   }
 }
