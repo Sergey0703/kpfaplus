@@ -180,14 +180,36 @@ export class DateUtils {
    * Gets the start of month for a given date (first day of month at UTC midnight)
    */
   static getStartOfMonth(date: Date): Date {
-    return DateUtils.createUTCDate(date.getFullYear(), date.getMonth(), 1);
+    console.log('[DateUtils] getStartOfMonth input:', date.toISOString());
+    const result = DateUtils.createUTCDate(date.getFullYear(), date.getMonth(), 1);
+    console.log('[DateUtils] getStartOfMonth result:', result.toISOString());
+    console.log('[DateUtils] getStartOfMonth day of month:', result.getUTCDate());
+    return result;
   }
 
   /**
-   * Gets the end of month for a given date (last day of month at UTC midnight)
+   * Gets the end of month for a given date (last day of month at 23:59:59 UTC)
+   * ИСПРАВЛЕНО: Правильно вычисляем последний день месяца
    */
   static getEndOfMonth(date: Date): Date {
-    return DateUtils.createUTCDate(date.getFullYear(), date.getMonth() + 1, 0);
+    console.log('[DateUtils] getEndOfMonth input:', date.toISOString());
+    
+    // Получаем последний день месяца через стандартный JavaScript подход
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    
+    // Используем new Date(year, month + 1, 0) для получения последнего дня текущего месяца
+    const lastDayOfMonth = new Date(year, month + 1, 0);
+    const lastDay = lastDayOfMonth.getDate();
+    
+    // Создаем дату последнего дня месяца в конце дня (23:59:59.999 UTC)
+    const result = new Date(Date.UTC(year, month, lastDay, 23, 59, 59, 999));
+    
+    console.log('[DateUtils] getEndOfMonth result:', result.toISOString());
+    console.log('[DateUtils] getEndOfMonth day of month:', result.getUTCDate());
+    console.log('[DateUtils] getEndOfMonth calculated last day:', lastDay);
+    
+    return result;
   }
 }
 
