@@ -56,12 +56,12 @@ const setIsLoadingStaffRecords = useCallback((isLoading: boolean) => setState(pr
 const setErrorStaffRecords = useCallback((error?: string) => setState(prevState => ({ ...prevState, errorStaffRecords: error })), [setState]);
 const setTotalItemCount = useCallback((total: number) => setState(prevState => ({ ...prevState, totalItemCount: total })), [setState]);
 
-// *** УПРОЩЕННЫЙ МЕТОД loadStaffRecords С ИСПРАВЛЕННЫМИ ДАТАМИ ***
+// *** ИСПРАВЛЕННЫЙ МЕТОД loadStaffRecords С НОРМАЛИЗОВАННЫМИ ДАТАМИ ***
 const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: string): Promise<void> => {
   const dateToUse = overrideDate || selectedDate;
   const contractIdToUse = contractId !== undefined ? contractId : selectedContractId;
 
-  console.log('[useStaffRecordsData] *** loadStaffRecords CALLED - SIMPLIFIED LOGIC ***');
+  console.log('[useStaffRecordsData] *** loadStaffRecords CALLED - WITH DATE NORMALIZATION ***');
   console.log('[useStaffRecordsData] *** PAGINATION PARAMS ***');
   console.log('[useStaffRecordsData] currentPage:', currentPage);
   console.log('[useStaffRecordsData] itemsPerPage:', itemsPerPage);
@@ -90,14 +90,51 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
     setIsLoadingStaffRecords(true);
     setErrorStaffRecords(undefined);
 
-    // *** ИСПРАВЛЕНО: Используем DateUtils для создания дат месяца ***
-    const firstDayOfMonth = DateUtils.getStartOfMonth(dateToUse);
-    const lastDayOfMonth = DateUtils.getEndOfMonth(dateToUse);
+    // *** КРИТИЧЕСКИ ВАЖНОЕ ИСПРАВЛЕНИЕ: Используем нормализованные границы месяца ***
+    const inputDate = dateToUse;
+    
+    // Получаем первый и последний день месяца с использованием DateUtils
+    const firstDayOfMonth = DateUtils.getStartOfMonth(inputDate);
+    const lastDayOfMonth = DateUtils.getEndOfMonth(inputDate);
+    
+    // ДОПОЛНИТЕЛЬНАЯ НОРМАЛИЗАЦИЯ: убеждаемся что границы точно нормализованы к UTC
+    const normalizedFirstDay = DateUtils.normalizeDateToUTCMidnight(firstDayOfMonth);
+    const normalizedLastDay = DateUtils.normalizeDateToUTCMidnight(lastDayOfMonth);
+    // Для последнего дня устанавливаем время на конец дня UTC чтобы включить весь день
+    normalizedLastDay.setUTCHours(23, 59, 59, 999);
 
-    console.log('[useStaffRecordsData] *** USING DateUtils FOR MONTH BOUNDARIES ***');
-    console.log('[useStaffRecordsData] Input date:', dateToUse.toISOString());
-    console.log('[useStaffRecordsData] First day of month (UTC):', firstDayOfMonth.toISOString());
-    console.log('[useStaffRecordsData] Last day of month (UTC):', lastDayOfMonth.toISOString());
+    console.log('[useStaffRecordsData] *** USING NORMALIZED MONTH BOUNDARIES FOR OCTOBER FIX ***');
+    console.log('[useStaffRecordsData] Input date:', inputDate.toISOString());
+    console.log('[useStaffRecordsData] Raw first day from DateUtils:', firstDayOfMonth.toISOString());
+    console.log('[useStaffRecordsData] Raw last day from DateUtils:', lastDayOfMonth.toISOString());
+    console.log('[useStaffRecordsData] Normalized first day (UTC midnight):', normalizedFirstDay.toISOString());
+    console.log('[useStaffRecordsData] Normalized last day (UTC end-of-day):', normalizedLastDay.toISOString());
+
+    // *** СПЕЦИАЛЬНАЯ ОТЛАДКА ДЛЯ ОКТЯБРЯ 2024 ***
+    if (inputDate.getUTCMonth() === 9 && inputDate.getUTCFullYear() === 2024) {
+      console.log('[useStaffRecordsData] *** OCTOBER 2024 DETECTED - SPECIAL DEBUG ***');
+      console.log('[useStaffRecordsData] Input date details:', {
+        year: inputDate.getUTCFullYear(),
+        month: inputDate.getUTCMonth() + 1,
+        day: inputDate.getUTCDate(),
+        fullISO: inputDate.toISOString()
+      });
+      
+      // Тестируем, попадает ли 1 октября в наш диапазон
+      const testDate1Oct = new Date(Date.UTC(2024, 9, 1, 0, 0, 0, 0)); // 1 октября 2024, полночь UTC
+      const testDate1OctMidday = new Date(Date.UTC(2024, 9, 1, 12, 0, 0, 0)); // 1 октября 2024, полдень UTC
+      
+      console.log('[useStaffRecordsData] *** OCTOBER 1st TEST ***');
+      console.log('[useStaffRecordsData] Test date (1 Oct midnight):', testDate1Oct.toISOString());
+      console.log('[useStaffRecordsData] Test date (1 Oct midday):', testDate1OctMidday.toISOString());
+      console.log('[useStaffRecordsData] 1 Oct midnight >= normalizedFirstDay:', testDate1Oct >= normalizedFirstDay);
+      console.log('[useStaffRecordsData] 1 Oct midnight <= normalizedLastDay:', testDate1Oct <= normalizedLastDay);
+      console.log('[useStaffRecordsData] 1 Oct midday >= normalizedFirstDay:', testDate1OctMidday >= normalizedFirstDay);
+      console.log('[useStaffRecordsData] 1 Oct midday <= normalizedLastDay:', testDate1OctMidday <= normalizedLastDay);
+      
+      // Используем отладочную функцию из DateUtils
+      DateUtils.logMonthlyRange(inputDate, normalizedFirstDay, normalizedLastDay);
+    }
 
     const employeeId = selectedStaff.employeeId;
     const timeTableId = contractIdToUse;
@@ -112,8 +149,8 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
       const top = itemsPerPage;
 
       const queryParams: IStaffRecordsQueryParams = {
-        startDate: firstDayOfMonth,
-        endDate: lastDayOfMonth,
+        startDate: normalizedFirstDay,  // *** ИСПОЛЬЗУЕМ НОРМАЛИЗОВАННЫЕ ДАТЫ ***
+        endDate: normalizedLastDay,     // *** ИСПОЛЬЗУЕМ НОРМАЛИЗОВАННЫЕ ДАТЫ ***
         currentUserID: currentUserID,
         staffGroupID: staffGroupID,
         employeeID: employeeId,
@@ -123,7 +160,7 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
       };
 
       console.log('[useStaffRecordsData] *** SERVER PAGINATION - calling getStaffRecordsWithOptions ***');
-      console.log('[useStaffRecordsData] Query params:', {
+      console.log('[useStaffRecordsData] Query params with NORMALIZED dates:', {
         ...queryParams,
         startDate: queryParams.startDate.toISOString(),
         endDate: queryParams.endDate.toISOString()
@@ -135,8 +172,22 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
       console.log(`[useStaffRecordsData] Records: ${result.records.length}, totalCount: ${result.totalCount}`);
 
       if (result.records.length > 0) {
-        console.log(`[useStaffRecordsData] First record ID: ${result.records[0].ID}, Deleted: ${result.records[0].Deleted}`);
-        console.log(`[useStaffRecordsData] Last record ID: ${result.records[result.records.length - 1].ID}, Deleted: ${result.records[result.records.length - 1].Deleted}`);
+        console.log(`[useStaffRecordsData] First record ID: ${result.records[0].ID}, Date: ${result.records[0].Date.toISOString()}, Deleted: ${result.records[0].Deleted}`);
+        console.log(`[useStaffRecordsData] Last record ID: ${result.records[result.records.length - 1].ID}, Date: ${result.records[result.records.length - 1].Date.toISOString()}, Deleted: ${result.records[result.records.length - 1].Deleted}`);
+        
+        // Проверяем, есть ли записи за 1 октября
+        const oct1Records = result.records.filter(record => {
+          const recordDate = new Date(record.Date);
+          return recordDate.getUTCDate() === 1 && recordDate.getUTCMonth() === 9 && recordDate.getUTCFullYear() === 2024;
+        });
+        if (oct1Records.length > 0) {
+          console.log(`[useStaffRecordsData] *** FOUND ${oct1Records.length} RECORDS FOR OCTOBER 1st! ***`);
+          oct1Records.forEach(record => {
+            console.log(`[useStaffRecordsData] Oct 1st record: ID=${record.ID}, Date=${record.Date.toISOString()}`);
+          });
+        } else {
+          console.log(`[useStaffRecordsData] *** NO RECORDS FOUND FOR OCTOBER 1st in results ***`);
+        }
       }
 
       setStaffRecords(result.records);
@@ -152,8 +203,8 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
       
       // Используем метод для загрузки ВСЕХ записей без серверной пагинации
       const allRecordsQueryParams = {
-        startDate: firstDayOfMonth,
-        endDate: lastDayOfMonth,
+        startDate: normalizedFirstDay,  // *** ИСПОЛЬЗУЕМ НОРМАЛИЗОВАННЫЕ ДАТЫ ***
+        endDate: normalizedLastDay,     // *** ИСПОЛЬЗУЕМ НОРМАЛИЗОВАННЫЕ ДАТЫ ***
         currentUserID: currentUserID,
         staffGroupID: staffGroupID,
         employeeID: employeeId,
@@ -162,7 +213,7 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
       };
 
       console.log('[useStaffRecordsData] *** LOADING ALL RECORDS - calling getAllStaffRecordsForTimetable ***');
-      console.log('[useStaffRecordsData] Query params (no pagination):', {
+      console.log('[useStaffRecordsData] Query params with NORMALIZED dates (no pagination):', {
         ...allRecordsQueryParams,
         startDate: allRecordsQueryParams.startDate.toISOString(),
         endDate: allRecordsQueryParams.endDate.toISOString()
@@ -177,12 +228,40 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
       console.log(`[useStaffRecordsData] *** ALL RECORDS LOADED ***`);
       console.log(`[useStaffRecordsData] Total records from server: ${allRecordsResult.records.length}`);
 
+      // *** ОТЛАДКА ДЛЯ ОКТЯБРЯ: Проверяем, есть ли записи за 1 октября в общем списке ***
+      const oct1RecordsAll = allRecordsResult.records.filter(record => {
+        const recordDate = new Date(record.Date);
+        return recordDate.getUTCDate() === 1 && recordDate.getUTCMonth() === 9 && recordDate.getUTCFullYear() === 2024;
+      });
+      if (oct1RecordsAll.length > 0) {
+        console.log(`[useStaffRecordsData] *** FOUND ${oct1RecordsAll.length} RECORDS FOR OCTOBER 1st in ALL records! ***`);
+        oct1RecordsAll.forEach(record => {
+          console.log(`[useStaffRecordsData] Oct 1st record: ID=${record.ID}, Date=${record.Date.toISOString()}, Deleted=${record.Deleted}`);
+        });
+      } else {
+        console.log(`[useStaffRecordsData] *** NO RECORDS FOUND FOR OCTOBER 1st in ALL records ***`);
+      }
+
       // *** КЛИЕНТСКАЯ ФИЛЬТРАЦИЯ: ТОЛЬКО АКТИВНЫЕ ЗАПИСИ ***
       const activeRecords = allRecordsResult.records.filter((record: IStaffRecord) => record.Deleted !== 1);
       console.log(`[useStaffRecordsData] *** CLIENT FILTERING ***`);
       console.log(`[useStaffRecordsData] Total records: ${allRecordsResult.records.length}`);
       console.log(`[useStaffRecordsData] Active records: ${activeRecords.length}`);
       console.log(`[useStaffRecordsData] Deleted records: ${allRecordsResult.records.length - activeRecords.length}`);
+
+      // *** ОТЛАДКА ДЛЯ ОКТЯБРЯ: Проверяем, есть ли записи за 1 октября среди активных ***
+      const oct1RecordsActive = activeRecords.filter(record => {
+        const recordDate = new Date(record.Date);
+        return recordDate.getUTCDate() === 1 && recordDate.getUTCMonth() === 9 && recordDate.getUTCFullYear() === 2024;
+      });
+      if (oct1RecordsActive.length > 0) {
+        console.log(`[useStaffRecordsData] *** FOUND ${oct1RecordsActive.length} ACTIVE RECORDS FOR OCTOBER 1st! ***`);
+        oct1RecordsActive.forEach(record => {
+          console.log(`[useStaffRecordsData] Oct 1st active record: ID=${record.ID}, Date=${record.Date.toISOString()}`);
+        });
+      } else {
+        console.log(`[useStaffRecordsData] *** NO ACTIVE RECORDS FOUND FOR OCTOBER 1st ***`);
+      }
 
       // *** КЛИЕНТСКАЯ ПАГИНАЦИЯ: ПРИМЕНЯЕМ К АКТИВНЫМ ЗАПИСЯМ ***
       const startIndex = (currentPage - 1) * itemsPerPage;
@@ -194,8 +273,22 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
       console.log(`[useStaffRecordsData] Records for current page: ${pageActiveRecords.length}`);
 
       if (pageActiveRecords.length > 0) {
-        console.log(`[useStaffRecordsData] First page record ID: ${pageActiveRecords[0].ID}, Deleted: ${pageActiveRecords[0].Deleted}`);
-        console.log(`[useStaffRecordsData] Last page record ID: ${pageActiveRecords[pageActiveRecords.length - 1].ID}, Deleted: ${pageActiveRecords[pageActiveRecords.length - 1].Deleted}`);
+        console.log(`[useStaffRecordsData] First page record ID: ${pageActiveRecords[0].ID}, Date: ${pageActiveRecords[0].Date.toISOString()}, Deleted: ${pageActiveRecords[0].Deleted}`);
+        console.log(`[useStaffRecordsData] Last page record ID: ${pageActiveRecords[pageActiveRecords.length - 1].ID}, Date: ${pageActiveRecords[pageActiveRecords.length - 1].Date.toISOString()}, Deleted: ${pageActiveRecords[pageActiveRecords.length - 1].Deleted}`);
+        
+        // *** ФИНАЛЬНАЯ ПРОВЕРКА ДЛЯ ОКТЯБРЯ: Есть ли записи за 1 октября на текущей странице ***
+        const oct1RecordsPage = pageActiveRecords.filter(record => {
+          const recordDate = new Date(record.Date);
+          return recordDate.getUTCDate() === 1 && recordDate.getUTCMonth() === 9 && recordDate.getUTCFullYear() === 2024;
+        });
+        if (oct1RecordsPage.length > 0) {
+          console.log(`[useStaffRecordsData] *** SUCCESS: FOUND ${oct1RecordsPage.length} RECORDS FOR OCTOBER 1st ON CURRENT PAGE! ***`);
+          oct1RecordsPage.forEach(record => {
+            console.log(`[useStaffRecordsData] Oct 1st page record: ID=${record.ID}, Date=${record.Date.toISOString()}`);
+          });
+        } else {
+          console.log(`[useStaffRecordsData] *** NO RECORDS FOR OCTOBER 1st ON CURRENT PAGE (page ${currentPage}) ***`);
+        }
       }
 
       // *** УСТАНАВЛИВАЕМ РЕЗУЛЬТАТ ***
@@ -233,7 +326,7 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
   setTotalItemCount,
 ]);
 
-// *** MODIFIED getExistingRecordsWithStatus TO GET ALL PAGES С ИСПРАВЛЕННЫМИ ДАТАМИ ***
+// *** ИСПРАВЛЕННЫЙ getExistingRecordsWithStatus С НОРМАЛИЗОВАННЫМИ ДАТАМИ ***
 const getExistingRecordsWithStatus = useCallback(async (
   startDate: Date,
   endDate: Date,
@@ -258,16 +351,23 @@ const getExistingRecordsWithStatus = useCallback(async (
   try {
     console.log('[useStaffRecordsData] *** Starting to collect ALL pages for existing records ***');
     
-    // *** ВАЖНО: Используем переданные даты как есть, без дополнительной обработки ***
-    // Предполагается, что startDate и endDate уже правильно нормализованы вызывающим кодом
-    console.log('[useStaffRecordsData] Using provided date range (assuming already normalized):');
-    console.log('[useStaffRecordsData] Start date:', startDate.toISOString());
-    console.log('[useStaffRecordsData] End date:', endDate.toISOString());
+    // *** ИСПРАВЛЕНИЕ: Нормализуем переданные даты для консистентности ***
+    // Вызывающий код может передать даты, которые нужно дополнительно нормализовать
+    const normalizedStartDate = DateUtils.normalizeDateToUTCMidnight(startDate);
+    const normalizedEndDate = DateUtils.normalizeDateToUTCMidnight(endDate);
+    // Для конечной даты устанавливаем конец дня
+    normalizedEndDate.setUTCHours(23, 59, 59, 999);
+    
+    console.log('[useStaffRecordsData] *** NORMALIZED DATES FOR EXISTING RECORDS CHECK ***');
+    console.log('[useStaffRecordsData] Original start date:', startDate.toISOString());
+    console.log('[useStaffRecordsData] Original end date:', endDate.toISOString());
+    console.log('[useStaffRecordsData] Normalized start date:', normalizedStartDate.toISOString());
+    console.log('[useStaffRecordsData] Normalized end date:', normalizedEndDate.toISOString());
 
-    // Base query parameters (without pagination)
+    // Base query parameters (without pagination) - используем нормализованные даты
     const baseQueryParams = {
-      startDate: startDate,
-      endDate: endDate,
+      startDate: normalizedStartDate,
+      endDate: normalizedEndDate,
       currentUserID: currentUserID,
       staffGroupID: staffGroupID,
       employeeID: employeeId,
@@ -411,7 +511,8 @@ useEffect(() => {
    hasSelectedStaffEmployeeId: !!selectedStaff?.employeeId,
    currentPage,
    itemsPerPage,
-   showDeleted
+   showDeleted,
+   selectedDate: selectedDate.toISOString()
  });
  
  if (context && staffRecordsService && selectedStaff?.employeeId) {
@@ -438,4 +539,4 @@ return {
   getExistingRecordsWithStatus,
   markRecordsAsDeleted,
 };
-};
+}

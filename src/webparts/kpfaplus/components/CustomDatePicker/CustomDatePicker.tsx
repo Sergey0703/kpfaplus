@@ -75,6 +75,48 @@ export class DateUtils {
   }
 
   /**
+   * НОВАЯ ФУНКЦИЯ: Принимает объект Date и возвращает новый объект Date, 
+   * у которого время установлено на полночь по UTC (00:00:00.000Z).
+   * Это гарантирует, что при сохранении в SharePoint будет использоваться только дата, без времени.
+   * @param localDate - Дата для нормализации.
+   * @returns Новый объект Date, нормализованный к полуночи по UTC.
+   */
+  static normalizeDateToUTCMidnight(localDate: Date | null | undefined): Date {
+    if (!localDate || !(localDate instanceof Date) || isNaN(localDate.getTime())) {
+      console.warn('[DateUtils] normalizeDateToUTCMidnight: Invalid date provided:', localDate);
+      return new Date(); // Возвращаем текущую дату как fallback
+    }
+    
+    // Создаем новую дату, чтобы не изменять исходный объект (иммутабельность)
+    const normalizedDate = new Date(localDate);
+    // Устанавливаем время на 00:00:00.000 в UTC
+    normalizedDate.setUTCHours(0, 0, 0, 0); 
+    
+    console.log(`[DateUtils] Normalized date: ${localDate.toISOString()} -> ${normalizedDate.toISOString()}`);
+    return normalizedDate;
+  }
+
+  /**
+   * НОВАЯ ФУНКЦИЯ: Нормализует дату для записи StaffRecord - устанавливает время на полночь UTC
+   * Специальная версия для StaffRecords
+   */
+  static normalizeStaffRecordDate(date: Date): Date {
+    return DateUtils.normalizeDateToUTCMidnight(date);
+  }
+
+  /**
+   * НОВАЯ ФУНКЦИЯ: Создает дату с временем для ShiftDate1/ShiftDate2 - сохраняет время, но нормализует дату
+   */
+  static createShiftDateTime(baseDate: Date, hours: number, minutes: number): Date {
+    // Сначала нормализуем базовую дату к UTC полуночи
+    const normalizedBase = DateUtils.normalizeDateToUTCMidnight(baseDate);
+    // Затем добавляем время в UTC
+    normalizedBase.setUTCHours(hours, minutes, 0, 0);
+    console.log(`[DateUtils] Created shift datetime: base=${baseDate.toISOString()}, time=${hours}:${minutes}, result=${normalizedBase.toISOString()}`);
+    return normalizedBase;
+  }
+
+  /**
    * Creates a date from local date components at UTC midnight
    * This is useful when you want to create a date representing a specific day
    * without timezone complications
@@ -177,9 +219,9 @@ export class DateUtils {
   }
 
   /**
-   * Gets the start of month for a given date
-   * ИСПРАВЛЕНО: Начинаем с последней миллисекунды предыдущего месяца
-   * чтобы гарантировать включение первого дня месяца в фильтр
+   * ИСПРАВЛЕНО: Gets the start of month for a given date
+   * Возвращает первый день месяца в 00:00:00 UTC
+   * Для фильтрации используется принцип "больше или равно" (ge)
    */
   static getStartOfMonth(date: Date): Date {
     console.log('[DateUtils] getStartOfMonth input:', date.toISOString());
@@ -187,19 +229,20 @@ export class DateUtils {
     const year = date.getFullYear();
     const month = date.getMonth();
     
-    // ФИКС: Вместо начала текущего месяца, начинаем с конца предыдущего месяца
-    // Это гарантирует, что записи с датой первого дня месяца будут включены в результат
-    const result = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+    // ИСПРАВЛЕНО: Возвращаем точно первый день месяца в полночь UTC
+    // Фильтр SharePoint "ge" (больше или равно) должен включить записи с этой датой
+    const result = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
     
-    console.log('[DateUtils] getStartOfMonth result:', result.toISOString());
+    console.log('[DateUtils] getStartOfMonth result (first day UTC midnight):', result.toISOString());
     console.log('[DateUtils] getStartOfMonth day of month:', result.getUTCDate());
+    console.log('[DateUtils] getStartOfMonth month:', result.getUTCMonth() + 1);
     
     return result;
   }
 
   /**
-   * Gets the end of month for a given date (last day of month at 23:59:59 UTC)
-   * ИСПРАВЛЕНО: Правильно вычисляем последний день месяца
+   * ИСПРАВЛЕНО: Gets the end of month for a given date
+   * Возвращает последний день месяца в 23:59:59.999 UTC
    */
   static getEndOfMonth(date: Date): Date {
     console.log('[DateUtils] getEndOfMonth input:', date.toISOString());
@@ -215,7 +258,7 @@ export class DateUtils {
     // Создаем дату последнего дня месяца в конце дня (23:59:59.999 UTC)
     const result = new Date(Date.UTC(year, month, lastDay, 23, 59, 59, 999));
     
-    console.log('[DateUtils] getEndOfMonth result:', result.toISOString());
+    console.log('[DateUtils] getEndOfMonth result (last day UTC end-of-day):', result.toISOString());
     console.log('[DateUtils] getEndOfMonth day of month:', result.getUTCDate());
     console.log('[DateUtils] getEndOfMonth calculated last day:', lastDay);
     
@@ -223,11 +266,11 @@ export class DateUtils {
   }
 
   /**
-   * НОВАЯ ФУНКЦИЯ: Альтернативный способ получения начала месяца
-   * Возвращает точно первый день месяца в 00:00:00 UTC, но с небольшим сдвигом
+   * НОВАЯ ФУНКЦИЯ: Создает начальную дату для фильтра SharePoint
+   * Использует небольшой отрицательный offset для гарантии включения граничных дат
    */
-  static getStartOfMonthInclusive(date: Date): Date {
-    console.log('[DateUtils] getStartOfMonthInclusive input:', date.toISOString());
+  static getStartOfMonthForFilter(date: Date): Date {
+    console.log('[DateUtils] getStartOfMonthForFilter input:', date.toISOString());
     
     const year = date.getFullYear();
     const month = date.getMonth();
@@ -235,13 +278,83 @@ export class DateUtils {
     // Создаем дату первого дня месяца в полночь UTC
     const firstDay = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
     
-    // Отнимаем 1 миллисекунду, чтобы гарантировать включение записей с этой датой
-    const result = new Date(firstDay.getTime() - 1);
+    // Отнимаем 1 секунду для гарантированного включения записей с этой датой
+    // SharePoint фильтр "ge" иногда может исключать точные совпадения из-за точности миллисекунд
+    const result = new Date(firstDay.getTime() - 1000);
     
-    console.log('[DateUtils] getStartOfMonthInclusive result:', result.toISOString());
-    console.log('[DateUtils] getStartOfMonthInclusive adjusted for inclusive filter');
+    console.log('[DateUtils] getStartOfMonthForFilter result (with 1s offset):', result.toISOString());
+    console.log('[DateUtils] getStartOfMonthForFilter original first day:', firstDay.toISOString());
     
     return result;
+  }
+
+  /**
+   * НОВАЯ ФУНКЦИЯ: Создает конечную дату для фильтра SharePoint
+   * Использует конец дня плюс небольшой положительный offset
+   */
+  static getEndOfMonthForFilter(date: Date): Date {
+    console.log('[DateUtils] getEndOfMonthForFilter input:', date.toISOString());
+    
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    
+    // Получаем последний день месяца
+    const lastDayOfMonth = new Date(year, month + 1, 0);
+    const lastDay = lastDayOfMonth.getDate();
+    
+    // Создаем дату последнего дня месяца в конце дня UTC
+    const endOfLastDay = new Date(Date.UTC(year, month, lastDay, 23, 59, 59, 999));
+    
+    // Добавляем 1 секунду для гарантированного включения записей последнего дня
+    const result = new Date(endOfLastDay.getTime() + 1000);
+    
+    console.log('[DateUtils] getEndOfMonthForFilter result (with 1s offset):', result.toISOString());
+    console.log('[DateUtils] getEndOfMonthForFilter original end of day:', endOfLastDay.toISOString());
+    
+    return result;
+  }
+
+  /**
+   * ОТЛАДОЧНАЯ ФУНКЦИЯ: Проверяет, попадает ли дата в диапазон фильтра
+   */
+  static isDateInFilterRange(testDate: Date, startFilter: Date, endFilter: Date): boolean {
+    const inRange = testDate >= startFilter && testDate <= endFilter;
+    console.log(`[DateUtils] Date range check:
+      Test date: ${testDate.toISOString()}
+      Start filter: ${startFilter.toISOString()}
+      End filter: ${endFilter.toISOString()}
+      In range: ${inRange}
+      Test >= Start: ${testDate >= startFilter}
+      Test <= End: ${testDate <= endFilter}`);
+    return inRange;
+  }
+
+  /**
+   * ОТЛАДОЧНАЯ ФУНКЦИЯ: Логирует информацию о месячном диапазоне
+   */
+  static logMonthlyRange(inputDate: Date, startDate: Date, endDate: Date): void {
+    console.log(`[DateUtils] *** MONTHLY RANGE DEBUG ***
+      Input date: ${inputDate.toISOString()}
+      Input month: ${inputDate.getUTCMonth() + 1}/${inputDate.getUTCFullYear()}
+      Input day: ${inputDate.getUTCDate()}
+      
+      Filter start: ${startDate.toISOString()}
+      Filter end: ${endDate.toISOString()}
+      
+      Range days: ${Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))}
+      
+      Test dates:
+      - First of month: ${DateUtils.isDateInFilterRange(
+        new Date(Date.UTC(inputDate.getUTCFullYear(), inputDate.getUTCMonth(), 1, 0, 0, 0, 0)),
+        startDate,
+        endDate
+      )}
+      - Middle of month: ${DateUtils.isDateInFilterRange(
+        new Date(Date.UTC(inputDate.getUTCFullYear(), inputDate.getUTCMonth(), 15, 12, 0, 0, 0)),
+        startDate,
+        endDate
+      )}
+    `);
   }
 }
 
