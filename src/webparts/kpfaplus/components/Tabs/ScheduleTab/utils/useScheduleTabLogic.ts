@@ -17,6 +17,8 @@ import { useContracts } from './useContracts';
 import { useTypesOfLeave } from './useTypesOfLeave';
 import { useStaffRecordsData } from './useStaffRecordsData';
 import { useStaffRecordsMutations } from './useStaffRecordsMutations';
+// Import DateUtils for proper date handling
+import { DateUtils } from '../../../CustomDatePicker/CustomDatePicker';
 
 
 // --- ИСПРАВЛЕНИЕ: Добавлено ключевое слово 'export' ---
@@ -136,10 +138,18 @@ export const useScheduleTabLogic = (props: ITabProps): UseScheduleTabLogicReturn
 
    const currentDate = state.selectedDate;
 
-   // *** ДОБАВЛЯЕМ СОХРАНЕНИЕ ДАТЫ В sessionStorage ***
+   // *** НОРМАЛИЗУЕМ ДАТУ ПЕРЕД СОХРАНЕНИЕМ В sessionStorage ***
+   const normalizedDate = DateUtils.normalizeToUTCMidnight(date);
+   if (!normalizedDate) {
+     console.error('[useScheduleTabLogic] Failed to normalize date:', date);
+     return;
+   }
+
+   // *** ИСПОЛЬЗУЕМ DateUtils ДЛЯ ПРАВИЛЬНОГО СОХРАНЕНИЯ В sessionStorage ***
    try {
-     sessionStorage.setItem('scheduleTab_selectedDate', date.toISOString());
-     console.log('[useScheduleTabLogic] Date saved to sessionStorage:', date.toISOString());
+     const serializedDate = DateUtils.serializeDateOnly(normalizedDate);
+     sessionStorage.setItem('scheduleTab_selectedDate', serializedDate);
+     console.log('[useScheduleTabLogic] Date saved to sessionStorage:', serializedDate);
    } catch (error) {
      console.warn('[useScheduleTabLogic] Error saving date to sessionStorage:', error);
    }
@@ -147,12 +157,12 @@ export const useScheduleTabLogic = (props: ITabProps): UseScheduleTabLogicReturn
    // Обновляем дату И сбрасываем пагинацию на первую страницу при смене даты
    setState(prevState => ({
      ...prevState,
-     selectedDate: date,
+     selectedDate: normalizedDate,
      currentPage: 1, // Сброс страницы
      // totalItemCount будет обновлен в useStaffRecordsData после загрузки
    }));
 
-    if (shouldRefreshDataOnDateChange(currentDate, date)) {
+    if (shouldRefreshDataOnDateChange(currentDate, normalizedDate)) {
       console.log('[useScheduleTabLogic] Month or year changed, triggering dependent loads via effects');
        // Эффекты в хуках загрузки данных (Holidays/Leaves, Contracts, StaffRecords) сработают,
        // так как state.selectedDate изменился.

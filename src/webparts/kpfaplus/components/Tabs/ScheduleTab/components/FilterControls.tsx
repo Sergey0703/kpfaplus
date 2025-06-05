@@ -4,15 +4,13 @@ import {
   Dropdown,
   IDropdownOption,
   PrimaryButton,
-  DatePicker,
-  DayOfWeek,
-  IDatePickerStrings,
   mergeStyleSets,
   Stack,
   IStackTokens,
   IStackStyles,
 } from '@fluentui/react';
 import { IContract } from '../../../../models/IContract';
+import { CustomDatePicker } from '../../../CustomDatePicker/CustomDatePicker';
 
 export interface IFilterControlsProps {
   selectedDate: Date;
@@ -24,33 +22,6 @@ export interface IFilterControlsProps {
   onFillButtonClick?: () => void;
 }
 
-// English localization for the DatePicker
-const datePickerStringsEN: IDatePickerStrings = {
-  months: [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ],
-  shortMonths: [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-  ],
-  days: [
-    'Sunday', 'Monday', 'Tuesday', 'Wednesday',
-    'Thursday', 'Friday', 'Saturday'
-  ],
-  shortDays: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], // Or Sun, Mon, Tue...
-  goToToday: 'Go to today',
-  prevMonthAriaLabel: 'Go to previous month',
-  nextMonthAriaLabel: 'Go to next month',
-  prevYearAriaLabel: 'Go to previous year',
-  nextYearAriaLabel: 'Go to next year',
-  closeButtonAriaLabel: 'Close date picker',
-  monthPickerHeaderAriaLabel: '{0}, select a month',
-  yearPickerHeaderAriaLabel: '{0}, select a year',
-  isRequiredErrorMessage: 'Field is required.',
-  invalidInputErrorMessage: 'Invalid date format.'
-};
-
 const controlStyles = mergeStyleSets({
   controlGroup: {
     marginRight: '40px'
@@ -58,9 +29,6 @@ const controlStyles = mergeStyleSets({
   label: {
     marginBottom: '5px',
     fontWeight: 600
-    // No need to translate "Выберите дату" / "Выберите контракт" here,
-    // as these are part of your component's JSX, not the DatePicker's internal strings.
-    // If you want to translate these labels too, you'll need to do it in the JSX.
   }
 });
 
@@ -93,117 +61,28 @@ export const FilterControls: React.FC<IFilterControlsProps> = ({
     text: contract.template
   }));
 
-  const handleDateSelect = (date: Date | null | undefined): void => {
-    console.log('[FilterControls] Date selected:', date?.toISOString());
-    if (date) {
-      onDateChange(date);
-    }
-  };
-
-  // Date formatting can remain language-agnostic (dd.mm.yyyy) or be changed
-  // For example, for US format (mm/dd/yyyy):
-  // const formatDate = (date?: Date): string => {
-  //   if (!date) return '';
-  //   const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  //   const day = date.getDate().toString().padStart(2, '0');
-  //   const year = date.getFullYear();
-  //   return `${month}/${day}/${year}`;
-  // };
-  // For now, keeping your dd.mm.yyyy format:
-  const formatDate = (date?: Date): string => {
-    if (!date) return '';
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const year = date.getFullYear();
-    return `${day}.${month}.${year}`;
-  };
-
-
-  const calendarDismissHandler = (): void => {
-    console.log('[FilterControls] Calendar dismissed');
-  };
-
-  const calendarMinWidth = '655px';
+  const handleDateSelect = React.useCallback((date: Date | undefined): void => {
+    console.log('[FilterControls] Date selected from CustomDatePicker:', date?.toISOString());
+    onDateChange(date);
+  }, [onDateChange]);
 
   return (
     <Stack horizontal styles={stackStyles} tokens={stackTokens}>
       <Stack.Item className={controlStyles.controlGroup}>
-        {/* Translate these labels if needed */}
-        <div className={controlStyles.label}>Select date</div> {/* Изменено */}
-        <DatePicker
+        <div className={controlStyles.label}>Select date</div>
+        <CustomDatePicker
           value={selectedDate}
-          onSelectDate={handleDateSelect}
-          firstDayOfWeek={DayOfWeek.Monday} // Monday is common in Europe, Sunday in US
-          strings={datePickerStringsEN} // Using English strings
-          formatDate={formatDate} // Using your custom dd.mm.yyyy format
-          allowTextInput={false}
+          onChange={handleDateSelect}
           disabled={isLoading}
           showGoToToday={true}
-          showMonthPickerAsOverlay={true}
-          styles={{
-            root: {
-              width: '220px',
-              selectors: {
-                '.ms-DatePicker-weekday': {
-                  width: '35px',
-                  height: '35px',
-                  lineHeight: '35px',
-                  padding: 0,
-                  textAlign: 'center',
-                  fontSize: '12px',
-                },
-                '.ms-DatePicker-day': {
-                  width: '35px',
-                  height: '35px',
-                  lineHeight: '35px',
-                  padding: 0,
-                  margin: 0,
-                  fontSize: '14px',
-                  textAlign: 'center',
-                },
-                'td[class*="dayOutsideNavigatedMonth"] button[class*="dayButton"]': {
-                  color: '#a19f9d', // Style to dim days from other months
-                },
-                // If the above doesn't work, and text is in a span:
-                // 'td[class*="dayOutsideNavigatedMonth"] button[class*="dayButton"] span': {
-                //   color: '#a19f9d',
-                // },
-                '.ms-DatePicker-table': {
-                  width: '100%',
-                },
-              }
-            },
-            textField: {
-              width: '100%',
-              height: '32px',
-              selectors: {
-                '.ms-TextField-field': { height: '32px' },
-              },
-            },
-          }}
-          calendarProps={{
-            onDismiss: calendarDismissHandler,
-            firstDayOfWeek: DayOfWeek.Monday,
-            showGoToToday: true,
-            showSixWeeksByDefault: true,
-            showWeekNumbers: false,
-          }}
-          calloutProps={{
-            styles: {
-              calloutMain: {
-                minWidth: calendarMinWidth,
-              }
-            }
-          }}
+          data-testid="schedule-date-picker"
         />
       </Stack.Item>
 
       <Stack.Item className={controlStyles.controlGroup}>
-        {/* Translate these labels if needed */}
-        <div className={controlStyles.label}>Select contract</div> {/* Изменено */}
+        <div className={controlStyles.label}>Select contract</div>
         <Dropdown
-          // placeholder="Выберите контракт" // Translate if needed
-          placeholder="Select contract" // Изменено
+          placeholder="Select contract"
           options={contractOptions}
           selectedKey={selectedContractId}
           onChange={onContractChange}
@@ -216,7 +95,7 @@ export const FilterControls: React.FC<IFilterControlsProps> = ({
 
       <Stack.Item align="end">
         <PrimaryButton
-          text="Fill" // "Fill" is already English
+          text="Fill"
           onClick={onFillButtonClick}
           disabled={isLoading}
           styles={{

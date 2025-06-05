@@ -7,6 +7,7 @@ import { IStaffRecordsResult, IStaffRecordsQueryParams } from '../../../../servi
 import { IStaffMember } from '../../../../models/types';
 import { IExistingRecordCheck } from './ScheduleTabFillInterfaces';
 import { IScheduleTabState } from './useScheduleTabState';
+import { DateUtils } from '../../../CustomDatePicker/CustomDatePicker';
 
 interface UseStaffRecordsDataProps {
 context?: WebPartContext;
@@ -55,7 +56,7 @@ const setIsLoadingStaffRecords = useCallback((isLoading: boolean) => setState(pr
 const setErrorStaffRecords = useCallback((error?: string) => setState(prevState => ({ ...prevState, errorStaffRecords: error })), [setState]);
 const setTotalItemCount = useCallback((total: number) => setState(prevState => ({ ...prevState, totalItemCount: total })), [setState]);
 
-// *** УПРОЩЕННЫЙ МЕТОД loadStaffRecords ***
+// *** УПРОЩЕННЫЙ МЕТОД loadStaffRecords С ИСПРАВЛЕННЫМИ ДАТАМИ ***
 const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: string): Promise<void> => {
   const dateToUse = overrideDate || selectedDate;
   const contractIdToUse = contractId !== undefined ? contractId : selectedContractId;
@@ -89,9 +90,14 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
     setIsLoadingStaffRecords(true);
     setErrorStaffRecords(undefined);
 
-    const date = new Date(dateToUse.getTime());
-    const firstDayOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
-    const lastDayOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+    // *** ИСПРАВЛЕНО: Используем DateUtils для создания дат месяца ***
+    const firstDayOfMonth = DateUtils.getStartOfMonth(dateToUse);
+    const lastDayOfMonth = DateUtils.getEndOfMonth(dateToUse);
+
+    console.log('[useStaffRecordsData] *** USING DateUtils FOR MONTH BOUNDARIES ***');
+    console.log('[useStaffRecordsData] Input date:', dateToUse.toISOString());
+    console.log('[useStaffRecordsData] First day of month (UTC):', firstDayOfMonth.toISOString());
+    console.log('[useStaffRecordsData] Last day of month (UTC):', lastDayOfMonth.toISOString());
 
     const employeeId = selectedStaff.employeeId;
     const timeTableId = contractIdToUse;
@@ -117,7 +123,11 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
       };
 
       console.log('[useStaffRecordsData] *** SERVER PAGINATION - calling getStaffRecordsWithOptions ***');
-      console.log('[useStaffRecordsData] Query params:', queryParams);
+      console.log('[useStaffRecordsData] Query params:', {
+        ...queryParams,
+        startDate: queryParams.startDate.toISOString(),
+        endDate: queryParams.endDate.toISOString()
+      });
 
       const result: IStaffRecordsResult = await staffRecordsService.getStaffRecordsWithOptions(queryParams);
 
@@ -152,7 +162,11 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
       };
 
       console.log('[useStaffRecordsData] *** LOADING ALL RECORDS - calling getAllStaffRecordsForTimetable ***');
-      console.log('[useStaffRecordsData] Query params (no pagination):', allRecordsQueryParams);
+      console.log('[useStaffRecordsData] Query params (no pagination):', {
+        ...allRecordsQueryParams,
+        startDate: allRecordsQueryParams.startDate.toISOString(),
+        endDate: allRecordsQueryParams.endDate.toISOString()
+      });
 
       const allRecordsResult: IStaffRecordsResult = await staffRecordsService.getAllStaffRecordsForTimetable(allRecordsQueryParams);
 
@@ -219,7 +233,7 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
   setTotalItemCount,
 ]);
 
-// *** MODIFIED getExistingRecordsWithStatus TO GET ALL PAGES ***
+// *** MODIFIED getExistingRecordsWithStatus TO GET ALL PAGES С ИСПРАВЛЕННЫМИ ДАТАМИ ***
 const getExistingRecordsWithStatus = useCallback(async (
   startDate: Date,
   endDate: Date,
@@ -230,6 +244,7 @@ const getExistingRecordsWithStatus = useCallback(async (
 ): Promise<IExistingRecordCheck[]> => {
   console.log('[useStaffRecordsData] getExistingRecordsWithStatus called with timeTableID:', timeTableIDParam);
   console.log('[useStaffRecordsData] *** IMPORTANT: This will collect ALL pages to find all existing records ***');
+  console.log('[useStaffRecordsData] Input date range:', startDate.toISOString(), '-', endDate.toISOString());
   
   if (!context || !staffRecordsService) {
     console.log('[useStaffRecordsData] Cannot get existing records: missing dependencies');
@@ -243,6 +258,12 @@ const getExistingRecordsWithStatus = useCallback(async (
   try {
     console.log('[useStaffRecordsData] *** Starting to collect ALL pages for existing records ***');
     
+    // *** ВАЖНО: Используем переданные даты как есть, без дополнительной обработки ***
+    // Предполагается, что startDate и endDate уже правильно нормализованы вызывающим кодом
+    console.log('[useStaffRecordsData] Using provided date range (assuming already normalized):');
+    console.log('[useStaffRecordsData] Start date:', startDate.toISOString());
+    console.log('[useStaffRecordsData] End date:', endDate.toISOString());
+
     // Base query parameters (without pagination)
     const baseQueryParams = {
       startDate: startDate,
@@ -253,7 +274,11 @@ const getExistingRecordsWithStatus = useCallback(async (
       timeTableID: timeTableID
     };
 
-    console.log('[useStaffRecordsData] Base query params for all pages:', baseQueryParams);
+    console.log('[useStaffRecordsData] Base query params for all pages:', {
+      ...baseQueryParams,
+      startDate: baseQueryParams.startDate.toISOString(),
+      endDate: baseQueryParams.endDate.toISOString()
+    });
 
     // *** PAGINATION LOOP TO GET ALL RECORDS ***
     const allRecords: IStaffRecord[] = [];

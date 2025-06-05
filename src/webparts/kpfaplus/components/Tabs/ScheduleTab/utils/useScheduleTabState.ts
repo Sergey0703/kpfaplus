@@ -6,6 +6,7 @@ import { IHoliday } from '../../../../services/HolidaysService';
 import { ILeaveDay } from '../../../../services/DaysOfLeavesService';
 import { ITypeOfLeave } from '../../../../services/TypeOfLeaveService';
 import { IStaffRecord } from '../../../../services/StaffRecordsService';
+import { DateUtils } from '../../../CustomDatePicker/CustomDatePicker';
 
 // Интерфейс для общего состояния компонента/хуков
 export interface IScheduleTabState {
@@ -42,24 +43,21 @@ interface UseScheduleTabStateReturn {
  setState: React.Dispatch<React.SetStateAction<IScheduleTabState>>;
 }
 
-// Функция для получения первого дня текущего месяца
-const getFirstDayOfCurrentMonth = (): Date => {
- const now = new Date();
- return new Date(now.getFullYear(), now.getMonth(), 1);
-};
-
-// Функция для получения сохраненной даты из sessionStorage
+// Функция для получения сохраненной даты из sessionStorage с использованием DateUtils
 const getSavedSelectedDate = (): Date => {
  try {
    const savedDate = sessionStorage.getItem('scheduleTab_selectedDate');
    if (savedDate) {
-     const parsedDate = new Date(savedDate);
-     // Проверяем, что дата валидна
-     if (!isNaN(parsedDate.getTime())) {
+     console.log('[useScheduleTabState] Found saved date in sessionStorage:', savedDate);
+     
+     // Используем DateUtils для правильной десериализации
+     const parsedDate = DateUtils.deserializeDateOnly(savedDate);
+     
+     if (parsedDate) {
        console.log('[useScheduleTabState] Restored selected date from sessionStorage:', parsedDate.toISOString());
        return parsedDate;
      } else {
-       console.warn('[useScheduleTabState] Invalid date found in sessionStorage, using first day of current month');
+       console.warn('[useScheduleTabState] Invalid saved date format, using first day of current month');
      }
    } else {
      console.log('[useScheduleTabState] No saved date found in sessionStorage, using first day of current month');
@@ -68,8 +66,8 @@ const getSavedSelectedDate = (): Date => {
    console.warn('[useScheduleTabState] Error reading saved date from sessionStorage:', error);
  }
  
- // Возвращаем первый день текущего месяца по умолчанию
- const firstDay = getFirstDayOfCurrentMonth();
+ // Возвращаем первый день текущего месяца по умолчанию, нормализованный к UTC полуночи
+ const firstDay = DateUtils.getFirstDayOfCurrentMonth();
  console.log('[useScheduleTabState] Using first day of current month as default:', firstDay.toISOString());
  return firstDay;
 };
@@ -78,7 +76,7 @@ const getSavedSelectedDate = (): Date => {
 export const useScheduleTabState = (): UseScheduleTabStateReturn => {
  // Инициализируем состояние, включая новые поля пагинации и showDeleted
  const [state, setState] = useState<IScheduleTabState>({
-   selectedDate: getSavedSelectedDate(), // Используем сохраненную дату или первый день месяца
+   selectedDate: getSavedSelectedDate(), // Используем нормализованную сохраненную дату или первый день месяца
    contracts: [],
    selectedContractId: undefined,
    isLoading: false,
