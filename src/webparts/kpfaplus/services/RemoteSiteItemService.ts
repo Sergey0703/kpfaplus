@@ -409,6 +409,15 @@ try {
   * @param orderBy Сортировка (опционально)
   * @returns Promise с ВСЕМИ отфильтрованными элементами
   */
+ /**
+  * Получает ВСЕ элементы списка с применением фильтра (специально для Timetable)
+  * Автоматически загружает все страницы до получения полного набора данных
+  * @param graphClient Graph клиент
+  * @param listTitle Название списка
+  * @param filter OData фильтр (например: "fields/Date ge '2024-12-01T00:00:00.000Z' and fields/Date le '2024-12-31T00:00:00.000Z' and fields/StaffGroupLookupId eq 54")
+  * @param orderBy Сортировка (опционально)
+  * @returns Promise с ВСЕМИ отфильтрованными элементами
+  */
  public async getAllFilteredItemsForTimetable(
    graphClient: MSGraphClientV3,
    listTitle: string,
@@ -494,6 +503,71 @@ try {
          throw requestError;
        }
 
+       // === ДОБАВЛЯЕМ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ОТВЕТА SHAREPOINT ===
+       console.log('=== SHAREPOINT RESPONSE DEBUG ===');
+       console.log('[DEBUG] ОТВЕТ ОТ SHAREPOINT для фильтра:', filter);
+       console.log('[DEBUG] Количество найденных записей на странице:', response?.value?.length || 0);
+       console.log('[DEBUG] Общее количество загруженных записей:', allItems.length);
+
+       if (response?.value && response.value.length > 0) {
+         console.log('[DEBUG] Первая найденная запись на этой странице:', JSON.stringify(response.value[0], null, 2));
+         
+         // Проверяем поле Date в первой записи
+         const firstRecord = response.value[0];
+         if (firstRecord.fields && firstRecord.fields.Date) {
+           console.log('[DEBUG] Дата в первой записи (сырая):', firstRecord.fields.Date);
+           console.log('[DEBUG] Тип даты:', typeof firstRecord.fields.Date);
+           console.log('[DEBUG] Дата как Date объект:', new Date(firstRecord.fields.Date));
+           console.log('[DEBUG] Дата в ISO формате:', new Date(firstRecord.fields.Date).toISOString());
+         }
+         
+         // Проверяем другие важные поля
+         if (firstRecord.fields) {
+           console.log('[DEBUG] StaffMemberLookupId:', firstRecord.fields.StaffMemberLookupId);
+           console.log('[DEBUG] ManagerLookupId:', firstRecord.fields.ManagerLookupId);
+           console.log('[DEBUG] StaffGroupLookupId:', firstRecord.fields.StaffGroupLookupId);
+           console.log('[DEBUG] Deleted:', firstRecord.fields.Deleted);
+         }
+
+         // Показываем еще несколько записей если есть
+         if (response.value.length > 1) {
+           console.log('[DEBUG] Вторая запись ID:', response.value[1].id);
+           if (response.value[1].fields?.Date) {
+             console.log('[DEBUG] Вторая запись дата:', response.value[1].fields.Date);
+           }
+         }
+         if (response.value.length > 2) {
+           console.log('[DEBUG] Третья запись ID:', response.value[2].id);
+           if (response.value[2].fields?.Date) {
+             console.log('[DEBUG] Третья запись дата:', response.value[2].fields.Date);
+           }
+         }
+       } else {
+         console.log('[DEBUG] ❌ ЗАПИСИ НЕ НАЙДЕНЫ на этой странице для фильтра:', filter);
+         console.log('[DEBUG] Возможные причины:');
+         console.log('[DEBUG] 1. Неправильный диапазон дат');
+         console.log('[DEBUG] 2. Неправильные ID (StaffMember/Manager/StaffGroup)');
+         console.log('[DEBUG] 3. Записи помечены как удаленные');
+         console.log('[DEBUG] 4. Нет данных в SharePoint для этого фильтра');
+       }
+
+       // Тест сравнения дат (только на первой странице)
+       if (currentPageNumber === 1) {
+         console.log('[DEBUG] === ТЕСТ СРАВНЕНИЯ ДАТ ===');
+         console.log('[DEBUG] Фильтр ищет >= 2024-09-30T23:59:59.999Z');
+         console.log('[DEBUG] Ожидаем найти записи с датой 2024-10-01T00:00:00.000Z');
+         console.log('[DEBUG] Сравнение: 2024-10-01T00:00:00.000Z > 2024-09-30T23:59:59.999Z =', 
+           new Date('2024-10-01T00:00:00.000Z') > new Date('2024-09-30T23:59:59.999Z'));
+         
+         // Проверяем разные временные зоны
+         console.log('[DEBUG] === ПРОВЕРКА ВРЕМЕННЫХ ЗОН ===');
+         console.log('[DEBUG] UTC: 2024-10-01T00:00:00.000Z');
+         console.log('[DEBUG] Ирландское время: 2024-10-01T01:00:00.000Z (UTC+1)');
+         console.log('[DEBUG] Проверяем: 2024-10-01T01:00:00.000Z > 2024-09-30T23:59:59.999Z =',
+           new Date('2024-10-01T01:00:00.000Z') > new Date('2024-09-30T23:59:59.999Z'));
+       }
+       console.log('=== END DEBUG ===');
+
        // Обрабатываем ответ
        const pageItems = response?.value || [];
        allItems = [...allItems, ...pageItems];
@@ -529,6 +603,19 @@ try {
        avgPageDurationMs: Math.round(totalDuration / (currentPageNumber - 1))
      });
 
+     // Дополнительная диагностика если ничего не найдено
+     if (allItems.length === 0) {
+       console.log('[DEBUG] === ДИАГНОСТИКА ПУСТОГО РЕЗУЛЬТАТА ===');
+       console.log('[DEBUG] Полный фильтр который использовался:', filter);
+       console.log('[DEBUG] Список:', listTitle);
+       console.log('[DEBUG] ID списка:', listId);
+       console.log('[DEBUG] Рекомендации:');
+       console.log('[DEBUG] 1. Проверьте данные в SharePoint вручную');
+       console.log('[DEBUG] 2. Попробуйте упростить фильтр (только по дате)');
+       console.log('[DEBUG] 3. Проверьте правильность ID полей');
+       console.log('[DEBUG] ===================================');
+     }
+
      // Преобразуем все элементы в нужный формат
      const formattedItems: IRemoteListItemResponse[] = allItems.map((item: Record<string, unknown>) => {
        return {
@@ -557,22 +644,6 @@ try {
          });
          console.log(`[DEBUG] Unique staff members in data: ${uniqueStaffIds.size}`);
          console.log(`[DEBUG] Staff IDs: ${Array.from(uniqueStaffIds).slice(0, 10).join(', ')}${uniqueStaffIds.size > 10 ? '...' : ''}`);
-         
-         // ИСПРАВЛЕНО: Анализ WeeklyTimeTableID после исправления
-         const sampleWithWeeklyTimeTable = formattedItems.filter(item => 
-           (item.fields as IRemoteListItemField)?.WeeklyTimeTableID
-         ).slice(0, 3);
-         
-         if (sampleWithWeeklyTimeTable.length > 0) {
-           console.log(`[DEBUG] Sample WeeklyTimeTableID data after fix:`, 
-             sampleWithWeeklyTimeTable.map(item => ({
-               itemId: item.id,
-               weeklyTimeTableID: (item.fields as IRemoteListItemField)?.WeeklyTimeTableID
-             }))
-           );
-         } else {
-           console.log(`[DEBUG] No items with WeeklyTimeTableID found in sample`);
-         }
        }
      }
 

@@ -91,9 +91,9 @@ export class StaffRecordsFetchService {
         throw new Error(errorMsg); // Бросаем ошибку, если имя списка не определено
       }
 
-      // Форматирование дат для фильтрации
-      const startDateStr = this.formatDateForFilter(startDate);
-      const endDateStr = this.formatDateForFilter(endDate);
+      // ИСПРАВЛЕНО: НЕ переформатируем даты, если они уже в правильном формате
+      const startDateStr = this.formatDateForFilterFixed(startDate);
+      const endDateStr = this.formatDateForFilterFixed(endDate);
       this.logInfo(
         `[DEBUG] Форматированные даты для запроса: ${startDateStr} - ${endDateStr}`
       );
@@ -228,9 +228,9 @@ export class StaffRecordsFetchService {
         throw new Error(errorMsg);
       }
 
-      // Форматирование дат для фильтрации
-      const startDateStr = this.formatDateForFilter(startDate);
-      const endDateStr = this.formatDateForFilter(endDate);
+      // ИСПРАВЛЕНО: НЕ переформатируем даты, если они уже в правильном формате
+      const startDateStr = this.formatDateForFilterFixed(startDate);
+      const endDateStr = this.formatDateForFilterFixed(endDate);
       this.logInfo(
         `[DEBUG] Форматированные даты для запроса: ${startDateStr} - ${endDateStr}`
       );
@@ -357,9 +357,9 @@ export class StaffRecordsFetchService {
         throw new Error(errorMsg);
       }
 
-      // Форматирование дат для фильтрации
-      const startDateStr = this.formatDateForFilter(startDate);
-      const endDateStr = this.formatDateForFilter(endDate);
+      // ИСПРАВЛЕНО: НЕ переформатируем даты, если они уже в правильном формате
+      const startDateStr = this.formatDateForFilterFixed(startDate);
+      const endDateStr = this.formatDateForFilterFixed(endDate);
       this.logInfo(
         `[DEBUG] Форматированные даты для запроса: ${startDateStr} - ${endDateStr}`
       );
@@ -473,9 +473,9 @@ public async fetchStaffRecordsForSRSReports(
       throw new Error(errorMsg);
     }
 
-    // Форматирование дат для фильтрации
-    const startDateStr = this.formatDateForFilter(queryParams.startDate);
-    const endDateStr = this.formatDateForFilter(queryParams.endDate);
+    // ИСПРАВЛЕНО: НЕ переформатируем даты, если они уже в правильном формате
+    const startDateStr = this.formatDateForFilterFixed(queryParams.startDate);
+    const endDateStr = this.formatDateForFilterFixed(queryParams.endDate);
     this.logInfo(
       `[DEBUG] Форматированные даты для запроса: ${startDateStr} - ${endDateStr}`
     );
@@ -698,8 +698,8 @@ private buildFilterForSRSReports(
       const { startDate, endDate, currentUserID, staffGroupID, employeeID, timeTableID } = queryParams;
 
       // Формируем фильтр
-      const startDateStr = this.formatDateForFilter(startDate);
-      const endDateStr = this.formatDateForFilter(endDate);
+      const startDateStr = this.formatDateForFilterFixed(startDate);
+      const endDateStr = this.formatDateForFilterFixed(endDate);
 
       const filter = this.buildFilterExpression(startDateStr, endDateStr, employeeID, staffGroupID, currentUserID, timeTableID);
 
@@ -779,11 +779,40 @@ private buildFilterForSRSReports(
   }
 
   /**
-   * Форматирует дату для использования в фильтре запроса
+   * ИСПРАВЛЕННЫЙ МЕТОД: Форматирует дату для использования в фильтре запроса
+   * НЕ ПЕРЕФОРМАТИРУЕТ уже правильные даты из DateUtils
    * @param date Дата для форматирования
-   * @returns Строка даты в формате для фильтра SharePoint (YYYY-MM-DDT00:00:00Z)
+   * @returns Строка даты в формате для фильтра SharePoint
    */
-  private formatDateForFilter(date: Date): string {
+  private formatDateForFilterFixed(date: Date): string {
+    if (!date || isNaN(date.getTime())) {
+      this.logError('[ОШИБКА] formatDateForFilterFixed: Получена недействительная дата.');
+      const fallbackDate = new Date();
+      this.logError(`[ОШИБКА] formatDateForFilterFixed: Используется запасная дата ${fallbackDate.toISOString()}`);
+      return fallbackDate.toISOString();
+    }
+    
+    try {
+      // ИСПРАВЛЕНИЕ: НЕ переформатируем дату, используем как есть
+      // DateUtils уже подготовил правильную дату в формате ISO
+      const formattedDate = date.toISOString();
+      
+      this.logInfo(`[DEBUG] formatDateForFilterFixed: вход=${date.toISOString()}, выход=${formattedDate}`);
+      return formattedDate;
+      
+    } catch (error) {
+      this.logError(`[ОШИБКА] Ошибка форматирования даты ${date}: ${error instanceof Error ? error.message : String(error)}`);
+      const fallbackDate = new Date();
+      this.logError(`[ОШИБКА] formatDateForFilterFixed: Используется запасная дата ${fallbackDate.toISOString()}`);
+      return fallbackDate.toISOString();
+    }
+  }
+
+  /**
+   * СТАРЫЙ МЕТОД: Оставлен для совместимости, но не используется
+   * @deprecated Используйте formatDateForFilterFixed вместо этого
+   */
+  /*private formatDateForFilter(date: Date): string {
     if (!date || isNaN(date.getTime())) {
       this.logError('[ОШИБКА] formatDateForFilter: Получена недействительная дата.');
       const fallbackDate = new Date();
@@ -802,7 +831,7 @@ private buildFilterForSRSReports(
       this.logError(`[ОШИБКА] formatDateForFilter: Используется запасная дата ${fallbackDate.toISOString()}`);
       return fallbackDate.toISOString().split('T')[0] + 'T00:00:00Z';
     }
-  }
+  } */
 
 
   /**

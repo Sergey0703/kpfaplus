@@ -177,13 +177,23 @@ export class DateUtils {
   }
 
   /**
-   * Gets the start of month for a given date (first day of month at UTC midnight)
+   * Gets the start of month for a given date
+   * ИСПРАВЛЕНО: Начинаем с последней миллисекунды предыдущего месяца
+   * чтобы гарантировать включение первого дня месяца в фильтр
    */
   static getStartOfMonth(date: Date): Date {
     console.log('[DateUtils] getStartOfMonth input:', date.toISOString());
-    const result = DateUtils.createUTCDate(date.getFullYear(), date.getMonth(), 1);
+    
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    
+    // ФИКС: Вместо начала текущего месяца, начинаем с конца предыдущего месяца
+    // Это гарантирует, что записи с датой первого дня месяца будут включены в результат
+    const result = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+    
     console.log('[DateUtils] getStartOfMonth result:', result.toISOString());
     console.log('[DateUtils] getStartOfMonth day of month:', result.getUTCDate());
+    
     return result;
   }
 
@@ -208,6 +218,28 @@ export class DateUtils {
     console.log('[DateUtils] getEndOfMonth result:', result.toISOString());
     console.log('[DateUtils] getEndOfMonth day of month:', result.getUTCDate());
     console.log('[DateUtils] getEndOfMonth calculated last day:', lastDay);
+    
+    return result;
+  }
+
+  /**
+   * НОВАЯ ФУНКЦИЯ: Альтернативный способ получения начала месяца
+   * Возвращает точно первый день месяца в 00:00:00 UTC, но с небольшим сдвигом
+   */
+  static getStartOfMonthInclusive(date: Date): Date {
+    console.log('[DateUtils] getStartOfMonthInclusive input:', date.toISOString());
+    
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    
+    // Создаем дату первого дня месяца в полночь UTC
+    const firstDay = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
+    
+    // Отнимаем 1 миллисекунду, чтобы гарантировать включение записей с этой датой
+    const result = new Date(firstDay.getTime() - 1);
+    
+    console.log('[DateUtils] getStartOfMonthInclusive result:', result.toISOString());
+    console.log('[DateUtils] getStartOfMonthInclusive adjusted for inclusive filter');
     
     return result;
   }
