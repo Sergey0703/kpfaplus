@@ -1,5 +1,5 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/hooks/useDashboardFill.ts
-// ОБНОВЛЕНО: С полной поддержкой Schedule tab логики и диалогов
+// ОБНОВЛЕНО: С правильным логированием Result=3 для диалогов и отказов
 import { useCallback } from 'react';
 import { MessageBarType } from '@fluentui/react';
 import { WebPartContext } from "@microsoft/sp-webpart-base";
@@ -77,7 +77,7 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
     handleBulkLogRefresh
   } = params;
 
-  console.log('[useDashboardFill] Fill operations hook initialized with Schedule tab logic');
+  console.log('[useDashboardFill] Fill operations hook initialized with Result=3 logging');
 
   // *** CREATE FILL PARAMETERS ***
   const createFillParams = useCallback((staffMember: IStaffMemberWithAutoschedule): IFillParams | undefined => {
@@ -162,10 +162,12 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
     }
   }, [context, currentUserId, managingGroupId, selectedDate]);
 
-  // *** SHOW SCHEDULE TAB DIALOG ***
+  // *** SHOW SCHEDULE TAB DIALOG WITH REFUSAL LOGGING ***
   const showScheduleDialog = useCallback((
     dialogConfig: IDialogConfig, 
     staffName: string, 
+    fillParams: IFillParams,
+    contractId: string,
     onConfirm: () => Promise<void>
   ): void => {
     console.log(`[useDashboardFill] Showing Schedule tab dialog: ${dialogConfig.type} for ${staffName}`);
@@ -188,6 +190,19 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
       }
     });
   }, [selectedDate, setConfirmDialog]);
+
+  // *** LOG USER REFUSAL ***
+  const logUserRefusal = useCallback(async (
+    fillParams: IFillParams,
+    dialogType: DialogType,
+    contractId: string,
+    staffName: string
+  ): Promise<void> => {
+    if (fillService) {
+      console.log(`[useDashboardFill] Logging user refusal for ${staffName}, dialog: ${dialogType}`);
+      await fillService.logUserRefusal(fillParams, dialogType, contractId);
+    }
+  }, [fillService]);
 
   // *** PERFORM ACTUAL FILL OPERATION ***
   const performFillOperation = useCallback(async (
@@ -328,7 +343,7 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
         case DialogType.EmptySchedule:
           // Нет записей - спрашиваем хочет ли пользователь заполнить
           console.log(`[useDashboardFill] EmptySchedule dialog for ${staffName}`);
-          showScheduleDialog(dialogConfig, staffName, async () => {
+          showScheduleDialog(dialogConfig, staffName, fillParams, activeContract.id, async () => {
             await performFillOperation(fillParams, activeContract.id, false, staffName);
           });
           break;
@@ -336,7 +351,7 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
         case DialogType.UnprocessedRecordsReplace:
           // Есть необработанные записи - спрашиваем хочет ли заменить
           console.log(`[useDashboardFill] UnprocessedRecordsReplace dialog for ${staffName}`);
-          showScheduleDialog(dialogConfig, staffName, async () => {
+          showScheduleDialog(dialogConfig, staffName, fillParams, activeContract.id, async () => {
             await performFillOperation(fillParams, activeContract.id, true, staffName);
           });
           break;
@@ -344,9 +359,11 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
         case DialogType.ProcessedRecordsBlock:
           // Есть обработанные записи - блокируем операцию
           console.log(`[useDashboardFill] ProcessedRecordsBlock dialog for ${staffName}`);
-          showScheduleDialog(dialogConfig, staffName, async () => {
+          showScheduleDialog(dialogConfig, staffName, fillParams, activeContract.id, async () => {
             // Ничего не делаем - это блокирующий диалог
             console.log(`[useDashboardFill] ProcessedRecordsBlock - no action taken for ${staffName}`);
+            // Логируем как отказ пользователя (хотя кнопка OK)
+            await logUserRefusal(fillParams, dialogConfig.type, activeContract.id, staffName);
           });
           break;
 
@@ -375,7 +392,8 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
     fillService, 
     getActiveContractForStaff,
     showScheduleDialog, 
-    performFillOperation, 
+    performFillOperation,
+    logUserRefusal,
     setIsLoading, 
     setInfoMessage
   ]);

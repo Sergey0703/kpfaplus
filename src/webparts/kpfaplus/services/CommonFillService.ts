@@ -1,4 +1,4 @@
-// src/webparts/kpfaplus/services/CommonFillService.ts - WITH SCHEDULE TAB LOGIC
+// src/webparts/kpfaplus/services/CommonFillService.ts - WITH RESULT=3 FOR DIALOGS
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { MessageBarType } from '@fluentui/react';
 import { ContractsService } from './ContractsService';
@@ -18,20 +18,22 @@ import { ScheduleLogsService, ICreateScheduleLogParams } from './ScheduleLogsSer
 // Export interfaces for compatibility
 export { IFillParams, IExistingRecordsCheck, DialogType, IDialogConfig, IScheduleLogicResult };
 
-// *** НОВЫЙ ИНТЕРФЕЙС: Результат операции заполнения с диалогом ***
+// *** РЕЗУЛЬТАТ ОПЕРАЦИИ ЗАПОЛНЕНИЯ С ДИАЛОГОМ ***
 export interface IFillResult {
   success: boolean;
   message: string;
   messageType: MessageBarType;
   createdRecordsCount?: number;
   deletedRecordsCount?: number;
-  // *** НОВЫЕ ПОЛЯ ДЛЯ ПОДДЕРЖКИ ДИАЛОГОВ ***
+  // *** ПОЛЯ ДЛЯ ПОДДЕРЖКИ ДИАЛОГОВ ***
   requiresDialog?: boolean;
   dialogConfig?: IDialogConfig;
   canProceed?: boolean;
+  // *** НОВОЕ ПОЛЕ: ТИП РЕЗУЛЬТАТА ДЛЯ ЛОГИРОВАНИЯ ***
+  logResult?: number; // 1=Error, 2=Success, 3=Info/Refusal
 }
 
-// *** НОВЫЙ ИНТЕРФЕЙС: Параметры для выполнения заполнения после подтверждения ***
+// *** ПАРАМЕТРЫ ДЛЯ ВЫПОЛНЕНИЯ ЗАПОЛНЕНИЯ ПОСЛЕ ПОДТВЕРЖДЕНИЯ ***
 export interface IPerformFillParams extends IFillParams {
   contractId: string;
   replaceExisting: boolean;
@@ -54,7 +56,7 @@ export class CommonFillService {
     this.validationService = new CommonFillValidation(context);
     this.generationService = new CommonFillGeneration(context);
     
-    console.log('[CommonFillService] Service initialized with Schedule tab logic');
+    console.log('[CommonFillService] Service initialized with Schedule tab logic and Result=3 support');
   }
 
   public static getInstance(context: WebPartContext): CommonFillService {
@@ -93,7 +95,8 @@ export class CommonFillService {
           message: `Validation failed: ${validation.errors.join(', ')}`,
           messageType: MessageBarType.error,
           requiresDialog: false,
-          canProceed: false
+          canProceed: false,
+          logResult: 1 // Реальная ошибка
         };
         await this.createFillLog(params, result, undefined, `Validation errors: ${validation.errors.join(', ')}`);
         return result;
@@ -110,7 +113,8 @@ export class CommonFillService {
           message: 'Invalid employee ID - cannot check schedule.',
           messageType: MessageBarType.error,
           requiresDialog: false,
-          canProceed: false
+          canProceed: false,
+          logResult: 1 // Реальная ошибка
         };
         await this.createFillLog(params, result, undefined, 'Invalid employee ID');
         return result;
@@ -127,7 +131,8 @@ export class CommonFillService {
           message: 'No active contracts found for this staff member in the selected period.',
           messageType: MessageBarType.warning,
           requiresDialog: false,
-          canProceed: false
+          canProceed: false,
+          logResult: 1 // Реальная ошибка
         };
         await this.createFillLog(params, result, undefined, 'No active contracts found');
         return result;
@@ -148,7 +153,7 @@ export class CommonFillService {
         canProceed: scheduleLogicResult.canProceed
       });
 
-      // *** ШАГ 4: ВОЗВРАЩАЕМ РЕЗУЛЬТАТ С ДИАЛОГОМ (НЕ ЗАПОЛНЯЕМ!) ***
+      // *** ШАГ 4: ВОЗВРАЩАЕМ РЕЗУЛЬТАТ С ДИАЛОГОМ И ПРАВИЛЬНЫМ logResult ***
       const result: IFillResult = {
         success: false, // НЕ success пока пользователь не подтвердит
         message: scheduleLogicResult.dialogConfig.message,
@@ -157,10 +162,12 @@ export class CommonFillService {
           : MessageBarType.info,
         requiresDialog: true,
         dialogConfig: scheduleLogicResult.dialogConfig,
-        canProceed: scheduleLogicResult.canProceed
+        canProceed: scheduleLogicResult.canProceed,
+        // *** ИСПРАВЛЕНО: ВСЕ ДИАЛОГИ ЛОГИРУЮТСЯ КАК Result=3 (Info/Refusal) ***
+        logResult: 3 // Все типы диалогов - это информационные сообщения, не ошибки
       };
 
-      // Логируем проверку
+      // Логируем проверку с Result=3
       await this.createFillLog(params, {
         ...result,
         message: `Schedule check: ${scheduleLogicResult.dialogConfig.type} - ${scheduleLogicResult.dialogConfig.message}`
@@ -176,7 +183,8 @@ export class CommonFillService {
         message: `Error checking schedule: ${error instanceof Error ? error.message : String(error)}`,
         messageType: MessageBarType.error,
         requiresDialog: false,
-        canProceed: false
+        canProceed: false,
+        logResult: 1 // Реальная ошибка
       };
       
       await this.createFillLog(params, result, undefined, `Error: ${error}`);
@@ -223,7 +231,8 @@ export class CommonFillService {
             const result: IFillResult = {
               success: false,
               message: 'Failed to delete existing records.',
-              messageType: MessageBarType.error
+              messageType: MessageBarType.error,
+              logResult: 1 // Реальная ошибка
             };
             operationDetails.push('ERROR: Failed to delete existing records');
             await this.createFillLog(performParams, result, performParams.contractId, operationDetails.join('\n'));
@@ -248,7 +257,8 @@ export class CommonFillService {
         const result: IFillResult = {
           success: false,
           message: 'No weekly schedule templates found for the selected contract.',
-          messageType: MessageBarType.warning
+          messageType: MessageBarType.warning,
+          logResult: 1 // Реальная ошибка
         };
         operationDetails.push('ERROR: No weekly templates found');
         await this.createFillLog(performParams, result, performParams.contractId, operationDetails.join('\n'));
@@ -267,7 +277,8 @@ export class CommonFillService {
         const result: IFillResult = {
           success: false,
           message: 'Selected contract not found.',
-          messageType: MessageBarType.error
+          messageType: MessageBarType.error,
+          logResult: 1 // Реальная ошибка
         };
         operationDetails.push('ERROR: Contract not found');
         await this.createFillLog(performParams, result, performParams.contractId, operationDetails.join('\n'));
@@ -290,7 +301,8 @@ export class CommonFillService {
         const result: IFillResult = {
           success: false,
           message: 'No schedule records generated.',
-          messageType: MessageBarType.warning
+          messageType: MessageBarType.warning,
+          logResult: 1 // Реальная ошибка
         };
         operationDetails.push('ERROR: No records generated');
         await this.createFillLog(performParams, result, performParams.contractId, operationDetails.join('\n'));
@@ -311,7 +323,8 @@ export class CommonFillService {
         messageType: savedCount === generatedRecords.length ? MessageBarType.success : MessageBarType.warning,
         createdRecordsCount: savedCount,
         deletedRecordsCount: deletedRecordsCount,
-        requiresDialog: false
+        requiresDialog: false,
+        logResult: savedCount > 0 ? 2 : 1 // 2=Success, 1=Error
       };
 
       console.log('[CommonFillService] Fill operation completed:', {
@@ -333,12 +346,35 @@ export class CommonFillService {
       const result: IFillResult = {
         success: false,
         message: `Error filling schedule: ${error instanceof Error ? error.message : String(error)}`,
-        messageType: MessageBarType.error
+        messageType: MessageBarType.error,
+        logResult: 1 // Реальная ошибка
       };
       
       await this.createFillLog(performParams, result, performParams.contractId, operationDetails.join('\n'));
       return result;
     }
+  }
+
+  /**
+   * *** НОВАЯ ФУНКЦИЯ: Логирует отказ пользователя ***
+   */
+  public async logUserRefusal(params: IFillParams, dialogType: DialogType, contractId?: string): Promise<void> {
+    console.log('[CommonFillService] Logging user refusal:', {
+      staffMember: params.staffMember.name,
+      dialogType,
+      period: params.selectedDate.toLocaleDateString()
+    });
+
+    const result: IFillResult = {
+      success: false,
+      message: `User cancelled ${dialogType} dialog for ${params.staffMember.name}`,
+      messageType: MessageBarType.info,
+      requiresDialog: false,
+      canProceed: false,
+      logResult: 3 // User refusal = Info/Refusal
+    };
+
+    await this.createFillLog(params, result, contractId, `User refused ${dialogType} dialog`);
   }
 
   /**
@@ -373,7 +409,8 @@ export class CommonFillService {
       // Base required parameters
       const logParams: ICreateScheduleLogParams = {
         title: `Fill Operation - ${params.staffMember.name} (${params.selectedDate.toLocaleDateString()})`,
-        result: result.success ? 2 : 1,
+        // *** ИСПРАВЛЕНО: ИСПОЛЬЗУЕМ logResult ВМЕСТО success ***
+        result: result.logResult || (result.success ? 2 : 1),
         message: logMessage,
         date: params.selectedDate
       };
@@ -398,7 +435,7 @@ export class CommonFillService {
       const logId = await this.scheduleLogsService.createScheduleLog(logParams);
       
       if (logId) {
-        console.log(`[CommonFillService] Log created with ID: ${logId}`);
+        console.log(`[CommonFillService] Log created with ID: ${logId}, Result: ${logParams.result}`);
       }
 
     } catch (error) {
@@ -430,11 +467,17 @@ export class CommonFillService {
     lines.push(`Month Range: ${startOfMonth.toLocaleDateString()} - ${endOfMonth.toLocaleDateString()}`);
     lines.push('');
 
-    lines.push(`OPERATION RESULT: ${result.success ? 'SUCCESS' : 'FAILED'}`);
+    // *** ИСПРАВЛЕНО: ПОКАЗЫВАЕМ ПРАВИЛЬНЫЙ СТАТУС ОПЕРАЦИИ ***
+    const logResult = result.logResult || (result.success ? 2 : 1);
+    const operationStatus = logResult === 2 ? 'SUCCESS' : 
+                           logResult === 3 ? 'INFO/REFUSAL' : 'FAILED';
+    
+    lines.push(`OPERATION RESULT: ${operationStatus}`);
     lines.push(`Message: ${result.message}`);
     
     if (result.requiresDialog) {
       lines.push(`Requires Dialog: ${result.dialogConfig?.type || 'Unknown'}`);
+      lines.push(`Log Status: ${logResult === 3 ? 'Info/Refusal' : 'Dialog Request'}`);
     }
     
     if (result.createdRecordsCount !== undefined) {
@@ -479,7 +522,7 @@ export class CommonFillService {
     };
   } {
     return {
-      version: '2.1.0', // *** ВЕРСИЯ С SCHEDULE TAB ЛОГИКОЙ ***
+      version: '2.2.0', // *** ВЕРСИЯ С ПРАВИЛЬНЫМ ЛОГИРОВАНИЕМ Result=3 ***
       context: !!this.webPartContext,
       services: {
         contracts: !!this.contractsService,
