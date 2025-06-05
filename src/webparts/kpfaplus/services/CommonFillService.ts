@@ -1,4 +1,4 @@
-// src/webparts/kpfaplus/services/CommonFillService.ts - WITH DETAILED LOGGING
+// src/webparts/kpfaplus/services/CommonFillService.ts - WITH DETAILED LOGGING AND CLIENT-SIDE FILTERING
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { MessageBarType } from '@fluentui/react';
 import { ContractsService } from './ContractsService';
@@ -54,7 +54,7 @@ export class CommonFillService {
     this.validationService = new CommonFillValidation(context);
     this.generationService = new CommonFillGeneration(context);
     
-    console.log('[CommonFillService] Service initialized with detailed logging support');
+    console.log('[CommonFillService] Service initialized with detailed logging and client-side filtering support');
   }
 
   public static getInstance(context: WebPartContext): CommonFillService {
@@ -81,7 +81,12 @@ export class CommonFillService {
    * Проверяет записи и возвращает конфигурацию диалога (НЕ ЗАПОЛНЯЕТ АВТОМАТИЧЕСКИ)
    */
   public async checkScheduleForFill(params: IFillParams): Promise<IFillResult> {
-    console.log('[CommonFillService] Checking schedule for fill with detailed analysis:', params.staffMember.name);
+    console.log('[CommonFillService] Checking schedule for fill with detailed analysis and client-side filtering:', params.staffMember.name);
+    console.log('[CommonFillService] Parameters for filtering:', {
+      currentUserId: params.currentUserId,
+      managingGroupId: params.managingGroupId,
+      selectedDate: params.selectedDate.toLocaleDateString()
+    });
     
     try {
       // Валидация параметров
@@ -127,6 +132,57 @@ export class CommonFillService {
         params.selectedDate
       );
 
+      // *** ПРОВЕРЯЕМ ШАБЛОНЫ С НОВОЙ ФИЛЬТРАЦИЕЙ (ТОЛЬКО ДЛЯ АНАЛИЗА) ***
+      console.log('[CommonFillService] Checking weekly templates availability with client-side filtering...');
+      try {
+        const weeklyTemplates = await this.generationService.loadWeeklyTemplates(
+          selectedContract.id,
+          params.dayOfStartWeek || 7,
+          params.currentUserId || '0',
+          params.managingGroupId || '0'
+        );
+        
+        console.log(`[CommonFillService] Weekly templates check result: ${weeklyTemplates.length} templates found`);
+        
+        if (weeklyTemplates.length === 0) {
+          const result: IFillResult = {
+            success: false,
+            message: 'No weekly schedule templates found for the selected contract after filtering.',
+            messageType: MessageBarType.warning,
+            requiresDialog: false,
+            canProceed: false,
+            logResult: 1
+          };
+          
+          // Получаем детальный анализ шаблонов для лога
+          const templatesAnalysis = this.generationService.getDetailedAnalysis();
+          let templatesLog = 'No templates analysis available';
+          
+          if (templatesAnalysis.templates) {
+            templatesLog = templatesAnalysis.templates.filteringDetails.join('\n');
+          }
+          
+          const detailedLog = this.buildContractsAnalysisLog(contractsAnalysis) + '\n\n' + templatesLog;
+          await this.createFillLog(params, result, selectedContract.id, detailedLog);
+          return result;
+        }
+        
+      } catch (templatesError) {
+        console.error('[CommonFillService] Error checking weekly templates:', templatesError);
+        const result: IFillResult = {
+          success: false,
+          message: `Error checking weekly templates: ${templatesError instanceof Error ? templatesError.message : String(templatesError)}`,
+          messageType: MessageBarType.error,
+          requiresDialog: false,
+          canProceed: false,
+          logResult: 1
+        };
+        
+        const detailedLog = this.buildContractsAnalysisLog(contractsAnalysis) + `\n\nTEMPLATES ERROR: ${templatesError}`;
+        await this.createFillLog(params, result, selectedContract.id, detailedLog);
+        return result;
+      }
+
       // Применение Schedule tab логики
       const scheduleLogicResult = await this.validationService.checkExistingRecordsWithScheduleLogic(
         params, 
@@ -152,8 +208,15 @@ export class CommonFillService {
         logResult: 3 // Все типы диалогов - это информационные сообщения
       };
 
-      // *** ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ С АНАЛИЗОМ КОНТРАКТОВ ***
-      const detailedLog = this.buildContractsAnalysisLog(contractsAnalysis);
+      // *** ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ С АНАЛИЗОМ КОНТРАКТОВ И ШАБЛОНОВ ***
+      let detailedLog = this.buildContractsAnalysisLog(contractsAnalysis);
+      
+      // Добавляем анализ шаблонов если доступен
+      const templatesAnalysis = this.generationService.getDetailedAnalysis();
+      if (templatesAnalysis.templates) {
+        detailedLog += '\n\n' + templatesAnalysis.templates.filteringDetails.join('\n');
+      }
+      
       await this.createFillLog(params, {
         ...result,
         message: `Schedule check: ${scheduleLogicResult.dialogConfig.type} - ${scheduleLogicResult.dialogConfig.message}`
@@ -204,6 +267,9 @@ export class CommonFillService {
     const analysisDetails: string[] = [];
     
     analysisDetails.push(`CONTRACTS ANALYSIS FOR EMPLOYEE ${employeeId}:`);
+    analysisDetails.push(`Manager ID: ${managerId}`);
+    analysisDetails.push(`Group ID: ${groupId}`);
+    analysisDetails.push(`Selected Date: ${params.selectedDate.toLocaleDateString()}`);
     analysisDetails.push(`Total contracts found: ${allContracts.length}`);
     analysisDetails.push('');
 
@@ -266,23 +332,26 @@ export class CommonFillService {
    * Выполняет фактическое заполнение ПОСЛЕ подтверждения пользователя
    */
   public async performFillOperation(performParams: IPerformFillParams): Promise<IFillResult> {
-    console.log('[CommonFillService] Performing fill operation with detailed logging:', {
+    console.log('[CommonFillService] Performing fill operation with detailed logging and client-side filtering:', {
       staffMember: performParams.staffMember.name,
       contractId: performParams.contractId,
       replaceExisting: performParams.replaceExisting,
-      period: performParams.selectedDate.toLocaleDateString()
+      period: performParams.selectedDate.toLocaleDateString(),
+      currentUserId: performParams.currentUserId,
+      managingGroupId: performParams.managingGroupId
     });
 
     const operationDetails: string[] = [];
     
     try {
-      operationDetails.push('=== DETAILED FILL OPERATION AFTER CONFIRMATION ===');
+      operationDetails.push('=== DETAILED FILL OPERATION AFTER CONFIRMATION WITH CLIENT-SIDE FILTERING ===');
       operationDetails.push(`Staff: ${performParams.staffMember.name} (ID: ${performParams.staffMember.employeeId})`);
       operationDetails.push(`Contract: ${performParams.contractId}`);
       operationDetails.push(`Replace existing: ${performParams.replaceExisting}`);
       operationDetails.push(`Period: ${performParams.selectedDate.toLocaleDateString()}`);
       operationDetails.push(`Manager: ${performParams.currentUserId}`);
       operationDetails.push(`Staff Group: ${performParams.managingGroupId}`);
+      operationDetails.push(`Day of Start Week: ${performParams.dayOfStartWeek || 7}`);
       operationDetails.push('');
 
       // Удаление существующих записей (если нужно)
@@ -313,13 +382,18 @@ export class CommonFillService {
         }
       }
 
-      // *** ДЕТАЛЬНАЯ ЗАГРУЗКА ДАННЫХ С АНАЛИЗОМ ***
-      operationDetails.push('STEP 2: Loading data for generation with detailed analysis...');
+      // *** ДЕТАЛЬНАЯ ЗАГРУЗКА ДАННЫХ С АНАЛИЗОМ И НОВОЙ ФИЛЬТРАЦИЕЙ ***
+      operationDetails.push('STEP 2: Loading data for generation with detailed analysis and client-side filtering...');
       
       const [holidays, leaves, weeklyTemplates] = await Promise.all([
         this.generationService.loadHolidays(performParams.selectedDate),
         this.generationService.loadLeaves(performParams),
-        this.generationService.loadWeeklyTemplates(performParams.contractId, performParams.dayOfStartWeek || 7)
+        this.generationService.loadWeeklyTemplates(
+          performParams.contractId, 
+          performParams.dayOfStartWeek || 7,
+          performParams.currentUserId || '0',     // *** НОВЫЙ ПАРАМЕТР ***
+          performParams.managingGroupId || '0'   // *** НОВЫЙ ПАРАМЕТР ***
+        )
       ]);
 
       operationDetails.push(`✓ Loaded ${holidays.length} holidays, ${leaves.length} leaves, ${weeklyTemplates.length} templates`);
@@ -327,11 +401,20 @@ export class CommonFillService {
       if (weeklyTemplates.length === 0) {
         const result: IFillResult = {
           success: false,
-          message: 'No weekly schedule templates found for the selected contract.',
+          message: 'No weekly schedule templates found for the selected contract after filtering.',
           messageType: MessageBarType.warning,
           logResult: 1
         };
-        operationDetails.push('ERROR: No weekly templates found');
+        operationDetails.push('ERROR: No weekly templates found after client-side filtering');
+        
+        // Добавляем детальную информацию о фильтрации
+        const templatesAnalysis = this.generationService.getDetailedAnalysis();
+        if (templatesAnalysis.templates) {
+          operationDetails.push('');
+          operationDetails.push('DETAILED FILTERING RESULTS:');
+          operationDetails.push(...templatesAnalysis.templates.filteringDetails);
+        }
+        
         await this.createFillLog(performParams, result, performParams.contractId, operationDetails.join('\n'));
         return result;
       }
@@ -395,12 +478,19 @@ export class CommonFillService {
 
       if (detailedAnalysis.templates) {
         operationDetails.push('');
-        operationDetails.push('DETAILED TEMPLATES ANALYSIS:');
-        operationDetails.push(`Weekly schedule: ID=${detailedAnalysis.templates.weeklyScheduleId}, Name="${detailedAnalysis.templates.weeklyScheduleTitle}"`);
-        operationDetails.push(`Templates found: ${detailedAnalysis.templates.totalTemplatesFound} total, ${detailedAnalysis.templates.templatesAfterFiltering} after filtering`);
+        operationDetails.push('DETAILED TEMPLATES ANALYSIS WITH CLIENT-SIDE FILTERING:');
+        operationDetails.push(`Contract: ID=${detailedAnalysis.templates.contractId}, Name="${detailedAnalysis.templates.contractName}"`);
+        operationDetails.push(`Items from server: ${detailedAnalysis.templates.totalItemsFromServer}`);
+        operationDetails.push(`After manager filter: ${detailedAnalysis.templates.afterManagerFilter}`);
+        operationDetails.push(`After deleted filter: ${detailedAnalysis.templates.afterDeletedFilter}`);
+        operationDetails.push(`Final templates: ${detailedAnalysis.templates.finalTemplatesCount}`);
         operationDetails.push(`Week start day: ${detailedAnalysis.templates.weekStartDayName} (dayOfStartWeek=${detailedAnalysis.templates.dayOfStartWeek})`);
-        operationDetails.push(`Weeks in schedule: ${detailedAnalysis.templates.weeksInSchedule.join(', ')}`);
-        operationDetails.push(`Shifts available: ${detailedAnalysis.templates.shiftsAvailable.join(', ')}`);
+        operationDetails.push(`Weeks in schedule: [${detailedAnalysis.templates.weeksInSchedule.join(', ')}]`);
+        operationDetails.push(`Shifts available: [${detailedAnalysis.templates.shiftsAvailable.join(', ')}]`);
+        operationDetails.push(`Number of week templates: ${detailedAnalysis.templates.numberOfWeekTemplates}`);
+        operationDetails.push('');
+        operationDetails.push('FILTERING PROCESS DETAILS:');
+        operationDetails.push(...detailedAnalysis.templates.filteringDetails);
       }
 
       if (detailedAnalysis.generation) {
@@ -452,7 +542,7 @@ export class CommonFillService {
         logResult: savedCount > 0 ? 2 : 1
       };
 
-      console.log('[CommonFillService] Fill operation completed with detailed analysis:', {
+      console.log('[CommonFillService] Fill operation completed with detailed analysis and client-side filtering:', {
         success: result.success,
         created: result.createdRecordsCount,
         deleted: result.deletedRecordsCount,
@@ -505,6 +595,8 @@ export class CommonFillService {
       `Staff member: ${params.staffMember.name} (ID: ${params.staffMember.employeeId})`,
       `Period: ${params.selectedDate.toLocaleDateString()}`,
       `Contract ID: ${contractId || 'Not specified'}`,
+      `Manager ID: ${params.currentUserId || 'Not specified'}`,
+      `Group ID: ${params.managingGroupId || 'Not specified'}`,
       `Action: User cancelled the operation`
     ];
 
@@ -527,7 +619,7 @@ export class CommonFillService {
   }
 
   /**
-   * *** ОБНОВЛЕНО: Создает лог с детальной информацией ***
+   * *** ОБНОВЛЕНО: Создает лог с детальной информацией включая фильтрацию ***
    */
   private async createFillLog(
     params: IFillParams, 
@@ -574,7 +666,7 @@ export class CommonFillService {
   }
 
   /**
-   * *** ОБНОВЛЕНО: Формирует детальное сообщение для лога ***
+   * *** ОБНОВЛЕНО: Формирует детальное сообщение для лога с информацией о фильтрации ***
    */
   private buildDetailedLogMessage(
     params: IFillParams, 
@@ -584,7 +676,7 @@ export class CommonFillService {
   ): string {
     const lines: string[] = [];
     
-    lines.push(`=== DETAILED FILL OPERATION LOG ===`);
+    lines.push(`=== DETAILED FILL OPERATION LOG WITH CLIENT-SIDE FILTERING ===`);
     lines.push(`Date: ${new Date().toLocaleString()}`);
     lines.push(`Staff: ${params.staffMember.name} (ID: ${params.staffMember.employeeId})`);
     lines.push(`Period: ${params.selectedDate.toLocaleDateString()}`);
@@ -592,13 +684,15 @@ export class CommonFillService {
     lines.push(`Staff Group: ${params.managingGroupId || 'N/A'}`);
     lines.push('');
 
-    // *** ДОПОЛНИТЕЛЬНАЯ ИНФОРМАЦИЯ О ПЕРИОДЕ ***
+    // *** ДОПОЛНИТЕЛЬНАЯ ИНФОРМАЦИЯ О ПЕРИОДЕ И ФИЛЬТРАЦИИ ***
     const startOfMonth = new Date(params.selectedDate.getFullYear(), params.selectedDate.getMonth(), 1);
     const endOfMonth = new Date(params.selectedDate.getFullYear(), params.selectedDate.getMonth() + 1, 0);
-    lines.push(`PERIOD DETAILS:`);
+    lines.push(`PERIOD AND FILTERING DETAILS:`);
     lines.push(`Selected Date: ${params.selectedDate.toLocaleDateString()}`);
     lines.push(`Month Range: ${startOfMonth.toLocaleDateString()} - ${endOfMonth.toLocaleDateString()}`);
     lines.push(`Day of Start Week: ${params.dayOfStartWeek || 7}`);
+    lines.push(`Current User ID (for filtering): ${params.currentUserId || 'N/A'}`);
+    lines.push(`Managing Group ID (for filtering): ${params.managingGroupId || 'N/A'}`);
     lines.push('');
 
     // *** ПРАВИЛЬНЫЙ СТАТУС ОПЕРАЦИИ ***
@@ -628,7 +722,7 @@ export class CommonFillService {
     
     lines.push('');
 
-    // *** ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ***
+    // *** ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ВКЛЮЧАЯ ФИЛЬТРАЦИЮ ***
     if (additionalDetails) {
       lines.push('DETAILED OPERATION ANALYSIS:');
       lines.push(additionalDetails);
@@ -655,16 +749,18 @@ export class CommonFillService {
       validation: boolean;
       generation: boolean;
     };
+    clientSideFiltering: boolean;
   } {
     return {
-      version: '3.0.0', // *** ВЕРСИЯ С ДЕТАЛЬНЫМ ЛОГИРОВАНИЕМ ***
+      version: '4.0.0', // *** ВЕРСИЯ С КЛИЕНТСКОЙ ФИЛЬТРАЦИЕЙ ***
       context: !!this.webPartContext,
       services: {
         contracts: !!this.contractsService,
         scheduleLogs: !!this.scheduleLogsService,
         validation: !!this.validationService,
         generation: !!this.generationService
-      }
+      },
+      clientSideFiltering: true // *** НОВАЯ ВОЗМОЖНОСТЬ ***
     };
   }
 
@@ -673,6 +769,7 @@ export class CommonFillService {
     scheduleLogs: boolean;
     validation: boolean;
     generation: boolean;
+    clientSideFiltering: boolean;
     errors: string[];
   }> {
     const results = {
@@ -680,6 +777,7 @@ export class CommonFillService {
       scheduleLogs: false,
       validation: false,
       generation: false,
+      clientSideFiltering: false,
       errors: [] as string[]
     };
 
@@ -718,7 +816,15 @@ export class CommonFillService {
       results.errors.push(`Generation: ${error}`);
     }
 
-    console.log('[CommonFillService] Detailed service test results:', results);
+    // *** ТЕСТИРУЕМ КЛИЕНТСКУЮ ФИЛЬТРАЦИЮ ***
+    try {
+      await this.generationService.loadWeeklyTemplates('1', 7, '1', '1');
+      results.clientSideFiltering = true;
+    } catch (error) {
+      results.errors.push(`ClientSideFiltering: ${error}`);
+    }
+
+    console.log('[CommonFillService] Detailed service test results with client-side filtering:', results);
     return results;
   }
 }
