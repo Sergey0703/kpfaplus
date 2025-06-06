@@ -3,10 +3,10 @@ import { WebPartContext } from '@microsoft/sp-webpart-base';
 import { MessageBarType } from '@fluentui/react';
 import { IDayHours,WeeklyTimeTableUtils } from '../../../models/IWeeklyTimeTable';
 import { IWeeklyTimeTableUpdateItem, WeeklyTimeTableService } from '../../../services/WeeklyTimeTableService';
-import { IExtendedWeeklyTimeRow, updateDisplayedTotalHours, analyzeWeeklyTableData, checkCanAddNewWeek } from './WeeklyTimeTableLogic';
+import { IExtendedWeeklyTimeRow, updateDisplayedTotalHours, analyzeWeeklyTableData, checkCanAddNewWeek, normalizeWeeklyTimeRowDates } from './WeeklyTimeTableLogic'; // ДОБАВЛЕНО normalizeWeeklyTimeRowDates
 import { StatusMessageType } from './actions/WeeklyTimeTableTypes';
-// Добавить в начало файла, вместе с другими импортами
- 
+import { DateUtils } from '../../CustomDatePicker/CustomDatePicker'; // ДОБАВЛЕНО
+
 export interface ISaveParams {
   context: WebPartContext;
   timeTableData: IExtendedWeeklyTimeRow[];
@@ -19,7 +19,6 @@ export interface ISaveParams {
   onSaveComplete?: (success: boolean) => void;
 }
 
-// Добавить вместе с другими типами в начале файла
 export interface IWeeklyTimeTableRawItem {
     id?: string | number;
     ID?: string | number;
@@ -35,10 +34,14 @@ export interface IWeeklyTimeTableRawItem {
       IdOfTemplate?: string | number;
       idOfTemplate?: string | number;
       IdOfTemplateLookupId?: string | number;
+      // ДОБАВЛЕНО: Поля с датами/временем для нормализации
+      Created?: string;
+      Modified?: string;
       [key: string]: unknown;
     };
     [key: string]: unknown;
   }
+
 /**
  * Интерфейс для параметров добавления новой смены
  */
@@ -491,7 +494,7 @@ export const addNewWeek = async (params: IAddWeekParams): Promise<void> => {
   }
 };
 
-// Вот исправления для функции deleteRestoreShift, которая содержит ошибки с changedRows
+// Исправленная функция deleteRestoreShift
 export const deleteRestoreShift = async (params: IDeleteRestoreParams): Promise<void> => {
     const {
       context,
@@ -561,14 +564,9 @@ export const deleteRestoreShift = async (params: IDeleteRestoreParams): Promise<
       // Обновляем данные таблицы с измененным статусом удаления
       setTimeTableData(newData);
       
-      // Исправление: объявляем переменную changedRows для использования в условии и создании нового объекта
       // Создаем новое множество для измененных строк
       const currentChangedRows = new Set<string>();
       setChangedRows(currentChangedRows);
-      
-      // Удаляем строку из списка измененных, если она была там
-      // Исправление: В этой функции не нужно манипулировать с множеством измененных строк
-      // Мы просто сбрасываем множество выше
       
       // Обновляем отображаемое общее время в первой строке каждого шаблона
       // Это позволит учесть (или не учесть) время из удаленной/восстановленной строки
@@ -611,6 +609,7 @@ export const deleteRestoreShift = async (params: IDeleteRestoreParams): Promise<
 
 /**
  * Загружает данные недельного расписания для контракта
+ * ОБНОВЛЕНО: Добавлена нормализация дат через DateUtils
  * @param context Контекст веб-части
  * @param contractId ID контракта
  * @param setIsLoading Функция для установки состояния загрузки
@@ -650,8 +649,8 @@ export const loadWeeklyTimeTableData = async (
       
       console.log(`Retrieved ${items.length} items for contract ${contractId}`);
       
-      // Функция для преобразования данных с использованием типизированной версии
-      const formatDataWithFields = (): IExtendedWeeklyTimeRow[] => {
+      // ОБНОВЛЕНО: Функция для преобразования данных с нормализацией дат
+      const formatDataWithDateNormalization = (): IExtendedWeeklyTimeRow[] => {
         // Безопасно приводим items к нужному типу
         const typedItems = items as unknown as IWeeklyTimeTableRawItem[];
         
@@ -666,7 +665,7 @@ export const loadWeeklyTimeTableData = async (
           // Вызываем оригинальный метод с безопасным приведением типов
           const result = origMethod.call(this, items);
           
-          // После получения результата, добавляем поля как в первой функции
+          // ОБНОВЛЕНО: После получения результата, добавляем поля и нормализуем даты
           for (let i = 0; i < result.length; i++) {
             const formattedRow = result[i];
             const originalRow = items.find(item => {
@@ -684,9 +683,6 @@ export const loadWeeklyTimeTableData = async (
             if (originalRow) {
               // Копируем важные поля как ранее
               const fields = originalRow.fields || {};
-              
-              // Те же проверки и копирование полей, как в initializeWithExistingData
-              // ...
               
               // Поле Deleted
               const deletedValue = 
@@ -709,9 +705,57 @@ export const loadWeeklyTimeTableData = async (
                 formattedRow.NumberOfShift = shiftValue;
               }
               
-              // Поле NumberOfWeek и другие поля
-              // (аналогично коду выше)
+              // Поле NumberOfWeek
+              const weekValue = 
+                fields.NumberOfWeek !== undefined ? fields.NumberOfWeek :
+                fields.numberOfWeek !== undefined ? fields.numberOfWeek :
+                undefined;
+                
+              if (weekValue !== undefined) {
+                formattedRow.NumberOfWeek = weekValue;
+              }
+              
+              // Поле IdOfTemplate
+              const templateValue = 
+                fields.IdOfTemplate !== undefined ? fields.IdOfTemplate :
+                fields.idOfTemplate !== undefined ? fields.idOfTemplate :
+                fields.IdOfTemplateLookupId !== undefined ? fields.IdOfTemplateLookupId :
+                undefined;
+                
+              if (templateValue !== undefined) {
+                formattedRow.idOfTemplate = templateValue;
+              }
+              
+              // ДОБАВЛЕНО: Нормализация полей с датами через DateUtils
+              if (fields.Created && typeof fields.Created === 'string') {
+                try {
+                  const createdDate = new Date(fields.Created);
+                  if (!isNaN(createdDate.getTime())) {
+                    const normalizedCreated = DateUtils.normalizeDateToUTCMidnight(createdDate);
+                    (formattedRow as any).createdDate = normalizedCreated;
+                    console.log(`[LoadData] Normalized Created: ${fields.Created} → ${normalizedCreated.toISOString()}`);
+                  }
+                } catch (dateError) {
+                  console.warn(`[LoadData] Error parsing Created date: ${fields.Created}`, dateError);
+                }
+              }
+              
+              if (fields.Modified && typeof fields.Modified === 'string') {
+                try {
+                  const modifiedDate = new Date(fields.Modified);
+                  if (!isNaN(modifiedDate.getTime())) {
+                    const normalizedModified = DateUtils.normalizeDateToUTCMidnight(modifiedDate);
+                    (formattedRow as any).modifiedDate = normalizedModified;
+                    console.log(`[LoadData] Normalized Modified: ${fields.Modified} → ${normalizedModified.toISOString()}`);
+                  }
+                } catch (dateError) {
+                  console.warn(`[LoadData] Error parsing Modified date: ${fields.Modified}`, dateError);
+                }
+              }
             }
+            
+            // ДОБАВЛЕНО: Применяем дополнительную нормализацию дат через специальную функцию
+            result[i] = normalizeWeeklyTimeRowDates(formattedRow);
           }
           
           return result;
@@ -729,8 +773,8 @@ export const loadWeeklyTimeTableData = async (
         return formattedData;
       };
       
-      // Форматируем данные
-      const formattedData = formatDataWithFields();
+      // Форматируем данные с нормализацией дат
+      const formattedData = formatDataWithDateNormalization();
       
       // Обновляем общее время для шаблонов
       const dataWithTotalHours = updateDisplayedTotalHours(formattedData as IExtendedWeeklyTimeRow[]);
@@ -744,7 +788,7 @@ export const loadWeeklyTimeTableData = async (
       // Сбрасываем статусное сообщение
       setStatusMessage(undefined);
       
-      console.log(`Successfully loaded and formatted ${dataWithTotalHours.length} rows for contract ${contractId}`);
+      console.log(`Successfully loaded and formatted ${dataWithTotalHours.length} rows for contract ${contractId} with DateUtils normalization`);
     } catch (error) {
       console.error(`Error loading weekly time table data: ${error}`);
       
@@ -761,8 +805,10 @@ export const loadWeeklyTimeTableData = async (
       setIsLoading(false);
     }
   };  
-  /**
- * Инициализирует компонент недельного расписания с существующими данными
+
+/**
+ * ОБНОВЛЕНО: Инициализирует компонент недельного расписания с существующими данными
+ * Добавлена нормализация дат через DateUtils при инициализации
  * @param weeklyTimeData Данные из props компонента
  * @param dataInitializedRef Ссылка для отслеживания инициализации данных
  * @param setTimeTableData Функция для установки данных таблицы
@@ -780,13 +826,12 @@ export const initializeWithExistingData = (
     if (weeklyTimeData && weeklyTimeData.length > 0) {
       console.log(`Processing ${weeklyTimeData.length} weekly time table entries from props`);
       
-      // Используем ту же логику форматирования, что и при загрузке данных
-      const formatDataWithFields = (): IExtendedWeeklyTimeRow[] => {
+      // ОБНОВЛЕНО: Используем ту же логику форматирования с нормализацией дат
+      const formatDataWithDateNormalization = (): IExtendedWeeklyTimeRow[] => {
         // Временно заменяем метод formatWeeklyTimeTableData для поддержки dayOfStartWeek
         const origMethod = WeeklyTimeTableUtils.formatWeeklyTimeTableData;
         
         // Создаем кастомную функцию форматирования
-        // Используем приведение типов для обхода проверки типов
         const customFormatter = function(items: IWeeklyTimeTableRawItem[], dayStart?: number): IExtendedWeeklyTimeRow[] {
           // Логируем параметры для отладки
           console.log(`Custom formatWeeklyTimeTableData called with dayOfStartWeek = ${dayStart}`);
@@ -794,7 +839,7 @@ export const initializeWithExistingData = (
           // Вызываем оригинальный метод с аргументами того же типа
           const result = origMethod.call(this, items);
           
-          // Обогащаем данные дополнительными полями
+          // ОБНОВЛЕНО: Обогащаем данные дополнительными полями и нормализуем даты
           for (let i = 0; i < result.length; i++) {
             const formattedRow = result[i];
             const originalRow = items.find(item => {
@@ -854,7 +899,37 @@ export const initializeWithExistingData = (
               if (templateValue !== undefined) {
                 formattedRow.idOfTemplate = templateValue;
               }
+              
+              // ДОБАВЛЕНО: Нормализация полей с датами при инициализации
+              if (fields.Created && typeof fields.Created === 'string') {
+                try {
+                  const createdDate = new Date(fields.Created);
+                  if (!isNaN(createdDate.getTime())) {
+                    const normalizedCreated = DateUtils.normalizeDateToUTCMidnight(createdDate);
+                    (formattedRow as any).createdDate = normalizedCreated;
+                    console.log(`[InitData] Normalized Created: ${fields.Created} → ${normalizedCreated.toISOString()}`);
+                  }
+                } catch (dateError) {
+                  console.warn(`[InitData] Error parsing Created date: ${fields.Created}`, dateError);
+                }
+              }
+              
+              if (fields.Modified && typeof fields.Modified === 'string') {
+                try {
+                  const modifiedDate = new Date(fields.Modified);
+                  if (!isNaN(modifiedDate.getTime())) {
+                    const normalizedModified = DateUtils.normalizeDateToUTCMidnight(modifiedDate);
+                    (formattedRow as any).modifiedDate = normalizedModified;
+                    console.log(`[InitData] Normalized Modified: ${fields.Modified} → ${normalizedModified.toISOString()}`);
+                  }
+                } catch (dateError) {
+                  console.warn(`[InitData] Error parsing Modified date: ${fields.Modified}`, dateError);
+                }
+              }
             }
+            
+            // ДОБАВЛЕНО: Применяем дополнительную нормализацию дат
+            result[i] = normalizeWeeklyTimeRowDates(formattedRow);
           }
           
           return result;
@@ -872,8 +947,8 @@ export const initializeWithExistingData = (
         return formattedData;
       };
       
-      // Форматируем данные
-      const formattedData = formatDataWithFields();
+      // Форматируем данные с нормализацией дат
+      const formattedData = formatDataWithDateNormalization();
       
       // Обновляем общее время для шаблонов
       const dataWithTotalHours = updateDisplayedTotalHours(formattedData as IExtendedWeeklyTimeRow[]);
@@ -887,30 +962,29 @@ export const initializeWithExistingData = (
       // Сбрасываем список измененных строк при получении новых данных
       setChangedRows(new Set());
       
-      console.log(`Successfully initialized with ${dataWithTotalHours.length} rows from props`);
+      console.log(`Successfully initialized with ${dataWithTotalHours.length} rows from props with DateUtils normalization`);
     } else {
       console.log("No weekly time data provided, showing empty table");
       setTimeTableData([]);
       dataInitializedRef.current = false;
     }
   };
-  /**
-   * Фильтрует данные таблицы в зависимости от флага showDeleted
-   * @param timeTableData Данные таблицы
-   * @param showDeleted Флаг отображения удаленных строк
-   * @returns Отфильтрованные данные
-   */
-  export const filterTimeTableData = (
-    timeTableData: IExtendedWeeklyTimeRow[],
-    showDeleted: boolean
-  ): IExtendedWeeklyTimeRow[] => {
-    return timeTableData.filter(row => {
-      // Проверяем, удалена ли строка - смотрим оба поля для надежности
-      const isDeleted = (row.deleted === 1 || row.Deleted === 1);
-      
-      // Показываем строку, если она не удалена ИЛИ если включен показ удаленных
-      return !isDeleted || showDeleted;
-    });
-  };
-  
-  
+
+/**
+ * Фильтрует данные таблицы в зависимости от флага showDeleted
+ * @param timeTableData Данные таблицы
+ * @param showDeleted Флаг отображения удаленных строк
+ * @returns Отфильтрованные данные
+ */
+export const filterTimeTableData = (
+  timeTableData: IExtendedWeeklyTimeRow[],
+  showDeleted: boolean
+): IExtendedWeeklyTimeRow[] => {
+  return timeTableData.filter(row => {
+    // Проверяем, удалена ли строка - смотрим оба поля для надежности
+    const isDeleted = (row.deleted === 1 || row.Deleted === 1);
+    
+    // Показываем строку, если она не удалена ИЛИ если включен показ удаленных
+    return !isDeleted || showDeleted;
+  });
+};

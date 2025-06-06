@@ -2,75 +2,258 @@
 import { 
     IFormattedWeeklyTimeRow
   } from '../../../models/IWeeklyTimeTable';
-  // В начале файла WeeklyTimeTableLogic.ts добавьте импорт
 import { IDayHoursComplete } from '../../../models/IWeeklyTimeTable';
-  // Интерфейс для расширенной строки с дополнительным полем displayedTotalHours
-  export interface IExtendedWeeklyTimeRow extends IFormattedWeeklyTimeRow {
-    displayedTotalHours?: string;
-    NumberOfShift?: number;
-    [key: string]: string | IDayHoursComplete | number | undefined;
+import { DateUtils } from '../../CustomDatePicker/CustomDatePicker'; // ДОБАВЛЕНО
+
+// Интерфейс для расширенной строки с дополнительным полем displayedTotalHours
+export interface IExtendedWeeklyTimeRow extends IFormattedWeeklyTimeRow {
+  displayedTotalHours?: string;
+  NumberOfShift?: number;
+  [key: string]: string | IDayHoursComplete | number | undefined;
+}
+
+// НОВАЯ ФУНКЦИЯ: Нормализация временных данных в строках недельного расписания
+export const normalizeWeeklyTimeRowDates = (row: IExtendedWeeklyTimeRow): IExtendedWeeklyTimeRow => {
+  const normalizedRow = { ...row };
+  
+  // Проверяем специфичные поля, которые могут содержать даты
+  // В IExtendedWeeklyTimeRow обычно даты могут быть в метаданных
+  if (row.createdDate && row.createdDate instanceof Date) {
+    const originalDate = row.createdDate as Date;
+    const normalizedDate = DateUtils.normalizeDateToUTCMidnight(originalDate);
+    (normalizedRow as any).createdDate = normalizedDate;
+    
+    console.log(`[WeeklyTimeTableLogic] Normalized createdDate: ${originalDate.toISOString()} → ${normalizedDate.toISOString()}`);
   }
   
-  // Функция для получения множества уникальных шаблонов в данных
-  export const getUniqueTemplates = (data: IExtendedWeeklyTimeRow[]): { templateId: string, rows: IExtendedWeeklyTimeRow[] }[] => {
-    if (!data || data.length === 0) {
-      return [];
-    }
+  if (row.modifiedDate && row.modifiedDate instanceof Date) {
+    const originalDate = row.modifiedDate as Date;
+    const normalizedDate = DateUtils.normalizeDateToUTCMidnight(originalDate);
+    (normalizedRow as any).modifiedDate = normalizedDate;
+    
+    console.log(`[WeeklyTimeTableLogic] Normalized modifiedDate: ${originalDate.toISOString()} → ${normalizedDate.toISOString()}`);
+  }
   
-    // Группируем строки по шаблону (используем часть имени до "Week")
-    const templateMap = new Map<string, IExtendedWeeklyTimeRow[]>();
-    
-    data.forEach(row => {
-      // Предполагаем, что формат имени включает номер недели (например, "Week 1", "Week 1 Shift 2")
-      const match = row.name.match(/Week\s+(\d+)/i);
-      if (match) {
-        const weekNumber = match[1];
-        // Используем комбинацию числа недели и общего количества недель в шаблоне как ключ
-        const templateKey = `template_${weekNumber}`;
-        
-        if (!templateMap.has(templateKey)) {
-          templateMap.set(templateKey, []);
-        }
-        templateMap.get(templateKey)?.push(row);
-      } else {
-        // Если формат имени не соответствует ожидаемому, используем ID как ключ
-        const templateKey = `template_${row.id}`;
-        templateMap.set(templateKey, [row]);
-      }
-    });
-    
-    // Преобразуем Map в массив объектов для удобства использования
-    const templates: { templateId: string, rows: IExtendedWeeklyTimeRow[] }[] = [];
-    templateMap.forEach((rows, templateId) => {
-      // Сортируем строки в каждом шаблоне по номеру недели и смены
-      rows.sort((a, b) => {
-        // Извлекаем номер недели
-        const weekA = parseInt(a.name.split('Week ')[1]?.split(' ')[0] || '0', 10);
-        const weekB = parseInt(b.name.split('Week ')[1]?.split(' ')[0] || '0', 10);
-        
-        if (weekA !== weekB) {
-          return weekA - weekB;
-        }
-        
-        // Если неделя одинаковая, сортируем по наличию "Shift" и номеру смены
-        const shiftAMatch = a.name.match(/Shift\s+(\d+)/i);
-        const shiftBMatch = b.name.match(/Shift\s+(\d+)/i);
-        
-        const shiftA = shiftAMatch ? parseInt(shiftAMatch[1], 10) : 0;
-        const shiftB = shiftBMatch ? parseInt(shiftBMatch[1], 10) : 0;
-        
-        return shiftA - shiftB;
-      });
+  // Проверяем дополнительные поля через безопасное приведение типов
+  const additionalFields = ['startDate', 'endDate'];
+  additionalFields.forEach(field => {
+    const fieldValue = (normalizedRow as any)[field];
+    if (fieldValue && fieldValue instanceof Date) {
+      const originalDate = fieldValue as Date;
+      const normalizedDate = DateUtils.normalizeDateToUTCMidnight(originalDate);
+      (normalizedRow as any)[field] = normalizedDate;
       
-      templates.push({ templateId, rows });
+      console.log(`[WeeklyTimeTableLogic] Normalized ${field}: ${originalDate.toISOString()} → ${normalizedDate.toISOString()}`);
+    }
+  });
+  
+  return normalizedRow;
+};
+
+// НОВАЯ ФУНКЦИЯ: Создание временной метки для недельного расписания
+export const createWeeklyTimeStamp = (baseDate: Date, timeHours: string, timeMinutes: string): Date => {
+  const hours = parseInt(timeHours, 10);
+  const minutes = parseInt(timeMinutes, 10);
+  
+  if (isNaN(hours) || isNaN(minutes)) {
+    console.warn(`[WeeklyTimeTableLogic] Invalid time components: ${timeHours}:${timeMinutes}`);
+    return DateUtils.normalizeDateToUTCMidnight(baseDate);
+  }
+  
+  // Используем DateUtils для создания времени смены
+  return DateUtils.createShiftDateTime(baseDate, hours, minutes);
+};
+
+// НОВАЯ ФУНКЦИЯ: Парсинг времени из строки в формате HH:MM
+export const parseTimeString = (timeString: string): { hours: string, minutes: string } | null => {
+  if (!timeString) {
+    return null;
+  }
+  
+  // Пытаемся распарсить время в различных форматах
+  const timeRegex = /^(\d{1,2}):(\d{2})$/;
+  const match = timeString.match(timeRegex);
+  
+  if (match) {
+    const hours = match[1].padStart(2, '0');
+    const minutes = match[2];
+    
+    // Валидация времени
+    const hoursNum = parseInt(hours, 10);
+    const minutesNum = parseInt(minutes, 10);
+    
+    if (hoursNum >= 0 && hoursNum <= 23 && minutesNum >= 0 && minutesNum <= 59) {
+      return { hours, minutes };
+    }
+  }
+  
+  console.warn(`[WeeklyTimeTableLogic] Invalid time format: ${timeString}`);
+  return null;
+};
+
+// НОВАЯ ФУНКЦИЯ: Форматирование времени для отображения
+export const formatTimeForDisplay = (hours: string | number, minutes: string | number): string => {
+  const h = typeof hours === 'string' ? hours : hours.toString().padStart(2, '0');
+  const m = typeof minutes === 'string' ? minutes : minutes.toString().padStart(2, '0');
+  
+  return `${h}:${m}`;
+};
+
+// НОВАЯ ФУНКЦИЯ: Получение текущей даты для недельного расписания
+export const getCurrentWeekDate = (): Date => {
+  const today = new Date();
+  return DateUtils.normalizeDateToUTCMidnight(today);
+};
+
+// НОВАЯ ФУНКЦИЯ: Проверка, является ли дата в пределах текущей недели
+export const isDateInCurrentWeek = (date: Date, startOfWeek: number = 1): boolean => {
+  const currentDate = getCurrentWeekDate();
+  const inputDate = DateUtils.normalizeDateToUTCMidnight(date);
+  
+  // Получаем начало недели для обеих дат
+  const currentWeekStart = getStartOfWeek(currentDate, startOfWeek);
+  const inputWeekStart = getStartOfWeek(inputDate, startOfWeek);
+  
+  // Сравниваем, в одной ли неделе находятся даты
+  return DateUtils.isSameDay(currentWeekStart, inputWeekStart);
+};
+
+// НОВАЯ ФУНКЦИЯ: Получение начала недели для заданной даты
+export const getStartOfWeek = (date: Date, startOfWeek: number = 1): Date => {
+  const normalizedDate = DateUtils.normalizeDateToUTCMidnight(date);
+  const dayOfWeek = normalizedDate.getUTCDay(); // 0 = Sunday, 1 = Monday, etc.
+  
+  // Вычисляем смещение от начала недели
+  let daysToSubtract = dayOfWeek - (startOfWeek - 1);
+  if (daysToSubtract < 0) {
+    daysToSubtract += 7;
+  }
+  
+  // Создаем дату начала недели
+  const startDate = new Date(normalizedDate);
+  startDate.setUTCDate(startDate.getUTCDate() - daysToSubtract);
+  
+  return DateUtils.normalizeDateToUTCMidnight(startDate);
+};
+
+// НОВАЯ ФУНКЦИЯ: Получение конца недели для заданной даты
+export const getEndOfWeek = (date: Date, startOfWeek: number = 1): Date => {
+  const startDate = getStartOfWeek(date, startOfWeek);
+  const endDate = new Date(startDate);
+  endDate.setUTCDate(endDate.getUTCDate() + 6);
+  endDate.setUTCHours(23, 59, 59, 999);
+  
+  return endDate;
+};
+
+// НОВАЯ ФУНКЦИЯ: Валидация времени смены с использованием DateUtils  
+export const validateShiftTime = (
+  startHours: string, 
+  startMinutes: string, 
+  endHours: string, 
+  endMinutes: string
+): { isValid: boolean; message?: string } => {
+  
+  const parsedStart = parseTimeString(`${startHours}:${startMinutes}`);
+  const parsedEnd = parseTimeString(`${endHours}:${endMinutes}`);
+  
+  if (!parsedStart || !parsedEnd) {
+    return { isValid: false, message: 'Invalid time format' };
+  }
+  
+  // Создаем базовую дату для сравнения времени
+  const baseDate = new Date('2025-01-01');
+  const startDateTime = createWeeklyTimeStamp(baseDate, parsedStart.hours, parsedStart.minutes);
+  const endDateTime = createWeeklyTimeStamp(baseDate, parsedEnd.hours, parsedEnd.minutes);
+  
+  if (endDateTime <= startDateTime) {
+    return { isValid: false, message: 'End time must be after start time' };
+  }
+  
+  // Проверяем, что смена не длится более 24 часов
+  const diffInHours = (endDateTime.getTime() - startDateTime.getTime()) / (1000 * 60 * 60);
+  if (diffInHours > 24) {
+    return { isValid: false, message: 'Shift cannot be longer than 24 hours' };
+  }
+  
+  return { isValid: true };
+};
+
+// НОВАЯ ФУНКЦИЯ: Получение метаданных для отладки времени
+export const getTimeDebugInfo = (date: Date): Record<string, unknown> => {
+  return {
+    original: date.toISOString(),
+    normalized: DateUtils.normalizeDateToUTCMidnight(date).toISOString(),
+    utcDay: date.getUTCDay(),
+    utcDate: date.getUTCDate(),
+    utcMonth: date.getUTCMonth() + 1,
+    utcYear: date.getUTCFullYear(),
+    utcHours: date.getUTCHours(),
+    utcMinutes: date.getUTCMinutes(),
+    localTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+  };
+};
+
+// СУЩЕСТВУЮЩИЕ ФУНКЦИИ (без изменений)
+
+// Функция для получения множества уникальных шаблонов в данных
+export const getUniqueTemplates = (data: IExtendedWeeklyTimeRow[]): { templateId: string, rows: IExtendedWeeklyTimeRow[] }[] => {
+  if (!data || data.length === 0) {
+    return [];
+  }
+
+  // Группируем строки по шаблону (используем часть имени до "Week")
+  const templateMap = new Map<string, IExtendedWeeklyTimeRow[]>();
+  
+  data.forEach(row => {
+    // Предполагаем, что формат имени включает номер недели (например, "Week 1", "Week 1 Shift 2")
+    const match = row.name.match(/Week\s+(\d+)/i);
+    if (match) {
+      const weekNumber = match[1];
+      // Используем комбинацию числа недели и общего количества недель в шаблоне как ключ
+      const templateKey = `template_${weekNumber}`;
+      
+      if (!templateMap.has(templateKey)) {
+        templateMap.set(templateKey, []);
+      }
+      templateMap.get(templateKey)?.push(row);
+    } else {
+      // Если формат имени не соответствует ожидаемому, используем ID как ключ
+      const templateKey = `template_${row.id}`;
+      templateMap.set(templateKey, [row]);
+    }
+  });
+  
+  // Преобразуем Map в массив объектов для удобства использования
+  const templates: { templateId: string, rows: IExtendedWeeklyTimeRow[] }[] = [];
+  templateMap.forEach((rows, templateId) => {
+    // Сортируем строки в каждом шаблоне по номеру недели и смены
+    rows.sort((a, b) => {
+      // Извлекаем номер недели
+      const weekA = parseInt(a.name.split('Week ')[1]?.split(' ')[0] || '0', 10);
+      const weekB = parseInt(b.name.split('Week ')[1]?.split(' ')[0] || '0', 10);
+      
+      if (weekA !== weekB) {
+        return weekA - weekB;
+      }
+      
+      // Если неделя одинаковая, сортируем по наличию "Shift" и номеру смены
+      const shiftAMatch = a.name.match(/Shift\s+(\d+)/i);
+      const shiftBMatch = b.name.match(/Shift\s+(\d+)/i);
+      
+      const shiftA = shiftAMatch ? parseInt(shiftAMatch[1], 10) : 0;
+      const shiftB = shiftBMatch ? parseInt(shiftBMatch[1], 10) : 0;
+      
+      return shiftA - shiftB;
     });
     
-    return templates;
-  };
+    templates.push({ templateId, rows });
+  });
   
-  // Функция для расчета общего количества часов для шаблона
- 
-  /**
+  return templates;
+};
+
+/**
  * Функция для расчета общего количества часов для шаблона с учетом статуса удаления строк
  * @param rows Строки шаблона
  * @returns Строка с общим временем в формате "XXч:YYм"
@@ -115,7 +298,7 @@ export const calculateTotalHoursForTemplate = (rows: IExtendedWeeklyTimeRow[]): 
   
   return `${totalHours}ч:${remainingMinutes.toString().padStart(2, '0')}м`;
 };
-  // Обновляем отображение общего времени в первой строке каждого шаблона
+
 /**
  * Обновляет отображаемое общее время в первой строке каждого шаблона
  * с учетом статуса удаления строк
@@ -158,53 +341,50 @@ export const updateDisplayedTotalHours = (data: IExtendedWeeklyTimeRow[]): IExte
   
   return updatedData;
 };
-  
-  // Определяет, является ли строка первой в своем шаблоне
-  export const isFirstRowInTemplate = (data: IExtendedWeeklyTimeRow[], rowIndex: number): boolean => {
-    if (!data || rowIndex < 0 || rowIndex >= data.length) {
-      return false;
-    }
-    
-    const currentRow = data[rowIndex];
-    
-    // Извлекаем номер недели из имени текущей строки
-    const weekMatch = currentRow.name.match(/Week\s+(\d+)/i);
-    if (!weekMatch) {
-      return true; // Если формат имени не соответствует, предполагаем что это первая строка шаблона
-    }
-    
-    const weekNumber = weekMatch[1];
-    
-    // Проверяем, есть ли строки с таким же номером недели до текущей строки
-    for (let i = 0; i < rowIndex; i++) {
-      const prevRow = data[i];
-      const prevWeekMatch = prevRow.name.match(/Week\s+(\d+)/i);
-      if (prevWeekMatch && prevWeekMatch[1] === weekNumber) {
-        return false; // Нашли строку с таким же номером недели выше, значит текущая строка не первая в шаблоне
-      }
-    }
-    
-    return true; // Не найдена строка с таким же номером недели выше, значит это первая строка в шаблоне
-  };
-  
-  // Вспомогательная функция для получения названия дня недели
-  export const getStartDayName = (day: number): string => {
-    switch (day) {
-      case 1: return "Sunday";
-      case 2: return "Monday";
-      case 3: return "Tuesday";
-      case 4: return "Wednesday";
-      case 5: return "Thursday";
-      case 6: return "Friday";
-      case 7: return "Saturday";
-      default: return "Unknown";
-    }
-  };
-  
-  // Функция для получения упорядоченных дней недели в зависимости от dayOfStartWeek
-  // В файле src/webparts/kpfaplus/components/Tabs/ContractsTab/WeeklyTimeTableLogic.ts
-// Замените функцию getOrderedWeekDays на следующую:
 
+// Определяет, является ли строка первой в своем шаблоне
+export const isFirstRowInTemplate = (data: IExtendedWeeklyTimeRow[], rowIndex: number): boolean => {
+  if (!data || rowIndex < 0 || rowIndex >= data.length) {
+    return false;
+  }
+  
+  const currentRow = data[rowIndex];
+  
+  // Извлекаем номер недели из имени текущей строки
+  const weekMatch = currentRow.name.match(/Week\s+(\d+)/i);
+  if (!weekMatch) {
+    return true; // Если формат имени не соответствует, предполагаем что это первая строка шаблона
+  }
+  
+  const weekNumber = weekMatch[1];
+  
+  // Проверяем, есть ли строки с таким же номером недели до текущей строки
+  for (let i = 0; i < rowIndex; i++) {
+    const prevRow = data[i];
+    const prevWeekMatch = prevRow.name.match(/Week\s+(\d+)/i);
+    if (prevWeekMatch && prevWeekMatch[1] === weekNumber) {
+      return false; // Нашли строку с таким же номером недели выше, значит текущая строка не первая в шаблоне
+    }
+  }
+  
+  return true; // Не найдена строка с таким же номером недели выше, значит это первая строка в шаблоне
+};
+
+// Вспомогательная функция для получения названия дня недели
+export const getStartDayName = (day: number): string => {
+  switch (day) {
+    case 1: return "Sunday";
+    case 2: return "Monday";
+    case 3: return "Tuesday";
+    case 4: return "Wednesday";
+    case 5: return "Thursday";
+    case 6: return "Friday";
+    case 7: return "Saturday";
+    default: return "Unknown";
+  }
+};
+
+// Функция для получения упорядоченных дней недели в зависимости от dayOfStartWeek
 export const getOrderedWeekDays = (dayOfStartWeek: number): { name: string; key: string; }[] => {
   // Определяем все дни недели с сокращенными названиями (до 3 букв)
   const allDays = [
@@ -324,7 +504,7 @@ export const canDeleteRow = (data: IExtendedWeeklyTimeRow[], rowIndex: number): 
   return activeRowsInWeek.length > 1;
 };
 
-  /**
+/**
  * Результат анализа недель в таблице
  */
 export interface IWeekAnalysisResult {
@@ -460,7 +640,7 @@ export const checkCanAddNewWeek = (analysisResult: IWeekAnalysisResult): IAddWee
     
     // Формируем сообщение для пользователя
     let message = `Fully deleted weeks detected: ${sortedDeletedWeeks.join(', ')}. `;
-message += `Before adding a new week, you need to restore the deleted weeks.`;
+    message += `Before adding a new week, you need to restore the deleted weeks.`;
     
     return {
       canAdd: false,
@@ -477,7 +657,7 @@ message += `Before adding a new week, you need to restore the deleted weeks.`;
   return {
     canAdd: true,
     weekNumberToAdd: nextWeekNumber,
-    message: `New week ${nextWeekNumber} has been added.`,//message: `Будет добавлена новая неделя (Week ${nextWeekNumber}).`,
+    message: `New week ${nextWeekNumber} has been added.`,
     fullyDeletedWeeks: []
   };
 };

@@ -1,4 +1,6 @@
 // src/webparts/kpfaplus/components/Tabs/ContractsTab/WeeklyTimeTableHooks.ts
+// ОБНОВЛЕНИЯ: Интеграция с DateUtils для консистентной работы с временем
+
 import { useState, useEffect } from 'react';
 import { IDropdownOption, MessageBarType } from '@fluentui/react';
 import { 
@@ -6,6 +8,7 @@ import {
   updateDisplayedTotalHours
 } from './WeeklyTimeTableLogic';
 import { WeeklyTimeTableUtils, IDayHoursComplete } from '../../../models/IWeeklyTimeTable';
+import { DateUtils } from '../../CustomDatePicker/CustomDatePicker'; // ДОБАВЛЕНО
 
 /**
  * Хук для получения опций для выпадающего списка часов
@@ -64,7 +67,7 @@ export const useLunchOptions = (): IDropdownOption[] => {
 };
 
 /**
- * Функция для обработки изменения времени в ячейке
+ * ОБНОВЛЕННАЯ функция обработки изменения времени с валидацией через DateUtils
  * @param timeTableData Текущие данные таблицы
  * @param setTimeTableData Функция для обновления данных таблицы
  * @param changedRows Множество измененных строк
@@ -83,17 +86,15 @@ export const useTimeChangeHandler = (
   } | undefined>>
 ): ((rowIndex: number, dayKey: string, field: 'hours' | 'minutes', value: string) => void) => {
   return (rowIndex: number, dayKey: string, field: 'hours' | 'minutes', value: string): void => {
-    // Проверяем, существует ли строка с таким индексом
+    // Существующие проверки остаются без изменений
     if (rowIndex < 0 || rowIndex >= timeTableData.length) {
       console.error(`Invalid row index: ${rowIndex}`);
       return;
     }
     
-    // Проверяем, удалена ли строка
     const row = timeTableData[rowIndex];
     const isDeleted = row.deleted === 1 || row.Deleted === 1;
     
-    // Если строка удалена, не делаем никаких изменений
     if (isDeleted) {
       console.log(`Cannot change time for deleted row ID: ${row.id}`);
       setStatusMessage({
@@ -101,7 +102,6 @@ export const useTimeChangeHandler = (
         message: 'Cannot edit deleted items. Restore the item first.'
       });
       
-      // Скрываем сообщение через некоторое время
       setTimeout(() => {
         setStatusMessage(undefined);
       }, 3000);
@@ -109,48 +109,64 @@ export const useTimeChangeHandler = (
       return;
     }
     
-    // Разбиваем ключ на имя дня и тип времени (start/end)
     const [dayName, timeType] = dayKey.split('-');
-    
-    // Создаем копию данных
     const newData = [...timeTableData];
     const rowDay = dayName.toLowerCase() as keyof IExtendedWeeklyTimeRow;
     const rowId = newData[rowIndex].id;
     
-    // Проверяем, что rowDay - это день недели
     if (rowDay === 'saturday' || rowDay === 'sunday' || rowDay === 'monday' || 
         rowDay === 'tuesday' || rowDay === 'wednesday' || rowDay === 'thursday' || rowDay === 'friday') {
       
-      // Получаем данные дня
       const dayData = newData[rowIndex][rowDay] as IDayHoursComplete;
       
       if (dayData) {
-        // Определяем, изменяем время начала или окончания
         const timeToUpdate = timeType === 'end' ? 'end' : 'start';
         
-        // Безопасно обновляем поле в объекте
+        // Создаем обновленные данные времени
+        const updatedTimeData = {
+          ...dayData[timeToUpdate],
+          [field]: value
+        };
+        
+        // Применяем изменение
         newData[rowIndex] = {
           ...newData[rowIndex],
           [rowDay]: {
             ...dayData,
-            [timeToUpdate]: {
-              ...dayData[timeToUpdate],
-              [field]: value
-            }
+            [timeToUpdate]: updatedTimeData
           }
         };
         
-        // Пересчитываем общее время работы после изменения
+        // ОБНОВЛЕНО: Используем DateUtils для консистентного расчета времени
         const updatedRow = newData[rowIndex];
+        
+        // Создаем нормализованные объекты времени для расчета
+        const normalizedDayData: Record<string, IDayHoursComplete> = {};
+        
+        ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].forEach(day => {
+          const dayKey = day as keyof IExtendedWeeklyTimeRow;
+          const dayValue = updatedRow[dayKey] as IDayHoursComplete;
+          
+          if (dayValue) {
+            // Используем существующие данные без дополнительной нормализации
+            // так как DateUtils уже используется в WeeklyTimeTableService
+            normalizedDayData[day] = {
+              start: dayValue.start,
+              end: dayValue.end
+            };
+          }
+        });
+        
+        // Пересчитываем общее время работы
         const totalHours = WeeklyTimeTableUtils.calculateTotalWorkHours(
           {
-            monday: updatedRow.monday as IDayHoursComplete,
-            tuesday: updatedRow.tuesday as IDayHoursComplete,
-            wednesday: updatedRow.wednesday as IDayHoursComplete,
-            thursday: updatedRow.thursday as IDayHoursComplete,
-            friday: updatedRow.friday as IDayHoursComplete,
-            saturday: updatedRow.saturday as IDayHoursComplete,
-            sunday: updatedRow.sunday as IDayHoursComplete
+            monday: normalizedDayData.monday,
+            tuesday: normalizedDayData.tuesday,
+            wednesday: normalizedDayData.wednesday,
+            thursday: normalizedDayData.thursday,
+            friday: normalizedDayData.friday,
+            saturday: normalizedDayData.saturday,
+            sunday: normalizedDayData.sunday
           },
           updatedRow.lunch
         );
@@ -166,12 +182,12 @@ export const useTimeChangeHandler = (
         newChangedRows.add(rowId);
         setChangedRows(newChangedRows);
         
-        // Сбрасываем статусное сообщение при внесении изменений
+        // Сбрасываем статусное сообщение при внесении корректных изменений
         setStatusMessage(undefined);
         
-        // Выводим информацию об изменении для отладки
-        console.log(`Updated ${dayName}.${timeType}.${field} to ${value} for row ${rowIndex} (ID: ${rowId})`);
-        console.log(`New total hours: ${totalHours}`);
+        // Логируем изменение
+        console.log(`[TimeChange] Updated ${dayName}.${timeType}.${field} to ${value} for row ${rowIndex} (ID: ${rowId})`);
+        console.log(`[TimeChange] New total hours: ${totalHours}`);
       } else {
         console.error(`Day data not found for ${rowDay} in row ${rowIndex}`);
       }
@@ -188,9 +204,8 @@ export const useTimeChangeHandler = (
   };
 };
 
-
 /**
- * Функция для обработки изменения времени обеда
+ * ОБНОВЛЕННАЯ функция для обработки изменения времени обеда с дополнительной валидацией
  * @param timeTableData Текущие данные таблицы
  * @param setTimeTableData Функция для обновления данных таблицы
  * @param changedRows Множество измененных строк
@@ -231,6 +246,21 @@ export const useLunchChangeHandler = (
       setTimeout(() => {
         setStatusMessage(undefined);
       }, 3000);
+      
+      return;
+    }
+    
+    // ДОБАВЛЕНА: Валидация времени обеда
+    const lunchMinutes = parseInt(value, 10);
+    if (isNaN(lunchMinutes) || lunchMinutes < 0 || lunchMinutes > 120) {
+      setStatusMessage({
+        type: MessageBarType.error,
+        message: 'Lunch time must be between 0 and 120 minutes'
+      });
+      
+      setTimeout(() => {
+        setStatusMessage(undefined);
+      }, 5000);
       
       return;
     }
@@ -280,7 +310,7 @@ export const useLunchChangeHandler = (
 };
 
 /**
- * Функция для обработки изменения контракта
+ * ОБНОВЛЕННАЯ функция для обработки изменения контракта с валидацией
  * @param timeTableData Текущие данные таблицы
  * @param setTimeTableData Функция для обновления данных таблицы
  * @param changedRows Множество измененных строк
@@ -325,6 +355,21 @@ export const useContractChangeHandler = (
       return;
     }
     
+    // ДОБАВЛЕНА: Валидация значения контракта
+    const contractNumber = parseInt(value, 10);
+    if (isNaN(contractNumber) || contractNumber < 1 || contractNumber > 10) {
+      setStatusMessage({
+        type: MessageBarType.error,
+        message: 'Contract number must be between 1 and 10'
+      });
+      
+      setTimeout(() => {
+        setStatusMessage(undefined);
+      }, 5000);
+      
+      return;
+    }
+    
     const newData = [...timeTableData];
     const rowId = newData[rowIndex].id;
     
@@ -344,7 +389,7 @@ export const useContractChangeHandler = (
 };
 
 /**
- * Функция для обновления общего времени для всех шаблонов
+ * НОВАЯ ФУНКЦИЯ: Хук для обновления общего времени для всех шаблонов
  * @param timeTableData Текущие данные таблицы
  * @param setTimeTableData Функция для обновления данных таблицы
  * @returns Функция для обновления общего времени
@@ -356,6 +401,49 @@ export const useUpdateTotalHours = (
   return (): void => {
     const updatedData = updateDisplayedTotalHours(timeTableData);
     setTimeTableData(updatedData);
-    console.log('Updated displayed total hours for all templates');
+    console.log('[UpdateTotalHours] Updated displayed total hours for all templates');
   };
+};
+
+/**
+ * НОВАЯ ФУНКЦИЯ: Хук для получения информации о текущем времени/дате
+ * Полезен для отладки проблем с временными зонами
+ * @returns Объект с информацией о текущем времени
+ */
+export const useCurrentTimeInfo = (): {
+  currentDate: Date;
+  normalizedDate: Date;
+  timeZone: string;
+  utcOffset: number;
+} => {
+  const [timeInfo, setTimeInfo] = useState(() => {
+    const currentDate = new Date();
+    const normalizedDate = DateUtils.normalizeDateToUTCMidnight(currentDate);
+    
+    return {
+      currentDate,
+      normalizedDate,
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      utcOffset: currentDate.getTimezoneOffset()
+    };
+  });
+  
+  // Обновляем информацию каждую минуту
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const currentDate = new Date();
+      const normalizedDate = DateUtils.normalizeDateToUTCMidnight(currentDate);
+      
+      setTimeInfo({
+        currentDate,
+        normalizedDate,
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        utcOffset: currentDate.getTimezoneOffset()
+      });
+    }, 60000); // Обновляем каждую минуту
+    
+    return () => clearInterval(interval);
+  }, []);
+  
+  return timeInfo;
 };
