@@ -103,7 +103,7 @@ export class DateMigrationService {
       displayName: 'Weekly Time Tables',
       estimatedCount: 1000,
       dateFields: [
-        { fieldName: 'MondeyStartWork', fieldType: 'timeField', description: 'Monday start time' },
+        { fieldName: 'MondayStartWork', fieldType: 'timeField', description: 'Monday start time' }, // исправлена опечатка
         { fieldName: 'MondayEndWork', fieldType: 'timeField', description: 'Monday end time' },
         { fieldName: 'TuesdayStartWork', fieldType: 'timeField', description: 'Tuesday start time' },
         { fieldName: 'TuesdayEndWork', fieldType: 'timeField', description: 'Tuesday end time' },
@@ -116,7 +116,9 @@ export class DateMigrationService {
         { fieldName: 'SaturdayStartWork', fieldType: 'timeField', description: 'Saturday start time' },
         { fieldName: 'SaturdayEndWork', fieldType: 'timeField', description: 'Saturday end time' },
         { fieldName: 'SundayStartWork', fieldType: 'timeField', description: 'Sunday start time' },
-        { fieldName: 'SundayEndWork', fieldType: 'timeField', description: 'Sunday end time' }
+        { fieldName: 'SundayEndWork', fieldType: 'timeField', description: 'Sunday end time' },
+        { fieldName: 'StartLunch', fieldType: 'timeField', description: 'Lunch start time' }, // ДОБАВЛЕНО
+        { fieldName: 'EndLunch', fieldType: 'timeField', description: 'Lunch end time' } // ДОБАВЛЕНО
       ]
     },
     {

@@ -3,6 +3,8 @@ import { WebPartContext } from '@microsoft/sp-webpart-base';
 import { IDayHours } from '../models/IWeeklyTimeTable';
 import { RemoteSiteService } from './RemoteSiteService';
 import { IRemoteListItemResponse } from '../services';
+import { DateUtils } from "../components/CustomDatePicker/CustomDatePicker";
+
 export interface IWeeklyTimeTableUpdateItem {
   id: string;
   // Время начала
@@ -82,10 +84,11 @@ export interface ICreateWeeklyTimeTableData {
 
 /**
  * Сервис для работы с данными недельного расписания
+ * ОБНОВЛЕНО: Добавлена интеграция с DateUtils для правильной обработки времени
  */
 export class WeeklyTimeTableService {
   private remoteSiteService: RemoteSiteService;
-  private listName: string = 'WeeklyTimeTables'; // Имя списка в SharePoint - обратите внимание на изменение имени!
+  private listName: string = 'WeeklyTimeTables'; // Имя списка в SharePoint
 
   /**
    * Конструктор сервиса
@@ -98,6 +101,8 @@ export class WeeklyTimeTableService {
     if (listName) {
       this.listName = listName;
     }
+    
+    console.log("WeeklyTimeTableService инициализирован с поддержкой DateUtils");
   }
 
 /**
@@ -166,6 +171,7 @@ public async getWeeklyTimeTableByContractId(contractId: string): Promise<IRemote
       // Формируем объект с полями для обновления - напрямую, без вложенного объекта fields
       const updateData: Record<string, unknown> = {};
       
+      // ОБНОВЛЕНО: Используем DateUtils для нормализации времени
       // Обратите внимание, что в SharePoint для понедельника есть опечатка: MondeyStartWork
       if (item.mondayStart) {
         updateData.MondeyStartWork = this.formatTimeForSharePoint(item.mondayStart);
@@ -240,18 +246,76 @@ public async getWeeklyTimeTableByContractId(contractId: string): Promise<IRemote
   }
   
   /**
-   * Форматирование времени для сохранения в SharePoint
+   * ОБНОВЛЕНО: Форматирование времени для сохранения в SharePoint с использованием DateUtils
+   * Сохраняет базовую дату 2025-01-01, но нормализует время через DateUtils
    * @param time Объект с часами и минутами
    * @returns Строка даты в формате ISO для SharePoint
    */
   private formatTimeForSharePoint(time: IDayHours): string {
-    // Базовая дата (1 января 2025 года)
-    const baseDate = '2025-01-01';
-    
-    // Форматируем время в строку для SharePoint
-    return `${baseDate}T${time.hours}:${time.minutes}:00Z`;
+    try {
+      // Базовая дата (СОХРАНЯЕМ как требуется - 1 января 2025 года)
+      const baseDate = new Date('2025-01-01');
+      
+      // ИСПРАВЛЕНО: Используем DateUtils.createShiftDateTime для правильной нормализации времени
+      const normalizedDateTime = DateUtils.createShiftDateTime(
+  baseDate,
+  parseInt(time.hours.toString()), // Приводим к числу
+  parseInt(time.minutes.toString()) // Приводим к числу
+);
+      const result = normalizedDateTime.toISOString();
+      
+      // Логируем только каждый 10-й вызов для экономии логов
+      if (Math.random() < 0.1) {
+        console.log(`[DEBUG] formatTimeForSharePoint: ${time.hours}:${time.minutes} на ${baseDate.toISOString().split('T')[0]} → ${result}`);
+      }
+      
+      return result;
+    } catch (error) {
+      console.error(`Error formatting time for SharePoint: ${error}`);
+      // Запасной вариант - старый формат
+      const baseDate = '2025-01-01';
+      return `${baseDate}T${String(time.hours).padStart(2, '0')}:${String(time.minutes).padStart(2, '0')}:00Z`;
+    }
   }
-  
+
+  /**
+   * НОВЫЙ МЕТОД: Парсинг времени из SharePoint с использованием DateUtils
+   * Обрабатывает строки времени из SharePoint и возвращает нормализованные объекты IDayHours
+   * @param timeString Строка времени из SharePoint в ISO формате
+   * @returns Объект IDayHours с часами и минутами
+   */
+  private parseTimeFromSharePoint(timeString: string | undefined): IDayHours | undefined {
+    if (!timeString) {
+      return undefined;
+    }
+    
+    try {
+      // Парсим дату из SharePoint
+      const parsedDate = new Date(timeString);
+      
+      if (isNaN(parsedDate.getTime())) {
+        console.warn(`Invalid time string from SharePoint: ${timeString}`);
+        return undefined;
+      }
+      
+      // Нормализуем через DateUtils для консистентной обработки временных зон
+      // Используем createShiftDateTime чтобы сохранить время, но нормализовать базу
+      const baseDate = new Date('2025-01-01');
+      const normalizedDateTime = DateUtils.createShiftDateTime(
+        baseDate,
+        parsedDate.getHours(),
+        parsedDate.getMinutes()
+      );
+      
+     return {
+  hours: normalizedDateTime.getHours().toString(), // Приводим к строке
+  minutes: normalizedDateTime.getMinutes().toString() // Приводим к строке
+};
+    } catch (error) {
+      console.error(`Error parsing time from SharePoint: ${error}`);
+      return undefined;
+    }
+  }
   /**
    * Массовое обновление элементов недельного расписания
    * @param items Массив данных для обновления
@@ -289,6 +353,7 @@ results.push({
 
 /**
  * Создание нового элемента недельного расписания
+ * ОБНОВЛЕНО: Добавлена нормализация времени через DateUtils
  * @param item Данные для создания
  * @param contractId ID контракта
  * @param currentUserId ID текущего пользователя из списка Staff
@@ -368,7 +433,7 @@ public async createWeeklyTimeTableItem(
       console.warn(`No creator ID provided for weekly time table item`);
     }
     
-    // Добавляем поля времени начала работы для каждого дня
+    // ОБНОВЛЕНО: Добавляем поля времени начала работы для каждого дня с DateUtils
     if (item.mondayStart) {
       createData.MondeyStartWork = this.formatTimeForSharePoint(item.mondayStart);
     }
@@ -397,7 +462,7 @@ public async createWeeklyTimeTableItem(
       createData.SundayStartWork = this.formatTimeForSharePoint(item.sundayStart);
     }
     
-    // Добавляем поля времени окончания работы для каждого дня
+    // ОБНОВЛЕНО: Добавляем поля времени окончания работы для каждого дня с DateUtils
     if (item.mondayEnd) {
       createData.MondayEndWork = this.formatTimeForSharePoint(item.mondayEnd);
     }
@@ -545,4 +610,75 @@ public async restoreWeeklyTimeTableItem(itemId: string): Promise<boolean> {
     throw err;
   }
 }
+
+  /**
+   * НОВЫЙ МЕТОД: Получение и парсинг элемента недельного расписания с нормализацией времени
+   * Возвращает элемент с правильно обработанными полями времени через DateUtils
+   * @param itemId ID элемента для получения
+   * @returns Элемент с нормализованными полями времени или undefined
+   */
+  public async getWeeklyTimeTableItem(itemId: string): Promise<IWeeklyTimeTableItem | undefined> {
+    try {
+      console.log(`Getting weekly time table item ID: ${itemId}`);
+      
+      // Преобразуем строковый ID в число
+      const itemIdNum = parseInt(itemId, 10);
+      if (isNaN(itemIdNum)) {
+        throw new Error(`Invalid item ID: ${itemId}`);
+      }
+      
+      // Получаем элемент через RemoteSiteService
+      const rawItem = await this.remoteSiteService.getListItem(
+        this.listName,
+        itemIdNum,
+        true // expandFields
+      );
+      
+      if (!rawItem) {
+        console.log(`Weekly time table item ID: ${itemId} not found`);
+        return undefined;
+      }
+      
+      // Создаем объект элемента с нормализованными полями времени
+      const item: IWeeklyTimeTableItem = {
+        id: rawItem.id.toString(),
+        fields: rawItem.fields,
+        NumberOfWeek: rawItem.fields?.NumberOfWeek as number,
+        NumberOfShift: rawItem.fields?.NumberOfShift as number,
+        Title: rawItem.fields?.Title as string,
+        Deleted: rawItem.fields?.Deleted as number
+      };
+      
+      // ОБНОВЛЕНО: Добавляем нормализованные поля времени через parseTimeFromSharePoint
+      if (rawItem.fields) {
+        // Времена начала работы
+        item.mondayStart = this.parseTimeFromSharePoint(rawItem.fields.MondeyStartWork as string);
+        item.tuesdayStart = this.parseTimeFromSharePoint(rawItem.fields.TuesdayStartWork as string);
+        item.wednesdayStart = this.parseTimeFromSharePoint(rawItem.fields.WednesdayStartWork as string);
+        item.thursdayStart = this.parseTimeFromSharePoint(rawItem.fields.ThursdayStartWork as string);
+        item.fridayStart = this.parseTimeFromSharePoint(rawItem.fields.FridayStartWork as string);
+        item.saturdayStart = this.parseTimeFromSharePoint(rawItem.fields.SaturdayStartWork as string);
+        item.sundayStart = this.parseTimeFromSharePoint(rawItem.fields.SundayStartWork as string);
+        
+        // Времена окончания работы
+        item.mondayEnd = this.parseTimeFromSharePoint(rawItem.fields.MondayEndWork as string);
+        item.tuesdayEnd = this.parseTimeFromSharePoint(rawItem.fields.TuesdayEndWork as string);
+        item.wednesdayEnd = this.parseTimeFromSharePoint(rawItem.fields.WednesdayEndWork as string);
+        item.thursdayEnd = this.parseTimeFromSharePoint(rawItem.fields.ThursdayEndWork as string);
+        item.fridayEnd = this.parseTimeFromSharePoint(rawItem.fields.FridayEndWork as string);
+        item.saturdayEnd = this.parseTimeFromSharePoint(rawItem.fields.SaturdayEndWork as string);
+        item.sundayEnd = this.parseTimeFromSharePoint(rawItem.fields.SundayEndWork as string);
+        
+        // Другие поля
+        item.lunchMinutes = rawItem.fields.TimeForLunch as number;
+        item.contractNumber = rawItem.fields.Contract as number;
+      }
+      
+      console.log(`Successfully retrieved and parsed weekly time table item ID: ${itemId}`);
+      return item;
+    } catch (err) {
+      console.error('Error getting weekly time table item:', err);
+      throw err;
+    }
+  }
 }

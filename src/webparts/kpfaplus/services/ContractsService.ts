@@ -8,6 +8,7 @@ import "@pnp/sp/fields";
 
 import { IContract, IContractFormData } from '../models/IContract';
 import { RemoteSiteService } from './RemoteSiteService';
+import { DateUtils } from "../components/CustomDatePicker/CustomDatePicker";
 
 // Интерфейс для данных, которые отправляются в SharePoint
 /*interface ISharePointContractData {
@@ -37,7 +38,7 @@ export class ContractsService {
     // Инициализация RemoteSiteService для работы с удаленным сайтом
     this._remoteSiteService = RemoteSiteService.getInstance(context);
     
-    this.logInfo("ContractsService initialized with RemoteSiteService");
+    this.logInfo("ContractsService initialized with RemoteSiteService and DateUtils support");
   }
 
   public static getInstance(context: WebPartContext): ContractsService {
@@ -73,24 +74,42 @@ export class ContractsService {
     return Boolean(value);
   }
 
+  /**
+   * ОБНОВЛЕНО: Преобразует значение в дату с нормализацией через DateUtils
+   * Обеспечивает правильную обработку дат для решения проблемы с временными зонами
+   */
   private ensureDate(value: unknown): Date | undefined {
     if (value === null || value === undefined) {
       return undefined;
     }
     
     try {
+      let date: Date;
+      
       // Если value уже является датой
       if (value instanceof Date) {
-        return value;
+        date = value;
+      } else if (typeof value === 'string') {
+        // Если value - строка даты
+        date = new Date(value);
+        if (isNaN(date.getTime())) {
+          this.logInfo(`[DEBUG] Invalid date string for ensureDate: ${value}`);
+          return undefined;
+        }
+      } else {
+        this.logInfo(`[DEBUG] Unsupported date type for ensureDate: ${typeof value}`);
+        return undefined;
       }
       
-      // Если value - строка даты
-      if (typeof value === 'string') {
-        const date = new Date(value);
-        return isNaN(date.getTime()) ? undefined : date;
+      // ИСПРАВЛЕНО: Нормализуем дату через DateUtils для устранения проблем с временными зонами
+      const normalizedDate = DateUtils.normalizeDateToUTCMidnight(date);
+      
+      // Логируем только если есть изменения (каждый 10-й вызов для экономии логов)
+      if (Math.random() < 0.1) {
+        this.logInfo(`[DEBUG] Date normalized: ${date.toISOString()} → ${normalizedDate.toISOString()}`);
       }
       
-      return undefined;
+      return normalizedDate;
     } catch (error) {
       this.logError(`Error converting date: ${error}`);
       return undefined;
@@ -98,12 +117,12 @@ export class ContractsService {
   }
 
   /**
- * Получает контракты для указанного сотрудника по его Employee ID через RemoteSiteService
- * @param employeeId ID сотрудника (EmployeeID)
- * @param managerId ID менеджера (необязательно)
- * @param staffGroupId ID группы сотрудников (необязательно)
- * @returns Promise с массивом контрактов
- */
+   * Получает контракты для указанного сотрудника по его Employee ID через RemoteSiteService
+   * @param employeeId ID сотрудника (EmployeeID)
+   * @param managerId ID менеджера (необязательно)
+   * @param staffGroupId ID группы сотрудников (необязательно)
+   * @returns Promise с массивом контрактов
+   */
 public async getContractsForStaffMember(
   employeeId: string,
   managerId?: string,
@@ -290,8 +309,8 @@ public async getContractsForStaffMember(
               template: this.ensureString(fields.Title),
               typeOfWorker: typeOfWorkerInfo,
               contractedHours: this.ensureNumber(fields.ContractedHoursSchedule),
-              startDate: this.ensureDate(fields.StartDate),
-              finishDate: this.ensureDate(fields.FinishDate),
+              startDate: this.ensureDate(fields.StartDate), // ОБНОВЛЕНО: теперь использует DateUtils
+              finishDate: this.ensureDate(fields.FinishDate), // ОБНОВЛЕНО: теперь использует DateUtils
               isDeleted: isDeleted,
               staffMember: staffMemberInfo,
               manager: managerInfo,
@@ -309,7 +328,7 @@ public async getContractsForStaffMember(
         }
         
         return contracts;
-      } else {
+        } else {
         this.logInfo(`No sample items found in list "${this._listName}". Using default field names.`);
         
         // Если не удалось получить образцы, используем стандартные имена полей
@@ -354,7 +373,7 @@ public async getContractsForStaffMember(
             // Проверяем поле Deleted
             const isDeleted = this.ensureBoolean(fields.Deleted);
             
-            // Получаем информацию о типе работника
+            // Получаем информацию о типе работника (аналогично блоку выше)
             let typeOfWorkerInfo = { id: '', value: '' };
             if (fields.TypeOfWorkerLookupId !== undefined) {
               typeOfWorkerInfo = { 
@@ -374,18 +393,77 @@ public async getContractsForStaffMember(
               };
             }
             
-            // И далее аналогично...
-            // (код аналогичен блоку выше)
+            // Получаем информацию о сотруднике (аналогично блоку выше)
+            let staffMemberInfo = undefined;
+            if (fields.StaffMemberScheduleLookupId !== undefined) {
+              staffMemberInfo = {
+                id: this.ensureString(fields.StaffMemberScheduleLookupId),
+                value: this.ensureString(fields.StaffMemberScheduleLookup) || 'Unknown Staff'
+              };
+            } else if (fields.StaffMemberScheduleId !== undefined) {
+              staffMemberInfo = {
+                id: this.ensureString(fields.StaffMemberScheduleId),
+                value: this.ensureString(fields.StaffMemberScheduleTitle) || 'Unknown Staff'
+              };
+            } else if (fields.StaffMemberSchedule && typeof fields.StaffMemberSchedule === 'object') {
+              const staffObj = fields.StaffMemberSchedule as Record<string, unknown>;
+              staffMemberInfo = {
+                id: this.ensureString(staffObj.Id || staffObj.id),
+                value: this.ensureString(staffObj.Title || staffObj.title)
+              };
+            }
+            
+            // Получаем информацию о менеджере (аналогично блоку выше)
+            let managerInfo = undefined;
+            if (fields.ManagerLookupId !== undefined) {
+              managerInfo = {
+                id: this.ensureString(fields.ManagerLookupId),
+                value: this.ensureString(fields.ManagerLookup) || 'Unknown Manager'
+              };
+            } else if (fields.ManagerId !== undefined) {
+              managerInfo = {
+                id: this.ensureString(fields.ManagerId),
+                value: this.ensureString(fields.ManagerTitle) || 'Unknown Manager'
+              };
+            } else if (fields.Manager && typeof fields.Manager === 'object') {
+              const managerObj = fields.Manager as Record<string, unknown>;
+              managerInfo = {
+                id: this.ensureString(managerObj.Id || managerObj.id),
+                value: this.ensureString(managerObj.Title || managerObj.title)
+              };
+            }
+            
+            // Получаем информацию о группе (аналогично блоку выше)
+            let staffGroupInfo = undefined;
+            if (fields.StaffGroupLookupId !== undefined) {
+              staffGroupInfo = {
+                id: this.ensureString(fields.StaffGroupLookupId),
+                value: this.ensureString(fields.StaffGroupLookup) || 'Unknown Group'
+              };
+            } else if (fields.StaffGroupId !== undefined) {
+              staffGroupInfo = {
+                id: this.ensureString(fields.StaffGroupId),
+                value: this.ensureString(fields.StaffGroupTitle) || 'Unknown Group'
+              };
+            } else if (fields.StaffGroup && typeof fields.StaffGroup === 'object') {
+              const groupObj = fields.StaffGroup as Record<string, unknown>;
+              staffGroupInfo = {
+                id: this.ensureString(groupObj.Id || groupObj.id),
+                value: this.ensureString(groupObj.Title || groupObj.title)
+              };
+            }
             
             const contract: IContract = {
               id: this.ensureString(item.id),
               template: this.ensureString(fields.Title),
               typeOfWorker: typeOfWorkerInfo,
               contractedHours: this.ensureNumber(fields.ContractedHoursSchedule),
-              startDate: this.ensureDate(fields.StartDate),
-              finishDate: this.ensureDate(fields.FinishDate),
+              startDate: this.ensureDate(fields.StartDate), // ОБНОВЛЕНО: теперь использует DateUtils
+              finishDate: this.ensureDate(fields.FinishDate), // ОБНОВЛЕНО: теперь использует DateUtils
               isDeleted: isDeleted,
-              // Остальные поля...
+              staffMember: staffMemberInfo,
+              manager: managerInfo,
+              staffGroup: staffGroupInfo
             };
             
             contracts.push(contract);
@@ -406,10 +484,9 @@ public async getContractsForStaffMember(
   }
 }
 
-  
-
 /**
  * Сохраняет изменения в существующем контракте или создает новый
+ * ОБНОВЛЕНО: Добавлена нормализация дат через DateUtils перед сохранением
  * @param contractData Данные контракта для сохранения
  * @returns Promise с ID сохраненного контракта
  */
@@ -442,14 +519,18 @@ public async saveContract(contractData: IContractFormData): Promise<string> {
       }
     }
     
-    // Добавляем дату начала, если она есть
+    // ОБНОВЛЕНО: Добавляем дату начала с нормализацией через DateUtils
     if (contractData.startDate) {
-      itemData.StartDate = contractData.startDate;
+      const normalizedStartDate = DateUtils.normalizeDateToUTCMidnight(contractData.startDate);
+      itemData.StartDate = normalizedStartDate.toISOString();
+      this.logInfo(`[DEBUG] StartDate normalized: ${contractData.startDate.toISOString()} → ${normalizedStartDate.toISOString()}`);
     }
     
-    // Добавляем дату окончания, если она есть
+    // ОБНОВЛЕНО: Добавляем дату окончания с нормализацией через DateUtils
     if (contractData.finishDate) {
-      itemData.FinishDate = contractData.finishDate;
+      const normalizedFinishDate = DateUtils.normalizeDateToUTCMidnight(contractData.finishDate);
+      itemData.FinishDate = normalizedFinishDate.toISOString();
+      this.logInfo(`[DEBUG] FinishDate normalized: ${contractData.finishDate.toISOString()} → ${normalizedFinishDate.toISOString()}`);
     }
     
     // Добавляем ID сотрудника, если он есть
@@ -563,7 +644,7 @@ public async saveContract(contractData: IContractFormData): Promise<string> {
   }
 }
 
-  /**
+/**
  * Помечает контракт как удаленный (не удаляет физически)
  * @param contractId ID контракта
  * @returns Promise с результатом операции
