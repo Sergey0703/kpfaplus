@@ -389,17 +389,47 @@ export class RemoteSiteService {
    * @param fields Поля элемента
    * @returns Promise с добавленным элементом
    */
-  public async addListItem( // <-- Этот метод, кажется, дублирует createListItem? Возможно, стоит удалить один.
-    listId: string,
-    fields: Record<string, unknown>
-  ): Promise<{ id: string; fields: IRemoteListItemField }> {
-    await this.ensureServices();
-    if (!this._itemService) { throw new Error("Item service not initialized after ensureServices"); } // Дополнительная проверка
+   /**
+ * Добавляет новый элемент в список через MS Graph API
+ * @param listId ID списка
+ * @param fields Поля элемента
+ * @returns Promise с добавленным элементом
+ */
+/**
+ * Добавляет новый элемент в список через MS Graph API
+ * @param listId ID списка
+ * @param fields Поля элемента
+ * @returns Promise с добавленным элементом
+ */
+public async addListItem(
+  listId: string, 
+  fields: Record<string, unknown>
+): Promise<{ id: string; fields: IRemoteListItemField }> {
+  try {
+    this.logInfo(`Adding item to list with ID: ${listId}`);
+    
+    // Получаем инстанс графа
     const graphClient = await this.getGraphClient();
-    const result = await this._itemService.createListItem(graphClient, listId, { fields });
-    // Преобразуем результат к нужному типу (как и раньше)
-    return { id: result.id, fields: result.fields || {} };
+    
+    // ИСПРАВЛЕНИЕ: Используем listId напрямую как ID списка, не как название
+    // Выполняем запрос к MS Graph API
+    const response = await graphClient
+      .api(`/sites/${this.getTargetSiteId()}/lists/${listId}/items`)
+      .post({
+        fields: fields
+      });
+    
+    this.logInfo(`Successfully added item to list: ${JSON.stringify(response)}`);
+    
+    return {
+      id: response.id.toString(),
+      fields: response.fields || {}
+    };
+  } catch (error) {
+    this.logError(`Error adding item to list: ${error}`);
+    throw error;
   }
+}
 
   /**
    * Получает количество элементов в списке, удовлетворяющих фильтру
