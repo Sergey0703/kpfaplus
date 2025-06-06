@@ -4,10 +4,14 @@ import {
     IStaffRecordTypeOfLeave,
     IStaffRecordWeeklyTimeTable
   } from "./StaffRecordsInterfaces";
+import { DateUtils } from "../components/CustomDatePicker/CustomDatePicker";
   
   /**
    * Сервис для преобразования данных из SharePoint в бизнес-модели
    * Отвечает за маппинг, валидацию и нормализацию данных
+   * 
+   * ОБНОВЛЕНО: Добавлена правильная обработка дат через DateUtils для решения проблемы с 1 октября
+   * и корректного парсинга дат из SharePoint с учетом временных зон
    */
   export class StaffRecordsMapperService {
     private _logSource: string;
@@ -18,17 +22,19 @@ import {
      */
     constructor(logSource: string) {
       this._logSource = logSource + ".Mapper";
-      this.logInfo("StaffRecordsMapperService инициализирован");
+      this.logInfo("StaffRecordsMapperService инициализирован с поддержкой DateUtils");
     }
   
     /**
      * Преобразует сырые данные из SharePoint в массив объектов IStaffRecord
+     * ИСПРАВЛЕНО: Добавлена правильная обработка дат через DateUtils
+     * 
      * @param rawItems Сырые данные из SharePoint
      * @returns Массив объектов IStaffRecord
      */
     public mapToStaffRecords(rawItems: unknown[]): IStaffRecord[] {
       try {
-        this.logInfo(`[DEBUG] mapToStaffRecords: Начинаем преобразование ${rawItems.length} сырых элементов`);
+        this.logInfo(`[DEBUG] mapToStaffRecords: Начинаем преобразование ${rawItems.length} сырых элементов с DateUtils`);
   
         // Маппинг сырых данных в формат IStaffRecord
         const mappedItems = rawItems.map((item, index) => {
@@ -60,7 +66,7 @@ import {
   
         // Фильтруем неопределенные элементы
         const filteredItems = mappedItems.filter((item): item is IStaffRecord => item !== undefined);
-        this.logInfo(`[DEBUG] mapToStaffRecords: Преобразовано ${filteredItems.length} элементов из ${rawItems.length} исходных`);
+        this.logInfo(`[DEBUG] mapToStaffRecords: Преобразовано ${filteredItems.length} элементов из ${rawItems.length} исходных с DateUtils`);
   
         return filteredItems;
       } catch (error) {
@@ -71,6 +77,8 @@ import {
   
     /**
      * Преобразует одну сырую запись в структурированный объект IStaffRecord
+     * ИСПРАВЛЕНО: Добавлена правильная обработка дат через DateUtils
+     * 
      * @param id Идентификатор записи
      * @param fields Поля записи
      * @param index Индекс записи в общем массиве (для логов)
@@ -81,17 +89,17 @@ import {
       fields: Record<string, unknown>,
       index: number
     ): IStaffRecord {
-      // Преобразуем даты из строк в объекты Date
-      const dateObj = this.parseDate(fields.Date as string, index, 'Date');
-      const shiftDate1 = this.parseOptionalDate(fields.ShiftDate1 as string, index, 'ShiftDate1');
-      const shiftDate2 = this.parseOptionalDate(fields.ShiftDate2 as string, index, 'ShiftDate2');
-      const shiftDate3 = this.parseOptionalDate(fields.ShiftDate3 as string, index, 'ShiftDate3');
-      const shiftDate4 = this.parseOptionalDate(fields.ShiftDate4 as string, index, 'ShiftDate4');
+      // ИСПРАВЛЕНО: Преобразуем даты из строк в объекты Date с использованием DateUtils
+      const mainDate = this.parseMainDate(fields.Date as string, index, 'Date');
+      const shiftDate1 = this.parseShiftDate(fields.ShiftDate1 as string, index, 'ShiftDate1');
+      const shiftDate2 = this.parseShiftDate(fields.ShiftDate2 as string, index, 'ShiftDate2');
+      const shiftDate3 = this.parseShiftDate(fields.ShiftDate3 as string, index, 'ShiftDate3');
+      const shiftDate4 = this.parseShiftDate(fields.ShiftDate4 as string, index, 'ShiftDate4');
       
       // Получаем информацию о типе отпуска
       const { typeOfLeaveID, typeOfLeave } = this.extractTypeOfLeave(fields.TypeOfLeaveLookupId, index);
       
-      // ИСПРАВЛЕНО: Получаем информацию о недельном расписании из правильного поля
+      // Получаем информацию о недельном расписании из правильного поля
       const { weeklyTimeTableID, weeklyTimeTable, weeklyTimeTableTitle } = 
         this.extractWeeklyTimeTable(fields.WeeklyTimeTableLookupId, index);
       
@@ -102,7 +110,7 @@ import {
         Checked: this.ensureNumber(fields.Checked, 0),
         ExportResult: this.ensureString(fields.ExportResult),
         Title: this.ensureString(fields.Title),
-        Date: dateObj,
+        Date: mainDate,
         ShiftDate1: shiftDate1,
         ShiftDate2: shiftDate2,
         ShiftDate3: shiftDate3,
@@ -110,7 +118,7 @@ import {
         TimeForLunch: this.ensureNumber(fields.TimeForLunch, 0),
         Contract: this.ensureNumber(fields.Contract, 1),
         Holiday: this.ensureNumber(fields.Holiday, 0),
-        LeaveTime: this.ensureNumber(fields.LeaveTime, 0), // ДОБАВЛЕНО: Поле LeaveTime
+        LeaveTime: this.ensureNumber(fields.LeaveTime, 0),
         TypeOfLeaveID: typeOfLeaveID,
         TypeOfLeave: typeOfLeave,
         StaffMemberLookupId: this.ensureString(fields.StaffMemberLookupId),
@@ -119,9 +127,96 @@ import {
         WeeklyTimeTableTitle: weeklyTimeTableTitle
       };
     }
+
+    /**
+     * НОВЫЙ МЕТОД: Парсинг основной даты записи с нормализацией через DateUtils
+     * Основная дата должна быть нормализована к полуночи UTC для корректной фильтрации
+     * 
+     * @param dateString Строка с датой из SharePoint
+     * @param index Индекс записи (для логов)
+     * @param fieldName Название поля (для логов)
+     * @returns Нормализованный объект Date
+     */
+    private parseMainDate(dateString: string | undefined, index: number, fieldName: string): Date {
+      try {
+        if (!dateString) {
+          this.logError(`[ОШИБКА] Отсутствует обязательное поле ${fieldName} для элемента #${index}`);
+          // Возвращаем нормализованную текущую дату как запасной вариант
+          return DateUtils.normalizeDateToUTCMidnight(new Date());
+        }
+        
+        // Парсим дату из SharePoint (обычно в ISO формате)
+        const parsedDate = new Date(dateString);
+        if (isNaN(parsedDate.getTime())) {
+          this.logError(`[ОШИБКА] Некорректная дата ${fieldName} для элемента #${index}: ${dateString}`);
+          return DateUtils.normalizeDateToUTCMidnight(new Date());
+        }
+
+        // ИСПРАВЛЕНО: Нормализуем основную дату к полуночи UTC через DateUtils
+        const normalizedDate = DateUtils.normalizeDateToUTCMidnight(parsedDate);
+        
+        // Логируем только если есть изменения (каждый 20-й элемент для экономии логов)
+        if (index % 20 === 0) {
+          this.logInfo(`[DEBUG] ${fieldName} элемента #${index}: ${dateString} → ${parsedDate.toISOString()} → ${normalizedDate.toISOString()}`);
+        }
+        
+        return normalizedDate;
+      } catch (dateError) {
+        this.logError(`[ОШИБКА] Ошибка при преобразовании ${fieldName} для элемента #${index}: ${dateError}`);
+        return DateUtils.normalizeDateToUTCMidnight(new Date());
+      }
+    }
+
+    /**
+     * НОВЫЙ МЕТОД: Парсинг времени смен с сохранением времени через DateUtils
+     * Время смен должно сохранять точное время, но быть привязано к нормализованной дате
+     * 
+     * @param dateString Строка с датой и временем из SharePoint
+     * @param index Индекс записи (для логов)
+     * @param fieldName Название поля (для логов)
+     * @returns Объект Date с сохраненным временем или undefined
+     */
+    private parseShiftDate(dateString: string | undefined, index: number, fieldName: string): Date | undefined {
+      if (!dateString) {
+        return undefined;
+      }
+      
+      try {
+        // Парсим дату и время из SharePoint
+        const parsedDateTime = new Date(dateString);
+        if (isNaN(parsedDateTime.getTime())) {
+          this.logError(`[ОШИБКА] Некорректная дата ${fieldName} для элемента #${index}: ${dateString}`);
+          return undefined;
+        }
+
+        // ИСПРАВЛЕНО: Для времени смен сохраняем время, но нормализуем базовую дату
+        // Извлекаем время из исходной даты
+        const hours = parsedDateTime.getHours();
+        const minutes = parsedDateTime.getMinutes();
+        const seconds = parsedDateTime.getSeconds();
+        const milliseconds = parsedDateTime.getMilliseconds();
+
+        // Создаем нормализованную дату с сохранением времени
+        const baseDate = DateUtils.normalizeDateToUTCMidnight(parsedDateTime);
+        const normalizedShiftDate = new Date(baseDate);
+        normalizedShiftDate.setUTCHours(hours, minutes, seconds, milliseconds);
+
+        // Логируем только каждый 30-й элемент для экономии логов
+        if (index % 30 === 0) {
+          this.logInfo(`[DEBUG] ${fieldName} элемента #${index}: ${dateString} → ${parsedDateTime.toISOString()} → ${normalizedShiftDate.toISOString()}`);
+        }
+
+        return normalizedShiftDate;
+      } catch (dateError) {
+        this.logError(`[ОШИБКА] Ошибка при преобразовании ${fieldName} для элемента #${index}: ${dateError}`);
+        return undefined;
+      }
+    }
+
+
   
     /**
-     * ИСПРАВЛЕНО: Извлекает информацию о типе отпуска из правильного поля TypeOfLeaveLookupId
+     * Извлекает информацию о типе отпуска из правильного поля TypeOfLeaveLookupId
      */
     private extractTypeOfLeave(typeOfLeaveRaw: unknown, index: number): {
       typeOfLeaveID: string;
@@ -130,11 +225,13 @@ import {
       let typeOfLeave: IStaffRecordTypeOfLeave | undefined = undefined;
       let typeOfLeaveID = '';
       
-      // ИСПРАВЛЕНО: TypeOfLeaveLookupId приходит как строка или число
+      // TypeOfLeaveLookupId приходит как строка или число
       if (typeOfLeaveRaw) {
         if (typeof typeOfLeaveRaw === 'string' || typeof typeOfLeaveRaw === 'number') {
           typeOfLeaveID = String(typeOfLeaveRaw);
-          this.logInfo(`[DEBUG] Элемент #${index}: Extracted TypeOfLeaveID from LookupId: ${typeOfLeaveID}`);
+          if (index % 50 === 0) { // Логируем каждый 50-й для экономии
+            this.logInfo(`[DEBUG] Элемент #${index}: Extracted TypeOfLeaveID from LookupId: ${typeOfLeaveID}`);
+          }
           
           // Создаем минимальный объект TypeOfLeave с ID
           typeOfLeave = {
@@ -160,7 +257,8 @@ import {
     }
   
     /**
-     * ИСПРАВЛЕНО: Извлекает информацию о недельном расписании из правильного поля WeeklyTimeTableLookupId
+     * Извлекает информацию о недельном расписании из правильного поля WeeklyTimeTableLookupId
+     * 
      * @param weeklyTimeTableRaw Сырые данные недельного расписания (WeeklyTimeTableLookupId)
      * @param index Индекс записи (для логов)
      * @returns Объект с ID, названием и структурированным объектом недельного расписания
@@ -175,12 +273,16 @@ import {
       let weeklyTimeTableTitle = '';
       
       if (weeklyTimeTableRaw) {
-        this.logInfo(`[DEBUG] Элемент #${index} имеет поле WeeklyTimeTableLookupId: ${JSON.stringify(weeklyTimeTableRaw)}`);
+        if (index % 50 === 0) { // Логируем каждый 50-й для экономии
+          this.logInfo(`[DEBUG] Элемент #${index} имеет поле WeeklyTimeTableLookupId: ${JSON.stringify(weeklyTimeTableRaw)}`);
+        }
         
-        // ИСПРАВЛЕНО: WeeklyTimeTableLookupId приходит как строка или число
+        // WeeklyTimeTableLookupId приходит как строка или число
         if (typeof weeklyTimeTableRaw === 'string' || typeof weeklyTimeTableRaw === 'number') {
           weeklyTimeTableID = String(weeklyTimeTableRaw);
-          this.logInfo(`[DEBUG] Элемент #${index}: Extracted WeeklyTimeTableID from LookupId: ${weeklyTimeTableID}`);
+          if (index % 50 === 0) {
+            this.logInfo(`[DEBUG] Элемент #${index}: Extracted WeeklyTimeTableID from LookupId: ${weeklyTimeTableID}`);
+          }
           
           // Создаем минимальный объект WeeklyTimeTable с ID
           weeklyTimeTable = {
@@ -203,64 +305,13 @@ import {
           }
         }
       } else {
-        // Логируем случаи, когда поле отсутствует
-        this.logInfo(`[DEBUG] Элемент #${index}: WeeklyTimeTableLookupId отсутствует или пустое`);
+        // Логируем случаи, когда поле отсутствует (только каждый 100-й для экономии)
+        if (index % 100 === 0) {
+          this.logInfo(`[DEBUG] Элемент #${index}: WeeklyTimeTableLookupId отсутствует или пустое`);
+        }
       }
       
       return { weeklyTimeTableID, weeklyTimeTable, weeklyTimeTableTitle };
-    }
-  
-    /**
-     * Преобразует строковую дату в объект Date
-     * @param dateString Строка с датой
-     * @param index Индекс записи (для логов)
-     * @param fieldName Название поля (для логов)
-     * @returns Объект Date
-     */
-    private parseDate(dateString: string | undefined, index: number, fieldName: string): Date {
-      let dateObj: Date;
-      try {
-        if (!dateString) {
-          this.logError(`[ОШИБКА] Отсутствует обязательное поле ${fieldName} для элемента #${index}`);
-          return new Date(); // Возвращаем текущую дату как запасной вариант
-        }
-        
-        dateObj = new Date(dateString);
-        if (isNaN(dateObj.getTime())) {
-          this.logError(`[ОШИБКА] Некорректная дата ${fieldName} для элемента #${index}: ${dateString}`);
-          return new Date(); // Возвращаем текущую дату как запасной вариант
-        }
-        
-        return dateObj;
-      } catch (dateError) {
-        this.logError(`[ОШИБКА] Ошибка при преобразовании ${fieldName} для элемента #${index}: ${dateError}`);
-        return new Date(); // Возвращаем текущую дату как запасной вариант
-      }
-    }
-  
-    /**
-     * Преобразует строковую дату в объект Date или undefined
-     * @param dateString Строка с датой
-     * @param index Индекс записи (для логов)
-     * @param fieldName Название поля (для логов)
-     * @returns Объект Date или undefined
-     */
-    private parseOptionalDate(dateString: string | undefined, index: number, fieldName: string): Date | undefined {
-      if (!dateString) {
-        return undefined;
-      }
-      
-      try {
-        const dateObj = new Date(dateString);
-        if (isNaN(dateObj.getTime())) {
-          this.logError(`[ОШИБКА] Некорректная дата ${fieldName} для элемента #${index}: ${dateString}`);
-          return undefined;
-        }
-        return dateObj;
-      } catch (dateError) {
-        this.logError(`[ОШИБКА] Ошибка при преобразовании ${fieldName} для элемента #${index}: ${dateError}`);
-        return undefined;
-      }
     }
   
     /**

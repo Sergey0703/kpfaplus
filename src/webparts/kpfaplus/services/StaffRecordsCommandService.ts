@@ -1,10 +1,14 @@
 // src/webparts/kpfaplus/services/StaffRecordsCommandService.ts
 import { IStaffRecord } from "./StaffRecordsInterfaces";
 import { RemoteSiteService } from "./RemoteSiteService";
+import { DateUtils } from "../components/CustomDatePicker/CustomDatePicker";
 
 /**
  * Сервис для операций записи данных расписания персонала
  * Отвечает за создание, обновление и удаление записей
+ * 
+ * ОБНОВЛЕНО: Добавлена нормализация дат через DateUtils для решения проблемы с 1 октября
+ * и корректной обработки времени смен
  */
 export class StaffRecordsCommandService {
   private _logSource: string;
@@ -25,11 +29,12 @@ export class StaffRecordsCommandService {
     this._remoteSiteService = remoteSiteService;
     this._listName = listName;
     this._logSource = logSource + ".Command";
-    this.logInfo("StaffRecordsCommandService инициализирован");
+    this.logInfo("StaffRecordsCommandService инициализирован с поддержкой DateUtils");
   }
 
   /**
    * Обновляет запись расписания
+   * ИСПРАВЛЕНО: Добавлена нормализация дат через DateUtils
    *
    * @param recordId ID записи для обновления
    * @param updateData Параметры обновления
@@ -45,34 +50,77 @@ export class StaffRecordsCommandService {
       // Convert the updateData to the format expected by the SharePoint API
       const fields: Record<string, unknown> = {};
 
-      // Process Date fields
+      // ИСПРАВЛЕНО: Process Date fields with DateUtils normalization
       if (updateData.Date) {
-        fields.Date = updateData.Date.toISOString();
+        const normalizedDate = DateUtils.normalizeDateToUTCMidnight(updateData.Date);
+        fields.Date = normalizedDate.toISOString();
+        this.logInfo(`[DEBUG] Normalized Date: ${updateData.Date.toISOString()} → ${normalizedDate.toISOString()}`);
       }
 
-      // Process shift times
+      // ИСПРАВЛЕНО: Process shift times with proper date handling
       if (updateData.ShiftDate1 !== undefined) {
-        fields.ShiftDate1 = updateData.ShiftDate1 ? updateData.ShiftDate1.toISOString() : null;
-      } else if (updateData.ShiftDate1 === null) { 
-        fields.ShiftDate1 = null; 
+        if (updateData.ShiftDate1) {
+          // Для времени смен используем createShiftDateTime для сохранения времени
+          const baseDate = updateData.Date || new Date();
+          const normalizedShiftDate = DateUtils.createShiftDateTime(
+            baseDate,
+            updateData.ShiftDate1.getHours(),
+            updateData.ShiftDate1.getMinutes()
+          );
+          fields.ShiftDate1 = normalizedShiftDate.toISOString();
+          this.logInfo(`[DEBUG] Normalized ShiftDate1: ${updateData.ShiftDate1.toISOString()} → ${normalizedShiftDate.toISOString()}`);
+        } else {
+          fields.ShiftDate1 = null;
+          this.logInfo(`[DEBUG] ShiftDate1 set to null`);
+        }
       }
 
       if (updateData.ShiftDate2 !== undefined) {
-        fields.ShiftDate2 = updateData.ShiftDate2 ? updateData.ShiftDate2.toISOString() : null;
-      } else if (updateData.ShiftDate2 === null) { 
-        fields.ShiftDate2 = null; 
+        if (updateData.ShiftDate2) {
+          const baseDate = updateData.Date || new Date();
+          const normalizedShiftDate = DateUtils.createShiftDateTime(
+            baseDate,
+            updateData.ShiftDate2.getHours(),
+            updateData.ShiftDate2.getMinutes()
+          );
+          fields.ShiftDate2 = normalizedShiftDate.toISOString();
+          this.logInfo(`[DEBUG] Normalized ShiftDate2: ${updateData.ShiftDate2.toISOString()} → ${normalizedShiftDate.toISOString()}`);
+        } else {
+          fields.ShiftDate2 = null;
+          this.logInfo(`[DEBUG] ShiftDate2 set to null`);
+        }
       }
 
       if (updateData.ShiftDate3 !== undefined) {
-        fields.ShiftDate3 = updateData.ShiftDate3 ? updateData.ShiftDate3.toISOString() : null;
-      } else if (updateData.ShiftDate3 === null) { 
-        fields.ShiftDate3 = null; 
+        if (updateData.ShiftDate3) {
+          const baseDate = updateData.Date || new Date();
+          const normalizedShiftDate = DateUtils.createShiftDateTime(
+            baseDate,
+            updateData.ShiftDate3.getHours(),
+            updateData.ShiftDate3.getMinutes()
+          );
+          fields.ShiftDate3 = normalizedShiftDate.toISOString();
+          this.logInfo(`[DEBUG] Normalized ShiftDate3: ${updateData.ShiftDate3.toISOString()} → ${normalizedShiftDate.toISOString()}`);
+        } else {
+          fields.ShiftDate3 = null;
+          this.logInfo(`[DEBUG] ShiftDate3 set to null`);
+        }
       }
 
       if (updateData.ShiftDate4 !== undefined) {
-        fields.ShiftDate4 = updateData.ShiftDate4 ? updateData.ShiftDate4.toISOString() : null;
-      } else if (updateData.ShiftDate4 === null) { 
-        fields.ShiftDate4 = null; 
+        if (updateData.ShiftDate4) {
+          const baseDate = updateData.Date || new Date();
+          const normalizedShiftDate = DateUtils.createShiftDateTime(
+            baseDate,
+            updateData.ShiftDate4.getHours(),
+            updateData.ShiftDate4.getMinutes()
+          );
+          fields.ShiftDate4 = normalizedShiftDate.toISOString();
+          this.logInfo(`[DEBUG] Normalized ShiftDate4: ${updateData.ShiftDate4.toISOString()} → ${normalizedShiftDate.toISOString()}`);
+        } else {
+          fields.ShiftDate4 = null;
+          this.logInfo(`[DEBUG] ShiftDate4 set to null`);
+        }
       }
 
       // Process numeric fields
@@ -174,6 +222,7 @@ export class StaffRecordsCommandService {
 
   /**
    * Creates a new staff record
+   * ИСПРАВЛЕНО: Добавлена нормализация дат через DateUtils
    *
    * @param createParams Параметры для staff record creation
    * @param currentUserID ID of the current user (Manager)
@@ -200,37 +249,71 @@ export class StaffRecordsCommandService {
       // Set default title if not provided
       fields.Title = createParams.Title || `Record ${new Date().toISOString()}`;
 
-      // Process Date field (required)
+      // ИСПРАВЛЕНО: Process Date field (required) with DateUtils normalization
       if (createParams.Date) {
-        fields.Date = createParams.Date.toISOString();
+        const normalizedDate = DateUtils.normalizeDateToUTCMidnight(createParams.Date);
+        fields.Date = normalizedDate.toISOString();
+        this.logInfo(`[DEBUG] Normalized create Date: ${createParams.Date.toISOString()} → ${normalizedDate.toISOString()}`);
       } else {
         this.logError(`[ERROR] Create failed: Date is a required field for a new record but was not provided in createParams.`);
         throw new Error("Date is required to create a staff record.");
       }
 
-      // Process shift times (optional)
+      // ИСПРАВЛЕНО: Process shift times with proper date handling using DateUtils
       if (createParams.ShiftDate1) {
-        fields.ShiftDate1 = createParams.ShiftDate1.toISOString();
+        const normalizedShiftDate = DateUtils.createShiftDateTime(
+          createParams.Date,
+          createParams.ShiftDate1.getHours(),
+          createParams.ShiftDate1.getMinutes()
+        );
+        fields.ShiftDate1 = normalizedShiftDate.toISOString();
+        this.logInfo(`[DEBUG] Normalized create ShiftDate1: ${createParams.ShiftDate1.toISOString()} → ${normalizedShiftDate.toISOString()}`);
       } else if (createParams.ShiftDate1 === null) { 
-        fields.ShiftDate1 = null; 
+        fields.ShiftDate1 = null;
+        this.logInfo(`[DEBUG] Create ShiftDate1 set to null`);
       }
 
       if (createParams.ShiftDate2) {
-        fields.ShiftDate2 = createParams.ShiftDate2.toISOString();
+        const normalizedShiftDate = DateUtils.createShiftDateTime(
+          createParams.Date,
+          createParams.ShiftDate2.getHours(),
+          createParams.ShiftDate2.getMinutes()
+        );
+        fields.ShiftDate2 = normalizedShiftDate.toISOString();
+        this.logInfo(`[DEBUG] Normalized create ShiftDate2: ${createParams.ShiftDate2.toISOString()} → ${normalizedShiftDate.toISOString()}`);
       } else if (createParams.ShiftDate2 === null) { 
-        fields.ShiftDate2 = null; 
+        fields.ShiftDate2 = null;
+        this.logInfo(`[DEBUG] Create ShiftDate2 set to null`);
       }
 
       if (createParams.ShiftDate3 !== undefined) {
-        fields.ShiftDate3 = createParams.ShiftDate3?.toISOString() || null;
-      } else if (createParams.ShiftDate3 === null) { 
-        fields.ShiftDate3 = null; 
+        if (createParams.ShiftDate3) {
+          const normalizedShiftDate = DateUtils.createShiftDateTime(
+            createParams.Date,
+            createParams.ShiftDate3.getHours(),
+            createParams.ShiftDate3.getMinutes()
+          );
+          fields.ShiftDate3 = normalizedShiftDate.toISOString();
+          this.logInfo(`[DEBUG] Normalized create ShiftDate3: ${createParams.ShiftDate3.toISOString()} → ${normalizedShiftDate.toISOString()}`);
+        } else {
+          fields.ShiftDate3 = null;
+          this.logInfo(`[DEBUG] Create ShiftDate3 set to null`);
+        }
       }
 
       if (createParams.ShiftDate4 !== undefined) {
-        fields.ShiftDate4 = createParams.ShiftDate4?.toISOString() || null;
-      } else if (createParams.ShiftDate4 === null) { 
-        fields.ShiftDate4 = null; 
+        if (createParams.ShiftDate4) {
+          const normalizedShiftDate = DateUtils.createShiftDateTime(
+            createParams.Date,
+            createParams.ShiftDate4.getHours(),
+            createParams.ShiftDate4.getMinutes()
+          );
+          fields.ShiftDate4 = normalizedShiftDate.toISOString();
+          this.logInfo(`[DEBUG] Normalized create ShiftDate4: ${createParams.ShiftDate4.toISOString()} → ${normalizedShiftDate.toISOString()}`);
+        } else {
+          fields.ShiftDate4 = null;
+          this.logInfo(`[DEBUG] Create ShiftDate4 set to null`);
+        }
       }
 
       // Process numeric fields (use default if not provided)
@@ -428,7 +511,7 @@ export class StaffRecordsCommandService {
             this.logInfo(`[DEBUG] Soft delete fallback successful for ID: ${recordId}`);
             return true;
           } else {
-            this.logError(`[ERROR] Soft delete fallback also failed for ID: ${recordId} after hard delete exception.`);
+            this.logError(`[ERROR] Soft delete fallback also failed for ID: ${recordId} after hard delete failure.`);
             return false;
           }
         } catch (softDeleteError) {

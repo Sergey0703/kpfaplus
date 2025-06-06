@@ -9,10 +9,13 @@ import {
 import { StaffRecordsFetchService } from "./StaffRecordsFetchService";
 import { StaffRecordsMapperService } from "./StaffRecordsMapperService";
 import { StaffRecordsCalculationService } from "./StaffRecordsCalculationService";
+import { DateUtils } from "../components/CustomDatePicker/CustomDatePicker";
 
 /**
  * Сервис для операций чтения данных расписания персонала
  * Отвечает за получение, фильтрацию, сортировку и расчет данных
+ * 
+ * ОБНОВЛЕНО: Добавлена нормализация дат через DateUtils для решения проблемы с 1 октября
  */
 export class StaffRecordsQueryService {
   private _logSource: string;
@@ -37,13 +40,13 @@ export class StaffRecordsQueryService {
     this._mapperService = mapperService;
     this._calculationService = calculationService;
     this._logSource = logSource + ".Query";
-    this.logInfo("StaffRecordsQueryService инициализирован");
+    this.logInfo("StaffRecordsQueryService инициализирован с поддержкой DateUtils");
   }
 
   /**
    * Получение записей расписания персонала
    * Этот метод сохранен для обратной совместимости с текущим API
-   * Теперь он будет использовать getStaffRecordsWithOptions для получения всех записей за период.
+   * ИСПРАВЛЕНО: Добавлена нормализация дат для решения проблемы с 1 октября
    *
    * @param startDate Дата начала периода
    * @param endDate Дата окончания периода
@@ -64,10 +67,17 @@ export class StaffRecordsQueryService {
     try {
       this.logInfo(`[DEBUG] getStaffRecords (обратная совместимость) ВЫЗВАН С ПАРАМЕТРАМИ:`);
       
-      // Создаем параметры запроса (без пагинации, т.к. этот метод возвращает все за период)
+      // ИСПРАВЛЕНО: Нормализуем даты через DateUtils для решения проблемы с 1 октября
+      const normalizedStartDate = DateUtils.normalizeDateToUTCMidnight(startDate);
+      const normalizedEndDate = DateUtils.normalizeDateToUTCMidnight(endDate);
+      
+      this.logInfo(`[DEBUG] Исходные даты: ${startDate.toISOString()} - ${endDate.toISOString()}`);
+      this.logInfo(`[DEBUG] Нормализованные даты: ${normalizedStartDate.toISOString()} - ${normalizedEndDate.toISOString()}`);
+      
+      // Создаем параметры запроса с нормализованными датами
       const queryParams: IStaffRecordsQueryParams = {
-        startDate,
-        endDate,
+        startDate: normalizedStartDate,
+        endDate: normalizedEndDate,
         currentUserID,
         staffGroupID,
         employeeID,
@@ -96,7 +106,7 @@ export class StaffRecordsQueryService {
 
   /**
    * Получение записей расписания персонала с расширенными опциями, включая пагинацию.
-   * Этот метод возвращает обработанные записи ДЛЯ ОДНОЙ СТРАНИЦЫ И ОБЩЕЕ КОЛИЧЕСТВО.
+   * ИСПРАВЛЕНО: Добавлена нормализация дат для решения проблемы с 1 октября
    *
    * @param queryParams Параметры запроса, включая пагинацию (skip, top)
    * @param sortOptions Опции сортировки (опционально)
@@ -107,10 +117,21 @@ export class StaffRecordsQueryService {
     sortOptions?: ISortOptions
   ): Promise<IStaffRecordsResult> {
     try {
-      // Логируем начало выполнения метода
+      // ИСПРАВЛЕНО: Нормализуем даты в queryParams для решения проблемы с 1 октября
+      const normalizedStartDate = DateUtils.normalizeDateToUTCMidnight(queryParams.startDate);
+      const normalizedEndDate = DateUtils.normalizeDateToUTCMidnight(queryParams.endDate);
+      
+      // Создаем нормализованные параметры запроса
+      const normalizedQueryParams: IStaffRecordsQueryParams = {
+        ...queryParams,
+        startDate: normalizedStartDate,
+        endDate: normalizedEndDate
+      };
+
+      // Логируем начало выполнения метода с нормализованными датами
       this.logInfo(`[DEBUG] getStaffRecordsWithOptions ВЫЗВАН С ПАРАМЕТРАМИ:
-        startDate: ${queryParams.startDate.toISOString()},
-        endDate: ${queryParams.endDate.toISOString()},
+        startDate: ${queryParams.startDate.toISOString()} → ${normalizedStartDate.toISOString()},
+        endDate: ${queryParams.endDate.toISOString()} → ${normalizedEndDate.toISOString()},
         currentUserID: ${queryParams.currentUserID},
         staffGroupID: ${queryParams.staffGroupID},
         employeeID: ${queryParams.employeeID},
@@ -120,8 +141,8 @@ export class StaffRecordsQueryService {
         sortOptions: ${sortOptions ? JSON.stringify(sortOptions) : 'не указаны'}`
       );
 
-      // Получаем сырые данные из API через сервис получения данных
-      const fetchResult = await this._fetchService.fetchStaffRecords(queryParams);
+      // Получаем сырые данные из API через сервис получения данных с нормализованными датами
+      const fetchResult = await this._fetchService.fetchStaffRecords(normalizedQueryParams);
 
       // Проверяем наличие ошибки в fetchResult
       if (!fetchResult || fetchResult.items === undefined || fetchResult.totalCount === undefined) {
@@ -174,7 +195,7 @@ export class StaffRecordsQueryService {
 
   /**
    * Получение ВСЕХ записей расписания персонала за период БЕЗ ПАГИНАЦИИ.
-   * Специально создан для TimetableTab где нужны все данные месяца сразу.
+   * ИСПРАВЛЕНО: Добавлена нормализация дат для решения проблемы с 1 октября
    * 
    * @param queryParams Параметры запроса (без skip/top)
    * @param sortOptions Опции сортировки (опционально)
@@ -185,10 +206,21 @@ export class StaffRecordsQueryService {
     sortOptions?: ISortOptions
   ): Promise<IStaffRecordsResult> {
     try {
-      // Логируем начало выполнения метода
+      // ИСПРАВЛЕНО: Нормализуем даты в queryParams для решения проблемы с 1 октября
+      const normalizedStartDate = DateUtils.normalizeDateToUTCMidnight(queryParams.startDate);
+      const normalizedEndDate = DateUtils.normalizeDateToUTCMidnight(queryParams.endDate);
+      
+      // Создаем нормализованные параметры запроса
+      const normalizedQueryParams = {
+        ...queryParams,
+        startDate: normalizedStartDate,
+        endDate: normalizedEndDate
+      };
+
+      // Логируем начало выполнения метода с нормализованными датами
       this.logInfo(`[DEBUG] getAllStaffRecordsForTimetable ВЫЗВАН С ПАРАМЕТРАМИ:
-        startDate: ${queryParams.startDate.toISOString()},
-        endDate: ${queryParams.endDate.toISOString()},
+        startDate: ${queryParams.startDate.toISOString()} → ${normalizedStartDate.toISOString()},
+        endDate: ${queryParams.endDate.toISOString()} → ${normalizedEndDate.toISOString()},
         currentUserID: ${queryParams.currentUserID},
         staffGroupID: ${queryParams.staffGroupID},
         employeeID: ${queryParams.employeeID},
@@ -197,8 +229,8 @@ export class StaffRecordsQueryService {
         NOTE: ЗАГРУЖАЕМ ВСЕ ДАННЫЕ БЕЗ ПАГИНАЦИИ`
       );
 
-      // Получаем ВСЕ сырые данные из API через новый сервис получения данных
-      const fetchResult = await this._fetchService.fetchAllStaffRecordsForTimetable(queryParams);
+      // Получаем ВСЕ сырые данные из API через новый сервис получения данных с нормализованными датами
+      const fetchResult = await this._fetchService.fetchAllStaffRecordsForTimetable(normalizedQueryParams);
 
       // Проверяем наличие ошибки в fetchResult
       if (!fetchResult || fetchResult.items === undefined || fetchResult.totalCount === undefined) {
@@ -253,23 +285,34 @@ export class StaffRecordsQueryService {
 
   /**
    * Получает ВСЕ АКТИВНЫЕ записи расписания (исключает Deleted=1)
-   * Использует новый fetchAllActiveStaffRecordsForTimetable из StaffRecordsFetchService
+   * ИСПРАВЛЕНО: Добавлена нормализация дат для решения проблемы с 1 октября
    */
   public async getAllActiveStaffRecordsForTimetable(
     queryParams: Omit<IStaffRecordsQueryParams, 'skip' | 'top' | 'nextLink'>
   ): Promise<{ records: IStaffRecord[]; totalCount: number; error?: string }> {
     try {
+      // ИСПРАВЛЕНО: Нормализуем даты в queryParams для решения проблемы с 1 октября
+      const normalizedStartDate = DateUtils.normalizeDateToUTCMidnight(queryParams.startDate);
+      const normalizedEndDate = DateUtils.normalizeDateToUTCMidnight(queryParams.endDate);
+      
+      // Создаем нормализованные параметры запроса
+      const normalizedQueryParams = {
+        ...queryParams,
+        startDate: normalizedStartDate,
+        endDate: normalizedEndDate
+      };
+
       this.logInfo('[DEBUG] getAllActiveStaffRecordsForTimetable ВЫЗВАН С ПАРАМЕТРАМИ:');
-      this.logInfo(`        startDate: ${queryParams.startDate.toISOString()}`);
-      this.logInfo(`        endDate: ${queryParams.endDate.toISOString()}`);
+      this.logInfo(`        startDate: ${queryParams.startDate.toISOString()} → ${normalizedStartDate.toISOString()}`);
+      this.logInfo(`        endDate: ${queryParams.endDate.toISOString()} → ${normalizedEndDate.toISOString()}`);
       this.logInfo(`        currentUserID: ${queryParams.currentUserID}`);
       this.logInfo(`        staffGroupID: ${queryParams.staffGroupID}`);
       this.logInfo(`        employeeID: ${queryParams.employeeID}`);
       this.logInfo(`        timeTableID: ${queryParams.timeTableID || 'не указан'}`);
       this.logInfo(`        NOTE: ЗАГРУЖАЕМ ВСЕ АКТИВНЫЕ ДАННЫЕ БЕЗ ПАГИНАЦИИ (исключая Deleted=1)`);
 
-      // Получаем ВСЕ активные элементы через новый метод fetchService
-      const fetchResult = await this._fetchService.fetchAllActiveStaffRecordsForTimetable(queryParams);
+      // Получаем ВСЕ активные элементы через новый метод fetchService с нормализованными датами
+      const fetchResult = await this._fetchService.fetchAllActiveStaffRecordsForTimetable(normalizedQueryParams);
       
       // Проверяем наличие ошибки в fetchResult
       if (!fetchResult || fetchResult.items === undefined || fetchResult.totalCount === undefined) {
@@ -322,7 +365,7 @@ export class StaffRecordsQueryService {
 
   /**
    * Получает записи расписания с заполненным типом отпуска
-   * Базируется на getAllActiveStaffRecordsForTimetable + дополнительный фильтр по TypeOfLeave
+   * ИСПРАВЛЕНО: Добавлена нормализация дат для решения проблемы с 1 октября
    * 
    * @param queryParams Параметры запроса (без пагинации)
    * @returns Promise с результатами (записи с типом отпуска, исключая удаленные)
@@ -331,17 +374,28 @@ export class StaffRecordsQueryService {
     queryParams: Omit<IStaffRecordsQueryParams, 'skip' | 'top' | 'nextLink'>
   ): Promise<{ records: IStaffRecord[]; totalCount: number; error?: string }> {
     try {
+      // ИСПРАВЛЕНО: Нормализуем даты в queryParams для решения проблемы с 1 октября
+      const normalizedStartDate = DateUtils.normalizeDateToUTCMidnight(queryParams.startDate);
+      const normalizedEndDate = DateUtils.normalizeDateToUTCMidnight(queryParams.endDate);
+      
+      // Создаем нормализованные параметры запроса
+      const normalizedQueryParams = {
+        ...queryParams,
+        startDate: normalizedStartDate,
+        endDate: normalizedEndDate
+      };
+
       this.logInfo('[DEBUG] getStaffRecordsForSRSReports ВЫЗВАН С ПАРАМЕТРАМИ:');
-      this.logInfo(`        startDate: ${queryParams.startDate.toISOString()}`);
-      this.logInfo(`        endDate: ${queryParams.endDate.toISOString()}`);
+      this.logInfo(`        startDate: ${queryParams.startDate.toISOString()} → ${normalizedStartDate.toISOString()}`);
+      this.logInfo(`        endDate: ${queryParams.endDate.toISOString()} → ${normalizedEndDate.toISOString()}`);
       this.logInfo(`        currentUserID: ${queryParams.currentUserID}`);
       this.logInfo(`        staffGroupID: ${queryParams.staffGroupID}`);
       this.logInfo(`        employeeID: ${queryParams.employeeID}`);
       this.logInfo(`        timeTableID: ${queryParams.timeTableID || 'не указан'}`);
       this.logInfo(`        NOTE: ЗАГРУЖАЕМ ЗАПИСИ С ТИПОМ ОТПУСКА (TypeOfLeave IS NOT NULL) БЕЗ УДАЛЕННЫХ`);
 
-      // Получаем записи через новый метод fetchService специально для SRS Reports
-      const fetchResult = await this._fetchService.fetchStaffRecordsForSRSReports(queryParams);
+      // Получаем записи через новый метод fetchService специально для SRS Reports с нормализованными датами
+      const fetchResult = await this._fetchService.fetchStaffRecordsForSRSReports(normalizedQueryParams);
       
       // Проверяем наличие ошибки в fetchResult
       if (!fetchResult || fetchResult.items === undefined || fetchResult.totalCount === undefined) {
