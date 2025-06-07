@@ -254,13 +254,13 @@ export const getUniqueTemplates = (data: IExtendedWeeklyTimeRow[]): { templateId
 };
 
 /**
- * Функция для расчета общего количества часов для шаблона с учетом статуса удаления строк
+ * ИСПРАВЛЕННАЯ функция для расчета общего количества часов для шаблона с правильным форматированием
  * @param rows Строки шаблона
- * @returns Строка с общим временем в формате "XXч:YYм"
+ * @returns Строка с общим временем в формате "XXh:YYm" (английская локализация)
  */
 export const calculateTotalHoursForTemplate = (rows: IExtendedWeeklyTimeRow[]): string => {
   if (!rows || rows.length === 0) {
-    return '0ч:00м';
+    return '0h:00m'; // ИСПРАВЛЕНО: английская локализация
   }
   
   // Конвертируем строки времени в минуты для суммирования
@@ -271,10 +271,11 @@ export const calculateTotalHoursForTemplate = (rows: IExtendedWeeklyTimeRow[]): 
     const isDeleted = row.deleted === 1 || row.Deleted === 1;
     
     // Если строка удалена, не учитываем её время
-    if (!isDeleted) {
-      // Извлекаем часы и минуты из строки формата "XXч:YYм"
-      const hoursMatch = row.totalHours?.match(/(\d+)ч/);
-      const minutesMatch = row.totalHours?.match(/:(\d+)м/);
+    if (!isDeleted && row.totalHours) {
+      // ИСПРАВЛЕНО: Поддержка как русской, так и английской локализации
+      // Извлекаем часы и минуты из строки формата "XXч:YYм" или "XXh:YYm"
+      const hoursMatch = row.totalHours.match(/(\d+)[чh]/);
+      const minutesMatch = row.totalHours.match(/:(\d+)[мm]/);
       
       const hours = hoursMatch ? parseInt(hoursMatch[1], 10) : 0;
       const minutes = minutesMatch ? parseInt(minutesMatch[1], 10) : 0;
@@ -283,20 +284,23 @@ export const calculateTotalHoursForTemplate = (rows: IExtendedWeeklyTimeRow[]): 
       totalMinutes += (hours * 60) + minutes;
       
       // Логируем для отладки
-      console.log(`Including time from row ID=${row.id}, time=${row.totalHours}, in minutes=${(hours * 60) + minutes}`);
+      console.log(`[calculateTotalHoursForTemplate] Including time from row ID=${row.id}, time=${row.totalHours}, in minutes=${(hours * 60) + minutes}`);
     } else {
       // Логируем исключенные строки для отладки
-      console.log(`Excluding time from deleted row ID=${row.id}, time=${row.totalHours}`);
+      const reason = isDeleted ? 'deleted' : 'no totalHours';
+      console.log(`[calculateTotalHoursForTemplate] Excluding time from row ID=${row.id}, reason=${reason}, time=${row.totalHours}`);
     }
   });
   
-  // Конвертируем обратно в формат "XXч:YYм"
+  // Конвертируем обратно в формат "XXh:YYm" (английская локализация)
   const totalHours = Math.floor(totalMinutes / 60);
   const remainingMinutes = totalMinutes % 60;
   
-  console.log(`Total time calculated: ${totalHours}ч:${remainingMinutes.toString().padStart(2, '0')}м from ${rows.length} rows (${rows.filter(r => !(r.deleted === 1 || r.Deleted === 1)).length} active)`);
+  const result = `${totalHours}h:${remainingMinutes.toString().padStart(2, '0')}m`; // ИСПРАВЛЕНО: английская локализация
   
-  return `${totalHours}ч:${remainingMinutes.toString().padStart(2, '0')}м`;
+  console.log(`[calculateTotalHoursForTemplate] Total time calculated: ${result} from ${rows.length} rows (${rows.filter(r => !(r.deleted === 1 || r.Deleted === 1)).length} active)`);
+  
+  return result;
 };
 
 /**
@@ -334,7 +338,7 @@ export const updateDisplayedTotalHours = (data: IExtendedWeeklyTimeRow[]): IExte
         };
         
         // Логируем для отладки
-        console.log(`Updated displayedTotalHours for template first row ID=${template.rows[0].id} to ${totalHoursForTemplate}`);
+        console.log(`[updateDisplayedTotalHours] Updated displayedTotalHours for template first row ID=${template.rows[0].id} to ${totalHoursForTemplate}`);
       }
     }
   });

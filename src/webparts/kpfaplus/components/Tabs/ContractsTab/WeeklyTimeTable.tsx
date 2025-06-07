@@ -41,6 +41,9 @@ import {
   useContractChangeHandler
 } from './WeeklyTimeTableHooks';
 
+// ДОБАВЛЕНО: Импортируем функцию для проверки удаленных смен
+import { createAddShiftHandler } from './actions/WeeklyTimeTableAddActions';
+
 // Импортируем компоненты для кнопок
 import { AddShiftButton, DeleteButton } from './WeeklyTimeTableButtons';
 
@@ -202,7 +205,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     return false;
   };
 
-  // Функция для показа диалога подтверждения
+  // ДОБАВЛЕНО: Функция для показа диалогов через общий механизм
   const showDialog = (dialogType: DialogType, rowId?: string, additionalData?: unknown): void => {
     if (rowId) {
       pendingActionRowIdRef.current = rowId;
@@ -359,33 +362,38 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     }
   };
   
-  // Обработчик для добавления новой смены
+  // ИСПРАВЛЕНО: Обработчик для добавления новой смены с проверкой удаленных
   const handleAddShift = (rowIndex: number): void => {
     const row = filteredTimeTableData[rowIndex];
     if (!row) return;
     
-    const weekNumber = row.NumberOfWeek || 1;
+    console.log(`[WeeklyTimeTable] handleAddShift called for row ${rowIndex}, ID=${row.id}, Week=${row.NumberOfWeek}`);
     
-    // Находим максимальный номер смены в текущей неделе
-    let maxShiftNumber = 0;
-    timeTableData.forEach(row => {
-      if (row.NumberOfWeek === weekNumber && !row.deleted && !row.Deleted) {
-        const shiftNumber = row.NumberOfShift || 1;
-        if (shiftNumber > maxShiftNumber) {
-          maxShiftNumber = shiftNumber;
-        }
-      }
-    });
+    // ИСПРАВЛЕНО: Используем createAddShiftHandler для проверки удаленных смен
+    const addShiftHandler = createAddShiftHandler(
+      timeTableData,  // Используем полный массив, а не фильтрованный
+      setTimeTableData,
+      changedRows,
+      setChangedRows,
+      setStatusMessage,
+      showDialog,  // Передаем функцию показа диалогов
+      context,
+      contractId,
+      setIsSaving,
+      onSaveComplete,
+      triggerRefresh
+      // Убираем getSelectedRow - она не нужна, используем row напрямую
+    );
     
-    // Следующий номер смены = максимальный + 1
-    const nextShiftNumber = maxShiftNumber + 1;
-    
-    // Показываем диалог подтверждения добавления новой смены
-    showDialog(DialogType.ADD_SHIFT, undefined, { 
-      weekNumber, 
-      nextShiftNumber,
-      contractId
-    });
+    // Вызываем обработчик, который проверит удаленные смены
+    console.log(`[WeeklyTimeTable] Calling addShiftHandler for week ${row.NumberOfWeek}`);
+    addShiftHandler()
+      .then(() => {
+        console.log(`[WeeklyTimeTable] addShiftHandler completed successfully`);
+      })
+      .catch(error => {
+        console.error(`[WeeklyTimeTable] Error in addShiftHandler:`, error);
+      });
   };
   
   // Функция для показа диалога удаления/восстановления
@@ -448,7 +456,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
           statusMessage={statusMessage}
         />
         
-        {/* Компонент с телом таблицы - ОБНОВЛЕНО: передаем функции напрямую */}
+        {/* Компонент с телом таблицы - передаем функции напрямую */}
         <WeeklyTimeTableBody
           timeTableData={timeTableData}
           filteredTimeTableData={filteredTimeTableData}
