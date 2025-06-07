@@ -12,7 +12,7 @@ import {
 } from './WeeklyTimeTableCells';
 //import { ActionsCell } from './WeeklyTimeTableButtons';
 
-// Интерфейс для пропсов компонента WeeklyTimeBody
+// ОБНОВЛЕННЫЙ интерфейс для пропсов компонента WeeklyTimeBody
 export interface IWeeklyTimeBodyProps {
   filteredTimeTableData: IExtendedWeeklyTimeRow[];
   orderedWeekDays: { name: string; key: string; }[];
@@ -26,9 +26,10 @@ export interface IWeeklyTimeBodyProps {
   hoursOptions: IDropdownOption[];
   minutesOptions: IDropdownOption[];
   lunchOptions: IDropdownOption[];
-  handleTimeChange: (rowIndex: number, dayKey: string, field: 'hours' | 'minutes', value: string) => void;
-  handleLunchChange: (rowIndex: number, value: string) => void;
-  handleContractChange: (rowIndex: number, value: string) => void;
+  // ОБНОВЛЕНО: Изменены сигнатуры функций для работы с rowId
+  handleTimeChange: (rowId: string, dayKey: string, field: 'hours' | 'minutes', value: string) => void;
+  handleLunchChange: (rowId: string, value: string) => void;
+  handleContractChange: (rowId: string, value: string) => void;
 }
 
 export const WeeklyTimeBody: React.FC<IWeeklyTimeBodyProps> = (props) => {
@@ -98,6 +99,7 @@ export const WeeklyTimeBody: React.FC<IWeeklyTimeBodyProps> = (props) => {
                   <td className={styles.hoursCell} rowSpan={2} style={{ width: '60px', minWidth: '60px', maxWidth: '60px', paddingRight: '0px' }}>
                     <TotalHoursCell
                       timeTableData={filteredTimeTableData}
+                      rowId={row.id} // ДОБАВЛЕНО: передаем rowId
                       rowIndex={rowIndex}
                       isFirstRowInTemplate={isFirstRowInTemplate(filteredTimeTableData, rowIndex)}
                       isLastRowInTemplate={isLastRowInTemplate(filteredTimeTableData, rowIndex)}
@@ -116,11 +118,11 @@ export const WeeklyTimeBody: React.FC<IWeeklyTimeBodyProps> = (props) => {
                     <div className={styles.lunchCell}>
                       <LunchCell
                         lunch={row.lunch}
-                        rowIndex={rowIndex}
+                        rowId={row.id} // ИЗМЕНЕНО: передаем rowId вместо rowIndex
                         isChanged={changedRows.has(row.id)}
                         isDeleted={isDeleted}
                         lunchOptions={lunchOptions}
-                        onLunchChange={handleLunchChange}
+                        onLunchChange={handleLunchChange} // Теперь принимает rowId
                       />
                     </div>
                   </td>
@@ -133,13 +135,13 @@ export const WeeklyTimeBody: React.FC<IWeeklyTimeBodyProps> = (props) => {
                         <TimeCell
                           hours={dayData?.start?.hours || '00'}
                           minutes={dayData?.start?.minutes || '00'}
-                          rowIndex={rowIndex}
+                          rowId={row.id} // ИЗМЕНЕНО: передаем rowId вместо rowIndex
                           dayKey={`${day.key}-start`}
                           isChanged={changedRows.has(row.id)}
                           isDeleted={isDeleted}
                           hoursOptions={hoursOptions}
                           minutesOptions={minutesOptions}
-                          onTimeChange={handleTimeChange}
+                          onTimeChange={handleTimeChange} // Теперь принимает rowId
                         />
                       </td>
                     );
@@ -147,10 +149,10 @@ export const WeeklyTimeBody: React.FC<IWeeklyTimeBodyProps> = (props) => {
                   <td className={styles.totalColumn} rowSpan={2} style={{ width: '50px', minWidth: '50px', maxWidth: '50px' }}>
                     <ContractCell
                       contractNumber={row.total}
-                      rowIndex={rowIndex}
+                      rowId={row.id} // ИЗМЕНЕНО: передаем rowId вместо rowIndex
                       isChanged={changedRows.has(row.id)}
                       isDeleted={isDeleted}
-                      onContractChange={handleContractChange}
+                      onContractChange={handleContractChange} // Теперь принимает rowId
                     />
                     <div className={`${styles.contractInfo} ${isDeleted ? styles.deletedText : ''}`}>
                       {row.totalHours || '0h:00m'}
@@ -220,13 +222,13 @@ export const WeeklyTimeBody: React.FC<IWeeklyTimeBodyProps> = (props) => {
                         <TimeCell
                           hours={dayData?.end?.hours || '00'}
                           minutes={dayData?.end?.minutes || '00'}
-                          rowIndex={rowIndex}
+                          rowId={row.id} // ИЗМЕНЕНО: передаем rowId вместо rowIndex
                           dayKey={`${day.key}-end`}
                           isChanged={changedRows.has(row.id)}
                           isDeleted={isDeleted}
                           hoursOptions={hoursOptions}
                           minutesOptions={minutesOptions}
-                          onTimeChange={handleTimeChange}
+                          onTimeChange={handleTimeChange} // Теперь принимает rowId
                         />
                       </td>
                     );

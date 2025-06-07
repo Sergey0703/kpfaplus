@@ -6,6 +6,7 @@ import { IExtendedWeeklyTimeRow, isFirstRowInTemplate, isLastRowInTemplate, canD
 import { IDropdownOption } from '@fluentui/react';
 import { WeeklyTimeBody } from './WeeklyTimeBody';
 
+// ОБНОВЛЕННЫЙ интерфейс для пропсов компонента WeeklyTimeTableBody
 export interface IWeeklyTimeTableBodyProps {
   // Состояние данных и загрузки
   timeTableData: IExtendedWeeklyTimeRow[];
@@ -21,12 +22,12 @@ export interface IWeeklyTimeTableBodyProps {
   lunchOptions: IDropdownOption[];
   changedRows: Set<string>;
   
-  // Обработчики действий
-  handleTimeChange: (rowIndex: number, dayKey: string, field: 'hours' | 'minutes', value: string) => void;
-  handleLunchChange: (rowIndex: number, value: string) => void;
-  handleContractChange: (rowIndex: number, value: string) => void;
+  // ОБНОВЛЕНО: Обработчики действий теперь принимают rowId
+  handleTimeChange: (rowId: string, dayKey: string, field: 'hours' | 'minutes', value: string) => void;
+  handleLunchChange: (rowId: string, value: string) => void;
+  handleContractChange: (rowId: string, value: string) => void;
   
-  // Обработчики для кнопок
+  // Обработчики для кнопок (остаются с rowIndex для совместимости)
   renderAddShiftButton: (rowIndex?: number) => JSX.Element;
   renderDeleteButton: (rowIndex: number) => JSX.Element;
   
@@ -51,9 +52,9 @@ export const WeeklyTimeTableBody: React.FC<IWeeklyTimeTableBodyProps> = ({
   minutesOptions,
   lunchOptions,
   changedRows,
-  handleTimeChange,
-  handleLunchChange,
-  handleContractChange,
+  handleTimeChange, // Уже принимает rowId
+  handleLunchChange, // Уже принимает rowId
+  handleContractChange, // Уже принимает rowId
   renderAddShiftButton,
   renderDeleteButton,
   isFirstRowWithNewTemplate,
@@ -106,9 +107,9 @@ export const WeeklyTimeTableBody: React.FC<IWeeklyTimeTableBodyProps> = ({
       hoursOptions={hoursOptions}
       minutesOptions={minutesOptions}
       lunchOptions={lunchOptions}
-      handleTimeChange={handleTimeChange}
-      handleLunchChange={handleLunchChange}
-      handleContractChange={handleContractChange}
+      handleTimeChange={handleTimeChange} // ОБНОВЛЕНО: Передаем функцию, которая уже принимает rowId
+      handleLunchChange={handleLunchChange} // ОБНОВЛЕНО: Передаем функцию, которая уже принимает rowId
+      handleContractChange={handleContractChange} // ОБНОВЛЕНО: Передаем функцию, которая уже принимает rowId
     />
   );
 };

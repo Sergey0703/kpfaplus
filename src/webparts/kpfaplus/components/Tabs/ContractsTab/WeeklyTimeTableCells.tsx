@@ -9,24 +9,24 @@ import { IExtendedWeeklyTimeRow } from './WeeklyTimeTableLogic';
 //import { IDayHoursComplete } from '../../../models/IWeeklyTimeTable';
 
 /**
- * Интерфейс для свойств компонента TimeCell
+ * ОБНОВЛЕННЫЙ интерфейс для свойств компонента TimeCell - теперь использует rowId
  */
 interface ITimeCellProps {
   hours: string;
   minutes: string;
-  rowIndex: number;
+  rowId: string; // ИЗМЕНЕНО: rowIndex -> rowId
   dayKey: string;
   isChanged: boolean;
   isDeleted?: boolean; // Флаг для определения удаленной строки
   hoursOptions: IDropdownOption[];
   minutesOptions: IDropdownOption[];
-  onTimeChange: (rowIndex: number, dayKey: string, field: 'hours' | 'minutes', value: string) => void;
+  onTimeChange: (rowId: string, dayKey: string, field: 'hours' | 'minutes', value: string) => void; // ИЗМЕНЕНО: rowIndex -> rowId
 }
 
 export const TimeCell: React.FC<ITimeCellProps> = ({
   hours, 
   minutes, 
-  rowIndex, 
+  rowId, // ИЗМЕНЕНО: rowIndex -> rowId
   dayKey, 
   isChanged,
   isDeleted = false,
@@ -131,7 +131,7 @@ export const TimeCell: React.FC<ITimeCellProps> = ({
           selectedKey={hours}
           onChange={(e, option) => {
             if (!isDeleted && option) {
-              onTimeChange(rowIndex, dayKey, 'hours', option.key as string || '00');
+              onTimeChange(rowId, dayKey, 'hours', option.key as string || '00'); // ИЗМЕНЕНО: rowIndex -> rowId
             }
           }}
           disabled={isDeleted}
@@ -147,7 +147,7 @@ export const TimeCell: React.FC<ITimeCellProps> = ({
           selectedKey={minutes}
           onChange={(e, option) => {
             if (!isDeleted && option) {
-              onTimeChange(rowIndex, dayKey, 'minutes', option.key as string || '00');
+              onTimeChange(rowId, dayKey, 'minutes', option.key as string || '00'); // ИЗМЕНЕНО: rowIndex -> rowId
             }
           }}
           disabled={isDeleted}
@@ -161,15 +161,15 @@ export const TimeCell: React.FC<ITimeCellProps> = ({
 };
 
 /**
- * Интерфейс для свойств компонента LunchCell
+ * ОБНОВЛЕННЫЙ интерфейс для свойств компонента LunchCell - теперь использует rowId
  */
 interface ILunchCellProps {
   lunch: string;
-  rowIndex: number;
+  rowId: string; // ИЗМЕНЕНО: rowIndex -> rowId
   isChanged: boolean;
   isDeleted?: boolean; // Флаг для определения удаленной строки
   lunchOptions: IDropdownOption[];
-  onLunchChange: (rowIndex: number, value: string) => void;
+  onLunchChange: (rowId: string, value: string) => void; // ИЗМЕНЕНО: rowIndex -> rowId
 }
 
 /**
@@ -177,7 +177,7 @@ interface ILunchCellProps {
  */
 export const LunchCell: React.FC<ILunchCellProps> = ({
   lunch,
-  rowIndex,
+  rowId, // ИЗМЕНЕНО: rowIndex -> rowId
   isChanged,
   isDeleted = false,
   lunchOptions,
@@ -234,7 +234,7 @@ export const LunchCell: React.FC<ILunchCellProps> = ({
       selectedKey={lunch}
       onChange={(e, option) => {
         if (!isDeleted && option) {
-          onLunchChange(rowIndex, option?.key as string || '0');
+          onLunchChange(rowId, option?.key as string || '0'); // ИЗМЕНЕНО: rowIndex -> rowId
         }
       }}
       disabled={isDeleted}
@@ -245,14 +245,14 @@ export const LunchCell: React.FC<ILunchCellProps> = ({
 };
 
 /**
- * Интерфейс для свойств компонента ContractCell
+ * ОБНОВЛЕННЫЙ интерфейс для свойств компонента ContractCell - теперь использует rowId
  */
 interface IContractCellProps {
   contractNumber: string;
-  rowIndex: number;
+  rowId: string; // ИЗМЕНЕНО: rowIndex -> rowId
   isChanged: boolean;
   isDeleted?: boolean; // Флаг для определения удаленной строки
-  onContractChange: (rowIndex: number, value: string) => void;
+  onContractChange: (rowId: string, value: string) => void; // ИЗМЕНЕНО: rowIndex -> rowId
 }
 
 /**
@@ -260,7 +260,7 @@ interface IContractCellProps {
  */
 export const ContractCell: React.FC<IContractCellProps> = ({
   contractNumber,
-  rowIndex,
+  rowId, // ИЗМЕНЕНО: rowIndex -> rowId
   isChanged,
   isDeleted = false,
   onContractChange
@@ -320,7 +320,7 @@ export const ContractCell: React.FC<IContractCellProps> = ({
       selectedKey={contractNumber}
       onChange={(e, option) => {
         if (!isDeleted && option) {
-          onContractChange(rowIndex, option?.key as string || '1');
+          onContractChange(rowId, option?.key as string || '1'); // ИЗМЕНЕНО: rowIndex -> rowId
         }
       }}
       disabled={isDeleted}
@@ -331,11 +331,12 @@ export const ContractCell: React.FC<IContractCellProps> = ({
 };
 
 /**
- * Интерфейс для свойств компонента TotalHoursCell
+ * ОБНОВЛЕННЫЙ интерфейс для свойств компонента TotalHoursCell - теперь использует rowId для лучшей идентификации
  */
 interface ITotalHoursCellProps {
   timeTableData: IExtendedWeeklyTimeRow[];
-  rowIndex: number;
+  rowId: string; // ДОБАВЛЕНО: rowId для идентификации строки
+  rowIndex: number; // СОХРАНЕНО: для обратной совместимости с логикой шаблонов
   isFirstRowInTemplate: boolean;
   isLastRowInTemplate: boolean;
   isDeleted?: boolean; // Флаг для определения удаленной строки
@@ -347,13 +348,20 @@ interface ITotalHoursCellProps {
  */
 export const TotalHoursCell: React.FC<ITotalHoursCellProps> = ({
   timeTableData,
+  rowId, // ДОБАВЛЕНО: rowId
   rowIndex,
   isFirstRowInTemplate,
   isLastRowInTemplate,
   isDeleted = false,
   renderAddShiftButton
 }) => {
-  const row = timeTableData[rowIndex];
+  // ОБНОВЛЕНО: Находим строку по ID для более надежной работы
+  const row = timeTableData.find(r => r.id === rowId);
+  
+  if (!row) {
+    console.error(`TotalHoursCell: Row with ID ${rowId} not found`);
+    return <div>Error: Row not found</div>;
+  }
   
   return (
     <div className={styles.totalHoursContainer}>

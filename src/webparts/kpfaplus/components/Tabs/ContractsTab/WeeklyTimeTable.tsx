@@ -120,7 +120,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     setRefreshTrigger(prev => prev + 1);
   };
 
-  // ОБНОВЛЕНО: Создаем обработчики для изменения данных с новыми сигнатурами
+  // ОБНОВЛЕНО: Создаем обработчики для изменения данных с новыми сигнатурами (rowId)
   const handleTimeChange = useTimeChangeHandler(
     timeTableData,
     setTimeTableData,
@@ -144,43 +144,6 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
     setChangedRows,
     setStatusMessage
   );
-
-  // ДОБАВЛЕНО: Обертки для преобразования rowIndex в rowId
-  const handleTimeChangeWrapper = (rowIndex: number, dayKey: string, field: 'hours' | 'minutes', value: string): void => {
-    const filteredData = filterTimeTableData(timeTableData, showDeleted);
-    const targetRow = filteredData[rowIndex];
-    
-    if (targetRow) {
-      console.log(`[TimeChangeWrapper] Converting rowIndex ${rowIndex} to rowId ${targetRow.id}`);
-      handleTimeChange(targetRow.id, dayKey, field, value);
-    } else {
-      console.error(`[TimeChangeWrapper] No row found at index ${rowIndex} in filtered data`);
-    }
-  };
-
-  const handleLunchChangeWrapper = (rowIndex: number, value: string): void => {
-    const filteredData = filterTimeTableData(timeTableData, showDeleted);
-    const targetRow = filteredData[rowIndex];
-    
-    if (targetRow) {
-      console.log(`[LunchChangeWrapper] Converting rowIndex ${rowIndex} to rowId ${targetRow.id}`);
-      handleLunchChange(targetRow.id, value);
-    } else {
-      console.error(`[LunchChangeWrapper] No row found at index ${rowIndex} in filtered data`);
-    }
-  };
-
-  const handleContractChangeWrapper = (rowIndex: number, value: string): void => {
-    const filteredData = filterTimeTableData(timeTableData, showDeleted);
-    const targetRow = filteredData[rowIndex];
-    
-    if (targetRow) {
-      console.log(`[ContractChangeWrapper] Converting rowIndex ${rowIndex} to rowId ${targetRow.id}`);
-      handleContractChange(targetRow.id, value);
-    } else {
-      console.error(`[ContractChangeWrapper] No row found at index ${rowIndex} in filtered data`);
-    }
-  };
 
   // Вычисляем упорядоченные дни недели на основе dayOfStartWeek
   const orderedWeekDays = getOrderedWeekDays(dayOfStartWeek);
@@ -485,7 +448,7 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
           statusMessage={statusMessage}
         />
         
-        {/* Компонент с телом таблицы - ОБНОВЛЕНО: используем wrapper функции */}
+        {/* Компонент с телом таблицы - ОБНОВЛЕНО: передаем функции напрямую */}
         <WeeklyTimeTableBody
           timeTableData={timeTableData}
           filteredTimeTableData={filteredTimeTableData}
@@ -497,9 +460,9 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
           minutesOptions={minutesOptions}
           lunchOptions={lunchOptions}
           changedRows={changedRows}
-          handleTimeChange={handleTimeChangeWrapper}
-          handleLunchChange={handleLunchChangeWrapper}
-          handleContractChange={handleContractChangeWrapper}
+          handleTimeChange={handleTimeChange}
+          handleLunchChange={handleLunchChange}
+          handleContractChange={handleContractChange}
           renderAddShiftButton={renderAddShiftButton}
           renderDeleteButton={renderDeleteButton}
           isFirstRowWithNewTemplate={isFirstRowWithNewTemplate}
