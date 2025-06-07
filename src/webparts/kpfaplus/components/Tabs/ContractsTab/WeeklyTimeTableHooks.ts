@@ -1,5 +1,5 @@
 // src/webparts/kpfaplus/components/Tabs/ContractsTab/WeeklyTimeTableHooks.ts
-// ОБНОВЛЕНИЯ: Интеграция с DateUtils для консистентной работы с временем
+// ИСПРАВЛЕНО: Поиск строк по ID вместо индекса для корректной работы с фильтрованными данными
 
 import { useState, useEffect } from 'react';
 import { IDropdownOption, MessageBarType } from '@fluentui/react';
@@ -8,7 +8,7 @@ import {
   updateDisplayedTotalHours
 } from './WeeklyTimeTableLogic';
 import { WeeklyTimeTableUtils, IDayHoursComplete } from '../../../models/IWeeklyTimeTable';
-import { DateUtils } from '../../CustomDatePicker/CustomDatePicker'; // ДОБАВЛЕНО
+import { DateUtils } from '../../CustomDatePicker/CustomDatePicker';
 
 /**
  * Хук для получения опций для выпадающего списка часов
@@ -67,7 +67,7 @@ export const useLunchOptions = (): IDropdownOption[] => {
 };
 
 /**
- * ОБНОВЛЕННАЯ функция обработки изменения времени с валидацией через DateUtils
+ * ИСПРАВЛЕННАЯ функция обработки изменения времени - теперь принимает ID строки
  * @param timeTableData Текущие данные таблицы
  * @param setTimeTableData Функция для обновления данных таблицы
  * @param changedRows Множество измененных строк
@@ -84,19 +84,27 @@ export const useTimeChangeHandler = (
     type: MessageBarType;
     message: string;
   } | undefined>>
-): ((rowIndex: number, dayKey: string, field: 'hours' | 'minutes', value: string) => void) => {
-  return (rowIndex: number, dayKey: string, field: 'hours' | 'minutes', value: string): void => {
-    // Существующие проверки остаются без изменений
-    if (rowIndex < 0 || rowIndex >= timeTableData.length) {
-      console.error(`Invalid row index: ${rowIndex}`);
+): ((rowId: string, dayKey: string, field: 'hours' | 'minutes', value: string) => void) => {
+  return (rowId: string, dayKey: string, field: 'hours' | 'minutes', value: string): void => {
+    console.log(`[TimeChangeHandler] Called with rowId=${rowId}, dayKey=${dayKey}, field=${field}, value=${value}`);
+    
+    // ИСПРАВЛЕНО: Находим строку по ID вместо использования индекса
+    const targetRowIndex = timeTableData.findIndex(row => row.id === rowId);
+    
+    if (targetRowIndex === -1) {
+      console.error(`[TimeChangeHandler] Row with ID ${rowId} not found in timeTableData`);
       return;
     }
     
-    const row = timeTableData[rowIndex];
-    const isDeleted = row.deleted === 1 || row.Deleted === 1;
+    const targetRow = timeTableData[targetRowIndex];
+    
+    // Проверяем удаление по найденной строке
+    const isDeleted = targetRow.deleted === 1 || targetRow.Deleted === 1;
+    
+    console.log(`[TimeChangeHandler] Found row: ID=${targetRow.id}, deleted=${targetRow.deleted}, Deleted=${targetRow.Deleted}, isDeleted=${isDeleted}`);
     
     if (isDeleted) {
-      console.log(`Cannot change time for deleted row ID: ${row.id}`);
+      console.log(`[TimeChangeHandler] Cannot change time for deleted row ID: ${targetRow.id}`);
       setStatusMessage({
         type: MessageBarType.warning,
         message: 'Cannot edit deleted items. Restore the item first.'
@@ -112,12 +120,11 @@ export const useTimeChangeHandler = (
     const [dayName, timeType] = dayKey.split('-');
     const newData = [...timeTableData];
     const rowDay = dayName.toLowerCase() as keyof IExtendedWeeklyTimeRow;
-    const rowId = newData[rowIndex].id;
     
     if (rowDay === 'saturday' || rowDay === 'sunday' || rowDay === 'monday' || 
         rowDay === 'tuesday' || rowDay === 'wednesday' || rowDay === 'thursday' || rowDay === 'friday') {
       
-      const dayData = newData[rowIndex][rowDay] as IDayHoursComplete;
+      const dayData = newData[targetRowIndex][rowDay] as IDayHoursComplete;
       
       if (dayData) {
         const timeToUpdate = timeType === 'end' ? 'end' : 'start';
@@ -129,27 +136,22 @@ export const useTimeChangeHandler = (
         };
         
         // Применяем изменение
-        newData[rowIndex] = {
-          ...newData[rowIndex],
+        newData[targetRowIndex] = {
+          ...newData[targetRowIndex],
           [rowDay]: {
             ...dayData,
             [timeToUpdate]: updatedTimeData
           }
         };
         
-        // ОБНОВЛЕНО: Используем DateUtils для консистентного расчета времени
-        const updatedRow = newData[rowIndex];
-        
         // Создаем нормализованные объекты времени для расчета
         const normalizedDayData: Record<string, IDayHoursComplete> = {};
         
         ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].forEach(day => {
           const dayKey = day as keyof IExtendedWeeklyTimeRow;
-          const dayValue = updatedRow[dayKey] as IDayHoursComplete;
+          const dayValue = newData[targetRowIndex][dayKey] as IDayHoursComplete;
           
           if (dayValue) {
-            // Используем существующие данные без дополнительной нормализации
-            // так как DateUtils уже используется в WeeklyTimeTableService
             normalizedDayData[day] = {
               start: dayValue.start,
               end: dayValue.end
@@ -168,12 +170,12 @@ export const useTimeChangeHandler = (
             saturday: normalizedDayData.saturday,
             sunday: normalizedDayData.sunday
           },
-          updatedRow.lunch
+          newData[targetRowIndex].lunch
         );
         
         // Обновляем общее время работы в строке
-        newData[rowIndex] = {
-          ...newData[rowIndex],
+        newData[targetRowIndex] = {
+          ...newData[targetRowIndex],
           totalHours
         };
         
@@ -186,10 +188,10 @@ export const useTimeChangeHandler = (
         setStatusMessage(undefined);
         
         // Логируем изменение
-        console.log(`[TimeChange] Updated ${dayName}.${timeType}.${field} to ${value} for row ${rowIndex} (ID: ${rowId})`);
+        console.log(`[TimeChange] Updated ${dayName}.${timeType}.${field} to ${value} for row ID: ${rowId}`);
         console.log(`[TimeChange] New total hours: ${totalHours}`);
       } else {
-        console.error(`Day data not found for ${rowDay} in row ${rowIndex}`);
+        console.error(`Day data not found for ${rowDay} in row ID: ${rowId}`);
       }
     } else {
       console.error(`Invalid day key: ${dayKey}`);
@@ -205,7 +207,7 @@ export const useTimeChangeHandler = (
 };
 
 /**
- * ОБНОВЛЕННАЯ функция для обработки изменения времени обеда с дополнительной валидацией
+ * ИСПРАВЛЕННАЯ функция для обработки изменения времени обеда - теперь принимает ID строки
  * @param timeTableData Текущие данные таблицы
  * @param setTimeTableData Функция для обновления данных таблицы
  * @param changedRows Множество измененных строк
@@ -222,21 +224,28 @@ export const useLunchChangeHandler = (
     type: MessageBarType;
     message: string;
   } | undefined>>
-): ((rowIndex: number, value: string) => void) => {
-  return (rowIndex: number, value: string): void => {
-    // Проверяем, существует ли строка с таким индексом
-    if (rowIndex < 0 || rowIndex >= timeTableData.length) {
-      console.error(`Invalid row index: ${rowIndex}`);
+): ((rowId: string, value: string) => void) => {
+  return (rowId: string, value: string): void => {
+    console.log(`[LunchChangeHandler] Called with rowId=${rowId}, value=${value}`);
+    
+    // ИСПРАВЛЕНО: Находим строку по ID вместо использования индекса
+    const targetRowIndex = timeTableData.findIndex(row => row.id === rowId);
+    
+    if (targetRowIndex === -1) {
+      console.error(`[LunchChangeHandler] Row with ID ${rowId} not found in timeTableData`);
       return;
     }
     
-    // Проверяем, удалена ли строка
-    const row = timeTableData[rowIndex];
-    const isDeleted = row.deleted === 1 || row.Deleted === 1;
+    const targetRow = timeTableData[targetRowIndex];
+    
+    // Проверяем удаление по найденной строке
+    const isDeleted = targetRow.deleted === 1 || targetRow.Deleted === 1;
+    
+    console.log(`[LunchChangeHandler] Found row: ID=${targetRow.id}, deleted=${targetRow.deleted}, Deleted=${targetRow.Deleted}, isDeleted=${isDeleted}`);
     
     // Если строка удалена, не делаем никаких изменений
     if (isDeleted) {
-      console.log(`Cannot change lunch time for deleted row ID: ${row.id}`);
+      console.log(`[LunchChangeHandler] Cannot change lunch time for deleted row ID: ${targetRow.id}`);
       setStatusMessage({
         type: MessageBarType.warning,
         message: 'Cannot edit deleted items. Restore the item first.'
@@ -250,7 +259,7 @@ export const useLunchChangeHandler = (
       return;
     }
     
-    // ДОБАВЛЕНА: Валидация времени обеда
+    // Валидация времени обеда
     const lunchMinutes = parseInt(value, 10);
     if (isNaN(lunchMinutes) || lunchMinutes < 0 || lunchMinutes > 120) {
       setStatusMessage({
@@ -266,13 +275,12 @@ export const useLunchChangeHandler = (
     }
     
     const newData = [...timeTableData];
-    const rowId = newData[rowIndex].id;
     
-    newData[rowIndex].lunch = value;
-    console.log(`Changing lunch time for row ${rowIndex} to ${value}`);
+    newData[targetRowIndex].lunch = value;
+    console.log(`[LunchChangeHandler] Changing lunch time for row ID: ${rowId} to ${value}`);
     
     // Пересчитываем общее время работы после изменения времени обеда
-    const updatedRow = newData[rowIndex];
+    const updatedRow = newData[targetRowIndex];
     const totalHours = WeeklyTimeTableUtils.calculateTotalWorkHours(
       {
         monday: updatedRow.monday as IDayHoursComplete,
@@ -287,8 +295,8 @@ export const useLunchChangeHandler = (
     );
     
     // Обновляем общее время работы в строке
-    newData[rowIndex] = {
-      ...newData[rowIndex],
+    newData[targetRowIndex] = {
+      ...newData[targetRowIndex],
       totalHours,
       lunch: value
     };
@@ -310,7 +318,7 @@ export const useLunchChangeHandler = (
 };
 
 /**
- * ОБНОВЛЕННАЯ функция для обработки изменения контракта с валидацией
+ * ИСПРАВЛЕННАЯ функция для обработки изменения контракта - теперь принимает ID строки
  * @param timeTableData Текущие данные таблицы
  * @param setTimeTableData Функция для обновления данных таблицы
  * @param changedRows Множество измененных строк
@@ -327,21 +335,28 @@ export const useContractChangeHandler = (
     type: MessageBarType;
     message: string;
   } | undefined>>
-): ((rowIndex: number, value: string) => void) => {
-  return (rowIndex: number, value: string): void => {
-    // Проверяем, существует ли строка с таким индексом
-    if (rowIndex < 0 || rowIndex >= timeTableData.length) {
-      console.error(`Invalid row index: ${rowIndex}`);
+): ((rowId: string, value: string) => void) => {
+  return (rowId: string, value: string): void => {
+    console.log(`[ContractChangeHandler] Called with rowId=${rowId}, value=${value}`);
+    
+    // ИСПРАВЛЕНО: Находим строку по ID вместо использования индекса
+    const targetRowIndex = timeTableData.findIndex(row => row.id === rowId);
+    
+    if (targetRowIndex === -1) {
+      console.error(`[ContractChangeHandler] Row with ID ${rowId} not found in timeTableData`);
       return;
     }
     
-    // Проверяем, удалена ли строка
-    const row = timeTableData[rowIndex];
-    const isDeleted = row.deleted === 1 || row.Deleted === 1;
+    const targetRow = timeTableData[targetRowIndex];
+    
+    // Проверяем удаление по найденной строке
+    const isDeleted = targetRow.deleted === 1 || targetRow.Deleted === 1;
+    
+    console.log(`[ContractChangeHandler] Found row: ID=${targetRow.id}, deleted=${targetRow.deleted}, Deleted=${targetRow.Deleted}, isDeleted=${isDeleted}`);
     
     // Если строка удалена, не делаем никаких изменений
     if (isDeleted) {
-      console.log(`Cannot change contract for deleted row ID: ${row.id}`);
+      console.log(`[ContractChangeHandler] Cannot change contract for deleted row ID: ${targetRow.id}`);
       setStatusMessage({
         type: MessageBarType.warning,
         message: 'Cannot edit deleted items. Restore the item first.'
@@ -355,7 +370,7 @@ export const useContractChangeHandler = (
       return;
     }
     
-    // ДОБАВЛЕНА: Валидация значения контракта
+    // Валидация значения контракта
     const contractNumber = parseInt(value, 10);
     if (isNaN(contractNumber) || contractNumber < 1 || contractNumber > 10) {
       setStatusMessage({
@@ -371,10 +386,9 @@ export const useContractChangeHandler = (
     }
     
     const newData = [...timeTableData];
-    const rowId = newData[rowIndex].id;
     
-    newData[rowIndex].total = value;
-    console.log(`Changing contract for row ${rowIndex} to ${value}`);
+    newData[targetRowIndex].total = value;
+    console.log(`[ContractChangeHandler] Changing contract for row ID: ${rowId} to ${value}`);
     
     setTimeTableData(newData);
     
@@ -389,7 +403,7 @@ export const useContractChangeHandler = (
 };
 
 /**
- * НОВАЯ ФУНКЦИЯ: Хук для обновления общего времени для всех шаблонов
+ * Хук для обновления общего времени для всех шаблонов
  * @param timeTableData Текущие данные таблицы
  * @param setTimeTableData Функция для обновления данных таблицы
  * @returns Функция для обновления общего времени
@@ -406,44 +420,23 @@ export const useUpdateTotalHours = (
 };
 
 /**
- * НОВАЯ ФУНКЦИЯ: Хук для получения информации о текущем времени/дате
- * Полезен для отладки проблем с временными зонами
+ * Получение информации о текущем времени/дате (статическая версия)
+ * Полезна для отладки проблем с временными зонами
  * @returns Объект с информацией о текущем времени
  */
-export const useCurrentTimeInfo = (): {
+export const getCurrentTimeInfo = (): {
   currentDate: Date;
   normalizedDate: Date;
   timeZone: string;
   utcOffset: number;
 } => {
-  const [timeInfo, setTimeInfo] = useState(() => {
-    const currentDate = new Date();
-    const normalizedDate = DateUtils.normalizeDateToUTCMidnight(currentDate);
-    
-    return {
-      currentDate,
-      normalizedDate,
-      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      utcOffset: currentDate.getTimezoneOffset()
-    };
-  });
+  const currentDate = new Date();
+  const normalizedDate = DateUtils.normalizeDateToUTCMidnight(currentDate);
   
-  // Обновляем информацию каждую минуту
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const currentDate = new Date();
-      const normalizedDate = DateUtils.normalizeDateToUTCMidnight(currentDate);
-      
-      setTimeInfo({
-        currentDate,
-        normalizedDate,
-        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        utcOffset: currentDate.getTimezoneOffset()
-      });
-    }, 60000); // Обновляем каждую минуту
-    
-    return () => clearInterval(interval);
-  }, []);
-  
-  return timeInfo;
+  return {
+    currentDate,
+    normalizedDate,
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    utcOffset: currentDate.getTimezoneOffset()
+  };
 };
