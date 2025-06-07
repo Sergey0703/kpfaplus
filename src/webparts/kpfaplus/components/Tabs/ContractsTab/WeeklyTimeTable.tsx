@@ -363,11 +363,18 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
   };
   
   // ИСПРАВЛЕНО: Обработчик для добавления новой смены с проверкой удаленных
+  // ИСПРАВЛЕНО: Обработчик для добавления новой смены с проверкой удаленных
   const handleAddShift = (rowIndex: number): void => {
     const row = filteredTimeTableData[rowIndex];
     if (!row) return;
     
     console.log(`[WeeklyTimeTable] handleAddShift called for row ${rowIndex}, ID=${row.id}, Week=${row.NumberOfWeek}`);
+    
+    // ИСПРАВЛЕНО: Находим оригинальную строку в полном массиве данных по ID
+    const originalRowIndex = timeTableData.findIndex(r => r.id === row.id);
+    const originalRow = originalRowIndex !== -1 ? timeTableData[originalRowIndex] : row;
+    
+    console.log(`[WeeklyTimeTable] Original row found: ID=${originalRow.id}, Week=${originalRow.NumberOfWeek}, Shift=${originalRow.NumberOfShift}`);
     
     // ИСПРАВЛЕНО: Используем createAddShiftHandler для проверки удаленных смен
     const addShiftHandler = createAddShiftHandler(
@@ -381,12 +388,13 @@ export const WeeklyTimeTable: React.FC<IWeeklyTimeTableProps> = (props) => {
       contractId,
       setIsSaving,
       onSaveComplete,
-      triggerRefresh
-      // Убираем getSelectedRow - она не нужна, используем row напрямую
+      triggerRefresh,
+      // ИСПРАВЛЕНО: Передаем функцию, которая возвращает оригинальную строку из полного массива
+      () => originalRow
     );
     
     // Вызываем обработчик, который проверит удаленные смены
-    console.log(`[WeeklyTimeTable] Calling addShiftHandler for week ${row.NumberOfWeek}`);
+    console.log(`[WeeklyTimeTable] Calling addShiftHandler for week ${originalRow.NumberOfWeek}`);
     addShiftHandler()
       .then(() => {
         console.log(`[WeeklyTimeTable] addShiftHandler completed successfully`);
