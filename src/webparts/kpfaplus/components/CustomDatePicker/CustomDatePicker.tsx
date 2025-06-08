@@ -57,7 +57,7 @@ export class DateUtils {
    * Normalizes date to UTC midnight (00:00:00 UTC time)
    * This ensures no timezone shift issues when working with dates
    */
-  static normalizeToUTCMidnight(date: Date | null | undefined): Date | undefined {
+  static normalizeToUTCMidnight(date: Date | undefined): Date | undefined {
     if (!date) return undefined;
     
     console.log('[CustomDatePicker] [DateUtils] Input date:', date.toISOString());
@@ -81,7 +81,7 @@ export class DateUtils {
    * @param localDate - Дата для нормализации.
    * @returns Новый объект Date, нормализованный к полуночи по UTC.
    */
-  static normalizeDateToUTCMidnight(localDate: Date | null | undefined): Date {
+  static normalizeDateToUTCMidnight(localDate: Date | undefined): Date {
     if (!localDate || !(localDate instanceof Date) || isNaN(localDate.getTime())) {
       console.warn('[DateUtils] normalizeDateToUTCMidnight: Invalid date provided:', localDate);
       return new Date(); // Возвращаем текущую дату как fallback
@@ -380,7 +380,7 @@ export const CustomDatePicker: React.FC<ICustomDatePickerProps> = ({
   console.log('[CustomDatePicker] Normalized value:', normalizedValue?.toISOString());
 
   // Handler for date selection
-  const handleDateSelect = React.useCallback((date: Date | null | undefined): void => {
+  const handleDateSelect = React.useCallback((date: Date | undefined): void => {
     console.log('[CustomDatePicker] Date selected from picker:', date?.toISOString());
     
     // Normalize the selected date and pass it to parent
