@@ -175,20 +175,18 @@ export class DateMigrationService {
 
       // Generate preview for first 5 records that need updates
       const previewRecords: IMigrationPreviewRecord[] = [];
-      let recordsNeedingUpdate = 0;
 
       for (let i = 0; i < Math.min(items.length, 5); i++) {
         const item = items[i];
         const preview = this.createPreviewRecord(item, config);
         
         if (preview.needsUpdate) {
-          recordsNeedingUpdate++;
           previewRecords.push(preview);
         }
       }
 
       // For this migration, assume ALL records need updating since we want consistent UTC format
-      recordsNeedingUpdate = items.length;
+      // Note: We don't need to track recordsNeedingUpdate as we process all records
 
       return {
         listName,
@@ -229,7 +227,7 @@ export class DateMigrationService {
       }
 
       // Initial state
-      let state: IListMigrationState = {
+      const state: IListMigrationState = {
         listName,
         status: 'migrating',
         totalRecords: 0,
