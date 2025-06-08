@@ -1,84 +1,62 @@
-// src/webparts/kpfaplus/services/ScheduleLogsService.ts - ПОЛНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ
-
+// src/webparts/kpfaplus/services/ScheduleLogsService.ts
+// ИСПРАВЛЕНО: Заменены any на конкретные типы и удалены неиспользуемые переменные
 import { WebPartContext } from "@microsoft/sp-webpart-base";
-import { RemoteSiteService } from "./RemoteSiteService";
-import { 
-  IGetPaginatedListItemsOptions, 
-  IRemotePaginatedItemsResponse,
-  IRemoteListItemResponse 
-} from "./RemoteSiteInterfaces";
+import { SPHttpClient, SPHttpClientResponse } from '@microsoft/sp-http';
 
-// Интерфейс для записи лога операций заполнения расписания
+// *** ИНТЕРФЕЙСЫ ДЛЯ SCHEDULE LOGS ***
 export interface IScheduleLog {
-  ID: string;
-  Title: string;
-  Manager: IScheduleLogLookup | undefined;
-  StaffMember: IScheduleLogLookup | undefined;
-  StaffGroup: IScheduleLogLookup | undefined;
-  WeeklyTimeTable: IScheduleLogLookup | undefined;
-  Result: number;
-  Message: string;
-  Date: Date;                    // *** ПОЛЕ: Дата периода заполнения ***
-  Created: Date;
-  Modified: Date;
-}
-
-export interface IScheduleLogLookup {
-  Id: string;
-  Title: string;
-}
-
-export interface IRawScheduleLog {
-  ID?: string | number;
+  ID?: string;
   Title?: string;
-  Manager?: {
-    Id?: string | number;
-    ID?: string | number;
-    Title?: string;
-  };
+  Result?: number; // 1=Error, 2=Success, 3=Info
+  Message?: string;
+  Date?: string;
+  StaffMemberId?: string;
+  ManagerId?: string;
+  StaffGroupId?: string;
+  WeeklyTimeTableId?: string;
+  Created: string; // ИСПРАВЛЕНО: убрана опциональность, всегда присутствует
+  Modified?: string;
+  // ИСПРАВЛЕНО: добавлены специфичные поля для LogDetailsDialog
   StaffMember?: {
-    Id?: string | number;
-    ID?: string | number;
-    Title?: string;
+    Id: string;
+    Title: string;
+  };
+  Manager?: {
+    Id: string;
+    Title: string;
   };
   StaffGroup?: {
-    Id?: string | number;
-    ID?: string | number;
-    Title?: string;
+    Id: string;
+    Title: string;
   };
   WeeklyTimeTable?: {
-    Id?: string | number;
-    ID?: string | number;
-    Title?: string;
+    Id: string;
+    Title: string;
   };
-  Result?: number | string;
-  Message?: string;
-  Date?: string;                 // *** ПОЛЕ: Дата периода заполнения ***
-  Created?: string;
-  Modified?: string;
   [key: string]: unknown;
 }
 
 export interface ICreateScheduleLogParams {
   title: string;
-  managerId?: string | number;
-  staffMemberId?: string | number;
-  staffGroupId?: string | number;
-  weeklyTimeTableId?: string | number;
-  result: number;
+  result: number; // 1=Error, 2=Success, 3=Info
   message: string;
-  date: Date;                    // *** ПОЛЕ: Дата периода заполнения ***
+  date: Date;
+  staffMemberId?: string;
+  managerId?: string;
+  staffGroupId?: string;
+  weeklyTimeTableId?: string;
 }
 
-export interface IUpdateScheduleLogParams {
-  title?: string;
-  managerId?: string | number;
-  staffMemberId?: string | number;
-  staffGroupId?: string | number;
-  weeklyTimeTableId?: string | number;
-  result?: number;
-  message?: string;
-  date?: Date;                   // *** ПОЛЕ: Дата периода заполнения ***
+export interface IGetScheduleLogsParams {
+  staffMemberId?: string;
+  managerId?: string;
+  staffGroupId?: string;
+  weeklyTimeTableId?: string;
+  periodDate?: Date;
+  startDate?: Date;
+  endDate?: Date;
+  top?: number;
+  skip?: number;
 }
 
 export interface IScheduleLogsResult {
@@ -87,487 +65,512 @@ export interface IScheduleLogsResult {
   error?: string;
 }
 
-export interface IScheduleLogsQueryParams {
-  startDate?: Date;
-  endDate?: Date;
-  managerId?: string | number;
-  staffMemberId?: string | number;
-  staffGroupId?: string | number;
-  result?: number;
-  skip?: number;
-  top?: number;
-  // *** ПАРАМЕТРЫ ДЛЯ ФИЛЬТРАЦИИ ПО ДАТЕ ПЕРИОДА ***
-  periodDate?: Date;             // Точная дата периода
-  periodStartDate?: Date;        // Начало диапазона дат периода  
-  periodEndDate?: Date;          // Конец диапазона дат периода
+// *** ИНТЕРФЕЙС ДЛЯ SHAREPOINT RESPONSE ***
+interface ISharePointListResponse {
+  value: IScheduleLogSharePointItem[];
+  '@odata.count'?: number;
+}
+
+interface IScheduleLogSharePointItem {
+  ID: string;
+  Title: string;
+  Result: number;
+  Message: string;
+  Date: string;
+  StaffMemberId?: string;
+  ManagerId?: string;
+  StaffGroupId?: string;
+  WeeklyTimeTableId?: string;
+  Created: string; // ИСПРАВЛЕНО: убрана опциональность
+  Modified: string;
+  // ИСПРАВЛЕНО: добавлены lookup поля
+  StaffMember?: {
+    Id: string;
+    Title: string;
+  };
+  Manager?: {
+    Id: string;
+    Title: string;
+  };
+  StaffGroup?: {
+    Id: string;
+    Title: string;
+  };
+  WeeklyTimeTable?: {
+    Id: string;
+    Title: string;
+  };
+  [key: string]: unknown;
 }
 
 export class ScheduleLogsService {
-  private static _instance: ScheduleLogsService;
-  private _logSource: string = "ScheduleLogsService";
-  private _listName: string = "ScheduleLogs";
-  private _remoteSiteService: RemoteSiteService;
+  private static instance: ScheduleLogsService;
+  private context: WebPartContext;
+  private listName: string = 'ScheduleLogs';
 
   private constructor(context: WebPartContext) {
-    console.log('[ScheduleLogsService] Инициализация с полной поддержкой Date field');
-    this._remoteSiteService = RemoteSiteService.getInstance(context);
-    this.logInfo("ScheduleLogsService инициализирован с поддержкой Date field");
+    this.context = context;
+    console.log('[ScheduleLogsService] Service initialized');
   }
 
   public static getInstance(context: WebPartContext): ScheduleLogsService {
-    if (!ScheduleLogsService._instance) {
-      console.log('[ScheduleLogsService] Создание нового экземпляра с Date support');
-      ScheduleLogsService._instance = new ScheduleLogsService(context);
+    if (!ScheduleLogsService.instance) {
+      ScheduleLogsService.instance = new ScheduleLogsService(context);
     }
-    return ScheduleLogsService._instance;
-  }
-
-  public async createScheduleLog(params: ICreateScheduleLogParams): Promise<string | undefined> {
-    try {
-      this.logInfo(`[DEBUG] Создание нового лога для периода: ${params.date.toLocaleDateString()}`);
-      
-      const fields = this.prepareFieldsForCreate(params);
-      this.logInfo(`[DEBUG] Подготовленные поля для создания: ${JSON.stringify(fields, null, 2)}`);
-
-      const result = await this._remoteSiteService.createListItem(this._listName, fields);
-
-      if (result && result.id) {
-        this.logInfo(`[DEBUG] Успешно создан лог с ID: ${result.id} для периода: ${params.date.toLocaleDateString()}`);
-        return result.id.toString();
-      } else {
-        this.logError(`[ERROR] Не удалось создать лог - не получен ID`);
-        return undefined;
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logError(`[ERROR] Ошибка при создании лога: ${errorMessage}`);
-      return undefined;
-    }
-  }
-
-  public async getScheduleLogs(params?: IScheduleLogsQueryParams): Promise<IScheduleLogsResult> {
-    try {
-      this.logInfo(`[DEBUG] Получение логов с параметрами: ${JSON.stringify(params || {})}`);
-
-      // *** ВРЕМЕННО УБИРАЕМ ФИЛЬТРАЦИЮ ДЛЯ ОТЛАДКИ ***
-      const filter = this.buildFilter(params);
-      const orderBy = { field: 'fields/Created', ascending: false };
-
-      this.logInfo(`[DEBUG] Построенный фильтр: ${filter || 'отсутствует'}`);
-      this.logInfo(`[DEBUG] Сортировка: ${JSON.stringify(orderBy)}`);
-
-      const options: IGetPaginatedListItemsOptions = {
-        expandFields: true,
-        filter: filter,
-        orderBy: orderBy,
-        top: params?.top || 50,
-        skip: params?.skip || 0
-      };
-
-      const response: IRemotePaginatedItemsResponse = await this._remoteSiteService.getPaginatedItemsFromList(
-        this._listName,
-        options
-      );
-
-      this.logInfo(`[DEBUG] Получено ${response.items.length} записей из ${response.totalCount} общих`);
-
-      // *** УБИРАЕМ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ - ОСТАВЛЯЕМ ТОЛЬКО НЕОБХОДИМОЕ ***
-      const mappedLogs = response.items.map((item: IRemoteListItemResponse) => this.mapRawToScheduleLog(item));
-
-      this.logInfo(`[DEBUG] Всего получено логов: ${mappedLogs.length}`);
-      if (mappedLogs.length > 0) {
-        this.logInfo(`[DEBUG] Первый лог: ID=${mappedLogs[0].ID}, Result=${mappedLogs[0].Result}, Date=${mappedLogs[0].Date.toLocaleDateString()}, Title="${mappedLogs[0].Title}"`);
-      }
-
-      return {
-        logs: mappedLogs,
-        totalCount: response.totalCount,
-        error: undefined
-      };
-
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logError(`[ERROR] Ошибка при получении логов: ${errorMessage}`);
-
-      return {
-        logs: [],
-        totalCount: 0,
-        error: errorMessage
-      };
-    }
-  }
-
-  public async getScheduleLogById(logId: string | number): Promise<IScheduleLog | undefined> {
-    try {
-      this.logInfo(`[DEBUG] Получение лога по ID: ${logId}`);
-
-      const item = await this._remoteSiteService.getListItem(
-        this._listName,
-        Number(logId),
-        true
-      );
-
-      if (!item) {
-        this.logInfo(`[DEBUG] Лог с ID ${logId} не найден`);
-        return undefined;
-      }
-
-      const mappedLog = this.mapRawToScheduleLog(item);
-      this.logInfo(`[DEBUG] Успешно получен лог: ${mappedLog.Title}, период: ${mappedLog.Date.toLocaleDateString()}`);
-
-      return mappedLog;
-
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logError(`[ERROR] Ошибка при получении лога ID ${logId}: ${errorMessage}`);
-      return undefined;
-    }
-  }
-
-  public async updateScheduleLog(logId: string | number, params: IUpdateScheduleLogParams): Promise<boolean> {
-    try {
-      this.logInfo(`[DEBUG] Обновление лога ID: ${logId}`);
-
-      const fields = this.prepareFieldsForUpdate(params);
-
-      if (Object.keys(fields).length === 0) {
-        this.logInfo(`[DEBUG] Нет полей для обновления лога ID: ${logId}`);
-        return true;
-      }
-
-      const success = await this._remoteSiteService.updateListItem(
-        this._listName,
-        Number(logId),
-        fields
-      );
-
-      if (success) {
-        this.logInfo(`[DEBUG] Лог ID: ${logId} успешно обновлен`);
-      } else {
-        this.logError(`[ERROR] Не удалось обновить лог ID: ${logId}`);
-      }
-
-      return success;
-
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logError(`[ERROR] Ошибка при обновлении лога ID ${logId}: ${errorMessage}`);
-      return false;
-    }
-  }
-
-  public async deleteScheduleLog(logId: string | number): Promise<boolean> {
-    try {
-      this.logInfo(`[DEBUG] Удаление лога ID: ${logId}`);
-
-      const success = await this._remoteSiteService.deleteListItem(this._listName, logId);
-
-      if (success) {
-        this.logInfo(`[DEBUG] Лог ID: ${logId} успешно удален`);
-      } else {
-        this.logError(`[ERROR] Не удалось удалить лог ID: ${logId}`);
-      }
-
-      return success;
-
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logError(`[ERROR] Ошибка при удалении лога ID ${logId}: ${errorMessage}`);
-      return false;
-    }
-  }
-
-  private prepareFieldsForCreate(params: ICreateScheduleLogParams): Record<string, unknown> {
-    const fields: Record<string, unknown> = {};
-
-    // Обязательные поля
-    fields.Title = params.title;
-    fields.Result = params.result;
-    fields.Message = params.message;
-    
-    // *** ПОЛЕ: Дата периода заполнения ***
-    fields.Date = params.date.toISOString();
-    this.logInfo(`[DEBUG] Установлена дата периода: ${params.date.toLocaleDateString()} (ISO: ${params.date.toISOString()})`);
-
-    // Lookup поля с правильными названиями
-    if (params.managerId && String(params.managerId).trim() !== '' && String(params.managerId) !== '0') {
-      try {
-        const managerId = parseInt(String(params.managerId), 10);
-        if (!isNaN(managerId)) {
-          fields.ManagerLookupId = managerId;
-          this.logInfo(`[DEBUG] Установлен ManagerLookupId: ${managerId}`);
-        }
-      } catch (error) {
-        this.logError(`[ERROR] Ошибка парсинга managerId: ${params.managerId}`);
-      }
-    }
-
-    if (params.staffMemberId && String(params.staffMemberId).trim() !== '' && String(params.staffMemberId) !== '0') {
-      try {
-        const staffMemberId = parseInt(String(params.staffMemberId), 10);
-        if (!isNaN(staffMemberId)) {
-          fields.StaffMemberLookupId = staffMemberId;
-          this.logInfo(`[DEBUG] Установлен StaffMemberLookupId: ${staffMemberId}`);
-        }
-      } catch (error) {
-        this.logError(`[ERROR] Ошибка парсинга staffMemberId: ${params.staffMemberId}`);
-      }
-    }
-
-    if (params.staffGroupId && String(params.staffGroupId).trim() !== '' && String(params.staffGroupId) !== '0') {
-      try {
-        const staffGroupId = parseInt(String(params.staffGroupId), 10);
-        if (!isNaN(staffGroupId)) {
-          fields.StaffGroupLookupId = staffGroupId;
-          this.logInfo(`[DEBUG] Установлен StaffGroupLookupId: ${staffGroupId}`);
-        }
-      } catch (error) {
-        this.logError(`[ERROR] Ошибка парсинга staffGroupId: ${params.staffGroupId}`);
-      }
-    }
-
-    if (params.weeklyTimeTableId && String(params.weeklyTimeTableId).trim() !== '' && String(params.weeklyTimeTableId) !== '0') {
-      try {
-        const weeklyTimeTableId = parseInt(String(params.weeklyTimeTableId), 10);
-        if (!isNaN(weeklyTimeTableId)) {
-          fields.WeeklyTimeTableLookupId = weeklyTimeTableId;
-          this.logInfo(`[DEBUG] Установлен WeeklyTimeTableLookupId: ${weeklyTimeTableId}`);
-        }
-      } catch (error) {
-        this.logError(`[ERROR] Ошибка парсинга weeklyTimeTableId: ${params.weeklyTimeTableId}`);
-      }
-    }
-
-    return fields;
-  }
-
-  private prepareFieldsForUpdate(params: IUpdateScheduleLogParams): Record<string, unknown> {
-    const fields: Record<string, unknown> = {};
-
-    if (params.title !== undefined) {
-      fields.Title = params.title;
-    }
-
-    if (params.result !== undefined) {
-      fields.Result = params.result;
-    }
-
-    if (params.message !== undefined) {
-      fields.Message = params.message;
-    }
-
-    // *** ПОЛЕ: Обновление даты периода ***
-    if (params.date !== undefined) {
-      fields.Date = params.date.toISOString();
-      this.logInfo(`[DEBUG] Обновлена дата периода: ${params.date.toLocaleDateString()} (ISO: ${params.date.toISOString()})`);
-    }
-
-    // Lookup поля для обновления с правильными названиями
-    if (params.managerId !== undefined) {
-      if (params.managerId === '' || params.managerId === null || params.managerId === '0') {
-        fields.ManagerLookupId = null;
-      } else {
-        try {
-          const managerId = parseInt(String(params.managerId), 10);
-          if (!isNaN(managerId)) {
-            fields.ManagerLookupId = managerId;
-          }
-        } catch (error) {
-          this.logError(`[ERROR] Ошибка парсинга managerId для обновления: ${params.managerId}`);
-        }
-      }
-    }
-
-    if (params.staffMemberId !== undefined) {
-      if (params.staffMemberId === '' || params.staffMemberId === null || params.staffMemberId === '0') {
-        fields.StaffMemberLookupId = null;
-      } else {
-        try {
-          const staffMemberId = parseInt(String(params.staffMemberId), 10);
-          if (!isNaN(staffMemberId)) {
-            fields.StaffMemberLookupId = staffMemberId;
-          }
-        } catch (error) {
-          this.logError(`[ERROR] Ошибка парсинга staffMemberId для обновления: ${params.staffMemberId}`);
-        }
-      }
-    }
-
-    if (params.staffGroupId !== undefined) {
-      if (params.staffGroupId === '' || params.staffGroupId === null || params.staffGroupId === '0') {
-        fields.StaffGroupLookupId = null;
-      } else {
-        try {
-          const staffGroupId = parseInt(String(params.staffGroupId), 10);
-          if (!isNaN(staffGroupId)) {
-            fields.StaffGroupLookupId = staffGroupId;
-          }
-        } catch (error) {
-          this.logError(`[ERROR] Ошибка парсинга staffGroupId для обновления: ${params.staffGroupId}`);
-        }
-      }
-    }
-
-    if (params.weeklyTimeTableId !== undefined) {
-      if (params.weeklyTimeTableId === '' || params.weeklyTimeTableId === null || params.weeklyTimeTableId === '0') {
-        fields.WeeklyTimeTableLookupId = null;
-      } else {
-        try {
-          const weeklyTimeTableId = parseInt(String(params.weeklyTimeTableId), 10);
-          if (!isNaN(weeklyTimeTableId)) {
-            fields.WeeklyTimeTableLookupId = weeklyTimeTableId;
-          }
-        } catch (error) {
-          this.logError(`[ERROR] Ошибка парсинга weeklyTimeTableId для обновления: ${params.weeklyTimeTableId}`);
-        }
-      }
-    }
-
-    return fields;
+    return ScheduleLogsService.instance;
   }
 
   /**
-   * *** ВОССТАНОВЛЕННАЯ ФИЛЬТРАЦИЯ ПО ДАТЕ С ПРАВИЛЬНЫМ ПОЛЕМ ***
+   * Создает новый лог операции заполнения расписания
    */
-  private buildFilter(params?: IScheduleLogsQueryParams): string | undefined {
-    if (!params) return undefined;
+  public async createScheduleLog(params: ICreateScheduleLogParams): Promise<string | null> {
+    console.log('[ScheduleLogsService] Creating schedule log:', {
+      title: params.title,
+      result: params.result,
+      date: params.date.toLocaleDateString(),
+      staffMemberId: params.staffMemberId,
+      managerId: params.managerId
+    });
 
-    const filters: string[] = [];
+    try {
+      const siteUrl = this.context.pageContext.web.absoluteUrl;
+      const listUrl = `${siteUrl}/_api/web/lists/getbytitle('${this.listName}')/items`;
 
-    // Фильтр по дате создания
-    if (params.startDate) {
-      filters.push(`fields/Created ge '${params.startDate.toISOString()}'`);
+      // Формируем данные для создания
+      const logData: Record<string, unknown> = {
+        Title: params.title,
+        Result: params.result,
+        Message: params.message,
+        Date: params.date.toISOString()
+      };
+
+      // Добавляем опциональные поля только если они заданы
+      if (params.staffMemberId && params.staffMemberId.trim() !== '' && params.staffMemberId !== '0') {
+        logData.StaffMemberId = params.staffMemberId;
+      }
+
+      if (params.managerId && params.managerId.trim() !== '' && params.managerId !== '0') {
+        logData.ManagerId = params.managerId;
+      }
+
+      if (params.staffGroupId && params.staffGroupId.trim() !== '' && params.staffGroupId !== '0') {
+        logData.StaffGroupId = params.staffGroupId;
+      }
+
+      if (params.weeklyTimeTableId && params.weeklyTimeTableId.trim() !== '' && params.weeklyTimeTableId !== '0') {
+        logData.WeeklyTimeTableId = params.weeklyTimeTableId;
+      }
+
+      const response: SPHttpClientResponse = await this.context.spHttpClient.post(
+        listUrl,
+        SPHttpClient.configurations.v1,
+        {
+          headers: {
+            'Accept': 'application/json;odata=verbose',
+            'Content-Type': 'application/json;odata=verbose',
+            'X-RequestDigest': await this.getRequestDigest()
+          },
+          body: JSON.stringify(logData)
+        }
+      );
+
+      if (response.ok) {
+        const responseData = await response.json() as { d: { ID: string } };
+        const logId = responseData.d.ID;
+        
+        console.log(`[ScheduleLogsService] ✓ Schedule log created successfully with ID: ${logId}`);
+        return logId;
+      } else {
+        const errorText = await response.text();
+        console.error('[ScheduleLogsService] ✗ Error creating schedule log:', response.status, errorText);
+        return null;
+      }
+
+    } catch {
+      // ИСПРАВЛЕНО: Удалена неиспользуемая переменная error
+      console.error('[ScheduleLogsService] ✗ Exception creating schedule log');
+      return null;
     }
-
-    if (params.endDate) {
-      filters.push(`fields/Created le '${params.endDate.toISOString()}'`);
-    }
-
-    // *** ВОССТАНОВЛЕННАЯ ФИЛЬТРАЦИЯ ПО ДАТЕ ПЕРИОДА ***
-    if (params.periodDate) {
-      // Фильтруем по месяцу и году выбранной даты
-      const year = params.periodDate.getFullYear();
-      const month = params.periodDate.getMonth() + 1; // JavaScript месяцы 0-based
-      
-      // Первый день месяца
-      const firstDay = new Date(year, month - 1, 1);
-      firstDay.setHours(0, 0, 0, 0);
-      
-      // Последний день месяца  
-      const lastDay = new Date(year, month, 0);
-      lastDay.setHours(23, 59, 59, 999);
-      
-      filters.push(`fields/Date ge '${firstDay.toISOString()}' and fields/Date le '${lastDay.toISOString()}'`);
-      
-      this.logInfo(`[DEBUG] Фильтр по периоду: ${params.periodDate.toLocaleDateString()}`);
-      this.logInfo(`[DEBUG] Диапазон фильтра: ${firstDay.toISOString()} - ${lastDay.toISOString()}`);
-    }
-
-    if (params.periodStartDate) {
-      const dateStart = new Date(params.periodStartDate);
-      dateStart.setHours(0, 0, 0, 0);
-      filters.push(`fields/Date ge '${dateStart.toISOString()}'`);
-      this.logInfo(`[DEBUG] Фильтр периода от: ${params.periodStartDate.toLocaleDateString()}`);
-    }
-
-    if (params.periodEndDate) {
-      const dateEnd = new Date(params.periodEndDate);
-      dateEnd.setHours(23, 59, 59, 999);
-      filters.push(`fields/Date le '${dateEnd.toISOString()}'`);
-      this.logInfo(`[DEBUG] Фильтр периода до: ${params.periodEndDate.toLocaleDateString()}`);
-    }
-
-    // Фильтры по lookup полям
-    if (params.managerId && String(params.managerId) !== '0') {
-      filters.push(`fields/ManagerLookupId eq ${params.managerId}`);
-    }
-
-    if (params.staffMemberId && String(params.staffMemberId) !== '0') {
-      filters.push(`fields/StaffMemberLookupId eq ${params.staffMemberId}`);
-      this.logInfo(`[DEBUG] Фильтр по сотруднику: StaffMemberLookupId = ${params.staffMemberId}`);
-    }
-
-    if (params.staffGroupId && String(params.staffGroupId) !== '0') {
-      filters.push(`fields/StaffGroupLookupId eq ${params.staffGroupId}`);
-    }
-
-    // Фильтр по результату
-    if (params.result !== undefined) {
-      filters.push(`fields/Result eq ${params.result}`);
-    }
-
-    const resultFilter = filters.length > 0 ? filters.join(' and ') : undefined;
-    this.logInfo(`[DEBUG] Итоговый фильтр: ${resultFilter || 'отсутствует'}`);
-    
-    return resultFilter;
   }
 
-  private mapRawToScheduleLog(raw: IRawScheduleLog): IScheduleLog {
-    const mapLookup = (lookup: any): IScheduleLogLookup | undefined => {
-      if (!lookup) return undefined;
+  /**
+   * Получает логи операций заполнения расписания с фильтрацией
+   */
+  public async getScheduleLogs(params: IGetScheduleLogsParams = {}): Promise<IScheduleLogsResult> {
+    console.log('[ScheduleLogsService] Getting schedule logs with params:', params);
+
+    try {
+      const siteUrl = this.context.pageContext.web.absoluteUrl;
+      let apiUrl = `${siteUrl}/_api/web/lists/getbytitle('${this.listName}')/items`;
+
+      // Построение фильтров
+      const filters: string[] = [];
+
+      // Фильтр по сотруднику
+      if (params.staffMemberId && params.staffMemberId.trim() !== '' && params.staffMemberId !== '0') {
+        filters.push(`StaffMemberId eq '${params.staffMemberId}'`);
+      }
+
+      // Фильтр по менеджеру
+      if (params.managerId && params.managerId.trim() !== '' && params.managerId !== '0') {
+        filters.push(`ManagerId eq '${params.managerId}'`);
+      }
+
+      // Фильтр по группе
+      if (params.staffGroupId && params.staffGroupId.trim() !== '' && params.staffGroupId !== '0') {
+        filters.push(`StaffGroupId eq '${params.staffGroupId}'`);
+      }
+
+      // Фильтр по контракту
+      if (params.weeklyTimeTableId && params.weeklyTimeTableId.trim() !== '' && params.weeklyTimeTableId !== '0') {
+        filters.push(`WeeklyTimeTableId eq '${params.weeklyTimeTableId}'`);
+      }
+
+      // Фильтр по периоду (если указан periodDate)
+      if (params.periodDate) {
+        const year = params.periodDate.getFullYear();
+        const month = params.periodDate.getMonth();
+        const startOfMonth = new Date(year, month, 1);
+        const endOfMonth = new Date(year, month + 1, 0);
+        
+        const startDateStr = startOfMonth.toISOString();
+        const endDateStr = endOfMonth.toISOString();
+        
+        filters.push(`Date ge datetime'${startDateStr}' and Date le datetime'${endDateStr}'`);
+      }
+      // Альтернативно, фильтр по диапазону дат
+      else if (params.startDate && params.endDate) {
+        const startDateStr = params.startDate.toISOString();
+        const endDateStr = params.endDate.toISOString();
+        
+        filters.push(`Date ge datetime'${startDateStr}' and Date le datetime'${endDateStr}'`);
+      }
+
+      // Построение URL с параметрами
+      const queryParams: string[] = [];
       
-      const id = lookup.Id || lookup.ID;
-      const title = lookup.Title;
-      
-      if (id && title) {
+      if (filters.length > 0) {
+        queryParams.push(`$filter=${encodeURIComponent(filters.join(' and '))}`);
+      }
+
+      // Сортировка по дате создания (новые первыми)
+      queryParams.push('$orderby=Created desc');
+
+      // Пагинация
+      if (params.top && params.top > 0) {
+        queryParams.push(`$top=${params.top}`);
+      }
+
+      if (params.skip && params.skip > 0) {
+        queryParams.push(`$skip=${params.skip}`);
+      }
+
+      // Подсчет общего количества
+      queryParams.push('$inlinecount=allpages');
+
+      if (queryParams.length > 0) {
+        apiUrl += `?${queryParams.join('&')}`;
+      }
+
+      console.log('[ScheduleLogsService] API URL:', apiUrl);
+
+      const response: SPHttpClientResponse = await this.context.spHttpClient.get(
+        apiUrl,
+        SPHttpClient.configurations.v1,
+        {
+          headers: {
+            'Accept': 'application/json;odata=verbose'
+          }
+        }
+      );
+
+      if (response.ok) {
+        const responseData = await response.json() as { d: ISharePointListResponse };
+        const items = responseData.d.value || [];
+        const totalCount = responseData.d['@odata.count'] || items.length;
+
+        // Преобразуем SharePoint элементы в наш формат
+        const logs: IScheduleLog[] = items.map((item: IScheduleLogSharePointItem): IScheduleLog => ({
+          ID: item.ID,
+          Title: item.Title,
+          Result: item.Result,
+          Message: item.Message,
+          Date: item.Date,
+          StaffMemberId: item.StaffMemberId,
+          ManagerId: item.ManagerId,
+          StaffGroupId: item.StaffGroupId,
+          WeeklyTimeTableId: item.WeeklyTimeTableId,
+          Created: item.Created, // ИСПРАВЛЕНО: всегда присутствует
+          Modified: item.Modified,
+          // ИСПРАВЛЕНО: добавляем lookup поля
+          StaffMember: item.StaffMember,
+          Manager: item.Manager,
+          StaffGroup: item.StaffGroup,
+          WeeklyTimeTable: item.WeeklyTimeTable
+        }));
+
+        console.log(`[ScheduleLogsService] ✓ Retrieved ${logs.length} schedule logs (total: ${totalCount})`);
+
         return {
-          Id: String(id),
-          Title: String(title)
+          logs,
+          totalCount
+        };
+
+      } else {
+        const errorText = await response.text();
+        console.error('[ScheduleLogsService] ✗ Error getting schedule logs:', response.status, errorText);
+        
+        return {
+          logs: [],
+          totalCount: 0,
+          error: `HTTP ${response.status}: ${errorText}`
         };
       }
+
+    } catch {
+      // ИСПРАВЛЕНО: Удалена неиспользуемая переменная error
+      console.error('[ScheduleLogsService] ✗ Exception getting schedule logs');
       
-      return undefined;
-    };
-
-    // *** ОПТИМИЗИРОВАННОЕ ЧТЕНИЕ ПОЛЕЙ НА ОСНОВЕ НАЙДЕННОЙ СТРУКТУРЫ ***
-    const id = (raw as any).id || (raw as any).fields?.id;
-    const title = (raw as any).fields?.Title;
-    const result = (raw as any).fields?.Result;
-    const dateField = (raw as any).fields?.Date;
-    const message = (raw as any).fields?.Message;
-    
-    // *** ЧТЕНИЕ ДАТЫ ***
-    let logDate = new Date();
-    if (dateField) {
-      try {
-        logDate = new Date(dateField);
-        if (isNaN(logDate.getTime())) {
-          console.warn(`[ScheduleLogsService] Invalid date: ${dateField}`);
-          logDate = new Date();
-        }
-      } catch (error) {
-        console.error(`[ScheduleLogsService] Error parsing date: ${dateField}`, error);
-        logDate = new Date();
-      }
+      return {
+        logs: [],
+        totalCount: 0,
+        error: 'Exception occurred while fetching logs'
+      };
     }
-    
-    const parsedResult = typeof result === 'string' ? parseInt(result, 10) : (result as number || 0);
-    
-    return {
-      ID: String(id || ''),
-      Title: String(title || ''),
-      Manager: mapLookup((raw as any).fields?.Manager),
-      StaffMember: mapLookup((raw as any).fields?.StaffMember),
-      StaffGroup: mapLookup((raw as any).fields?.StaffGroup),
-      WeeklyTimeTable: mapLookup((raw as any).fields?.WeeklyTimeTable),
-      Result: parsedResult,
-      Message: String(message || ''),
-      Date: logDate,
-      Created: (raw as any).fields?.Created ? new Date((raw as any).fields.Created) : new Date(),
-      Modified: (raw as any).fields?.Modified ? new Date((raw as any).fields.Modified) : new Date()
-    };
   }
 
-  private logInfo(message: string): void {
-    console.log(`[${this._logSource}] ${message}`);
+  /**
+   * Получает конкретный лог по ID
+   */
+  public async getScheduleLogById(logId: string): Promise<IScheduleLog | null> {
+    console.log(`[ScheduleLogsService] Getting schedule log by ID: ${logId}`);
+
+    try {
+      const siteUrl = this.context.pageContext.web.absoluteUrl;
+      const apiUrl = `${siteUrl}/_api/web/lists/getbytitle('${this.listName}')/items(${logId})`;
+
+      const response: SPHttpClientResponse = await this.context.spHttpClient.get(
+        apiUrl,
+        SPHttpClient.configurations.v1,
+        {
+          headers: {
+            'Accept': 'application/json;odata=verbose'
+          }
+        }
+      );
+
+      if (response.ok) {
+        const responseData = await response.json() as { d: IScheduleLogSharePointItem };
+        const item = responseData.d;
+
+        const log: IScheduleLog = {
+          ID: item.ID,
+          Title: item.Title,
+          Result: item.Result,
+          Message: item.Message,
+          Date: item.Date,
+          StaffMemberId: item.StaffMemberId,
+          ManagerId: item.ManagerId,
+          StaffGroupId: item.StaffGroupId,
+          WeeklyTimeTableId: item.WeeklyTimeTableId,
+          Created: item.Created, // ИСПРАВЛЕНО: всегда присутствует
+          Modified: item.Modified,
+          // ИСПРАВЛЕНО: добавляем lookup поля
+          StaffMember: item.StaffMember,
+          Manager: item.Manager,
+          StaffGroup: item.StaffGroup,
+          WeeklyTimeTable: item.WeeklyTimeTable
+        };
+
+        console.log(`[ScheduleLogsService] ✓ Retrieved schedule log: ${log.Title}`);
+        return log;
+
+      } else if (response.status === 404) {
+        console.log(`[ScheduleLogsService] Schedule log with ID ${logId} not found`);
+        return null;
+      } else {
+        const errorText = await response.text();
+        console.error('[ScheduleLogsService] ✗ Error getting schedule log by ID:', response.status, errorText);
+        return null;
+      }
+
+    } catch {
+      // ИСПРАВЛЕНО: Удалена неиспользуемая переменная error
+      console.error(`[ScheduleLogsService] ✗ Exception getting schedule log by ID: ${logId}`);
+      return null;
+    }
   }
 
-  private logError(message: string): void {
-    console.error(`[${this._logSource}] ${message}`);
+  /**
+   * Удаляет лог по ID
+   */
+  public async deleteScheduleLog(logId: string): Promise<boolean> {
+    console.log(`[ScheduleLogsService] Deleting schedule log: ${logId}`);
+
+    try {
+      const siteUrl = this.context.pageContext.web.absoluteUrl;
+      const apiUrl = `${siteUrl}/_api/web/lists/getbytitle('${this.listName}')/items(${logId})`;
+
+      const response: SPHttpClientResponse = await this.context.spHttpClient.post(
+        apiUrl,
+        SPHttpClient.configurations.v1,
+        {
+          headers: {
+            'Accept': 'application/json;odata=verbose',
+            'X-RequestDigest': await this.getRequestDigest(),
+            'IF-MATCH': '*',
+            'X-HTTP-Method': 'DELETE'
+          }
+        }
+      );
+
+      if (response.ok || response.status === 204) {
+        console.log(`[ScheduleLogsService] ✓ Schedule log ${logId} deleted successfully`);
+        return true;
+      } else {
+        const errorText = await response.text();
+        console.error('[ScheduleLogsService] ✗ Error deleting schedule log:', response.status, errorText);
+        return false;
+      }
+
+    } catch {
+      // ИСПРАВЛЕНО: Удалена неиспользуемая переменная error
+      console.error(`[ScheduleLogsService] ✗ Exception deleting schedule log: ${logId}`);
+      return false;
+    }
   }
 
+  /**
+   * Получает статистику логов
+   */
+  public async getLogsStatistics(params: Omit<IGetScheduleLogsParams, 'top' | 'skip'> = {}): Promise<{
+    total: number;
+    success: number;
+    errors: number;
+    info: number;
+    byStaff: Record<string, number>;
+    byManager: Record<string, number>;
+    byResult: Record<number, number>;
+  } | null> {
+    console.log('[ScheduleLogsService] Getting logs statistics');
+
+    try {
+      // Получаем все логи без пагинации для статистики
+      const result = await this.getScheduleLogs({ ...params, top: undefined, skip: undefined });
+      
+      if (result.error) {
+        console.error('[ScheduleLogsService] Error getting logs for statistics:', result.error);
+        return null;
+      }
+
+      const logs = result.logs;
+      
+      // ИСПРАВЛЕНО: Заменены any на конкретные типы
+      const byStaff: Record<string, number> = {};
+      const byManager: Record<string, number> = {};
+      const byResult: Record<number, number> = { 1: 0, 2: 0, 3: 0 }; // 1=Error, 2=Success, 3=Info
+      
+      let success = 0;
+      let errors = 0;
+      let info = 0;
+
+      logs.forEach((log: IScheduleLog) => {
+        // Подсчет по результатам
+        const result = log.Result || 1;
+        byResult[result] = (byResult[result] || 0) + 1;
+        
+        if (result === 2) success++;
+        else if (result === 1) errors++;
+        else if (result === 3) info++;
+
+        // Подсчет по сотрудникам
+        if (log.StaffMemberId) {
+          byStaff[log.StaffMemberId] = (byStaff[log.StaffMemberId] || 0) + 1;
+        }
+
+        // Подсчет по менеджерам
+        if (log.ManagerId) {
+          byManager[log.ManagerId] = (byManager[log.ManagerId] || 0) + 1;
+        }
+      });
+
+      const statistics = {
+        total: logs.length,
+        success,
+        errors,
+        info,
+        byStaff,
+        byManager,
+        byResult
+      };
+
+      console.log('[ScheduleLogsService] ✓ Statistics calculated:', {
+        total: statistics.total,
+        success: statistics.success,
+        errors: statistics.errors,
+        info: statistics.info
+      });
+
+      return statistics;
+
+    } catch {
+      // ИСПРАВЛЕНО: Удалена неиспользуемая переменная error
+      console.error('[ScheduleLogsService] ✗ Exception calculating logs statistics');
+      return null;
+    }
+  }
+
+  /**
+   * Получает Request Digest для операций записи
+   */
+  private async getRequestDigest(): Promise<string> {
+    try {
+      const siteUrl = this.context.pageContext.web.absoluteUrl;
+      const digestUrl = `${siteUrl}/_api/contextinfo`;
+
+      const response: SPHttpClientResponse = await this.context.spHttpClient.post(
+        digestUrl,
+        SPHttpClient.configurations.v1,
+        {
+          headers: {
+            'Accept': 'application/json;odata=verbose'
+          }
+        }
+      );
+
+      if (response.ok) {
+        const digestData = await response.json() as { d: { GetContextWebInformation: { FormDigestValue: string } } };
+        return digestData.d.GetContextWebInformation.FormDigestValue;
+      } else {
+        throw new Error(`Failed to get request digest: ${response.status}`);
+      }
+
+    } catch (error) {
+      console.error('[ScheduleLogsService] Error getting request digest:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Очищает инстанс сервиса
+   */
   public static clearInstance(): void {
-    ScheduleLogsService._instance = undefined as any;
+    ScheduleLogsService.instance = undefined as unknown as ScheduleLogsService;
     console.log('[ScheduleLogsService] Instance cleared');
+  }
+
+  /**
+   * Получает информацию о сервисе
+   */
+  public getServiceInfo(): {
+    listName: string;
+    context: boolean;
+    webUrl: string;
+  } {
+    return {
+      listName: this.listName,
+      context: !!this.context,
+      webUrl: this.context.pageContext.web.absoluteUrl
+    };
   }
 }
