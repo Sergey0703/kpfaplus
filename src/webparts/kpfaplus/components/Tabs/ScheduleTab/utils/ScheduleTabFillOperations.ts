@@ -88,17 +88,18 @@ function getAppliedWeekNumber(calculatedWeekNumber: number, numberOfWeekTemplate
 }
 
 /**
- * Helper function to create Date object with specified time
+ * ИСПРАВЛЕНО: Helper function to create Date object with specified time using UTC
  * @param baseDate Base date
  * @param time Object with hours and minutes (может быть undefined)
- * @returns Date object with set time
+ * @returns Date object with set time in UTC
  */
 function createDateWithTime(baseDate: Date, time?: IDayHours): Date {
   const result = new Date(baseDate);
   
-  // Если time не определен, устанавливаем 00:00
+  // Если time не определен, устанавливаем 00:00 UTC
   if (!time) {
-    result.setHours(0, 0, 0, 0);
+    result.setUTCHours(0, 0, 0, 0);
+    console.log(`[ScheduleTabFillOperations] createDateWithTime: No time provided, set to UTC midnight: ${result.toISOString()}`);
     return result;
   }
   
@@ -108,16 +109,19 @@ function createDateWithTime(baseDate: Date, time?: IDayHours): Date {
     const minutes = parseInt(time.minutes || '0', 10);
     
     if (isNaN(hours) || isNaN(minutes)) {
-      // If parsing failed, set 00:00
-      result.setHours(0, 0, 0, 0);
+      // If parsing failed, set 00:00 UTC
+      result.setUTCHours(0, 0, 0, 0);
+      console.log(`[ScheduleTabFillOperations] createDateWithTime: Invalid time format (${time.hours}:${time.minutes}), set to UTC midnight: ${result.toISOString()}`);
     } else {
-      // Set specified time
-      result.setHours(hours, minutes, 0, 0);
+      // ИСПРАВЛЕНО: Set specified time using UTC instead of local time
+      result.setUTCHours(hours, minutes, 0, 0);
+      console.log(`[ScheduleTabFillOperations] createDateWithTime: Set UTC time ${hours}:${minutes} on base date ${baseDate.toISOString()} → result: ${result.toISOString()}`);
     }
   } catch (error) {
     console.error(`[ScheduleTabFillOperations] Error parsing time:`, error);
-    // In case of error, set 00:00
-    result.setHours(0, 0, 0, 0);
+    // In case of error, set 00:00 UTC
+    result.setUTCHours(0, 0, 0, 0);
+    console.log(`[ScheduleTabFillOperations] createDateWithTime: Error parsing time, set to UTC midnight: ${result.toISOString()}`);
   }
   
   return result;
@@ -393,9 +397,18 @@ export const fillScheduleFromTemplate = async (
               return; // Пропускаем этот шаблон
             }
             
-            // Преобразуем время начала и конца в объекты Date
+            // ИСПРАВЛЕНО: Преобразуем время начала и конца в объекты Date с использованием UTC
+            console.log(`[ScheduleTabFillOperations] *** CREATING SHIFT TIMES WITH UTC ***`);
+            console.log(`[ScheduleTabFillOperations] Template start time from WeeklyTimeTables: ${template.start.hours}:${template.start.minutes}`);
+            console.log(`[ScheduleTabFillOperations] Template end time from WeeklyTimeTables: ${template.end.hours}:${template.end.minutes}`);
+            console.log(`[ScheduleTabFillOperations] Base date: ${dayData.date.toISOString()}`);
+            
             const shiftDate1 = createDateWithTime(dayData.date, template.start);
             const shiftDate2 = createDateWithTime(dayData.date, template.end);
+            
+            console.log(`[ScheduleTabFillOperations] *** CREATED SHIFT TIMES (UTC) ***`);
+            console.log(`[ScheduleTabFillOperations] ShiftDate1 (start): ${shiftDate1.toISOString()}`);
+            console.log(`[ScheduleTabFillOperations] ShiftDate2 (end): ${shiftDate2.toISOString()}`);
             
             // Создаем объект записи
             const recordData: Partial<IStaffRecord> = {
@@ -427,8 +440,8 @@ export const fillScheduleFromTemplate = async (
             }
             
             console.log(`[ScheduleTabFillOperations] Подготовлена запись для ${dayData.date.toLocaleDateString()}:
-              - Начало смены: ${recordData.ShiftDate1?.toLocaleTimeString() || 'не указано'}
-              - Конец смены: ${recordData.ShiftDate2?.toLocaleTimeString() || 'не указано'}
+              - Начало смены: ${recordData.ShiftDate1?.toLocaleTimeString() || 'не указано'} (UTC: ${recordData.ShiftDate1?.toISOString() || 'не указано'})
+              - Конец смены: ${recordData.ShiftDate2?.toLocaleTimeString() || 'не указано'} (UTC: ${recordData.ShiftDate2?.toISOString() || 'не указано'})
               - Время на обед: ${recordData.TimeForLunch} мин.
               - Праздник: ${recordData.Holiday === 1 ? 'Да' : 'Нет'}
               - ID типа отпуска: ${recordData.TypeOfLeaveID || 'не установлен'}
@@ -485,6 +498,8 @@ export const fillScheduleFromTemplate = async (
             - Holiday: ${record.Holiday}
             - Contract: ${record.Contract}
             - TimeForLunch: ${record.TimeForLunch}
+            - ShiftDate1 (UTC): ${record.ShiftDate1?.toISOString() || 'не указано'}
+            - ShiftDate2 (UTC): ${record.ShiftDate2?.toISOString() || 'не указано'}
           `);
           
           // Call create method with explicit ID passing

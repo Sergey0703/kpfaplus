@@ -23,7 +23,7 @@ export const createTimeFromScheduleItem = (baseDate: Date, hourStr: string, minu
 
 /**
  * Преобразует данные записей расписания в формат для отображения в таблице
- * ИСПРАВЛЕНО: Используется ТОЛЬКО данные из StaffRecords с нормализацией дат
+ * ИСПРАВЛЕНО: Используется правильное извлечение UTC времени из дат для отображения
  */
 export const convertStaffRecordsToScheduleItems = (
   records: IStaffRecord[] | undefined, 
@@ -36,6 +36,7 @@ export const convertStaffRecordsToScheduleItems = (
   console.log(`[ScheduleTabDataUtils] Converting ${records.length} staff records to schedule items`);
   console.log(`[ScheduleTabDataUtils] Using ONLY data from StaffRecords - no mixing with leaves/holidays data`);
   console.log(`[ScheduleTabDataUtils] IMPORTANT: Using DateUtils for date normalization to fix October 1st issue`);
+  console.log(`[ScheduleTabDataUtils] *** CRITICAL: Using getUTCHours/getUTCMinutes for correct time display ***`);
 
   return records.map((record, index) => {
     // ИСПРАВЛЕНО: Нормализуем основную дату записи к UTC полуночи для консистентности
@@ -61,11 +62,28 @@ export const convertStaffRecordsToScheduleItems = (
     // Форматирование дня недели
     const dayOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][normalizedDate.getDay()];
     
-    // Получение часов и минут из дат
-    const startHour = record.ShiftDate1 ? record.ShiftDate1.getHours().toString().padStart(2, '0') : '00';
-    const startMinute = record.ShiftDate1 ? record.ShiftDate1.getMinutes().toString().padStart(2, '0') : '00';
-    const finishHour = record.ShiftDate2 ? record.ShiftDate2.getHours().toString().padStart(2, '0') : '00';
-    const finishMinute = record.ShiftDate2 ? record.ShiftDate2.getMinutes().toString().padStart(2, '0') : '00';
+    // ИСПРАВЛЕНО: Получение часов и минут из дат с использованием UTC методов
+    console.log(`[ScheduleTabDataUtils] *** EXTRACTING TIME USING UTC METHODS ***`);
+    if (record.ShiftDate1) {
+      console.log(`[ScheduleTabDataUtils] ShiftDate1 stored: ${record.ShiftDate1.toISOString()}`);
+      console.log(`[ScheduleTabDataUtils] Local time would be: ${record.ShiftDate1.getHours()}:${record.ShiftDate1.getMinutes()}`);
+      console.log(`[ScheduleTabDataUtils] UTC time (correct): ${record.ShiftDate1.getUTCHours()}:${record.ShiftDate1.getUTCMinutes()}`);
+    }
+    if (record.ShiftDate2) {
+      console.log(`[ScheduleTabDataUtils] ShiftDate2 stored: ${record.ShiftDate2.toISOString()}`);
+      console.log(`[ScheduleTabDataUtils] Local time would be: ${record.ShiftDate2.getHours()}:${record.ShiftDate2.getMinutes()}`);
+      console.log(`[ScheduleTabDataUtils] UTC time (correct): ${record.ShiftDate2.getUTCHours()}:${record.ShiftDate2.getUTCMinutes()}`);
+    }
+    
+    // ИСПРАВЛЕНО: Используем getUTCHours() и getUTCMinutes() вместо getHours() и getMinutes()
+    const startHour = record.ShiftDate1 ? record.ShiftDate1.getUTCHours().toString().padStart(2, '0') : '00';
+    const startMinute = record.ShiftDate1 ? record.ShiftDate1.getUTCMinutes().toString().padStart(2, '0') : '00';
+    const finishHour = record.ShiftDate2 ? record.ShiftDate2.getUTCHours().toString().padStart(2, '0') : '00';
+    const finishMinute = record.ShiftDate2 ? record.ShiftDate2.getUTCMinutes().toString().padStart(2, '0') : '00';
+    
+    console.log(`[ScheduleTabDataUtils] *** EXTRACTED UTC TIME FOR DISPLAY ***`);
+    console.log(`[ScheduleTabDataUtils] Start time: ${startHour}:${startMinute} (from UTC)`);
+    console.log(`[ScheduleTabDataUtils] Finish time: ${finishHour}:${finishMinute} (from UTC)`);
     
     // ИСПРАВЛЕНО: Извлекаем значение TypeOfLeaveID ТОЛЬКО из записи расписания
     let typeOfLeaveValue = '';
@@ -110,9 +128,23 @@ export const convertStaffRecordsToScheduleItems = (
         id: scheduleItem.id,
         date: scheduleItem.date.toISOString(),
         dayOfWeek: scheduleItem.dayOfWeek,
+        startTime: `${scheduleItem.startHour}:${scheduleItem.startMinute}`,
+        finishTime: `${scheduleItem.finishHour}:${scheduleItem.finishMinute}`,
         deleted: scheduleItem.deleted,
         Holiday: scheduleItem.Holiday
       });
+    }
+    
+    // Логирование для каждого элемента (только для первых нескольких для экономии места)
+    if (index < 3) {
+      console.log(`[ScheduleTabDataUtils] *** FINAL SCHEDULE ITEM ${index + 1} ***`);
+      console.log(`[ScheduleTabDataUtils] ID: ${scheduleItem.id}`);
+      console.log(`[ScheduleTabDataUtils] Date: ${scheduleItem.date.toISOString()}`);
+      console.log(`[ScheduleTabDataUtils] Time: ${scheduleItem.startHour}:${scheduleItem.startMinute} - ${scheduleItem.finishHour}:${scheduleItem.finishMinute}`);
+      console.log(`[ScheduleTabDataUtils] Working hours: ${scheduleItem.workingHours}`);
+      console.log(`[ScheduleTabDataUtils] Type of leave: ${scheduleItem.typeOfLeave || 'none'}`);
+      console.log(`[ScheduleTabDataUtils] Deleted: ${scheduleItem.deleted}`);
+      console.log(`[ScheduleTabDataUtils] Holiday: ${scheduleItem.Holiday}`);
     }
     
     return scheduleItem;
@@ -233,8 +265,8 @@ export const logScheduleItemConversion = (record: IStaffRecord, scheduleItem: IS
   console.log(`Deleted Status: ${scheduleItem.deleted}`);
   console.log(`Holiday Status: ${scheduleItem.Holiday}`);
   console.log(`Type of Leave: ${scheduleItem.typeOfLeave || 'none'}`);
-  console.log(`Start Time: ${scheduleItem.startHour}:${scheduleItem.startMinute}`);
-  console.log(`Finish Time: ${scheduleItem.finishHour}:${scheduleItem.finishMinute}`);
+  console.log(`Start Time: ${scheduleItem.startHour}:${scheduleItem.startMinute} (extracted from UTC)`);
+  console.log(`Finish Time: ${scheduleItem.finishHour}:${scheduleItem.finishMinute} (extracted from UTC)`);
   console.log(`Lunch Time: ${scheduleItem.lunchTime} minutes`);
   console.log(`Contract: ${scheduleItem.contract} (ID: ${scheduleItem.contractId})`);
   console.log(`Contract Number: ${scheduleItem.contractNumber}`);
@@ -369,7 +401,7 @@ export const logScheduleItemsDateStatistics = (scheduleItems: IScheduleItem[]): 
   if (dateGroups[oct1Key]) {
     console.log(`*** OCTOBER 1st 2024 FOUND: ${dateGroups[oct1Key].length} items ***`);
     dateGroups[oct1Key].forEach(item => {
-      console.log(`  - ID: ${item.id}, deleted: ${item.deleted}, holiday: ${item.Holiday}`);
+      console.log(`  - ID: ${item.id}, deleted: ${item.deleted}, holiday: ${item.Holiday}, time: ${item.startHour}:${item.startMinute}-${item.finishHour}:${item.finishMinute}`);
     });
   } else {
     console.log(`*** OCTOBER 1st 2024 NOT FOUND in schedule items ***`);
@@ -400,4 +432,10 @@ export const logScheduleItemsDateStatistics = (scheduleItems: IScheduleItem[]): 
   console.log(`  Deleted items: ${deletedCount}`);
   console.log(`  Holiday items: ${holidayCount}`);
   console.log(`  Leave items: ${leaveCount}`);
+  
+  // Статистика времени (только для первых нескольких для экономии)
+  console.log('Time statistics (first 5 items):');
+  scheduleItems.slice(0, 5).forEach((item, index) => {
+    console.log(`  ${index + 1}. ID ${item.id}: ${item.startHour}:${item.startMinute}-${item.finishHour}:${item.finishMinute} (${item.workingHours})`);
+  });
 };
