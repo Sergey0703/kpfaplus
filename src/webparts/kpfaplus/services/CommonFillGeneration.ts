@@ -1,5 +1,5 @@
 // src/webparts/kpfaplus/services/CommonFillGeneration.ts
-// ОБНОВЛЕНО: С правильной клиентской фильтрацией, работой с реальными полями времени и логикой чередования недель
+// ИСПРАВЛЕНО: Заменены any на конкретные типы и исправлена логика цикла
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { IStaffRecord, StaffRecordsService } from './StaffRecordsService';
 import { HolidaysService, IHoliday } from './HolidaysService';
@@ -69,6 +69,35 @@ interface IGenerationAnalysis {
   leavesDetected: number;
   dailyInfo: IDayGenerationInfo[];
   weeklyStats: Map<number, { total: number; generated: number; skipped: number }>;
+}
+
+// *** ИНТЕРФЕЙС ДЛЯ WEEKLY TIME TABLE ITEM ***
+interface IWeeklyTimeTableItem {
+  id: string;
+  fields?: {
+    NumberOfWeek?: number;
+    NumberOfShift?: number;
+    TimeForLunch?: number;
+    Deleted?: number;
+    CreatorLookupId?: string;
+    creatorId?: string;
+    Creator?: string;
+    MondeyStartWork?: string; // Опечатка в SharePoint
+    MondayEndWork?: string;
+    TuesdayStartWork?: string;
+    TuesdayEndWork?: string;
+    WednesdayStartWork?: string;
+    WednesdayEndWork?: string;
+    ThursdayStartWork?: string;
+    ThursdayEndWork?: string;
+    FridayStartWork?: string;
+    FridayEndWork?: string;
+    SaturdayStartWork?: string;
+    SaturdayEndWork?: string;
+    SundayStartWork?: string;
+    SundayEndWork?: string;
+    [key: string]: unknown;
+  };
 }
 
 export class CommonFillGeneration {
@@ -202,7 +231,7 @@ export class CommonFillGeneration {
   /**
    * *** НОВЫЙ МЕТОД: Парсит время из SharePoint формата ***
    */
-  private parseTimeFromSharePoint(timeValue: any): string | null {
+  private parseTimeFromSharePoint(timeValue: unknown): string | null {
     if (!timeValue) return null;
     
     try {
@@ -325,41 +354,41 @@ export class CommonFillGeneration {
       filteringDetails.push('');
 
       // *** ШАГ 2: КЛИЕНТСКАЯ ФИЛЬТРАЦИЯ ПО МЕНЕДЖЕРУ ***
-      // *** ШАГ 2: КЛИЕНТСКАЯ ФИЛЬТРАЦИЯ ПО МЕНЕДЖЕРУ ***
-console.log(`[CommonFillGeneration] Applying client-side CreatorLookupId filter: ${currentUserId}`);
+      console.log(`[CommonFillGeneration] Applying client-side CreatorLookupId filter: ${currentUserId}`);
 
-const afterManagerFilter = weeklyTimeItems.filter(item => {
-  const fields = item.fields || {};
-  
-  // ИСПРАВЛЕНО: используем CreatorLookupId вместо ManagerLookupId
-  const creatorLookupId = fields.CreatorLookupId || fields.creatorId || fields.Creator;
-  
-  // Преобразуем в строку для сравнения
-  const creatorIdStr = String(creatorLookupId || '0');
-  const currentUserIdStr = String(currentUserId || '0');
-  
-  const matches = creatorIdStr === currentUserIdStr;
-  
-  if (!matches) {
-    console.log(`[CommonFillGeneration] Filtered out item ID=${item.id}: CreatorLookupId=${creatorIdStr} !== currentUserId=${currentUserIdStr}`);
-  }
-  
-  return matches;
-});
+      const afterManagerFilter = weeklyTimeItems.filter((item: IWeeklyTimeTableItem) => {
+        const fields = item.fields || {};
+        
+        // ИСПРАВЛЕНО: используем CreatorLookupId вместо ManagerLookupId
+        const creatorLookupId = fields.CreatorLookupId || fields.creatorId || fields.Creator;
+        
+        // Преобразуем в строку для сравнения
+        const creatorIdStr = String(creatorLookupId || '0');
+        const currentUserIdStr = String(currentUserId || '0');
+        
+        const matches = creatorIdStr === currentUserIdStr;
+        
+        if (!matches) {
+          console.log(`[CommonFillGeneration] Filtered out item ID=${item.id}: CreatorLookupId=${creatorIdStr} !== currentUserId=${currentUserIdStr}`);
+        }
+        
+        return matches;
+      });
 
-filteringDetails.push(`STEP 2: Creator Filter Applied`);
-filteringDetails.push(`Filter: CreatorLookupId eq ${currentUserId}`);
-filteringDetails.push(`Items after creator filter: ${afterManagerFilter.length}`);
-filteringDetails.push(`Filtered out: ${weeklyTimeItems.length - afterManagerFilter.length} items`);
-filteringDetails.push('');
+      filteringDetails.push(`STEP 2: Creator Filter Applied`);
+      filteringDetails.push(`Filter: CreatorLookupId eq ${currentUserId}`);
+      filteringDetails.push(`Items after creator filter: ${afterManagerFilter.length}`);
+      filteringDetails.push(`Filtered out: ${weeklyTimeItems.length - afterManagerFilter.length} items`);
+      filteringDetails.push('');
 
-console.log(`[CommonFillGeneration] After creator filter: ${afterManagerFilter.length} items (filtered out: ${weeklyTimeItems.length - afterManagerFilter.length})`);
+      console.log(`[CommonFillGeneration] After creator filter: ${afterManagerFilter.length} items (filtered out: ${weeklyTimeItems.length - afterManagerFilter.length})`);
+      
       // *** ШАГ 3: КЛИЕНТСКАЯ ФИЛЬТРАЦИЯ ПО УДАЛЕННЫМ ЗАПИСЯМ ***
       console.log(`[CommonFillGeneration] Applying client-side Deleted filter`);
       
-      const afterDeletedFilter = afterManagerFilter.filter(item => {
+      const afterDeletedFilter = afterManagerFilter.filter((item: IWeeklyTimeTableItem) => {
         const fields = item.fields || {};
-        const deleted = fields.Deleted || fields.deleted || 0;
+        const deleted = fields.Deleted || 0;
         
         // Проверяем что запись НЕ удалена (Deleted !== 1)
         const isNotDeleted = Number(deleted) !== 1;
@@ -389,7 +418,7 @@ console.log(`[CommonFillGeneration] After creator filter: ${afterManagerFilter.l
       
       const scheduleTemplates: IScheduleTemplate[] = [];
       
-      afterDeletedFilter.forEach((item, index) => {
+      afterDeletedFilter.forEach((item: IWeeklyTimeTableItem, index: number) => {
         const fields = item.fields || {};
         
         console.log(`[CommonFillGeneration] Processing item ${index + 1}/${afterDeletedFilter.length}, ID=${item.id}`);
@@ -417,8 +446,8 @@ console.log(`[CommonFillGeneration] After creator filter: ${afterManagerFilter.l
         ];
         
         daysData.forEach(dayData => {
-          const startTimeRaw = fields[dayData.startField];
-          const endTimeRaw = fields[dayData.endField];
+          const startTimeRaw = fields[dayData.startField as keyof typeof fields];
+          const endTimeRaw = fields[dayData.endField as keyof typeof fields];
           
           if (startTimeRaw && endTimeRaw) {
             const startTime = this.parseTimeFromSharePoint(startTimeRaw);
@@ -469,7 +498,7 @@ console.log(`[CommonFillGeneration] After creator filter: ${afterManagerFilter.l
       );
 
       // Сохраняем группированные шаблоны для использования в generateScheduleRecords
-      (scheduleTemplates as any)._groupedTemplates = groupedTemplates;
+      (scheduleTemplates as IScheduleTemplate[] & { _groupedTemplates?: Map<string, IScheduleTemplate[]> })._groupedTemplates = groupedTemplates;
 
       console.log(`[CommonFillGeneration] Successfully loaded and processed ${scheduleTemplates.length} schedule templates`);
       return scheduleTemplates;
@@ -582,6 +611,7 @@ console.log(`[CommonFillGeneration] After creator filter: ${afterManagerFilter.l
     
     return templatesByWeekAndDay;
   }
+
   /**
    * *** ПОЛНОСТЬЮ ПЕРЕПИСАННЫЙ МЕТОД: Генерирует записи с правильной логикой чередования недель ***
    */
@@ -625,7 +655,7 @@ console.log(`[CommonFillGeneration] After creator filter: ${afterManagerFilter.l
     const leavePeriods = this.createLeavePeriods(leaves);
 
     // *** ПОЛУЧАЕМ ГРУППИРОВАННЫЕ ШАБЛОНЫ И АНАЛИЗИРУЕМ ЛОГИКУ ЧЕРЕДОВАНИЯ ***
-    const groupedTemplates = (weeklyTemplates as any)._groupedTemplates as Map<string, IScheduleTemplate[]>;
+    const groupedTemplates = (weeklyTemplates as IScheduleTemplate[] & { _groupedTemplates?: Map<string, IScheduleTemplate[]> })._groupedTemplates;
     if (!groupedTemplates) {
       console.error('[CommonFillGeneration] No grouped templates found');
       return [];
@@ -638,10 +668,9 @@ console.log(`[CommonFillGeneration] After creator filter: ${afterManagerFilter.l
 
     const records: Partial<IStaffRecord>[] = [];
 
-    // *** ПЕРЕБИРАЕМ ВСЕ ДНИ ПЕРИОДА С ПРАВИЛЬНОЙ ЛОГИКОЙ ЧЕРЕДОВАНИЯ ***
-    for (let d = new Date(firstDay); d <= lastDay; d.setDate(d.getDate() + 1)) {
-      const currentDate = new Date(d);
-      
+    // *** ИСПРАВЛЕНО: Используем правильную логику цикла ***
+    const currentDate = new Date(firstDay);
+    while (currentDate <= lastDay) {
       // *** ВЫЧИСЛЯЕМ НОМЕР НЕДЕЛИ С ИСПРАВЛЕННЫМ АЛГОРИТМОМ ***
       const weekAndDay = this.calculateWeekAndDayWithChaining(
         currentDate, 
@@ -703,6 +732,9 @@ console.log(`[CommonFillGeneration] After creator filter: ${afterManagerFilter.l
 
       // Добавляем информацию о дне в анализ
       this.generationAnalysis?.dailyInfo.push(dayInfo);
+      
+      // *** ИСПРАВЛЕНО: Правильное увеличение даты ***
+      currentDate.setDate(currentDate.getDate() + 1);
     }
 
     // *** ЗАВЕРШАЕМ АНАЛИЗ ГЕНЕРАЦИИ ***
