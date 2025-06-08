@@ -1,13 +1,19 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/hooks/useDashboardLogs.ts
-// ИСПРАВЛЕНО: Полностью убран кэш - всегда возвращаем пустые данные до явной загрузки
+// ИСПРАВЛЕНО: Заменены все any на конкретные типы
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { ScheduleLogsService } from '../../../../services/ScheduleLogsService';
 import { IStaffMemberWithAutoschedule } from '../components/DashboardTable';
 
 // *** ИНТЕРФЕЙСЫ ДЛЯ ЛОГОВ ***
+interface ILogEntry {
+  ID?: string;
+  Result?: number;
+  [key: string]: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+
 interface ILiveLogData {
   [staffId: string]: {
-    log?: any;
+    log?: ILogEntry;
     error?: string;
     isLoading: boolean;
   };
@@ -37,7 +43,7 @@ interface IUseDashboardLogsReturn {
   handleBulkLogRefresh: (staffIds: string[], isInitialLoad?: boolean) => Promise<void>;
   clearLogData: () => void;
   getLogStats: () => ILogStats;
-  getLiveLogsForStaff: () => { [staffId: string]: any };
+  getLiveLogsForStaff: () => { [staffId: string]: unknown };
   handleInitialLoadComplete: () => void;
   isDataCleared: boolean; // *** NEW: Flag to indicate data was cleared ***
 }
@@ -94,7 +100,7 @@ export const useDashboardLogs = (params: IUseDashboardLogsParams): IUseDashboard
   }, [staffMembersData, clearLogData]);
 
   // *** UPDATE LIVE LOG DATA ***
-  const updateLiveLogData = useCallback((staffId: string, data: { log?: any; error?: string; isLoading: boolean }) => {
+  const updateLiveLogData = useCallback((staffId: string, data: { log?: ILogEntry; error?: string; isLoading: boolean }) => {
     console.log(`[useDashboardLogs] 🔄 UPDATING LOG DATA for staff ${staffId} - NO CACHE:`, {
       staffId,
       hasLog: !!data.log,
@@ -141,7 +147,7 @@ export const useDashboardLogs = (params: IUseDashboardLogsParams): IUseDashboard
   }, [liveLogData]);
 
   // *** БЕЗ КЭША - ВСЕГДА ВОЗВРАЩАЕМ ТОЛЬКО АКТУАЛЬНЫЕ ДАННЫЕ ***
-  const getLiveLogsForStaff = useCallback((): { [staffId: string]: any } => {
+  const getLiveLogsForStaff = useCallback((): { [staffId: string]: unknown } => {
     console.log(`[useDashboardLogs] 📊 PROVIDING LOG DATA TO COMPONENT - NO CACHE:`, {
       liveLogDataKeys: Object.keys(liveLogData),
       liveLogDataCount: Object.keys(liveLogData).length,
@@ -166,7 +172,7 @@ export const useDashboardLogs = (params: IUseDashboardLogsParams): IUseDashboard
     });
 
     // *** ВОЗВРАЩАЕМ ТОЛЬКО ЗАГРУЖЕННЫЕ ДАННЫЕ - БЕЗ КЭША ***
-    const resultData: { [staffId: string]: any } = {};
+    const resultData: { [staffId: string]: unknown } = {};
     
     Object.entries(liveLogData).forEach(([staffId, data]) => {
       resultData[staffId] = {

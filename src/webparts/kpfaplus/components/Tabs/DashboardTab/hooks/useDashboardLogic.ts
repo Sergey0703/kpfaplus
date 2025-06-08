@@ -1,5 +1,5 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/hooks/useDashboardLogic.ts
-// ИСПРАВЛЕНО: Добавлен сброс состояния таблицы при смене группы
+// ИСПРАВЛЕНО: Добавлен тип возвращаемого значения для функции
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { MessageBarType } from '@fluentui/react';
 import { WebPartContext } from "@microsoft/sp-webpart-base";
@@ -31,6 +31,42 @@ interface IUseDashboardLogicParams {
   context?: WebPartContext;
   currentUserId?: string;
   managingGroupId?: string;
+}
+
+// ИСПРАВЛЕНО: Добавлен интерфейс для типа возвращаемого значения
+interface IUseDashboardLogicReturn {
+  // CORE STATE
+  staffMembersData: IStaffMemberWithAutoschedule[];
+  selectedDate: Date;
+  isLoading: boolean;
+  infoMessage?: IInfoMessage;
+  confirmDialog: IConfirmDialogState;
+  setInfoMessage: (message: IInfoMessage | undefined) => void;
+  setConfirmDialog: (dialog: IConfirmDialogState | ((prev: IConfirmDialogState) => IConfirmDialogState)) => void;
+  
+  // DATE HANDLING
+  handleDateChange: (date: Date | undefined) => void;
+  
+  // AUTOSCHEDULE
+  handleAutoscheduleToggle: (staffId: string, checked: boolean) => Promise<void>;
+  
+  // FILL OPERATIONS
+  handleFillStaff: (staffId: string, staffName: string) => Promise<void>;
+  handleFillAll: () => Promise<void>;
+  
+  // LOG OPERATIONS
+  logsService?: ScheduleLogsService;
+  handleLogRefresh: (staffId: string) => Promise<void>;
+  handleBulkLogRefresh: (staffIds: string[]) => Promise<void>;
+  clearLogCache: () => void;
+  getLogCacheStats: () => any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  getCachedLogsForStaff: () => { [staffId: string]: any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+  
+  // TABLE RESET FUNCTIONALITY
+  registerTableResetCallback: (callback: () => void) => void;
+  
+  // UTILITY FUNCTIONS
+  startInitialLoading: () => void;
 }
 
 // Constants
@@ -66,7 +102,8 @@ const getSavedSelectedDate = (): Date => {
   return getFirstDayOfCurrentMonth();
 };
 
-export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
+// ИСПРАВЛЕНО: Добавлен явный тип возвращаемого значения
+export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboardLogicReturn => {
   const { context, currentUserId, managingGroupId } = params;
   
   console.log('[useDashboardLogic] Main coordinator hook initialized - modular architecture');
