@@ -123,7 +123,7 @@ export class ScheduleLogsService {
   /**
    * Создает новый лог операции заполнения расписания
    */
-  public async createScheduleLog(params: ICreateScheduleLogParams): Promise<string | null> {
+  public async createScheduleLog(params: ICreateScheduleLogParams): Promise<string | undefined> {
     console.log('[ScheduleLogsService] Creating schedule log:', {
       title: params.title,
       result: params.result,
@@ -183,13 +183,13 @@ export class ScheduleLogsService {
       } else {
         const errorText = await response.text();
         console.error('[ScheduleLogsService] ✗ Error creating schedule log:', response.status, errorText);
-        return null;
+        return undefined;
       }
 
     } catch {
       // ИСПРАВЛЕНО: Удалена неиспользуемая переменная error
       console.error('[ScheduleLogsService] ✗ Exception creating schedule log');
-      return null;
+      return undefined;
     }
   }
 
@@ -342,7 +342,7 @@ export class ScheduleLogsService {
   /**
    * Получает конкретный лог по ID
    */
-  public async getScheduleLogById(logId: string): Promise<IScheduleLog | null> {
+  public async getScheduleLogById(logId: string): Promise<IScheduleLog | undefined> {
     console.log(`[ScheduleLogsService] Getting schedule log by ID: ${logId}`);
 
     try {
@@ -387,17 +387,17 @@ export class ScheduleLogsService {
 
       } else if (response.status === 404) {
         console.log(`[ScheduleLogsService] Schedule log with ID ${logId} not found`);
-        return null;
+        return undefined;
       } else {
         const errorText = await response.text();
         console.error('[ScheduleLogsService] ✗ Error getting schedule log by ID:', response.status, errorText);
-        return null;
+        return undefined;
       }
 
     } catch {
       // ИСПРАВЛЕНО: Удалена неиспользуемая переменная error
       console.error(`[ScheduleLogsService] ✗ Exception getting schedule log by ID: ${logId}`);
-      return null;
+      return undefined;
     }
   }
 
@@ -451,7 +451,7 @@ export class ScheduleLogsService {
     byStaff: Record<string, number>;
     byManager: Record<string, number>;
     byResult: Record<number, number>;
-  } | null> {
+  } | undefined> {
     console.log('[ScheduleLogsService] Getting logs statistics');
 
     try {
@@ -460,7 +460,7 @@ export class ScheduleLogsService {
       
       if (result.error) {
         console.error('[ScheduleLogsService] Error getting logs for statistics:', result.error);
-        return null;
+        return undefined;
       }
 
       const logs = result.logs;
@@ -516,7 +516,7 @@ export class ScheduleLogsService {
     } catch {
       // ИСПРАВЛЕНО: Удалена неиспользуемая переменная error
       console.error('[ScheduleLogsService] ✗ Exception calculating logs statistics');
-      return null;
+      return undefined;
     }
   }
 
