@@ -54,17 +54,22 @@ const LogField: React.FC<{
     if (value === undefined || value === null) return 'N/A';
     
     switch (valueType) {
-      case 'date':
+      case 'date': {
         return value instanceof Date ? value.toLocaleString() : String(value);
-      case 'number':
+      }
+      case 'number': {
         return String(value);
-      case 'status':
+      }
+      case 'status': {
         const numValue = Number(value);
         return numValue === 2 ? 'Success' : numValue === 1 ? 'Error' : 'Unknown';
-      case 'multiline':
+      }
+      case 'multiline': {
         return String(value);
-      default:
+      }
+      default: {
         return String(value);
+      }
     }
   };
 
