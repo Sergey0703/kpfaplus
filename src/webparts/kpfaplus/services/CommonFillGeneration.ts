@@ -614,6 +614,7 @@ export class CommonFillGeneration {
 
   /**
    * *** ПОЛНОСТЬЮ ПЕРЕПИСАННЫЙ МЕТОД: Генерирует записи с правильной логикой чередования недель ***
+   * ИСПРАВЛЕНО: Исправлена логика цикла для устранения lint ошибки
    */
   public async generateScheduleRecords(
     params: IFillParams,
@@ -668,9 +669,17 @@ export class CommonFillGeneration {
 
     const records: Partial<IStaffRecord>[] = [];
 
-    // *** ИСПРАВЛЕНО: Используем правильную логику цикла ***
-    const currentDate = new Date(firstDay);
-    while (currentDate <= lastDay) {
+    // *** ИСПРАВЛЕНО: Вычисляем общее количество дней и создаем массив дат заранее ***
+    const totalDaysToProcess = Math.floor((lastDay.getTime() - firstDay.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    
+    console.log(`[CommonFillGeneration] Will process ${totalDaysToProcess} days from ${firstDay.toLocaleDateString()} to ${lastDay.toLocaleDateString()}`);
+
+    // *** ОСНОВНОЙ ЦИКЛ ГЕНЕРАЦИИ ЗАПИСЕЙ - БЕЗ LINT ОШИБОК ***
+    for (let dayIndex = 0; dayIndex < totalDaysToProcess; dayIndex++) {
+      // Создаем новую дату для каждой итерации
+      const currentDate = new Date(firstDay);
+      currentDate.setDate(firstDay.getDate() + dayIndex);
+
       // *** ВЫЧИСЛЯЕМ НОМЕР НЕДЕЛИ С ИСПРАВЛЕННЫМ АЛГОРИТМОМ ***
       const weekAndDay = this.calculateWeekAndDayWithChaining(
         currentDate, 
@@ -732,9 +741,6 @@ export class CommonFillGeneration {
 
       // Добавляем информацию о дне в анализ
       this.generationAnalysis?.dailyInfo.push(dayInfo);
-      
-      // *** ИСПРАВЛЕНО: Правильное увеличение даты ***
-      currentDate.setDate(currentDate.getDate() + 1);
     }
 
     // *** ЗАВЕРШАЕМ АНАЛИЗ ГЕНЕРАЦИИ ***
@@ -898,7 +904,6 @@ export class CommonFillGeneration {
     
     return allTemplatesForDay;
   }
-
 
   /**
    * *** НОВЫЙ МЕТОД: Создает запись расписания из шаблона ***
