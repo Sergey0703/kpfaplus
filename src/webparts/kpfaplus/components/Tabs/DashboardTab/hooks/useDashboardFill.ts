@@ -1,5 +1,5 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/hooks/useDashboardFill.ts
-// ОБНОВЛЕНО: С правильным логированием Result=3 для диалогов и отказов
+// ИСПРАВЛЕНО: Удалены неиспользуемые переменные и исправлены ошибки линтера
 import { useCallback } from 'react';
 import { MessageBarType } from '@fluentui/react';
 import { WebPartContext } from "@microsoft/sp-webpart-base";
@@ -59,6 +59,18 @@ const formatDate = (date?: Date): string => {
   const month = (date.getMonth() + 1).toString().padStart(2, '0');
   const year = date.getFullYear();
   return `${day}.${month}.${year}`;
+};
+
+// *** HELPER FUNCTION: Extract records count from message ***
+const extractRecordsCountFromMessage = (message: string): number => {
+  const match = message.match(/Found (\d+) existing/);
+  return match ? parseInt(match[1], 10) : 0;
+};
+
+// *** HELPER FUNCTION: Extract processed count from message ***
+const extractProcessedCountFromMessage = (message: string): number => {
+  const match = message.match(/Found (\d+) processed/);
+  return match ? parseInt(match[1], 10) : 0;
 };
 
 export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboardFillReturn => {
@@ -405,7 +417,7 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
     let successCount = 0;
     let errorCount = 0;
     let totalCreatedRecords = 0;
-    let totalDeletedRecords = 0;
+    // ИСПРАВЛЕНО: удалена неиспользуемая переменная totalDeletedRecords
     const processedStaffIds: string[] = [];
 
     console.log(`[useDashboardFill] Performing fill all operation with Schedule tab logic for period: ${formatDate(selectedDate)}`);
@@ -438,7 +450,7 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
         if (result.success) {
           successCount++;
           totalCreatedRecords += result.createdRecordsCount || 0;
-          totalDeletedRecords += result.deletedRecordsCount || 0;
+          // ИСПРАВЛЕНО: удалено использование deletedRecordsCount так как переменная totalDeletedRecords удалена
           processedStaffIds.push(staffMember.id);
         } else {
           errorCount++;
@@ -599,18 +611,6 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
     setInfoMessage, 
     setConfirmDialog
   ]);
-
-  // *** HELPER FUNCTION: Extract records count from message ***
-  const extractRecordsCountFromMessage = useCallback((message: string): number => {
-    const match = message.match(/Found (\d+) existing/);
-    return match ? parseInt(match[1], 10) : 0;
-  }, []);
-
-  // *** HELPER FUNCTION: Extract processed count from message ***
-  const extractProcessedCountFromMessage = useCallback((message: string): number => {
-    const match = message.match(/Found (\d+) processed/);
-    return match ? parseInt(match[1], 10) : 0;
-  }, []);
 
   return {
     handleFillStaff,
