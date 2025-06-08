@@ -1,4 +1,5 @@
 // src/webparts/kpfaplus/services/CommonFillService.ts - WITH DETAILED LOGGING AND CLIENT-SIDE FILTERING
+// ИСПРАВЛЕНО: Заменены any на конкретные типы
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { MessageBarType } from '@fluentui/react';
 import { ContractsService } from './ContractsService';
@@ -14,6 +15,7 @@ import {
 } from './CommonFillValidation';
 import { CommonFillGeneration } from './CommonFillGeneration';
 import { ScheduleLogsService, ICreateScheduleLogParams } from './ScheduleLogsService';
+import { IStaffRecord } from './StaffRecordsService';
 
 // Export interfaces for compatibility
 export { IFillParams, IExistingRecordsCheck, DialogType, IDialogConfig, IScheduleLogicResult };
@@ -35,6 +37,13 @@ export interface IFillResult {
 export interface IPerformFillParams extends IFillParams {
   contractId: string;
   replaceExisting: boolean;
+}
+
+// *** ИНТЕРФЕЙС ДЛЯ АНАЛИЗА КОНТРАКТОВ ***
+interface IContractsAnalysis {
+  allContracts: IContract[];
+  activeContracts: IContract[];
+  analysisDetails: string[];
 }
 
 export class CommonFillService {
@@ -69,7 +78,7 @@ export class CommonFillService {
     return this.validationService.checkExistingRecords(params);
   }
 
-  public async deleteExistingRecords(existingRecords: any[]): Promise<boolean> {
+  public async deleteExistingRecords(existingRecords: IStaffRecord[]): Promise<boolean> {
     return this.validationService.deleteExistingRecords(existingRecords);
   }
 
@@ -244,11 +253,7 @@ export class CommonFillService {
   /**
    * *** НОВЫЙ МЕТОД: Детальный анализ контрактов ***
    */
-  private async performContractsAnalysis(params: IFillParams): Promise<{
-    allContracts: IContract[];
-    activeContracts: IContract[];
-    analysisDetails: string[];
-  }> {
+  private async performContractsAnalysis(params: IFillParams): Promise<IContractsAnalysis> {
     console.log('[CommonFillService] Performing detailed contracts analysis...');
 
     const employeeId = params.staffMember.employeeId;
@@ -320,11 +325,7 @@ export class CommonFillService {
   /**
    * *** НОВЫЙ МЕТОД: Формирует лог анализа контрактов ***
    */
-  private buildContractsAnalysisLog(contractsAnalysis: {
-    allContracts: IContract[];
-    activeContracts: IContract[];
-    analysisDetails: string[];
-  }): string {
+  private buildContractsAnalysisLog(contractsAnalysis: IContractsAnalysis): string {
     return contractsAnalysis.analysisDetails.join('\n');
   }
 
@@ -736,7 +737,7 @@ export class CommonFillService {
 
   // Service management methods
   public static clearInstance(): void {
-    CommonFillService.instance = undefined as any;
+    CommonFillService.instance = undefined as unknown as CommonFillService;
     console.log('[CommonFillService] Instance cleared');
   }
 
