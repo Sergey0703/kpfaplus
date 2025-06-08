@@ -3,7 +3,7 @@ import {
     IFormattedWeeklyTimeRow
   } from '../../../models/IWeeklyTimeTable';
 import { IDayHoursComplete } from '../../../models/IWeeklyTimeTable';
-import { DateUtils } from '../../CustomDatePicker/CustomDatePicker'; // ДОБАВЛЕНО
+import { DateUtils } from '../../CustomDatePicker/CustomDatePicker';
 
 // Интерфейс для расширенной строки с дополнительным полем displayedTotalHours
 export interface IExtendedWeeklyTimeRow extends IFormattedWeeklyTimeRow {
@@ -12,24 +12,52 @@ export interface IExtendedWeeklyTimeRow extends IFormattedWeeklyTimeRow {
   [key: string]: string | IDayHoursComplete | number | undefined;
 }
 
+// Получение начала недели для заданной даты
+export const getStartOfWeek = (date: Date, startOfWeek: number = 1): Date => {
+  const normalizedDate = DateUtils.normalizeDateToUTCMidnight(date);
+  const dayOfWeek = normalizedDate.getUTCDay(); // 0 = Sunday, 1 = Monday, etc.
+  
+  // Вычисляем смещение от начала недели
+  let daysToSubtract = dayOfWeek - (startOfWeek - 1);
+  if (daysToSubtract < 0) {
+    daysToSubtract += 7;
+  }
+  
+  // Создаем дату начала недели
+  const startDate = new Date(normalizedDate);
+  startDate.setUTCDate(startDate.getUTCDate() - daysToSubtract);
+  
+  return DateUtils.normalizeDateToUTCMidnight(startDate);
+};
+
+// Получение конца недели для заданной даты
+export const getEndOfWeek = (date: Date, startOfWeek: number = 1): Date => {
+  const startDate = getStartOfWeek(date, startOfWeek);
+  const endDate = new Date(startDate);
+  endDate.setUTCDate(endDate.getUTCDate() + 6);
+  endDate.setUTCHours(23, 59, 59, 999);
+  
+  return endDate;
+};
+
 // НОВАЯ ФУНКЦИЯ: Нормализация временных данных в строках недельного расписания
 export const normalizeWeeklyTimeRowDates = (row: IExtendedWeeklyTimeRow): IExtendedWeeklyTimeRow => {
   const normalizedRow = { ...row };
   
   // Проверяем специфичные поля, которые могут содержать даты
   // В IExtendedWeeklyTimeRow обычно даты могут быть в метаданных
-  if (row.createdDate && row.createdDate instanceof Date) {
-    const originalDate = row.createdDate as Date;
+  if ((row as Record<string, unknown>).createdDate && (row as Record<string, unknown>).createdDate instanceof Date) {
+    const originalDate = (row as Record<string, unknown>).createdDate as Date;
     const normalizedDate = DateUtils.normalizeDateToUTCMidnight(originalDate);
-    (normalizedRow as any).createdDate = normalizedDate;
+    (normalizedRow as Record<string, unknown>).createdDate = normalizedDate;
     
     console.log(`[WeeklyTimeTableLogic] Normalized createdDate: ${originalDate.toISOString()} → ${normalizedDate.toISOString()}`);
   }
   
-  if (row.modifiedDate && row.modifiedDate instanceof Date) {
-    const originalDate = row.modifiedDate as Date;
+  if ((row as Record<string, unknown>).modifiedDate && (row as Record<string, unknown>).modifiedDate instanceof Date) {
+    const originalDate = (row as Record<string, unknown>).modifiedDate as Date;
     const normalizedDate = DateUtils.normalizeDateToUTCMidnight(originalDate);
-    (normalizedRow as any).modifiedDate = normalizedDate;
+    (normalizedRow as Record<string, unknown>).modifiedDate = normalizedDate;
     
     console.log(`[WeeklyTimeTableLogic] Normalized modifiedDate: ${originalDate.toISOString()} → ${normalizedDate.toISOString()}`);
   }
@@ -37,11 +65,11 @@ export const normalizeWeeklyTimeRowDates = (row: IExtendedWeeklyTimeRow): IExten
   // Проверяем дополнительные поля через безопасное приведение типов
   const additionalFields = ['startDate', 'endDate'];
   additionalFields.forEach(field => {
-    const fieldValue = (normalizedRow as any)[field];
+    const fieldValue = (normalizedRow as Record<string, unknown>)[field];
     if (fieldValue && fieldValue instanceof Date) {
       const originalDate = fieldValue as Date;
       const normalizedDate = DateUtils.normalizeDateToUTCMidnight(originalDate);
-      (normalizedRow as any)[field] = normalizedDate;
+      (normalizedRow as Record<string, unknown>)[field] = normalizedDate;
       
       console.log(`[WeeklyTimeTableLogic] Normalized ${field}: ${originalDate.toISOString()} → ${normalizedDate.toISOString()}`);
     }
@@ -65,9 +93,9 @@ export const createWeeklyTimeStamp = (baseDate: Date, timeHours: string, timeMin
 };
 
 // НОВАЯ ФУНКЦИЯ: Парсинг времени из строки в формате HH:MM
-export const parseTimeString = (timeString: string): { hours: string, minutes: string } | null => {
+export const parseTimeString = (timeString: string): { hours: string, minutes: string } | undefined => {
   if (!timeString) {
-    return null;
+    return undefined;
   }
   
   // Пытаемся распарсить время в различных форматах
@@ -88,7 +116,7 @@ export const parseTimeString = (timeString: string): { hours: string, minutes: s
   }
   
   console.warn(`[WeeklyTimeTableLogic] Invalid time format: ${timeString}`);
-  return null;
+  return undefined;
 };
 
 // НОВАЯ ФУНКЦИЯ: Форматирование времени для отображения
@@ -116,34 +144,6 @@ export const isDateInCurrentWeek = (date: Date, startOfWeek: number = 1): boolea
   
   // Сравниваем, в одной ли неделе находятся даты
   return DateUtils.isSameDay(currentWeekStart, inputWeekStart);
-};
-
-// НОВАЯ ФУНКЦИЯ: Получение начала недели для заданной даты
-export const getStartOfWeek = (date: Date, startOfWeek: number = 1): Date => {
-  const normalizedDate = DateUtils.normalizeDateToUTCMidnight(date);
-  const dayOfWeek = normalizedDate.getUTCDay(); // 0 = Sunday, 1 = Monday, etc.
-  
-  // Вычисляем смещение от начала недели
-  let daysToSubtract = dayOfWeek - (startOfWeek - 1);
-  if (daysToSubtract < 0) {
-    daysToSubtract += 7;
-  }
-  
-  // Создаем дату начала недели
-  const startDate = new Date(normalizedDate);
-  startDate.setUTCDate(startDate.getUTCDate() - daysToSubtract);
-  
-  return DateUtils.normalizeDateToUTCMidnight(startDate);
-};
-
-// НОВАЯ ФУНКЦИЯ: Получение конца недели для заданной даты
-export const getEndOfWeek = (date: Date, startOfWeek: number = 1): Date => {
-  const startDate = getStartOfWeek(date, startOfWeek);
-  const endDate = new Date(startDate);
-  endDate.setUTCDate(endDate.getUTCDate() + 6);
-  endDate.setUTCHours(23, 59, 59, 999);
-  
-  return endDate;
 };
 
 // НОВАЯ ФУНКЦИЯ: Валидация времени смены с использованием DateUtils  
@@ -195,7 +195,307 @@ export const getTimeDebugInfo = (date: Date): Record<string, unknown> => {
 };
 
 // СУЩЕСТВУЮЩИЕ ФУНКЦИИ (без изменений)
+/**
+ * Определяет, можно ли удалить строку таблицы
+ * @param data Данные таблицы
+ * @param rowIndex Индекс проверяемой строки
+ * @returns true, если строку можно удалить, иначе false
+ */
+export const canDeleteRow = (data: IExtendedWeeklyTimeRow[], rowIndex: number): boolean => {
+  if (!data || rowIndex < 0 || rowIndex >= data.length) {
+    return false;
+  }
+  
+  const currentRow = data[rowIndex];
+  
+  // Если строка уже удалена, то её нельзя удалить повторно
+  if (currentRow.deleted === 1 || currentRow.Deleted === 1) {
+    return false;
+  }
+  
+  // Получаем номер недели текущей строки
+  const currentWeekNumber = currentRow.NumberOfWeek || extractWeekNumber(currentRow.name);
+  
+  // Проверяем, есть ли неудаленные строки с большим номером недели
+  const hasNextWeek = data.some(row => {
+    // Учитываем только неудаленные строки
+    const isRowDeleted = row.deleted === 1 || row.Deleted === 1;
+    if (isRowDeleted) return false;
+    
+    const weekNumber = row.NumberOfWeek || extractWeekNumber(row.name);
+    return weekNumber > currentWeekNumber;
+  });
+  
+  // Фильтруем только неудаленные строки в текущей неделе
+  const activeRowsInWeek = data.filter(row => {
+    const isRowDeleted = row.deleted === 1 || row.Deleted === 1;
+    if (isRowDeleted) return false;
+    
+    const weekNumber = row.NumberOfWeek || extractWeekNumber(row.name);
+    return weekNumber === currentWeekNumber;
+  });
+  
+  // Определяем индекс текущей строки среди активных в этой неделе
+  const indexInActiveRows = activeRowsInWeek.findIndex(row => row.id === currentRow.id);
+  const isLastInActiveRows = indexInActiveRows === activeRowsInWeek.length - 1;
+  
+  // Если строка не последняя среди активных, удалять нельзя
+  if (!isLastInActiveRows) {
+    return false;
+  }
+  
+  // Если это последняя неделя, то всегда можно удалить последнюю строку недели
+  if (!hasNextWeek) {
+    return true;
+  }
+  
+  // Если в неделе больше одной активной смены, можно удалить последнюю смену
+  return activeRowsInWeek.length > 1;
+};
 
+/**
+ * Результат анализа недель в таблице
+ */
+export interface IWeekAnalysisResult {
+  /** Все найденные номера недель */
+  weekNumbers: number[];
+  /** Максимальный номер недели */
+  maxWeekNumber: number;
+  /** Номера полностью удаленных недель */
+  fullyDeletedWeeks: number[];
+  /** Флаг наличия полностью удаленных недель */
+  hasFullyDeletedWeeks: boolean;
+}
+
+/**
+ * Анализирует данные таблицы для определения состояния недель
+ * @param data Данные таблицы недельного расписания
+ * @returns Результат анализа недель
+ */
+export const analyzeWeeklyTableData = (data: IExtendedWeeklyTimeRow[]): IWeekAnalysisResult => {
+  // Если нет данных, возвращаем пустой результат
+  if (!data || data.length === 0) {
+    return {
+      weekNumbers: [],
+      maxWeekNumber: 0,
+      fullyDeletedWeeks: [],
+      hasFullyDeletedWeeks: false
+    };
+  }
+
+  // Собираем все номера недель
+  const weekNumbers: number[] = [];
+  
+  // Объект для группировки смен по неделям
+  const weekShifts: Record<number, { total: number, deleted: number }> = {};
+  
+  // Анализируем данные
+  for (const row of data) {
+    // Получаем номер недели
+    let weekNumber = row.NumberOfWeek;
+    
+    // Если номер недели не определен, пытаемся извлечь из имени
+    if (weekNumber === undefined) {
+      const match = row.name.match(/Week\s+(\d+)/i);
+      weekNumber = match ? parseInt(match[1], 10) : 0;
+    }
+    
+    // Если номер недели определен и больше 0
+    if (weekNumber && weekNumber > 0) {
+      // Добавляем в список номеров недель, если его там еще нет
+      if (!weekNumbers.includes(weekNumber)) {
+        weekNumbers.push(weekNumber);
+      }
+      
+      // Инициализируем счетчики для недели, если они еще не созданы
+      if (!weekShifts[weekNumber]) {
+        weekShifts[weekNumber] = { total: 0, deleted: 0 };
+      }
+      
+      // Увеличиваем общее количество смен для этой недели
+      weekShifts[weekNumber].total++;
+      
+      // Если смена удалена, увеличиваем счетчик удаленных смен
+      const isDeleted = row.deleted === 1 || row.Deleted === 1;
+      if (isDeleted) {
+        weekShifts[weekNumber].deleted++;
+      }
+    }
+  }
+  
+  // Сортируем номера недель
+  weekNumbers.sort((a, b) => a - b);
+  
+  // Находим максимальный номер недели
+  const maxWeekNumber = weekNumbers.length > 0 ? Math.max(...weekNumbers) : 0;
+  
+  // Определяем полностью удаленные недели
+  const fullyDeletedWeeks: number[] = [];
+  
+  for (const weekNumber in weekShifts) {
+    if (Object.prototype.hasOwnProperty.call(weekShifts, weekNumber)) {
+      const stats = weekShifts[weekNumber];
+      
+      // Если все смены недели удалены, добавляем неделю в список полностью удаленных
+      if (stats.total > 0 && stats.total === stats.deleted) {
+        fullyDeletedWeeks.push(parseInt(weekNumber, 10));
+      }
+    }
+  }
+  
+  // Возвращаем результат анализа
+  return {
+    weekNumbers,
+    maxWeekNumber,
+    fullyDeletedWeeks,
+    hasFullyDeletedWeeks: fullyDeletedWeeks.length > 0
+  };
+};
+
+/**
+ * Результат проверки возможности добавления новой недели
+ */
+export interface IAddWeekCheckResult {
+  /** Возможно ли добавление новой недели */
+  canAdd: boolean;
+  /** Номер недели для добавления (если canAdd = true) */
+  weekNumberToAdd: number;
+  /** Сообщение для пользователя */
+  message: string;
+  /** Номера полностью удаленных недель */
+  fullyDeletedWeeks: number[];
+}
+
+/**
+ * Проверяет возможность добавления новой недели на основе результатов анализа
+ * @param analysisResult Результат анализа недель в таблице
+ * @returns Результат проверки возможности добавления
+ */
+export const checkCanAddNewWeek = (analysisResult: IWeekAnalysisResult): IAddWeekCheckResult => {
+  // Если нет данных о неделях, значит можно добавить первую неделю
+  if (analysisResult.weekNumbers.length === 0) {
+    return {
+      canAdd: true,
+      weekNumberToAdd: 1,
+      message: "The first week (1 week) will be added.",
+      fullyDeletedWeeks: []
+    };
+  }
+  
+  // Проверяем наличие полностью удаленных недель
+  if (analysisResult.hasFullyDeletedWeeks) {
+    // Сортируем удаленные недели для удобства
+    const sortedDeletedWeeks = [...analysisResult.fullyDeletedWeeks].sort((a, b) => a - b);
+    
+    // Формируем сообщение для пользователя
+    let message = `Fully deleted weeks detected: ${sortedDeletedWeeks.join(', ')}. `;
+    message += `Before adding a new week, you need to restore the deleted weeks.`;
+    
+    return {
+      canAdd: false,
+      weekNumberToAdd: 0,
+      message,
+      fullyDeletedWeeks: sortedDeletedWeeks
+    };
+  }
+  
+  // Если все существующие недели активны (или частично активны),
+  // можно добавить следующую неделю
+  const nextWeekNumber = analysisResult.maxWeekNumber + 1;
+  
+  return {
+    canAdd: true,
+    weekNumberToAdd: nextWeekNumber,
+    message: `New week ${nextWeekNumber} has been added.`,
+    fullyDeletedWeeks: []
+  };
+};
+
+/**
+ * Комплексная проверка возможности добавления новой недели
+ * @param data Данные таблицы недельного расписания
+ * @returns Результат проверки возможности добавления
+ */
+export const checkCanAddNewWeekFromData = (data: IExtendedWeeklyTimeRow[]): IAddWeekCheckResult => {
+  // Анализируем данные
+  const analysisResult = analyzeWeeklyTableData(data);
+  
+  // Проверяем возможность добавления
+  return checkCanAddNewWeek(analysisResult);
+};
+
+/**
+ * Проверяет, можно ли восстановить удаленную строку
+ * @param data Данные таблицы
+ * @param rowIndex Индекс проверяемой строки
+ * @returns true, если строку можно восстановить, иначе false
+ */
+export const canRestoreRow = (data: IExtendedWeeklyTimeRow[], rowIndex: number): boolean => {
+  if (!data || rowIndex < 0 || rowIndex >= data.length) {
+    console.log(`canRestoreRow: Invalid input, data.length=${data?.length}, rowIndex=${rowIndex}`);
+    return false;
+  }
+  
+  const currentRow = data[rowIndex];
+  console.log(`canRestoreRow: Checking row ${rowIndex}, ID=${currentRow.id}, deleted=${currentRow.deleted}, Deleted=${currentRow.Deleted}`);
+  
+  // Проверяем, удалена ли строка
+  const isDeleted = currentRow.deleted === 1 || currentRow.Deleted === 1;
+  if (!isDeleted) {
+    console.log(`canRestoreRow: Row ${rowIndex} is not deleted`);
+    // Если строка не удалена, то её нельзя восстанавливать
+    return false;
+  }
+  
+  // Получаем номер недели текущей строки
+  const currentWeekNumber = currentRow.NumberOfWeek || extractWeekNumber(currentRow.name);
+  // Получаем номер смены текущей строки
+  const currentShiftNumber = currentRow.NumberOfShift || 1;
+  
+  console.log(`canRestoreRow: Row ${rowIndex} is in week ${currentWeekNumber}, shift ${currentShiftNumber}`);
+  
+  // Найдем все удаленные строки в той же неделе
+  const deletedRowsInSameWeek = data.filter(row => {
+    const rowWeekNumber = row.NumberOfWeek || extractWeekNumber(row.name);
+    const isRowDeleted = row.deleted === 1 || row.Deleted === 1;
+    
+    return rowWeekNumber === currentWeekNumber && isRowDeleted;
+  });
+  
+  console.log(`canRestoreRow: Found ${deletedRowsInSameWeek.length} deleted rows in week ${currentWeekNumber}`);
+  
+  // Если удаленных строк в этой неделе нет, то что-то пошло не так
+  if (deletedRowsInSameWeek.length === 0) {
+    console.error(`No deleted rows found in week ${currentWeekNumber} but row ${rowIndex} is marked as deleted`);
+    return false;
+  }
+  
+  // Логируем найденные удаленные строки для отладки
+  deletedRowsInSameWeek.forEach((row, idx) => {
+    console.log(`canRestoreRow: Deleted row ${idx} in week ${currentWeekNumber}: ID=${row.id}, shift=${row.NumberOfShift || 1}`);
+  });
+  
+  // Найдем строку с минимальным номером смены среди удаленных
+  const minShiftNumber = Math.min(...deletedRowsInSameWeek.map(row => row.NumberOfShift || 1));
+  
+  console.log(`canRestoreRow: Min shift number among deleted rows: ${minShiftNumber}`);
+  console.log(`canRestoreRow: Current row shift number: ${currentShiftNumber}`);
+  console.log(`canRestoreRow: Can restore row ${rowIndex}? ${currentShiftNumber === minShiftNumber}`);
+  
+  // Строку можно восстановить, если её номер смены минимален среди всех удаленных в этой неделе
+  return currentShiftNumber === minShiftNumber;
+};
+
+/**
+ * Вспомогательная функция для извлечения номера недели из названия строки
+ * @param name Название строки
+ * @returns Номер недели или 1, если не удалось извлечь
+ */
+function extractWeekNumber(name: string): number {
+  const match = name?.match(/Week\s+(\d+)/i);
+  return match ? parseInt(match[1], 10) : 1;
+}
+//////////////
 // Функция для получения множества уникальных шаблонов в данных
 export const getUniqueTemplates = (data: IExtendedWeeklyTimeRow[]): { templateId: string, rows: IExtendedWeeklyTimeRow[] }[] => {
   if (!data || data.length === 0) {
@@ -449,298 +749,3 @@ export const isLastRowInTemplate = (data: IExtendedWeeklyTimeRow[], rowIndex: nu
     // Если у следующей строки другой номер недели или нет совпадения, значит текущая строка последняя
     return !nextWeekMatch || nextWeekMatch[1] !== weekNumber;
 };
-
-/**
- * Определяет, можно ли удалить строку таблицы
- * @param data Данные таблицы
- * @param rowIndex Индекс проверяемой строки
- * @returns true, если строку можно удалить, иначе false
- */
-export const canDeleteRow = (data: IExtendedWeeklyTimeRow[], rowIndex: number): boolean => {
-  if (!data || rowIndex < 0 || rowIndex >= data.length) {
-    return false;
-  }
-  
-  const currentRow = data[rowIndex];
-  
-  // Если строка уже удалена, то её нельзя удалить повторно
-  if (currentRow.deleted === 1 || currentRow.Deleted === 1) {
-    return false;
-  }
-  
-  // Получаем номер недели текущей строки
-  const currentWeekNumber = currentRow.NumberOfWeek || extractWeekNumber(currentRow.name);
-  
-  // Проверяем, есть ли неудаленные строки с большим номером недели
-  const hasNextWeek = data.some(row => {
-    // Учитываем только неудаленные строки
-    const isRowDeleted = row.deleted === 1 || row.Deleted === 1;
-    if (isRowDeleted) return false;
-    
-    const weekNumber = row.NumberOfWeek || extractWeekNumber(row.name);
-    return weekNumber > currentWeekNumber;
-  });
-  
-  // Фильтруем только неудаленные строки в текущей неделе
-  const activeRowsInWeek = data.filter(row => {
-    const isRowDeleted = row.deleted === 1 || row.Deleted === 1;
-    if (isRowDeleted) return false;
-    
-    const weekNumber = row.NumberOfWeek || extractWeekNumber(row.name);
-    return weekNumber === currentWeekNumber;
-  });
-  
-  // Определяем индекс текущей строки среди активных в этой неделе
-  const indexInActiveRows = activeRowsInWeek.findIndex(row => row.id === currentRow.id);
-  const isLastInActiveRows = indexInActiveRows === activeRowsInWeek.length - 1;
-  
-  // Если строка не последняя среди активных, удалять нельзя
-  if (!isLastInActiveRows) {
-    return false;
-  }
-  
-  // Если это последняя неделя, то всегда можно удалить последнюю строку недели
-  if (!hasNextWeek) {
-    return true;
-  }
-  
-  // Если в неделе больше одной активной смены, можно удалить последнюю смену
-  return activeRowsInWeek.length > 1;
-};
-
-/**
- * Результат анализа недель в таблице
- */
-export interface IWeekAnalysisResult {
-  /** Все найденные номера недель */
-  weekNumbers: number[];
-  /** Максимальный номер недели */
-  maxWeekNumber: number;
-  /** Номера полностью удаленных недель */
-  fullyDeletedWeeks: number[];
-  /** Флаг наличия полностью удаленных недель */
-  hasFullyDeletedWeeks: boolean;
-}
-
-/**
- * Анализирует данные таблицы для определения состояния недель
- * @param data Данные таблицы недельного расписания
- * @returns Результат анализа недель
- */
-export const analyzeWeeklyTableData = (data: IExtendedWeeklyTimeRow[]): IWeekAnalysisResult => {
-  // Если нет данных, возвращаем пустой результат
-  if (!data || data.length === 0) {
-    return {
-      weekNumbers: [],
-      maxWeekNumber: 0,
-      fullyDeletedWeeks: [],
-      hasFullyDeletedWeeks: false
-    };
-  }
-
-  // Собираем все номера недель
-  const weekNumbers: number[] = [];
-  
-  // Объект для группировки смен по неделям
-  const weekShifts: Record<number, { total: number, deleted: number }> = {};
-  
-  // Анализируем данные
-  for (const row of data) {
-    // Получаем номер недели
-    let weekNumber = row.NumberOfWeek;
-    
-    // Если номер недели не определен, пытаемся извлечь из имени
-    if (weekNumber === undefined) {
-      const match = row.name.match(/Week\s+(\d+)/i);
-      weekNumber = match ? parseInt(match[1], 10) : 0;
-    }
-    
-    // Если номер недели определен и больше 0
-    if (weekNumber && weekNumber > 0) {
-      // Добавляем в список номеров недель, если его там еще нет
-      if (!weekNumbers.includes(weekNumber)) {
-        weekNumbers.push(weekNumber);
-      }
-      
-      // Инициализируем счетчики для недели, если они еще не созданы
-      if (!weekShifts[weekNumber]) {
-        weekShifts[weekNumber] = { total: 0, deleted: 0 };
-      }
-      
-      // Увеличиваем общее количество смен для этой недели
-      weekShifts[weekNumber].total++;
-      
-      // Если смена удалена, увеличиваем счетчик удаленных смен
-      const isDeleted = row.deleted === 1 || row.Deleted === 1;
-      if (isDeleted) {
-        weekShifts[weekNumber].deleted++;
-      }
-    }
-  }
-  
-  // Сортируем номера недель
-  weekNumbers.sort((a, b) => a - b);
-  
-  // Находим максимальный номер недели
-  const maxWeekNumber = weekNumbers.length > 0 ? Math.max(...weekNumbers) : 0;
-  
-  // Определяем полностью удаленные недели
-  const fullyDeletedWeeks: number[] = [];
-  
-  for (const weekNumber in weekShifts) {
-    if (Object.prototype.hasOwnProperty.call(weekShifts, weekNumber)) {
-      const stats = weekShifts[weekNumber];
-      
-      // Если все смены недели удалены, добавляем неделю в список полностью удаленных
-      if (stats.total > 0 && stats.total === stats.deleted) {
-        fullyDeletedWeeks.push(parseInt(weekNumber, 10));
-      }
-    }
-  }
-  
-  // Возвращаем результат анализа
-  return {
-    weekNumbers,
-    maxWeekNumber,
-    fullyDeletedWeeks,
-    hasFullyDeletedWeeks: fullyDeletedWeeks.length > 0
-  };
-};
-
-/**
- * Результат проверки возможности добавления новой недели
- */
-export interface IAddWeekCheckResult {
-  /** Возможно ли добавление новой недели */
-  canAdd: boolean;
-  /** Номер недели для добавления (если canAdd = true) */
-  weekNumberToAdd: number;
-  /** Сообщение для пользователя */
-  message: string;
-  /** Номера полностью удаленных недель */
-  fullyDeletedWeeks: number[];
-}
-
-/**
- * Проверяет возможность добавления новой недели на основе результатов анализа
- * @param analysisResult Результат анализа недель в таблице
- * @returns Результат проверки возможности добавления
- */
-export const checkCanAddNewWeek = (analysisResult: IWeekAnalysisResult): IAddWeekCheckResult => {
-  // Если нет данных о неделях, значит можно добавить первую неделю
-  if (analysisResult.weekNumbers.length === 0) {
-    return {
-      canAdd: true,
-      weekNumberToAdd: 1,
-      message: "The first week (1 week) will be added.",
-      fullyDeletedWeeks: []
-    };
-  }
-  
-  // Проверяем наличие полностью удаленных недель
-  if (analysisResult.hasFullyDeletedWeeks) {
-    // Сортируем удаленные недели для удобства
-    const sortedDeletedWeeks = [...analysisResult.fullyDeletedWeeks].sort((a, b) => a - b);
-    
-    // Формируем сообщение для пользователя
-    let message = `Fully deleted weeks detected: ${sortedDeletedWeeks.join(', ')}. `;
-    message += `Before adding a new week, you need to restore the deleted weeks.`;
-    
-    return {
-      canAdd: false,
-      weekNumberToAdd: 0,
-      message,
-      fullyDeletedWeeks: sortedDeletedWeeks
-    };
-  }
-  
-  // Если все существующие недели активны (или частично активны),
-  // можно добавить следующую неделю
-  const nextWeekNumber = analysisResult.maxWeekNumber + 1;
-  
-  return {
-    canAdd: true,
-    weekNumberToAdd: nextWeekNumber,
-    message: `New week ${nextWeekNumber} has been added.`,
-    fullyDeletedWeeks: []
-  };
-};
-
-/**
- * Комплексная проверка возможности добавления новой недели
- * @param data Данные таблицы недельного расписания
- * @returns Результат проверки возможности добавления
- */
-export const checkCanAddNewWeekFromData = (data: IExtendedWeeklyTimeRow[]): IAddWeekCheckResult => {
-  // Анализируем данные
-  const analysisResult = analyzeWeeklyTableData(data);
-  
-  // Проверяем возможность добавления
-  return checkCanAddNewWeek(analysisResult);
-};
-
-export const canRestoreRow = (data: IExtendedWeeklyTimeRow[], rowIndex: number): boolean => {
-  if (!data || rowIndex < 0 || rowIndex >= data.length) {
-    console.log(`canRestoreRow: Invalid input, data.length=${data?.length}, rowIndex=${rowIndex}`);
-    return false;
-  }
-  
-  const currentRow = data[rowIndex];
-  console.log(`canRestoreRow: Checking row ${rowIndex}, ID=${currentRow.id}, deleted=${currentRow.deleted}, Deleted=${currentRow.Deleted}`);
-  
-  // Проверяем, удалена ли строка
-  const isDeleted = currentRow.deleted === 1 || currentRow.Deleted === 1;
-  if (!isDeleted) {
-    console.log(`canRestoreRow: Row ${rowIndex} is not deleted`);
-    // Если строка не удалена, то её нельзя восстанавливать
-    return false;
-  }
-  
-  // Получаем номер недели текущей строки
-  const currentWeekNumber = currentRow.NumberOfWeek || extractWeekNumber(currentRow.name);
-  // Получаем номер смены текущей строки
-  const currentShiftNumber = currentRow.NumberOfShift || 1;
-  
-  console.log(`canRestoreRow: Row ${rowIndex} is in week ${currentWeekNumber}, shift ${currentShiftNumber}`);
-  
-  // Найдем все удаленные строки в той же неделе
-  const deletedRowsInSameWeek = data.filter(row => {
-    const rowWeekNumber = row.NumberOfWeek || extractWeekNumber(row.name);
-    const isRowDeleted = row.deleted === 1 || row.Deleted === 1;
-    
-    return rowWeekNumber === currentWeekNumber && isRowDeleted;
-  });
-  
-  console.log(`canRestoreRow: Found ${deletedRowsInSameWeek.length} deleted rows in week ${currentWeekNumber}`);
-  
-  // Если удаленных строк в этой неделе нет, то что-то пошло не так
-  if (deletedRowsInSameWeek.length === 0) {
-    console.error(`No deleted rows found in week ${currentWeekNumber} but row ${rowIndex} is marked as deleted`);
-    return false;
-  }
-  
-  // Логируем найденные удаленные строки для отладки
-  deletedRowsInSameWeek.forEach((row, idx) => {
-    console.log(`canRestoreRow: Deleted row ${idx} in week ${currentWeekNumber}: ID=${row.id}, shift=${row.NumberOfShift || 1}`);
-  });
-  
-  // Найдем строку с минимальным номером смены среди удаленных
-  const minShiftNumber = Math.min(...deletedRowsInSameWeek.map(row => row.NumberOfShift || 1));
-  
-  console.log(`canRestoreRow: Min shift number among deleted rows: ${minShiftNumber}`);
-  console.log(`canRestoreRow: Current row shift number: ${currentShiftNumber}`);
-  console.log(`canRestoreRow: Can restore row ${rowIndex}? ${currentShiftNumber === minShiftNumber}`);
-  
-  // Строку можно восстановить, если её номер смены минимален среди всех удаленных в этой неделе
-  return currentShiftNumber === minShiftNumber;
-};
-
-/**
- * Вспомогательная функция для извлечения номера недели из названия строки
- * @param name Название строки
- * @returns Номер недели или 1, если не удалось извлечь
- */
-function extractWeekNumber(name: string): number {
-  const match = name?.match(/Week\s+(\d+)/i);
-  return match ? parseInt(match[1], 10) : 1;
-}

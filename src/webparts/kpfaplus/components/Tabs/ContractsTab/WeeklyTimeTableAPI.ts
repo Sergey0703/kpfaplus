@@ -3,9 +3,9 @@ import { WebPartContext } from '@microsoft/sp-webpart-base';
 import { MessageBarType } from '@fluentui/react';
 import { IDayHours,WeeklyTimeTableUtils } from '../../../models/IWeeklyTimeTable';
 import { IWeeklyTimeTableUpdateItem, WeeklyTimeTableService } from '../../../services/WeeklyTimeTableService';
-import { IExtendedWeeklyTimeRow, updateDisplayedTotalHours, analyzeWeeklyTableData, checkCanAddNewWeek, normalizeWeeklyTimeRowDates } from './WeeklyTimeTableLogic'; // ДОБАВЛЕНО normalizeWeeklyTimeRowDates
+import { IExtendedWeeklyTimeRow, updateDisplayedTotalHours, analyzeWeeklyTableData, checkCanAddNewWeek, normalizeWeeklyTimeRowDates } from './WeeklyTimeTableLogic';
 import { StatusMessageType } from './actions/WeeklyTimeTableTypes';
-import { DateUtils } from '../../CustomDatePicker/CustomDatePicker'; // ДОБАВЛЕНО
+import { DateUtils } from '../../CustomDatePicker/CustomDatePicker';
 
 export interface ISaveParams {
   context: WebPartContext;
@@ -675,7 +675,7 @@ export const loadWeeklyTimeTableData = async (
                 item.ID !== undefined ? String(item.ID) :
                 item.fields && item.fields.id !== undefined ? String(item.fields.id) :
                 item.fields && item.fields.ID !== undefined ? String(item.fields.ID) :
-                null;
+                undefined;
               
               return itemId === formattedRow.id;
             });
@@ -732,7 +732,7 @@ export const loadWeeklyTimeTableData = async (
                   const createdDate = new Date(fields.Created);
                   if (!isNaN(createdDate.getTime())) {
                     const normalizedCreated = DateUtils.normalizeDateToUTCMidnight(createdDate);
-                    (formattedRow as any).createdDate = normalizedCreated;
+                    (formattedRow as Record<string, unknown>).createdDate = normalizedCreated;
                     console.log(`[LoadData] Normalized Created: ${fields.Created} → ${normalizedCreated.toISOString()}`);
                   }
                 } catch (dateError) {
@@ -745,7 +745,7 @@ export const loadWeeklyTimeTableData = async (
                   const modifiedDate = new Date(fields.Modified);
                   if (!isNaN(modifiedDate.getTime())) {
                     const normalizedModified = DateUtils.normalizeDateToUTCMidnight(modifiedDate);
-                    (formattedRow as any).modifiedDate = normalizedModified;
+                    (formattedRow as Record<string, unknown>).modifiedDate = normalizedModified;
                     console.log(`[LoadData] Normalized Modified: ${fields.Modified} → ${normalizedModified.toISOString()}`);
                   }
                 } catch (dateError) {
@@ -849,7 +849,7 @@ export const initializeWithExistingData = (
                 item.ID !== undefined ? String(item.ID) :
                 item.fields && item.fields.id !== undefined ? String(item.fields.id) :
                 item.fields && item.fields.ID !== undefined ? String(item.fields.ID) :
-                null;
+                undefined;
               
               return itemId === formattedRow.id;
             });
@@ -906,7 +906,7 @@ export const initializeWithExistingData = (
                   const createdDate = new Date(fields.Created);
                   if (!isNaN(createdDate.getTime())) {
                     const normalizedCreated = DateUtils.normalizeDateToUTCMidnight(createdDate);
-                    (formattedRow as any).createdDate = normalizedCreated;
+                    (formattedRow as Record<string, unknown>).createdDate = normalizedCreated;
                     console.log(`[InitData] Normalized Created: ${fields.Created} → ${normalizedCreated.toISOString()}`);
                   }
                 } catch (dateError) {
@@ -919,7 +919,7 @@ export const initializeWithExistingData = (
                   const modifiedDate = new Date(fields.Modified);
                   if (!isNaN(modifiedDate.getTime())) {
                     const normalizedModified = DateUtils.normalizeDateToUTCMidnight(modifiedDate);
-                    (formattedRow as any).modifiedDate = normalizedModified;
+                    (formattedRow as Record<string, unknown>).modifiedDate = normalizedModified;
                     console.log(`[InitData] Normalized Modified: ${fields.Modified} → ${normalizedModified.toISOString()}`);
                   }
                 } catch (dateError) {
