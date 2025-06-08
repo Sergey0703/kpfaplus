@@ -86,7 +86,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
     confirmButtonText: 'Confirm',
     cancelButtonText: 'Cancel',
     confirmButtonColor: '#0078d4',
-    onConfirm: () => {}
+    onConfirm: (): void => {}
   });
 
   // Refs
@@ -236,7 +236,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
 
   // Cleanup on unmount
   useEffect(() => {
-    return () => {
+    return (): void => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
@@ -265,7 +265,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
         clearTimeout(debounceTimerRef.current);
       }
 
-      debounceTimerRef.current = window.setTimeout(() => {
+      debounceTimerRef.current = window.setTimeout((): void => {
         console.log('[useDashboardLogic] Applying debounced date change:', formatDate(date));
         
         try {
@@ -285,7 +285,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams) => {
         // *** ОЧИСТКА ДАННЫХ ПРИ СМЕНЕ ДАТЫ ***
         logsHook.clearLogData();
         
-        setTimeout(() => {
+        setTimeout((): void => {
           console.log('[useDashboardLogic] Auto-stopping loading state after period change');
           setLogLoadingState(false);
         }, 2000);
