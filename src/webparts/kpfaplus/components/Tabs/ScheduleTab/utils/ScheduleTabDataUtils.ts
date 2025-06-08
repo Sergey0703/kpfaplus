@@ -8,6 +8,14 @@ import { DateUtils } from '../../../CustomDatePicker/CustomDatePicker';
  * Вспомогательная функция для создания Date из часов и минут
  * ИСПРАВЛЕНО: Использует DateUtils для правильной нормализации базовой даты
  */
+/**
+ * Вспомогательная функция для создания Date из часов и минут
+ * ИСПРАВЛЕНО: Использует консистентную нормализацию базовой даты
+ */
+/**
+ * Вспомогательная функция для создания Date из часов и минут
+ * ИСПРАВЛЕНО: Использует DateUtils для правильной нормализации базовой даты
+ */
 export const createTimeFromScheduleItem = (baseDate: Date, hourStr: string, minuteStr: string): Date => {
   const hour = parseInt(hourStr, 10) || 0;
   const minute = parseInt(minuteStr, 10) || 0;
@@ -155,36 +163,51 @@ export const convertStaffRecordsToScheduleItems = (
  * Форматирует объект IStaffRecord для обновления из IScheduleItem
  * ИСПРАВЛЕНО: Использует нормализованные даты для обновления
  */
+/**
+ * Форматирует объект IStaffRecord для обновления из IScheduleItem
+ * ИСПРАВЛЕНО: Использует консистентную нормализацию дат
+ */
+/**
+ * Форматирует объект IStaffRecord для обновления из IScheduleItem
+ * ИСПРАВЛЕНО: Использует местную полночь для поля Date, UTC для времен смен
+ */
 export const formatItemForUpdate = (recordId: string, scheduleItem: IScheduleItem): Partial<IStaffRecord> => {
   console.log(`[ScheduleTabDataUtils] formatItemForUpdate for record ID: ${recordId}`);
   console.log(`[ScheduleTabDataUtils] Input schedule item date: ${scheduleItem.date.toISOString()}`);
   
-  // ИСПРАВЛЕНО: Нормализуем основную дату к UTC полуночи перед обновлением
-  const normalizedDate = DateUtils.normalizeStaffRecordDate(scheduleItem.date);
+  // *** ИСПРАВЛЕНИЕ: Создаем дату с местной полуночью для поля Date ***
+  const localMidnightDate = new Date(
+    scheduleItem.date.getFullYear(),
+    scheduleItem.date.getMonth(),
+    scheduleItem.date.getDate(),
+    0, 0, 0, 0 // Местная полночь
+  );
   
-  console.log(`[ScheduleTabDataUtils] Normalized date for update: ${normalizedDate.toISOString()}`);
+  console.log(`[ScheduleTabDataUtils] Created local midnight date for Date field: ${localMidnightDate.toISOString()}`);
+  console.log(`[ScheduleTabDataUtils] Local time representation: ${localMidnightDate.toLocaleString()}`);
   
   // Специальная отладка для октября 2024
   if (scheduleItem.date.getUTCMonth() === 9 && scheduleItem.date.getUTCFullYear() === 2024 && scheduleItem.date.getUTCDate() === 1) {
     console.log(`[ScheduleTabDataUtils] *** FORMATTING OCTOBER 1st ITEM FOR UPDATE ***`);
     console.log(`[ScheduleTabDataUtils] Record ID: ${recordId}`);
     console.log(`[ScheduleTabDataUtils] Original item date: ${scheduleItem.date.toISOString()}`);
-    console.log(`[ScheduleTabDataUtils] Normalized date: ${normalizedDate.toISOString()}`);
+    console.log(`[ScheduleTabDataUtils] Local midnight date: ${localMidnightDate.toISOString()}`);
+    console.log(`[ScheduleTabDataUtils] Local midnight date (local): ${localMidnightDate.toLocaleString()}`);
   }
   
-  // Создаем даты для времени смен с использованием нормализованной базовой даты
+  // Для времен смен используем исходную дату (которая должна быть нормализована к UTC)
   const shiftDate1 = createTimeFromScheduleItem(scheduleItem.date, scheduleItem.startHour, scheduleItem.startMinute);
   const shiftDate2 = createTimeFromScheduleItem(scheduleItem.date, scheduleItem.finishHour, scheduleItem.finishMinute);
   
   console.log(`[ScheduleTabDataUtils] Created shift times:
     ShiftDate1: ${shiftDate1.toISOString()} (${scheduleItem.startHour}:${scheduleItem.startMinute})
     ShiftDate2: ${shiftDate2.toISOString()} (${scheduleItem.finishHour}:${scheduleItem.finishMinute})`);
-  
+
   const updateData: Partial<IStaffRecord> = {
-    // ВАЖНО: Используем нормализованную дату для основного поля Date
-    Date: normalizedDate, // Это будет преобразовано в ISO string в StaffRecordsService
+    // *** ИСПРАВЛЕНИЕ: Используем местную полночь для поля Date ***
+    Date: localMidnightDate, // ✅ ПРАВИЛЬНО - местная полночь для Date
     
-    // Dates need to be proper Date objects - используем обновленную функцию
+    // Времена смен в UTC (как и раньше)
     ShiftDate1: shiftDate1,
     ShiftDate2: shiftDate2,
     
@@ -199,11 +222,12 @@ export const formatItemForUpdate = (recordId: string, scheduleItem: IScheduleIte
     WorkTime: scheduleItem.workingHours,
     
     // Holiday status
-    Holiday: scheduleItem.Holiday // Сохраняем статус праздника при обновлении
+    Holiday: scheduleItem.Holiday
   };
   
   console.log(`[ScheduleTabDataUtils] formatItemForUpdate result:`, {
     Date: updateData.Date?.toISOString(),
+    'Date (local)': updateData.Date?.toLocaleString(),
     ShiftDate1: updateData.ShiftDate1?.toISOString(),
     ShiftDate2: updateData.ShiftDate2?.toISOString(),
     TimeForLunch: updateData.TimeForLunch,

@@ -116,11 +116,24 @@ export function getAppliedWeekNumber(calculatedWeekNumber: number, numberOfWeekT
 /**
 * Helper function to create Date object with specified time
 */
+// src/webparts/kpfaplus/components/Tabs/ScheduleTab/utils/ScheduleTabFillHelpers.ts
+// УЛУЧШЕННАЯ ВЕРСИЯ функции createDateWithTime
+
+/**
+ * Helper function to create Date object with specified time
+ * *** ИСПРАВЛЕНО: Обеспечиваем консистентность с основным полем Date ***
+ */
+/**
+* Helper function to create Date object with specified time
+* ИСПРАВЛЕНО: Используем UTC методы для консистентности с SharePoint
+*/
 export function createDateWithTime(baseDate: Date, time?: IDayHours): Date {
  const result = new Date(baseDate);
  
  if (!time) {
-   result.setHours(0, 0, 0, 0);
+   // *** ИСПРАВЛЕНИЕ: Используем setUTCHours вместо setHours ***
+   result.setUTCHours(0, 0, 0, 0);
+   console.log(`[ScheduleTabFillHelpers] No time provided, set to UTC midnight: ${result.toISOString()}`);
    return result;
  }
  
@@ -130,13 +143,18 @@ export function createDateWithTime(baseDate: Date, time?: IDayHours): Date {
    
    if (isNaN(hours) || isNaN(minutes)) {
      console.warn(`[ScheduleTabFillHelpers] Invalid time components: hours="${time.hours}", minutes="${time.minutes}"`);
-     result.setHours(0, 0, 0, 0);
+     // *** ИСПРАВЛЕНИЕ: Используем setUTCHours вместо setHours ***
+     result.setUTCHours(0, 0, 0, 0);
    } else {
-     result.setHours(hours, minutes, 0, 0);
+     // *** ИСПРАВЛЕНИЕ: Используем setUTCHours вместо setHours ***
+     result.setUTCHours(hours, minutes, 0, 0);
+     console.log(`[ScheduleTabFillHelpers] Set UTC time ${hours}:${minutes} on base date → result: ${result.toISOString()}`);
    }
  } catch (error) {
    console.error(`[ScheduleTabFillHelpers] Error parsing time:`, error);
-   result.setHours(0, 0, 0, 0);
+   // *** ИСПРАВЛЕНИЕ: Используем setUTCHours вместо setHours ***
+   result.setUTCHours(0, 0, 0, 0);
+   console.log(`[ScheduleTabFillHelpers] Error, set to UTC midnight: ${result.toISOString()}`);
  }
  
  return result;

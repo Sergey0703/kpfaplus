@@ -131,6 +131,13 @@ export class WeeklyTimeTableUtils {
       const hours = date.getUTCHours().toString().padStart(2, '0');
       const minutes = date.getUTCMinutes().toString().padStart(2, '0');
       
+      // *** ДОБАВЛЕН ЛОГ ДЛЯ ОТЛАДКИ ПРОБЛЕМЫ С 1 ОКТЯБРЯ: ***
+      console.log(`[WeeklyTimeTableUtils] *** EXTRACTING TIME FROM TEMPLATE ***`);
+      console.log(`[WeeklyTimeTableUtils] Original dateString: ${dateString}`);
+      console.log(`[WeeklyTimeTableUtils] Parsed Date object: ${date.toISOString()}`);
+      console.log(`[WeeklyTimeTableUtils] Extracted UTC time: ${hours}:${minutes}`);
+      console.log(`[WeeklyTimeTableUtils] Local interpretation would be: ${date.getHours()}:${date.getMinutes()}`);
+      
       return { hours, minutes };
     } catch (error) {
       console.error("Error extracting time from date:", error);
