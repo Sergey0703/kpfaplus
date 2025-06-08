@@ -171,7 +171,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
   // *** Register reset callback on mount ***
   useEffect(() => {
     if (registerTableResetCallback) {
-      const resetCallback = () => {
+      const resetCallback = (): void => {
         console.log('[DashboardTable] 🔄 RESETTING TABLE STATE - clearing lastProcessedKeyRef');
         lastProcessedKeyRef.current = '';
       };
@@ -500,9 +500,9 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
             <DefaultButton
               iconProps={{ iconName: 'Refresh' }}
               text="Refresh"
-              onClick={() => {
+              onClick={(): void => {
                 console.log(`[DashboardTable] *** MANUAL REFRESH CLICKED *** for staff ID=${item.id}, Name="${item.name}"`);
-                onLogRefresh(item.id);
+                void onLogRefresh(item.id);
               }}
               disabled={isLoading}
               styles={{
@@ -516,7 +516,9 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
             <PrimaryButton
               iconProps={{ iconName: 'Add' }}
               text="Fill"
-              onClick={() => onFillStaff(item.id, item.name)}
+              onClick={(): void => {
+                void onFillStaff(item.id, item.name);
+              }}
               disabled={isLoading}
               styles={{
                 root: { minWidth: '55px', height: '28px' },
@@ -530,7 +532,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
               <DefaultButton
                 iconProps={{ iconName: 'View' }}
                 text="View Log"
-                onClick={() => setLogDetailsDialog({
+                onClick={(): void => setLogDetailsDialog({
                   isOpen: true,
                   logId: item.logData?.logId,
                   staffName: item.name
@@ -570,7 +572,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
   ];
 
   // *** EVENT HANDLERS ***
-  const handleRefreshAll = useCallback(async () => {
+  const handleRefreshAll = useCallback(async (): Promise<void> => {
     if (staffMembersData.length > 0) {
       const staffIds = staffMembersData.map((staff: IStaffMemberWithAutoschedule) => staff.id);
       console.log('[DashboardTable] *** MANUAL REFRESH ALL CLICKED *** for staff IDs:', staffIds);
@@ -578,7 +580,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     }
   }, [staffMembersData, onBulkLogRefresh]);
 
-  const handleCloseLogDetails = useCallback(() => {
+  const handleCloseLogDetails = useCallback((): void => {
     setLogDetailsDialog({ isOpen: false });
   }, []);
 
@@ -637,13 +639,17 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
           <DefaultButton
             iconProps={{ iconName: 'Refresh' }}
             text="Refresh All"
-            onClick={handleRefreshAll}
+            onClick={(): void => {
+              void handleRefreshAll();
+            }}
             disabled={isLoading || staffMembersData.length === 0 || isReloadingLogs}
           />
           <PrimaryButton
             iconProps={{ iconName: 'AddToShoppingList' }}
             text="Fill All"
-            onClick={onFillAll}
+            onClick={(): void => {
+              void onFillAll();
+            }}
             disabled={isLoading || staffMembersData.length === 0 || isReloadingLogs}
           />
         </div>
