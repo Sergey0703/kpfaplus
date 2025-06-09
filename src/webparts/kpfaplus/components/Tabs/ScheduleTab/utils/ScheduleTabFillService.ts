@@ -21,6 +21,7 @@ import {
   checkRecordsProcessingStatus,
   createProcessingBlockMessage
 } from './ScheduleTabFillHelpers';
+import { RemoteSiteService } from '../../../../services/RemoteSiteService';
 
 /**
  * Main function for filling schedule based on templates
@@ -83,18 +84,18 @@ export const fillScheduleFromTemplate = async (
       0, 0, 0, 0
     ));
     
-   /* const endOfMonth = new Date(Date.UTC(
+    const endOfMonth = new Date(Date.UTC(
       selectedDate.getUTCFullYear(), 
       selectedDate.getUTCMonth() + 1, 
       0, 
       23, 59, 59, 999
-    )); */
-    const endOfMonth = new Date(Date.UTC(
+    )); 
+ /*   const endOfMonth = new Date(Date.UTC(
   selectedDate.getUTCFullYear(), 
   selectedDate.getUTCMonth(), 
   1, 
   23, 59, 59, 999
-));
+)); */
 
 console.log(`[DEBUG] *** DEBUGGING MODE: FILLING ONLY FIRST DAY ***`);
 console.log(`[DEBUG] Start: ${startOfMonth.toISOString()}`);
@@ -278,11 +279,8 @@ console.log(`[DEBUG] End: ${endOfMonth.toISOString()}`);
     );
     
     // Генерируем записи расписания
-    const generatedRecords = generateScheduleRecords(
-      daysData, 
-      selectedContract, 
-      selectedContractId
-    );
+   const remoteSiteService = RemoteSiteService.getInstance(context);
+const generatedRecords = await generateScheduleRecords(daysData, selectedContract, selectedContractId, remoteSiteService);
     
     if (generatedRecords.length === 0) {
       setOperationMessage({
@@ -403,16 +401,18 @@ export const checkExistingRecordsStatus = async (
 /**
  * Генерирует записи расписания на основе подготовленных данных
  */
-function generateScheduleRecords(
+async function generateScheduleRecords(
   daysData: Map<string, IDayData>,
   selectedContract: IContract,
-  selectedContractId: string
-): Partial<IStaffRecord>[] {
+  selectedContractId: string,
+  remoteSiteService: RemoteSiteService  // ← ДОБАВЛЕН ПАРАМЕТР
+): Promise<Partial<IStaffRecord>[]> {
   const generatedRecords: Partial<IStaffRecord>[] = [];
   
-  daysData.forEach((dayData, dateKey) => {
+  // Используем for...of для поддержки async/await
+  for (const dayData of Array.from(daysData.values())) {
     if (dayData.templates.length > 0) {
-      // *** ЛОГИ ТОЛЬКО ДЛЯ 1 ОКТЯБРЯ ***
+      // Логи только для 1 октября
       if (dayData.date.getUTCDate() === 1 && dayData.date.getUTCMonth() === 9 && dayData.date.getUTCFullYear() === 2024) {
         console.log(`[ScheduleTabFillService] *** OCTOBER 1st RECORD GENERATION ***`);
         console.log(`[ScheduleTabFillService] Day ${dayData.date.toLocaleDateString()}: found ${dayData.templates.length} templates`);
@@ -426,24 +426,26 @@ function generateScheduleRecords(
         });
       }
       
-      dayData.templates.forEach((template, templateIndex) => {
+      // Обрабатываем каждый шаблон асинхронно
+      for (let templateIndex = 0; templateIndex < dayData.templates.length; templateIndex++) {
+  const template = dayData.templates[templateIndex];
         if (!template.start || !template.end) {
           if (dayData.date.getUTCDate() === 1 && dayData.date.getUTCMonth() === 9 && dayData.date.getUTCFullYear() === 2024) {
             console.log(`[ScheduleTabFillService] Oct 1st: Skipping template ${templateIndex} - missing start/end time`);
           }
-          return;
+          continue;
         }
         
-        // *** ДОБАВЛЕН DEBUG ЛОГ №3: TEMPLATE TIME PROCESSING ***
+        // *** ИСПРАВЛЕНИЕ: Используем await для асинхронного создания времени ***
         console.log(`[DEBUG] *** PROCESSING TEMPLATE TIME FOR ${dayData.date.toLocaleDateString()} ***`);
         console.log(`[DEBUG] Template ${templateIndex} start time object:`, template.start);
         console.log(`[DEBUG] Template ${templateIndex} end time object:`, template.end);
         console.log(`[DEBUG] Base date for shift creation: ${dayData.date.toISOString()}`);
         
-        const shiftDate1 = createDateWithTime(dayData.date, template.start);
-        const shiftDate2 = createDateWithTime(dayData.date, template.end);
+        // ИСПРАВЛЕНО: Правильный порядок параметров и await
+        const shiftDate1 = await createDateWithTime(dayData.date, remoteSiteService, template.start);
+        const shiftDate2 = await createDateWithTime(dayData.date, remoteSiteService, template.end);
         
-        // *** ДОБАВЛЕН DEBUG ЛОГ №4: CREATED SHIFT TIMES ***
         console.log(`[DEBUG] *** CREATED SHIFT TIMES ***`);
         console.log(`[DEBUG] ShiftDate1 (start): ${shiftDate1.toISOString()}`);
         console.log(`[DEBUG] ShiftDate2 (end): ${shiftDate2.toISOString()}`);
@@ -452,9 +454,9 @@ function generateScheduleRecords(
         
         const recordData: Partial<IStaffRecord> = {
           Title: `Template=${selectedContractId} Week=${dayData.appliedWeekNumber} Shift=${template.NumberOfShift || template.shiftNumber || 1}`,
-          Date: dayData.date, // ИСПРАВЛЕНО: убираем new Date() - используем как есть
-          ShiftDate1: shiftDate1,
-          ShiftDate2: shiftDate2,
+          Date: dayData.date,
+          ShiftDate1: shiftDate1,  // ← Теперь это Date, не Promise<Date>
+          ShiftDate2: shiftDate2,  // ← Теперь это Date, не Promise<Date>
           TimeForLunch: parseInt(template.lunch || '30', 10),
           Contract: parseInt(template.total || '1', 10),
           Holiday: dayData.isHoliday ? 1 : 0,
@@ -470,7 +472,7 @@ function generateScheduleRecords(
           }
         }
         
-        // *** ДЕТАЛЬНЫЕ ЛОГИ ТОЛЬКО ДЛЯ 1 ОКТЯБРЯ ***
+        // Детальные логи только для 1 октября
         if (dayData.date.getUTCDate() === 1 && dayData.date.getUTCMonth() === 9 && dayData.date.getUTCFullYear() === 2024) {
           console.log(`[ScheduleTabFillService] *** OCTOBER 1st TEMPLATE ${templateIndex + 1} ***`);
           console.log(`[ScheduleTabFillService] Template start time: ${template.start?.hours}:${template.start?.minutes}`);
@@ -483,9 +485,9 @@ function generateScheduleRecords(
         }
         
         generatedRecords.push(recordData);
-      });
+      }
     }
-  });
+  }
   
   return generatedRecords;
 }

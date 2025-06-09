@@ -13,7 +13,8 @@ import {
  IExistingRecordCheck,
  IRecordsProcessingStatus
 } from './ScheduleTabFillInterfaces';
-
+import { SharePointTimeZoneUtils } from '../../../../utils/SharePointTimeZoneUtils';
+import { RemoteSiteService } from '../../../../services/RemoteSiteService';
 /**
 * Анализирует статус обработки существующих записей
 */
@@ -117,38 +118,55 @@ export function getAppliedWeekNumber(calculatedWeekNumber: number, numberOfWeekT
 * Helper function to create Date object with specified time
 * ИСПРАВЛЕНО: Используем UTC методы для консистентности с SharePoint
 */
-export function createDateWithTime(baseDate: Date, time?: IDayHours): Date {
- const result = new Date(baseDate);
- 
- if (!time) {
-   // *** ИСПРАВЛЕНИЕ: Используем setUTCHours вместо setHours ***
-   result.setUTCHours(0, 0, 0, 0);
-   console.log(`[ScheduleTabFillHelpers] No time provided, set to UTC midnight: ${result.toISOString()}`);
-   return result;
- }
- 
- try {
-   const hours = parseInt(time.hours || '0', 10);
-   const minutes = parseInt(time.minutes || '0', 10);
-   
-   if (isNaN(hours) || isNaN(minutes)) {
-     console.warn(`[ScheduleTabFillHelpers] Invalid time components: hours="${time.hours}", minutes="${time.minutes}"`);
-     // *** ИСПРАВЛЕНИЕ: Используем setUTCHours вместо setHours ***
-     result.setUTCHours(0, 0, 0, 0);
-     console.warn(`[ScheduleTabFillHelpers] Set to UTC midnight: ${result.toISOString()}`);
-   } else {
-     // *** ИСПРАВЛЕНИЕ: Используем setUTCHours вместо setHours ***
-     result.setUTCHours(hours, minutes, 0, 0);
-     console.log(`[ScheduleTabFillHelpers] Set UTC time ${hours}:${minutes} on base date → result: ${result.toISOString()}`);
-   }
- } catch (error) {
-   console.error(`[ScheduleTabFillHelpers] Error parsing time:`, error);
-   // *** ИСПРАВЛЕНИЕ: Используем setUTCHours вместо setHours ***
-   result.setUTCHours(0, 0, 0, 0);
-   console.error(`[ScheduleTabFillHelpers] Error, set to UTC midnight: ${result.toISOString()}`);
- }
- 
- return result;
+/**
+ * Helper function to create Date object with specified time
+ * ОБНОВЛЕНО: Использует динамическую корректировку часового пояса SharePoint
+ * 
+ * @param baseDate Base date
+ * @param time Object with hours and minutes (может быть undefined)
+ * @param remoteSiteService Сервис для получения информации о часовом поясе (ОБЯЗАТЕЛЬНЫЙ)
+ * @returns Date object with set time in UTC с корректировкой часового пояса
+ */
+export async function createDateWithTime(
+  baseDate: Date, 
+  remoteSiteService: RemoteSiteService,
+  time?: IDayHours
+): Promise<Date> {
+  const result = new Date(baseDate);
+  
+  if (!time) {
+    result.setUTCHours(0, 0, 0, 0);
+    console.log(`[ScheduleTabFillHelpers] No time provided, set to UTC midnight: ${result.toISOString()}`);
+    return result;
+  }
+  
+  const hours = parseInt(time.hours || '0', 10);
+  const minutes = parseInt(time.minutes || '0', 10);
+  
+  if (isNaN(hours) || isNaN(minutes)) {
+    console.warn(`[ScheduleTabFillHelpers] Invalid time components: hours="${time.hours}", minutes="${time.minutes}"`);
+    result.setUTCHours(0, 0, 0, 0);
+    console.warn(`[ScheduleTabFillHelpers] Set to UTC midnight: ${result.toISOString()}`);
+    return result;
+  }
+  
+  console.log(`[ScheduleTabFillHelpers] *** TIMEZONE ADJUSTMENT ***`);
+  console.log(`[ScheduleTabFillHelpers] Input time from template: ${hours}:${minutes}`);
+  
+  const adjustedTime = await SharePointTimeZoneUtils.adjustTimeForSharePointTimeZone(
+    hours, 
+    minutes, 
+    remoteSiteService, 
+    baseDate
+  );
+  
+  result.setUTCHours(adjustedTime.hours, adjustedTime.minutes, 0, 0);
+  
+  console.log(`[ScheduleTabFillHelpers] *** ADJUSTMENT COMPLETED ***`);
+  console.log(`[ScheduleTabFillHelpers] ${hours}:${minutes} → ${adjustedTime.hours}:${adjustedTime.minutes} UTC`);
+  console.log(`[ScheduleTabFillHelpers] Final result: ${result.toISOString()}`);
+  
+  return result;
 }
 
 /**

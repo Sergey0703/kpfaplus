@@ -137,6 +137,65 @@ export class RemoteSiteService {
      // Если siteId есть И сервисы инициализированы, просто продолжаем
   }
 
+
+  // src/webparts/kpfaplus/services/RemoteSiteService.ts
+// ДОБАВИТЬ ЭТОТ МЕТОД В КЛАСС RemoteSiteService
+
+/**
+ * --- НОВЫЙ МЕТОД ДЛЯ ПОЛУЧЕНИЯ ИНФОРМАЦИИ О ЧАСОВОМ ПОЯСЕ САЙТА ---
+ * Получает информацию о часовом поясе SharePoint сайта через REST API
+ * Используется для динамической корректировки времени при создании записей расписания
+ * 
+ * @returns Promise с информацией о часовом поясе
+ */
+public async getTimeZoneInfo(): Promise<{
+  description: string;
+  id: number;
+  bias: number;
+  daylightBias: number;
+  standardBias: number;
+}> {
+  this.logInfo('Getting SharePoint site timezone information');
+  
+  try {
+    await this.ensureServices();
+    const graphClient = await this.getGraphClient();
+    const siteId = this.getTargetSiteId();
+    
+    if (!siteId) {
+      throw new Error('Site ID not available for timezone request');
+    }
+    
+    // Используем SharePoint REST API для получения информации о часовом поясе
+    const response = await graphClient
+      .api(`/sites/${siteId}/_api/web/RegionalSettings/TimeZone`)
+      .get();
+      
+    this.logInfo(`SharePoint site timezone: ${response.Description}`);
+    this.logInfo(`Bias: ${response.Information.Bias}, Daylight: ${response.Information.DaylightBias}, Standard: ${response.Information.StandardBias}`);
+    
+    return {
+      description: response.Description,
+      id: response.Id,
+      bias: response.Information.Bias,
+      daylightBias: response.Information.DaylightBias,
+      standardBias: response.Information.StandardBias
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    this.logError(`Error getting timezone info: ${errorMessage}`);
+    
+    // Fallback - возвращаем UTC если не удалось получить информацию
+    this.logInfo('Falling back to UTC timezone (no bias)');
+    return {
+      description: '(UTC+00:00) Coordinated Universal Time',
+      id: 0,
+      bias: 0,
+      daylightBias: 0,
+      standardBias: 0
+    };
+  }
+}
   /**
    * Получает URL удаленного сайта
    * @returns URL удаленного сайта

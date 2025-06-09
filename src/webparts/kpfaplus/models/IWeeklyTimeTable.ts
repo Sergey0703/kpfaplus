@@ -118,37 +118,30 @@ export interface IFormattedWeeklyTimeRow {
 export class WeeklyTimeTableUtils {
   // Вспомогательный метод для извлечения часов и минут из даты
   private static extractTimeFromDate(dateString: string | undefined): IDayHours {
-    console.log(`[WeeklyTimeTableUtils0] *** EXTRACTING TIME FROM TEMPLATE ***`);
-    if (!dateString) {
-      return { hours: '00', minutes: '00' };
-    }
-    
-    try {
-      const date = new Date(dateString);
-      console.log(`[WeeklyTimeTableUtils2] *** EXTRACTING TIME FROM TEMPLATE ***`);
-      if (isNaN(date.getTime())) {
-        return { hours: '00', minutes: '00' };
-      }
-      
-      const hours = date.getUTCHours().toString().padStart(2, '0');
-      const minutes = date.getUTCMinutes().toString().padStart(2, '0');
-      
-      // *** ДОБАВЛЕН ЛОГ ДЛЯ ОТЛАДКИ ПРОБЛЕМЫ С 1 ОКТЯБРЯ: ***
-      console.log(`[WeeklyTimeTableUtils] *** EXTRACTING TIME FROM TEMPLATE ***`);
-      console.log(`[WeeklyTimeTableUtils] Original dateString: ${dateString}`);
-      console.log(`[WeeklyTimeTableUtils] Parsed Date object: ${date.toISOString()}`);
-      console.log(`[WeeklyTimeTableUtils] Extracted UTC time: ${hours}:${minutes}`);
-      console.log(`[WeeklyTimeTableUtils] Local interpretation would be: ${date.getHours()}:${date.getMinutes()}`);
-      
-      console.log(`[DEBUG] Raw dateString from SharePoint: "${dateString}"`);
-  
-  
-      return { hours, minutes };
-    } catch (error) {
-      console.error("Error extracting time from date:", error);
-      return { hours: '00', minutes: '00' };
-    }
+  if (!dateString) {
+    return { hours: '00', minutes: '00' };
   }
+
+  const date = new Date(dateString);
+  
+  // Получаем UTC время
+  let hours = date.getUTCHours();
+  const minutes = date.getUTCMinutes();
+  
+  // ИСПРАВЛЕНИЕ: Вычитаем 1 час для компенсации часового пояса UTC+1
+  hours = hours - 1;
+  if (hours < 0) {
+    hours = 23; // Переходим на предыдущий день
+  }
+  
+  const hoursStr = hours.toString().padStart(2, '0');
+  const minutesStr = minutes.toString().padStart(2, '0');
+  
+  console.log(`[WeeklyTimeTableUtils] Original UTC: ${date.getUTCHours()}:${date.getUTCMinutes()}`);
+  console.log(`[WeeklyTimeTableUtils] Adjusted for timezone: ${hoursStr}:${minutesStr}`);
+  
+  return { hours: hoursStr, minutes: minutesStr };
+}
   
   // Вспомогательный метод для безопасного получения строки из unknown
   private static safeString(value: unknown): string | undefined {
