@@ -20,7 +20,6 @@ export interface ICustomDatePickerProps {
   calloutProps?: ICalloutProps;
   'data-testid'?: string;
 }
-
 // English localization for the DatePicker
 const datePickerStringsEN: IDatePickerStrings = {
   months: [
