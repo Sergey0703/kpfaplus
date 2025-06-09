@@ -232,9 +232,9 @@ export class StaffRecordsCommandService {
 
       // ИСПРАВЛЕНО: Process Date field (required) with DateUtils normalization ТОЛЬКО для основной даты
       if (createParams.Date) {
-        const normalizedDate = DateUtils.normalizeDateToUTCMidnight(createParams.Date);
-        fields.Date = normalizedDate.toISOString();
-        this.logInfo(`[DEBUG] Normalized create main Date: ${createParams.Date.toISOString()} → ${normalizedDate.toISOString()}`);
+      //  const normalizedDate = DateUtils.normalizeDateToUTCMidnight(createParams.Date);
+      fields.Date = createParams.Date.toISOString(); //  fields.Date = normalizedDate.toISOString();
+        console.log(`[DEBUG] create main Date: ${createParams.Date.toISOString()}`);
       } else {
         this.logError(`[ERROR] Create failed: Date is a required field for a new record but was not provided in createParams.`);
         throw new Error("Date is required to create a staff record.");
@@ -246,7 +246,7 @@ export class StaffRecordsCommandService {
         // УБРАНО: Дополнительная нормализация через DateUtils.createShiftDateTime()
         // Используем дату как есть, так как она уже должна быть правильно создана в UTC
         fields.ShiftDate1 = createParams.ShiftDate1.toISOString();
-        this.logInfo(`[DEBUG] Using create ShiftDate1 as-is (already normalized): ${createParams.ShiftDate1.toISOString()}`);
+        console.log(`[DEBUG] Using create ShiftDate1 as-is (already normalized): ${createParams.ShiftDate1.toISOString()}`);
       } else if (createParams.ShiftDate1 === null) { 
         fields.ShiftDate1 = null;
         this.logInfo(`[DEBUG] Create ShiftDate1 set to null`);

@@ -83,12 +83,22 @@ export const fillScheduleFromTemplate = async (
       0, 0, 0, 0
     ));
     
-    const endOfMonth = new Date(Date.UTC(
+   /* const endOfMonth = new Date(Date.UTC(
       selectedDate.getUTCFullYear(), 
       selectedDate.getUTCMonth() + 1, 
       0, 
       23, 59, 59, 999
-    ));
+    )); */
+    const endOfMonth = new Date(Date.UTC(
+  selectedDate.getUTCFullYear(), 
+  selectedDate.getUTCMonth(), 
+  1, 
+  23, 59, 59, 999
+));
+
+console.log(`[DEBUG] *** DEBUGGING MODE: FILLING ONLY FIRST DAY ***`);
+console.log(`[DEBUG] Start: ${startOfMonth.toISOString()}`);
+console.log(`[DEBUG] End: ${endOfMonth.toISOString()}`);
     
     console.log(`[ScheduleTabFillService] Month boundaries in UTC: ${startOfMonth.toISOString()} - ${endOfMonth.toISOString()}`);
     
@@ -171,6 +181,22 @@ export const fillScheduleFromTemplate = async (
     const weeklyTimeService = new WeeklyTimeTableService(context);
     const weeklyTimeItems = await weeklyTimeService.getWeeklyTimeTableByContractId(selectedContractId);
     
+    // *** ДОБАВЛЕН DEBUG ЛОГ №1: RAW DATA FROM SERVICE ***
+    console.log(`[DEBUG] *** RAW WEEKLY TIME ITEMS FROM SERVICE ***`);
+    console.log(`[DEBUG] Total items received: ${weeklyTimeItems?.length || 0}`);
+    if (weeklyTimeItems && weeklyTimeItems.length > 0) {
+      console.log(`[DEBUG] First raw item structure:`, JSON.stringify(weeklyTimeItems[0], null, 2));
+      
+      // Проверяем поля времени в первом элементе
+      const firstItem = weeklyTimeItems[0];
+      const fields = firstItem.fields || firstItem;
+      console.log(`[DEBUG] *** TIME FIELDS IN RAW DATA ***`);
+      console.log(`[DEBUG] MondayStartWork: "${fields.MondeyStartWork || fields.MondayStartWork}"`);
+      console.log(`[DEBUG] MondayEndWork: "${fields.MondayEndWork}"`);
+      console.log(`[DEBUG] TuesdayStartWork: "${fields.TuesdayStartWork}"`);
+      console.log(`[DEBUG] TuesdayEndWork: "${fields.TuesdayEndWork}"`);
+    }
+    
     if (!weeklyTimeItems || weeklyTimeItems.length === 0) {
       setOperationMessage({
         text: 'No weekly templates found for the selected contract',
@@ -200,6 +226,21 @@ export const fillScheduleFromTemplate = async (
     
     // Форматируем и фильтруем шаблоны
     const formattedTemplates = WeeklyTimeTableUtils.formatWeeklyTimeTableData(activeWeeklyTimeItems, dayOfStartWeek);
+    
+    // *** ДОБАВЛЕН DEBUG ЛОГ №2: FORMATTED TEMPLATES ***
+    console.log(`[DEBUG] *** FORMATTED TEMPLATES FROM WeeklyTimeTableUtils ***`);
+    console.log(`[DEBUG] Total formatted templates: ${formattedTemplates?.length || 0}`);
+    if (formattedTemplates && formattedTemplates.length > 0) {
+      console.log(`[DEBUG] First formatted template:`, JSON.stringify(formattedTemplates[0], null, 2));
+      
+      // Проверяем структуру времени в отформатированном шаблоне
+      const firstTemplate = formattedTemplates[0];
+      console.log(`[DEBUG] *** TIME STRUCTURE IN FORMATTED TEMPLATE ***`);
+      console.log(`[DEBUG] Monday start:`, firstTemplate.monday.start);
+      console.log(`[DEBUG] Monday end:`, firstTemplate.monday.end);
+      console.log(`[DEBUG] Tuesday start:`, firstTemplate.tuesday.start);
+      console.log(`[DEBUG] Tuesday end:`, firstTemplate.tuesday.end);
+    }
     
     if (!formattedTemplates || formattedTemplates.length === 0) {
       setOperationMessage({
@@ -393,12 +434,25 @@ function generateScheduleRecords(
           return;
         }
         
+        // *** ДОБАВЛЕН DEBUG ЛОГ №3: TEMPLATE TIME PROCESSING ***
+        console.log(`[DEBUG] *** PROCESSING TEMPLATE TIME FOR ${dayData.date.toLocaleDateString()} ***`);
+        console.log(`[DEBUG] Template ${templateIndex} start time object:`, template.start);
+        console.log(`[DEBUG] Template ${templateIndex} end time object:`, template.end);
+        console.log(`[DEBUG] Base date for shift creation: ${dayData.date.toISOString()}`);
+        
         const shiftDate1 = createDateWithTime(dayData.date, template.start);
         const shiftDate2 = createDateWithTime(dayData.date, template.end);
         
+        // *** ДОБАВЛЕН DEBUG ЛОГ №4: CREATED SHIFT TIMES ***
+        console.log(`[DEBUG] *** CREATED SHIFT TIMES ***`);
+        console.log(`[DEBUG] ShiftDate1 (start): ${shiftDate1.toISOString()}`);
+        console.log(`[DEBUG] ShiftDate2 (end): ${shiftDate2.toISOString()}`);
+        console.log(`[DEBUG] Local time representation - Start: ${shiftDate1.toLocaleString()}`);
+        console.log(`[DEBUG] Local time representation - End: ${shiftDate2.toLocaleString()}`);
+        
         const recordData: Partial<IStaffRecord> = {
           Title: `Template=${selectedContractId} Week=${dayData.appliedWeekNumber} Shift=${template.NumberOfShift || template.shiftNumber || 1}`,
-          Date: new Date(dayData.date),
+          Date: dayData.date, // ИСПРАВЛЕНО: убираем new Date() - используем как есть
           ShiftDate1: shiftDate1,
           ShiftDate2: shiftDate2,
           TimeForLunch: parseInt(template.lunch || '30', 10),

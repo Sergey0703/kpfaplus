@@ -118,12 +118,14 @@ export interface IFormattedWeeklyTimeRow {
 export class WeeklyTimeTableUtils {
   // Вспомогательный метод для извлечения часов и минут из даты
   private static extractTimeFromDate(dateString: string | undefined): IDayHours {
+    console.log(`[WeeklyTimeTableUtils0] *** EXTRACTING TIME FROM TEMPLATE ***`);
     if (!dateString) {
       return { hours: '00', minutes: '00' };
     }
     
     try {
       const date = new Date(dateString);
+      console.log(`[WeeklyTimeTableUtils2] *** EXTRACTING TIME FROM TEMPLATE ***`);
       if (isNaN(date.getTime())) {
         return { hours: '00', minutes: '00' };
       }
@@ -138,6 +140,9 @@ export class WeeklyTimeTableUtils {
       console.log(`[WeeklyTimeTableUtils] Extracted UTC time: ${hours}:${minutes}`);
       console.log(`[WeeklyTimeTableUtils] Local interpretation would be: ${date.getHours()}:${date.getMinutes()}`);
       
+      console.log(`[DEBUG] Raw dateString from SharePoint: "${dateString}"`);
+  
+  
       return { hours, minutes };
     } catch (error) {
       console.error("Error extracting time from date:", error);
