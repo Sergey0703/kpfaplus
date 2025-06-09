@@ -115,16 +115,6 @@ export function getAppliedWeekNumber(calculatedWeekNumber: number, numberOfWeekT
 
 /**
 * Helper function to create Date object with specified time
-*/
-// src/webparts/kpfaplus/components/Tabs/ScheduleTab/utils/ScheduleTabFillHelpers.ts
-// УЛУЧШЕННАЯ ВЕРСИЯ функции createDateWithTime
-
-/**
- * Helper function to create Date object with specified time
- * *** ИСПРАВЛЕНО: Обеспечиваем консистентность с основным полем Date ***
- */
-/**
-* Helper function to create Date object with specified time
 * ИСПРАВЛЕНО: Используем UTC методы для консистентности с SharePoint
 */
 export function createDateWithTime(baseDate: Date, time?: IDayHours): Date {
@@ -145,6 +135,7 @@ export function createDateWithTime(baseDate: Date, time?: IDayHours): Date {
      console.warn(`[ScheduleTabFillHelpers] Invalid time components: hours="${time.hours}", minutes="${time.minutes}"`);
      // *** ИСПРАВЛЕНИЕ: Используем setUTCHours вместо setHours ***
      result.setUTCHours(0, 0, 0, 0);
+     console.warn(`[ScheduleTabFillHelpers] Set to UTC midnight: ${result.toISOString()}`);
    } else {
      // *** ИСПРАВЛЕНИЕ: Используем setUTCHours вместо setHours ***
      result.setUTCHours(hours, minutes, 0, 0);
@@ -154,7 +145,7 @@ export function createDateWithTime(baseDate: Date, time?: IDayHours): Date {
    console.error(`[ScheduleTabFillHelpers] Error parsing time:`, error);
    // *** ИСПРАВЛЕНИЕ: Используем setUTCHours вместо setHours ***
    result.setUTCHours(0, 0, 0, 0);
-   console.log(`[ScheduleTabFillHelpers] Error, set to UTC midnight: ${result.toISOString()}`);
+   console.error(`[ScheduleTabFillHelpers] Error, set to UTC midnight: ${result.toISOString()}`);
  }
  
  return result;
@@ -286,6 +277,7 @@ export function groupTemplatesByWeekAndDay(activeTemplates: IScheduleTemplate[],
 
 /**
 * Подготавливает данные для всех дней периода
+* ИСПРАВЛЕНО: Используем UTC методы для создания дат
 */
 export function prepareDaysData(
  firstDay: Date,
@@ -296,7 +288,7 @@ export function prepareDaysData(
  numberOfWeekTemplates: number
 ): Map<string, IDayData> {
  console.log(`[ScheduleTabFillHelpers] Начинаем подготовку данных для всех дней периода...`);
- console.log(`[ScheduleTabFillHelpers] Period: ${firstDay.toLocaleDateString()} - ${lastDay.toLocaleDateString()}`);
+ console.log(`[ScheduleTabFillHelpers] Period: ${firstDay.toISOString()} - ${lastDay.toISOString()}`);
  
  const dayCount = Math.ceil((lastDay.getTime() - firstDay.getTime()) / (1000 * 60 * 60 * 24)) + 1;
  const daysData = new Map<string, IDayData>();
@@ -304,17 +296,25 @@ export function prepareDaysData(
  console.log(`[ScheduleTabFillHelpers] Will process ${dayCount} days`);
  
  for (let i = 0; i < dayCount; i++) {
-   const currentDate = new Date(firstDay);
-   currentDate.setDate(firstDay.getDate() + i);
+   // *** ИСПРАВЛЕНИЕ: Используем UTC методы для создания дат ***
+   const currentDate = new Date(Date.UTC(
+     firstDay.getUTCFullYear(),
+     firstDay.getUTCMonth(),
+     firstDay.getUTCDate() + i,
+     0, 0, 0, 0  // UTC полночь
+   ));
    
-   const dateKey = `${currentDate.getFullYear()}-${currentDate.getMonth() + 1}-${currentDate.getDate()}`;
+   console.log(`[ScheduleTabFillHelpers] Day ${i + 1}: ${currentDate.toISOString()}`);
    
-   // Определяем день недели (1-7, где 1 - понедельник, 7 - воскресенье)
-   const dayIndex = currentDate.getDay();
+   // *** ИСПРАВЛЕНИЕ: Используем UTC методы для ключа ***
+   const dateKey = `${currentDate.getUTCFullYear()}-${currentDate.getUTCMonth() + 1}-${currentDate.getUTCDate()}`;
+   
+   // *** ИСПРАВЛЕНИЕ: Определяем день недели в UTC ***
+   const dayIndex = currentDate.getUTCDay();
    const adjustedDayIndex = dayIndex === 0 ? 7 : dayIndex;
    
-   // Определяем номер недели в месяце
-   const dayOfMonth = currentDate.getDate();
+   // *** ИСПРАВЛЕНИЕ: Определяем номер недели в месяце в UTC ***
+   const dayOfMonth = currentDate.getUTCDate();
    const weekNumber = Math.floor((dayOfMonth - 1) / 7) + 1;
    const appliedWeekNumber = getAppliedWeekNumber(weekNumber, numberOfWeekTemplates);
    
@@ -334,7 +334,7 @@ export function prepareDaysData(
    
    // Создаем объект данных дня
    const dayData: IDayData = {
-     date: new Date(currentDate),
+     date: currentDate,  // Теперь это UTC дата с полуночью
      isHoliday,
      holidayInfo,
      isLeave,

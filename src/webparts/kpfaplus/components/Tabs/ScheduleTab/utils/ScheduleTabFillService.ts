@@ -75,22 +75,52 @@ export const fillScheduleFromTemplate = async (
   setIsSaving(true);
 
   try {
-    // Определяем период для заполнения
-    const startOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
-    const endOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0);
+    // *** ИСПРАВЛЕНИЕ: Создаем границы месяца в UTC используя UTC методы для извлечения года и месяца ***
+    const startOfMonth = new Date(Date.UTC(
+      selectedDate.getUTCFullYear(), 
+      selectedDate.getUTCMonth(), 
+      1, 
+      0, 0, 0, 0
+    ));
+    
+    const endOfMonth = new Date(Date.UTC(
+      selectedDate.getUTCFullYear(), 
+      selectedDate.getUTCMonth() + 1, 
+      0, 
+      23, 59, 59, 999
+    ));
+    
+    console.log(`[ScheduleTabFillService] Month boundaries in UTC: ${startOfMonth.toISOString()} - ${endOfMonth.toISOString()}`);
     
     const contractStartDate = selectedContract.startDate;
     const contractFinishDate = selectedContract.finishDate;
     
-    const firstDay = contractStartDate && contractStartDate > startOfMonth 
-      ? new Date(contractStartDate) 
-      : new Date(startOfMonth);
+    // *** ИСПРАВЛЕНИЕ: Нормализуем даты контракта к UTC ***
+    let firstDay: Date;
+    if (contractStartDate && contractStartDate > startOfMonth) {
+      firstDay = new Date(Date.UTC(
+        contractStartDate.getUTCFullYear(),
+        contractStartDate.getUTCMonth(),
+        contractStartDate.getUTCDate(),
+        0, 0, 0, 0
+      ));
+    } else {
+      firstDay = startOfMonth;
+    }
+
+    let lastDay: Date;
+    if (contractFinishDate && contractFinishDate < endOfMonth) {
+      lastDay = new Date(Date.UTC(
+        contractFinishDate.getUTCFullYear(),
+        contractFinishDate.getUTCMonth(),
+        contractFinishDate.getUTCDate(),
+        23, 59, 59, 999
+      ));
+    } else {
+      lastDay = endOfMonth;
+    }
     
-    const lastDay = contractFinishDate && contractFinishDate < endOfMonth 
-      ? new Date(contractFinishDate) 
-      : new Date(endOfMonth);
-    
-    console.log(`[ScheduleTabFillService] Fill operation period: ${firstDay.toISOString()} - ${lastDay.toISOString()}`);
+    console.log(`[ScheduleTabFillService] Final period in UTC: ${firstDay.toISOString()} - ${lastDay.toISOString()}`);
     
     // *** УДАЛЯЕМ СУЩЕСТВУЮЩИЕ ЗАПИСИ ПЕРЕД СОЗДАНИЕМ НОВЫХ ***
     if (getExistingRecordsWithStatus && markRecordsAsDeleted) {
@@ -261,20 +291,48 @@ export const checkExistingRecordsStatus = async (
   }
   
   try {
-    // Определяем период для проверки
-    const startOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
-    const endOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0);
+    // *** ИСПРАВЛЕНИЕ: Используем UTC методы для границ месяца ***
+    const startOfMonth = new Date(Date.UTC(
+      selectedDate.getUTCFullYear(), 
+      selectedDate.getUTCMonth(), 
+      1, 
+      0, 0, 0, 0
+    ));
+    
+    const endOfMonth = new Date(Date.UTC(
+      selectedDate.getUTCFullYear(), 
+      selectedDate.getUTCMonth() + 1, 
+      0, 
+      23, 59, 59, 999
+    ));
     
     const contractStartDate = selectedContract.startDate;
     const contractFinishDate = selectedContract.finishDate;
     
-    const firstDay = contractStartDate && contractStartDate > startOfMonth 
-      ? new Date(contractStartDate) 
-      : new Date(startOfMonth);
-    
-    const lastDay = contractFinishDate && contractFinishDate < endOfMonth 
-      ? new Date(contractFinishDate) 
-      : new Date(endOfMonth);
+    // *** ИСПРАВЛЕНИЕ: Нормализуем даты контракта к UTC ***
+    let firstDay: Date;
+    if (contractStartDate && contractStartDate > startOfMonth) {
+      firstDay = new Date(Date.UTC(
+        contractStartDate.getUTCFullYear(),
+        contractStartDate.getUTCMonth(),
+        contractStartDate.getUTCDate(),
+        0, 0, 0, 0
+      ));
+    } else {
+      firstDay = startOfMonth;
+    }
+
+    let lastDay: Date;
+    if (contractFinishDate && contractFinishDate < endOfMonth) {
+      lastDay = new Date(Date.UTC(
+        contractFinishDate.getUTCFullYear(),
+        contractFinishDate.getUTCMonth(),
+        contractFinishDate.getUTCDate(),
+        23, 59, 59, 999
+      ));
+    } else {
+      lastDay = endOfMonth;
+    }
     
     const existingRecords = await getExistingRecordsWithStatus(
       firstDay,
@@ -304,12 +362,6 @@ export const checkExistingRecordsStatus = async (
 /**
  * Генерирует записи расписания на основе подготовленных данных
  */
-// src/webparts/kpfaplus/components/Tabs/ScheduleTab/utils/ScheduleTabFillService.ts
-// Фрагмент функции generateScheduleRecords - ИСПРАВЛЕННАЯ ВЕРСИЯ
-
-// src/webparts/kpfaplus/components/Tabs/ScheduleTab/utils/ScheduleTabFillService.ts
-// ПРАВИЛЬНОЕ исправление функции generateScheduleRecords
-
 function generateScheduleRecords(
   daysData: Map<string, IDayData>,
   selectedContract: IContract,
@@ -317,60 +369,38 @@ function generateScheduleRecords(
 ): Partial<IStaffRecord>[] {
   const generatedRecords: Partial<IStaffRecord>[] = [];
   
-  console.log(`[ScheduleTabFillService] Generating records for ${daysData.size} days`);
-  
   daysData.forEach((dayData, dateKey) => {
     if (dayData.templates.length > 0) {
-      console.log(`[ScheduleTabFillService] Day ${dayData.date.toLocaleDateString()}: found ${dayData.templates.length} templates`);
+      // *** ЛОГИ ТОЛЬКО ДЛЯ 1 ОКТЯБРЯ ***
+      if (dayData.date.getUTCDate() === 1 && dayData.date.getUTCMonth() === 9 && dayData.date.getUTCFullYear() === 2024) {
+        console.log(`[ScheduleTabFillService] *** OCTOBER 1st RECORD GENERATION ***`);
+        console.log(`[ScheduleTabFillService] Day ${dayData.date.toLocaleDateString()}: found ${dayData.templates.length} templates`);
+        console.log(`[ScheduleTabFillService] Day data:`, {
+          date: dayData.date.toISOString(),
+          dayOfWeek: dayData.dayOfWeek,
+          weekNumber: dayData.weekNumber,
+          appliedWeekNumber: dayData.appliedWeekNumber,
+          isHoliday: dayData.isHoliday,
+          isLeave: dayData.isLeave
+        });
+      }
       
       dayData.templates.forEach((template, templateIndex) => {
         if (!template.start || !template.end) {
-          console.log(`[ScheduleTabFillService] Skipping template ${templateIndex} for ${dayData.date.toLocaleDateString()}: missing start/end time`);
+          if (dayData.date.getUTCDate() === 1 && dayData.date.getUTCMonth() === 9 && dayData.date.getUTCFullYear() === 2024) {
+            console.log(`[ScheduleTabFillService] Oct 1st: Skipping template ${templateIndex} - missing start/end time`);
+          }
           return;
         }
         
-        // *** ИСПРАВЛЕНИЕ: Создаем дату с местной полуночью ***
-        // Для поля Date нужна дата с полуночью по местному времени
-        const localMidnightDate = new Date(
-          dayData.date.getFullYear(),
-          dayData.date.getMonth(), 
-          dayData.date.getDate(),
-          0, 0, 0, 0 // Местная полночь
-        );
-        
-        console.log(`[ScheduleTabFillService] *** CORRECT DATE FIELD CREATION ***`);
-        console.log(`[ScheduleTabFillService] Original dayData.date: ${dayData.date.toISOString()}`);
-        console.log(`[ScheduleTabFillService] Local midnight date for Date field: ${localMidnightDate.toISOString()}`);
-        console.log(`[ScheduleTabFillService] Local time representation: ${localMidnightDate.toLocaleString()}`);
-        
-        // Для времен смен используем UTC (как и раньше)
         const shiftDate1 = createDateWithTime(dayData.date, template.start);
         const shiftDate2 = createDateWithTime(dayData.date, template.end);
         
-        console.log(`[ScheduleTabFillService] *** COMPARING DATE FORMATS ***`);
-        console.log(`[ScheduleTabFillService] Date field (local midnight): ${localMidnightDate.toISOString()}`);
-        console.log(`[ScheduleTabFillService] ShiftDate1 (UTC time): ${shiftDate1.toISOString()}`);
-        console.log(`[ScheduleTabFillService] ShiftDate2 (UTC time): ${shiftDate2.toISOString()}`);
-        
-        // Проверяем что даты относятся к одному календарному дню
-        const dateFieldDay = localMidnightDate.getDate();
-        const dateFieldMonth = localMidnightDate.getMonth();
-        const dateFieldYear = localMidnightDate.getFullYear();
-        
-        const shift1Day = shiftDate1.getUTCDate();
-        const shift1Month = shiftDate1.getUTCMonth();
-        const shift1Year = shiftDate1.getUTCFullYear();
-        
-        console.log(`[ScheduleTabFillService] *** DATE CONSISTENCY CHECK ***`);
-        console.log(`[ScheduleTabFillService] Date field: ${dateFieldYear}-${dateFieldMonth + 1}-${dateFieldDay}`);
-        console.log(`[ScheduleTabFillService] Shift1 UTC: ${shift1Year}-${shift1Month + 1}-${shift1Day}`);
-        
         const recordData: Partial<IStaffRecord> = {
           Title: `Template=${selectedContractId} Week=${dayData.appliedWeekNumber} Shift=${template.NumberOfShift || template.shiftNumber || 1}`,
-          // *** ИСПРАВЛЕНИЕ: Используем местную полночь для поля Date ***
-          Date: localMidnightDate, // ✅ ПРАВИЛЬНО - местная полночь
-          ShiftDate1: shiftDate1,  // UTC время
-          ShiftDate2: shiftDate2,  // UTC время
+          Date: new Date(dayData.date),
+          ShiftDate1: shiftDate1,
+          ShiftDate2: shiftDate2,
           TimeForLunch: parseInt(template.lunch || '30', 10),
           Contract: parseInt(template.total || '1', 10),
           Holiday: dayData.isHoliday ? 1 : 0,
@@ -383,42 +413,29 @@ function generateScheduleRecords(
           const typeOfLeave = dayData.leaveInfo.typeOfLeave;
           if (typeOfLeave && typeOfLeave !== '0' && Number(typeOfLeave) !== 0) {
             recordData.TypeOfLeaveID = String(typeOfLeave);
-            console.log(`[ScheduleTabFillService] Added leave type ${recordData.TypeOfLeaveID} for ${localMidnightDate.toLocaleDateString()}: ${dayData.leaveInfo.title}`);
           }
         }
         
-        // Специальное логирование для октября 2024
-        if (localMidnightDate.getMonth() === 9 && localMidnightDate.getFullYear() === 2024 && localMidnightDate.getDate() === 1) {
-          console.log(`[ScheduleTabFillService] *** OCTOBER 1st 2024 RECORD CREATION ***`);
-          console.log(`[ScheduleTabFillService] Record data for Oct 1st:`, {
-            Title: recordData.Title,
-            Date: recordData.Date?.toISOString(),
-            'Date (local)': recordData.Date?.toLocaleString(),
-            ShiftDate1: recordData.ShiftDate1?.toISOString(),
-            ShiftDate2: recordData.ShiftDate2?.toISOString(),
-            localDateDay: localMidnightDate.getDate(),
-            localDateMonth: localMidnightDate.getMonth() + 1,
-            shift1UTCDay: shiftDate1.getUTCDate(),
-            shift1UTCMonth: shiftDate1.getUTCMonth() + 1
-          });
+        // *** ДЕТАЛЬНЫЕ ЛОГИ ТОЛЬКО ДЛЯ 1 ОКТЯБРЯ ***
+        if (dayData.date.getUTCDate() === 1 && dayData.date.getUTCMonth() === 9 && dayData.date.getUTCFullYear() === 2024) {
+          console.log(`[ScheduleTabFillService] *** OCTOBER 1st TEMPLATE ${templateIndex + 1} ***`);
+          console.log(`[ScheduleTabFillService] Template start time: ${template.start?.hours}:${template.start?.minutes}`);
+          console.log(`[ScheduleTabFillService] Template end time: ${template.end?.hours}:${template.end?.minutes}`);
+          console.log(`[ScheduleTabFillService] Template week: ${template.NumberOfWeek}, shift: ${template.NumberOfShift}`);
+          console.log(`[ScheduleTabFillService] Generated ShiftDate1: ${shiftDate1.toISOString()}`);
+          console.log(`[ScheduleTabFillService] Generated ShiftDate2: ${shiftDate2.toISOString()}`);
+          console.log(`[ScheduleTabFillService] Record Date: ${recordData.Date?.toISOString()}`);
+          console.log(`[ScheduleTabFillService] Holiday: ${recordData.Holiday}, Leave Type: ${recordData.TypeOfLeaveID || 'None'}`);
         }
-        
-       console.log(`[ScheduleTabFillService] Generated record for ${dayData.date.toLocaleDateString()}:
-  - Start: ${recordData.ShiftDate1?.toLocaleTimeString() || 'N/A'} (UTC: ${recordData.ShiftDate1?.toISOString() || 'N/A'})
-  - End: ${recordData.ShiftDate2?.toLocaleTimeString() || 'N/A'} (UTC: ${recordData.ShiftDate2?.toISOString() || 'N/A'})
-  - Lunch: ${recordData.TimeForLunch} min
-  - Holiday: ${recordData.Holiday === 1 ? 'Yes' : 'No'}
-  - Leave Type: ${recordData.TypeOfLeaveID || 'None'}
-`);
         
         generatedRecords.push(recordData);
       });
     }
   });
   
-  console.log(`[ScheduleTabFillService] Total generated records: ${generatedRecords.length}`);
   return generatedRecords;
 }
+
 /**
  * Сохраняет сгенерированные записи
  */
