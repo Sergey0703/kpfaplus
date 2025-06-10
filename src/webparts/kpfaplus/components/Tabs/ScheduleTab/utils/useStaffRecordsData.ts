@@ -7,7 +7,7 @@ import { IStaffRecordsResult, IStaffRecordsQueryParams } from '../../../../servi
 import { IStaffMember } from '../../../../models/types';
 import { IExistingRecordCheck } from './ScheduleTabFillInterfaces';
 import { IScheduleTabState } from './useScheduleTabState';
-import { DateUtils } from '../../../CustomDatePicker/CustomDatePicker';
+
 
 interface UseStaffRecordsDataProps {
 context?: WebPartContext;
@@ -90,25 +90,28 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
     setIsLoadingStaffRecords(true);
     setErrorStaffRecords(undefined);
 
-    // *** КРИТИЧЕСКИ ВАЖНОЕ ИСПРАВЛЕНИЕ: Используем нормализованные границы месяца ***
+    // *** КРИТИЧЕСКИ ВАЖНОЕ ИСПРАВЛЕНИЕ: Используем UTC границы месяца через DateUtils ***
     const inputDate = dateToUse;
     
-    // Получаем первый и последний день месяца с использованием DateUtils
-    const firstDayOfMonth = DateUtils.getStartOfMonth(inputDate);
-    const lastDayOfMonth = DateUtils.getEndOfMonth(inputDate);
+    // *** ИСПРАВЛЕНИЕ: Создаем границы месяца в UTC ***
+    const firstDayOfMonth = new Date(Date.UTC(
+      inputDate.getUTCFullYear(),
+      inputDate.getUTCMonth(),
+      1,
+      0, 0, 0, 0
+    ));
     
-    // ДОПОЛНИТЕЛЬНАЯ НОРМАЛИЗАЦИЯ: убеждаемся что границы точно нормализованы к UTC
-    const normalizedFirstDay = DateUtils.normalizeDateToUTCMidnight(firstDayOfMonth);
-    const normalizedLastDay = DateUtils.normalizeDateToUTCMidnight(lastDayOfMonth);
-    // Для последнего дня устанавливаем время на конец дня UTC чтобы включить весь день
-    normalizedLastDay.setUTCHours(23, 59, 59, 999);
+    const lastDayOfMonth = new Date(Date.UTC(
+      inputDate.getUTCFullYear(),
+      inputDate.getUTCMonth() + 1,
+      0,
+      23, 59, 59, 999
+    ));
 
-    console.log('[useStaffRecordsData] *** USING NORMALIZED MONTH BOUNDARIES FOR OCTOBER FIX ***');
+    console.log('[useStaffRecordsData] *** USING UTC MONTH BOUNDARIES FOR OCTOBER FIX ***');
     console.log('[useStaffRecordsData] Input date:', inputDate.toISOString());
-    console.log('[useStaffRecordsData] Raw first day from DateUtils:', firstDayOfMonth.toISOString());
-    console.log('[useStaffRecordsData] Raw last day from DateUtils:', lastDayOfMonth.toISOString());
-    console.log('[useStaffRecordsData] Normalized first day (UTC midnight):', normalizedFirstDay.toISOString());
-    console.log('[useStaffRecordsData] Normalized last day (UTC end-of-day):', normalizedLastDay.toISOString());
+    console.log('[useStaffRecordsData] UTC first day of month:', firstDayOfMonth.toISOString());
+    console.log('[useStaffRecordsData] UTC last day of month:', lastDayOfMonth.toISOString());
 
     // *** СПЕЦИАЛЬНАЯ ОТЛАДКА ДЛЯ ОКТЯБРЯ 2024 ***
     if (inputDate.getUTCMonth() === 9 && inputDate.getUTCFullYear() === 2024) {
@@ -127,13 +130,10 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
       console.log('[useStaffRecordsData] *** OCTOBER 1st TEST ***');
       console.log('[useStaffRecordsData] Test date (1 Oct midnight):', testDate1Oct.toISOString());
       console.log('[useStaffRecordsData] Test date (1 Oct midday):', testDate1OctMidday.toISOString());
-      console.log('[useStaffRecordsData] 1 Oct midnight >= normalizedFirstDay:', testDate1Oct >= normalizedFirstDay);
-      console.log('[useStaffRecordsData] 1 Oct midnight <= normalizedLastDay:', testDate1Oct <= normalizedLastDay);
-      console.log('[useStaffRecordsData] 1 Oct midday >= normalizedFirstDay:', testDate1OctMidday >= normalizedFirstDay);
-      console.log('[useStaffRecordsData] 1 Oct midday <= normalizedLastDay:', testDate1OctMidday <= normalizedLastDay);
-      
-      // Используем отладочную функцию из DateUtils
-      DateUtils.logMonthlyRange(inputDate, normalizedFirstDay, normalizedLastDay);
+      console.log('[useStaffRecordsData] 1 Oct midnight >= firstDayOfMonth:', testDate1Oct >= firstDayOfMonth);
+      console.log('[useStaffRecordsData] 1 Oct midnight <= lastDayOfMonth:', testDate1Oct <= lastDayOfMonth);
+      console.log('[useStaffRecordsData] 1 Oct midday >= firstDayOfMonth:', testDate1OctMidday >= firstDayOfMonth);
+      console.log('[useStaffRecordsData] 1 Oct midday <= lastDayOfMonth:', testDate1OctMidday <= lastDayOfMonth);
     }
 
     const employeeId = selectedStaff.employeeId;
@@ -149,8 +149,8 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
       const top = itemsPerPage;
 
       const queryParams: IStaffRecordsQueryParams = {
-        startDate: normalizedFirstDay,  // *** ИСПОЛЬЗУЕМ НОРМАЛИЗОВАННЫЕ ДАТЫ ***
-        endDate: normalizedLastDay,     // *** ИСПОЛЬЗУЕМ НОРМАЛИЗОВАННЫЕ ДАТЫ ***
+        startDate: firstDayOfMonth,  // *** ИСПОЛЬЗУЕМ UTC ГРАНИЦЫ ***
+        endDate: lastDayOfMonth,     // *** ИСПОЛЬЗУЕМ UTC ГРАНИЦЫ ***
         currentUserID: currentUserID,
         staffGroupID: staffGroupID,
         employeeID: employeeId,
@@ -160,7 +160,7 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
       };
 
       console.log('[useStaffRecordsData] *** SERVER PAGINATION - calling getStaffRecordsWithOptions ***');
-      console.log('[useStaffRecordsData] Query params with NORMALIZED dates:', {
+      console.log('[useStaffRecordsData] Query params with UTC dates:', {
         ...queryParams,
         startDate: queryParams.startDate.toISOString(),
         endDate: queryParams.endDate.toISOString()
@@ -203,8 +203,8 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
       
       // Используем метод для загрузки ВСЕХ записей без серверной пагинации
       const allRecordsQueryParams = {
-        startDate: normalizedFirstDay,  // *** ИСПОЛЬЗУЕМ НОРМАЛИЗОВАННЫЕ ДАТЫ ***
-        endDate: normalizedLastDay,     // *** ИСПОЛЬЗУЕМ НОРМАЛИЗОВАННЫЕ ДАТЫ ***
+        startDate: firstDayOfMonth,  // *** ИСПОЛЬЗУЕМ UTC ГРАНИЦЫ ***
+        endDate: lastDayOfMonth,     // *** ИСПОЛЬЗУЕМ UTC ГРАНИЦЫ ***
         currentUserID: currentUserID,
         staffGroupID: staffGroupID,
         employeeID: employeeId,
@@ -213,7 +213,7 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
       };
 
       console.log('[useStaffRecordsData] *** LOADING ALL RECORDS - calling getAllStaffRecordsForTimetable ***');
-      console.log('[useStaffRecordsData] Query params with NORMALIZED dates (no pagination):', {
+      console.log('[useStaffRecordsData] Query params with UTC dates (no pagination):', {
         ...allRecordsQueryParams,
         startDate: allRecordsQueryParams.startDate.toISOString(),
         endDate: allRecordsQueryParams.endDate.toISOString()
@@ -326,7 +326,7 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
   setTotalItemCount,
 ]);
 
-// *** ИСПРАВЛЕННЫЙ getExistingRecordsWithStatus С НОРМАЛИЗОВАННЫМИ ДАТАМИ ***
+// *** ИСПРАВЛЕННЫЙ getExistingRecordsWithStatus С UTC ГРАНИЦАМИ ***
 const getExistingRecordsWithStatus = useCallback(async (
   startDate: Date,
   endDate: Date,
@@ -351,12 +351,39 @@ const getExistingRecordsWithStatus = useCallback(async (
   try {
     console.log('[useStaffRecordsData] *** Starting to collect ALL pages for existing records ***');
     
-    // *** ИСПРАВЛЕНИЕ: Нормализуем переданные даты для консистентности ***
-    // Вызывающий код может передать даты, которые нужно дополнительно нормализовать
-    const normalizedStartDate = DateUtils.normalizeDateToUTCMidnight(startDate);
-    const normalizedEndDate = DateUtils.normalizeDateToUTCMidnight(endDate);
-    // Для конечной даты устанавливаем конец дня
-    normalizedEndDate.setUTCHours(23, 59, 59, 999);
+    // *** ИСПРАВЛЕНИЕ: Убеждаемся что переданные даты в правильном UTC формате ***
+    // Входные даты уже должны быть нормализованы вызывающим кодом (ScheduleTabContent),
+    // но для безопасности еще раз нормализуем их к UTC
+    let normalizedStartDate: Date;
+    let normalizedEndDate: Date;
+    
+    if (startDate.getUTCHours() === 0 && startDate.getUTCMinutes() === 0 && 
+        startDate.getUTCSeconds() === 0 && startDate.getUTCMilliseconds() === 0) {
+      // Дата уже нормализована к UTC полуночи
+      normalizedStartDate = startDate;
+    } else {
+      // Нормализуем к UTC полуночи
+      normalizedStartDate = new Date(Date.UTC(
+        startDate.getUTCFullYear(),
+        startDate.getUTCMonth(),
+        startDate.getUTCDate(),
+        0, 0, 0, 0
+      ));
+    }
+    
+    if (endDate.getUTCHours() === 23 && endDate.getUTCMinutes() === 59 && 
+        endDate.getUTCSeconds() === 59) {
+      // Дата уже нормализована к UTC концу дня
+      normalizedEndDate = endDate;
+    } else {
+      // Нормализуем к UTC концу дня
+      normalizedEndDate = new Date(Date.UTC(
+        endDate.getUTCFullYear(),
+        endDate.getUTCMonth(),
+        endDate.getUTCDate(),
+        23, 59, 59, 999
+      ));
+    }
     
     console.log('[useStaffRecordsData] *** NORMALIZED DATES FOR EXISTING RECORDS CHECK ***');
     console.log('[useStaffRecordsData] Original start date:', startDate.toISOString());

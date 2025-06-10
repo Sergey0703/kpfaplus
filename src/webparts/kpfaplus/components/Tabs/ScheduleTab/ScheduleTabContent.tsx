@@ -385,12 +385,33 @@ const itemsForTable = getScheduleItemsWithModifications();
    }
 
    try {
-     const startOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
-     const endOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0);
+     // *** ИСПРАВЛЕНО: Создание границ месяца в UTC ***
+     const startOfMonth = new Date(Date.UTC(
+       selectedDate.getUTCFullYear(), 
+       selectedDate.getUTCMonth(), 
+       1, 
+       0, 0, 0, 0
+     ));
+     
+     const endOfMonth = new Date(Date.UTC(
+       selectedDate.getUTCFullYear(), 
+       selectedDate.getUTCMonth() + 1, 
+       0, 
+       23, 59, 59, 999
+     ));
+
+     console.log('[ScheduleTabContent] *** UTC MONTH BOUNDARIES CREATED ***');
+     console.log('[ScheduleTabContent] Start of month (UTC):', startOfMonth.toISOString());
+     console.log('[ScheduleTabContent] End of month (UTC):', endOfMonth.toISOString());
 
      const contractStartDate = selectedContract.startDate ? new Date(selectedContract.startDate) : null;
      const contractFinishDate = selectedContract.finishDate ? new Date(selectedContract.finishDate) : null;
 
+     console.log('[ScheduleTabContent] Contract dates:');
+     console.log('[ScheduleTabContent] Contract start:', contractStartDate?.toISOString() || 'not set');
+     console.log('[ScheduleTabContent] Contract finish:', contractFinishDate?.toISOString() || 'not set');
+
+     // *** ИСПРАВЛЕНО: Правильная логика определения периода с UTC границами ***
      const firstDay = contractStartDate && !isNaN(contractStartDate.getTime()) && contractStartDate > startOfMonth
        ? contractStartDate
        : startOfMonth;
@@ -398,6 +419,10 @@ const itemsForTable = getScheduleItemsWithModifications();
      const lastDay = contractFinishDate && !isNaN(contractFinishDate.getTime()) && contractFinishDate < endOfMonth
        ? contractFinishDate
        : endOfMonth;
+
+     console.log('[ScheduleTabContent] *** FINAL PERIOD FOR EXISTING RECORDS CHECK ***');
+     console.log('[ScheduleTabContent] First day:', firstDay.toISOString());
+     console.log('[ScheduleTabContent] Last day:', lastDay.toISOString());
 
      if (firstDay && lastDay) {
        if (firstDay.getTime() > lastDay.getTime()) {

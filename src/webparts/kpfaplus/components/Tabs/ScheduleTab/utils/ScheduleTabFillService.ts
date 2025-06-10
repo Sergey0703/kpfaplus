@@ -76,7 +76,7 @@ export const fillScheduleFromTemplate = async (
   setIsSaving(true);
 
   try {
-    // *** ИСПРАВЛЕНИЕ: Создаем границы месяца в UTC используя UTC методы для извлечения года и месяца ***
+    // *** ИСПРАВЛЕНИЕ: Создаем границы месяца в UTC используя UTC методы ***
     const startOfMonth = new Date(Date.UTC(
       selectedDate.getUTCFullYear(), 
       selectedDate.getUTCMonth(), 
@@ -89,52 +89,61 @@ export const fillScheduleFromTemplate = async (
       selectedDate.getUTCMonth() + 1, 
       0, 
       23, 59, 59, 999
-    )); 
- /*   const endOfMonth = new Date(Date.UTC(
-  selectedDate.getUTCFullYear(), 
-  selectedDate.getUTCMonth(), 
-  1, 
-  23, 59, 59, 999
-)); */
+    ));
 
-console.log(`[DEBUG] *** DEBUGGING MODE: FILLING ONLY FIRST DAY ***`);
-console.log(`[DEBUG] Start: ${startOfMonth.toISOString()}`);
-console.log(`[DEBUG] End: ${endOfMonth.toISOString()}`);
-    
-    console.log(`[ScheduleTabFillService] Month boundaries in UTC: ${startOfMonth.toISOString()} - ${endOfMonth.toISOString()}`);
+    console.log(`[ScheduleTabFillService] *** UTC MONTH BOUNDARIES FOR FILL OPERATION ***`);
+    console.log(`[ScheduleTabFillService] Start of month (UTC): ${startOfMonth.toISOString()}`);
+    console.log(`[ScheduleTabFillService] End of month (UTC): ${endOfMonth.toISOString()}`);
+    console.log(`[ScheduleTabFillService] Selected date: ${selectedDate.toISOString()}`);
     
     const contractStartDate = selectedContract.startDate;
     const contractFinishDate = selectedContract.finishDate;
     
-    // *** ИСПРАВЛЕНИЕ: Нормализуем даты контракта к UTC ***
+    console.log(`[ScheduleTabFillService] Contract boundaries:`);
+    console.log(`[ScheduleTabFillService] Contract start: ${contractStartDate?.toISOString() || 'not set'}`);
+    console.log(`[ScheduleTabFillService] Contract finish: ${contractFinishDate?.toISOString() || 'not set'}`);
+    
+    // *** ИСПРАВЛЕНИЕ: Нормализуем даты контракта к UTC если они существуют ***
     let firstDay: Date;
     if (contractStartDate && contractStartDate > startOfMonth) {
+      // Если дата начала контракта позже начала месяца, используем дату контракта
       firstDay = new Date(Date.UTC(
         contractStartDate.getUTCFullYear(),
         contractStartDate.getUTCMonth(),
         contractStartDate.getUTCDate(),
         0, 0, 0, 0
       ));
+      console.log(`[ScheduleTabFillService] Using contract start date as first day`);
     } else {
+      // Иначе используем начало месяца
       firstDay = startOfMonth;
+      console.log(`[ScheduleTabFillService] Using month start as first day`);
     }
 
     let lastDay: Date;
     if (contractFinishDate && contractFinishDate < endOfMonth) {
+      // Если дата окончания контракта раньше конца месяца, используем дату контракта
       lastDay = new Date(Date.UTC(
         contractFinishDate.getUTCFullYear(),
         contractFinishDate.getUTCMonth(),
         contractFinishDate.getUTCDate(),
         23, 59, 59, 999
       ));
+      console.log(`[ScheduleTabFillService] Using contract finish date as last day`);
     } else {
+      // Иначе используем конец месяца
       lastDay = endOfMonth;
+      console.log(`[ScheduleTabFillService] Using month end as last day`);
     }
     
-    console.log(`[ScheduleTabFillService] Final period in UTC: ${firstDay.toISOString()} - ${lastDay.toISOString()}`);
+    console.log(`[ScheduleTabFillService] *** FINAL FILL PERIOD (UTC) ***`);
+    console.log(`[ScheduleTabFillService] First day: ${firstDay.toISOString()}`);
+    console.log(`[ScheduleTabFillService] Last day: ${lastDay.toISOString()}`);
     
     // *** УДАЛЯЕМ СУЩЕСТВУЮЩИЕ ЗАПИСИ ПЕРЕД СОЗДАНИЕМ НОВЫХ ***
     if (getExistingRecordsWithStatus && markRecordsAsDeleted) {
+      console.log(`[ScheduleTabFillService] Checking for existing records to delete...`);
+      
       const existingRecords = await getExistingRecordsWithStatus(
         firstDay,
         lastDay,
@@ -165,10 +174,13 @@ console.log(`[DEBUG] End: ${endOfMonth.toISOString()}`);
           return;
         }
         
+        console.log(`[ScheduleTabFillService] Marked ${recordIds.length} existing records as deleted`);
         setOperationMessage({
           text: `Replaced ${recordIds.length} existing records. Creating new records from template...`,
           type: MessageBarType.info
         });
+      } else {
+        console.log(`[ScheduleTabFillService] No existing records found to delete`);
       }
     }
     
@@ -269,6 +281,7 @@ console.log(`[DEBUG] End: ${endOfMonth.toISOString()}`);
     const distinctWeeks = new Set(activeTemplates.map(template => template.NumberOfWeek || template.numberOfWeek || 1));
     const numberOfWeekTemplates = distinctWeeks.size || 1;
     
+    // *** ИСПРАВЛЕНИЕ: Передаем UTC границы в prepareDaysData ***
     const daysData = prepareDaysData(
       firstDay, 
       lastDay, 
@@ -279,8 +292,8 @@ console.log(`[DEBUG] End: ${endOfMonth.toISOString()}`);
     );
     
     // Генерируем записи расписания
-   const remoteSiteService = RemoteSiteService.getInstance(context);
-const generatedRecords = await generateScheduleRecords(daysData, selectedContract, selectedContractId, remoteSiteService);
+    const remoteSiteService = RemoteSiteService.getInstance(context);
+    const generatedRecords = await generateScheduleRecords(daysData, selectedContract, selectedContractId, remoteSiteService);
     
     if (generatedRecords.length === 0) {
       setOperationMessage({
@@ -428,7 +441,7 @@ async function generateScheduleRecords(
       
       // Обрабатываем каждый шаблон асинхронно
       for (let templateIndex = 0; templateIndex < dayData.templates.length; templateIndex++) {
-  const template = dayData.templates[templateIndex];
+        const template = dayData.templates[templateIndex];
         if (!template.start || !template.end) {
           if (dayData.date.getUTCDate() === 1 && dayData.date.getUTCMonth() === 9 && dayData.date.getUTCFullYear() === 2024) {
             console.log(`[ScheduleTabFillService] Oct 1st: Skipping template ${templateIndex} - missing start/end time`);

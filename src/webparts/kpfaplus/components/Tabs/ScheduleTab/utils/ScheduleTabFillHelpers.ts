@@ -116,17 +116,13 @@ export function getAppliedWeekNumber(calculatedWeekNumber: number, numberOfWeekT
 
 /**
 * Helper function to create Date object with specified time
-* ИСПРАВЛЕНО: Используем UTC методы для консистентности с SharePoint
+* ОБНОВЛЕНО: Использует динамическую корректировку часового пояса SharePoint
+* 
+* @param baseDate Base date
+* @param time Object with hours and minutes (может быть undefined)
+* @param remoteSiteService Сервис для получения информации о часовом поясе (ОБЯЗАТЕЛЬНЫЙ)
+* @returns Date object with set time in UTC с корректировкой часового пояса
 */
-/**
- * Helper function to create Date object with specified time
- * ОБНОВЛЕНО: Использует динамическую корректировку часового пояса SharePoint
- * 
- * @param baseDate Base date
- * @param time Object with hours and minutes (может быть undefined)
- * @param remoteSiteService Сервис для получения информации о часовом поясе (ОБЯЗАТЕЛЬНЫЙ)
- * @returns Date object with set time in UTC с корректировкой часового пояса
- */
 export async function createDateWithTime(
   baseDate: Date, 
   remoteSiteService: RemoteSiteService,
@@ -295,7 +291,7 @@ export function groupTemplatesByWeekAndDay(activeTemplates: IScheduleTemplate[],
 
 /**
 * Подготавливает данные для всех дней периода
-* ИСПРАВЛЕНО: Используем UTC методы для создания дат
+* ИСПРАВЛЕНО: Использует UTC методы для создания дат
 */
 export function prepareDaysData(
  firstDay: Date,
@@ -305,7 +301,7 @@ export function prepareDaysData(
  templatesByWeekAndDay: TemplateCache,
  numberOfWeekTemplates: number
 ): Map<string, IDayData> {
- console.log(`[ScheduleTabFillHelpers] Начинаем подготовку данных для всех дней периода...`);
+ console.log(`[ScheduleTabFillHelpers] *** PREPARING DAYS DATA WITH UTC DATE CREATION ***`);
  console.log(`[ScheduleTabFillHelpers] Period: ${firstDay.toISOString()} - ${lastDay.toISOString()}`);
  
  const dayCount = Math.ceil((lastDay.getTime() - firstDay.getTime()) / (1000 * 60 * 60 * 24)) + 1;
@@ -367,6 +363,18 @@ export function prepareDaysData(
    };
    
    daysData.set(dateKey, dayData);
+   
+   // *** СПЕЦИАЛЬНАЯ ОТЛАДКА ДЛЯ 1 ОКТЯБРЯ 2024 ***
+   if (currentDate.getUTCDate() === 1 && currentDate.getUTCMonth() === 9 && currentDate.getUTCFullYear() === 2024) {
+     console.log(`[ScheduleTabFillHelpers] *** OCTOBER 1st 2024 DAY DATA PREPARED ***`);
+     console.log(`[ScheduleTabFillHelpers] Date: ${currentDate.toISOString()}`);
+     console.log(`[ScheduleTabFillHelpers] Day of week: ${adjustedDayIndex} (${['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][adjustedDayIndex]})`);
+     console.log(`[ScheduleTabFillHelpers] Week number: ${weekNumber}, Applied week: ${appliedWeekNumber}`);
+     console.log(`[ScheduleTabFillHelpers] Is holiday: ${isHoliday}`);
+     console.log(`[ScheduleTabFillHelpers] Is leave: ${isLeave}`);
+     console.log(`[ScheduleTabFillHelpers] Templates count: ${templatesForDay.length}`);
+     console.log(`[ScheduleTabFillHelpers] Template lookup key: ${key}`);
+   }
    
    // Логируем информацию о дне (только для первых нескольких дней и важных случаев)
    if (i < 3 || isHoliday || isLeave || templatesForDay.length > 0) {
