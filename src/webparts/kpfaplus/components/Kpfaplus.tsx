@@ -810,7 +810,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
                <PivotItem itemKey="srsReports" headerText="SRS Reports" />
                <PivotItem itemKey="notes" headerText="Notes" />
                <PivotItem itemKey="leaveTimeByYears" headerText="Leave Time by Years" />
-               <PivotItem itemKey="remoteConnection" headerText="Remote Connection" />
+               <PivotItem itemKey="remoteConnection" headerText="Tests" />
              </Pivot>
            </div>
            

@@ -407,6 +407,7 @@ export const checkExistingRecordsStatus = async (
     return checkRecordsProcessingStatus(existingRecords);
     
   } catch (error) {
+    console.error('[ScheduleTabFillService] Error checking existing records status:', error);
     return undefined;
   }
 };
@@ -556,6 +557,7 @@ async function saveGeneratedRecords(
         failedRecords.push(record.Title || 'Unknown');
       }
     } catch (error) {
+      console.error(`[ScheduleTabFillService] Error creating record for ${record.Title}:`, error);
       failedRecords.push(record.Title || 'Unknown');
     }
     
