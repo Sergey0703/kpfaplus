@@ -1,5 +1,5 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/hooks/useDashboardLogic.ts
-// ИСПРАВЛЕНО: Добавлен тип возвращаемого значения для функции
+// ИСПРАВЛЕНО: Добавлена правильная обработка дат с UTC для исправления проблемы "off by 1 day"
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { MessageBarType } from '@fluentui/react';
 import { WebPartContext } from "@microsoft/sp-webpart-base";
@@ -81,19 +81,48 @@ const formatDate = (date?: Date): string => {
   return `${day}.${month}.${year}`;
 };
 
+// *** ИСПРАВЛЕНО: Правильная функция для первого дня месяца с UTC ***
 const getFirstDayOfCurrentMonth = (): Date => {
   const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), 1);
+  // *** ИСПОЛЬЗУЕМ UTC для избежания проблем с временными зонами ***
+  const result = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0));
+  console.log('[useDashboardLogic] *** FIRST DAY OF CURRENT MONTH (UTC) ***');
+  console.log('[useDashboardLogic] Current date:', now.toISOString());
+  console.log('[useDashboardLogic] First day of month:', result.toISOString());
+  console.log('[useDashboardLogic] Display format:', formatDate(result));
+  return result;
 };
 
+// *** ИСПРАВЛЕНО: Правильная функция восстановления даты с UTC нормализацией ***
 const getSavedSelectedDate = (): Date => {
   try {
     const savedDate = sessionStorage.getItem('dashboardTab_selectedDate');
     if (savedDate) {
       const parsedDate = new Date(savedDate);
       if (!isNaN(parsedDate.getTime())) {
-        console.log('[useDashboardLogic] Restored date from sessionStorage:', parsedDate.toISOString());
-        return parsedDate;
+        console.log('[useDashboardLogic] Restoring date from sessionStorage:', savedDate);
+        
+        // *** ИСПРАВЛЕНИЕ: Нормализуем дату к правильному первому дню месяца ***
+        // Используем UTC методы для избежания проблем с временными зонами
+        const normalizedDate = new Date(Date.UTC(
+          parsedDate.getUTCFullYear(),
+          parsedDate.getUTCMonth(),
+          1, // Всегда первое число месяца
+          0, 0, 0, 0
+        ));
+        
+        console.log('[useDashboardLogic] *** DATE RESTORATION WITH UTC NORMALIZATION ***');
+        console.log('[useDashboardLogic] Original saved:', savedDate);
+        console.log('[useDashboardLogic] Parsed date:', parsedDate.toISOString());
+        console.log('[useDashboardLogic] Normalized to first of month:', normalizedDate.toISOString());
+        console.log('[useDashboardLogic] Display format:', formatDate(normalizedDate));
+        console.log('[useDashboardLogic] Year/Month check:', {
+          year: normalizedDate.getUTCFullYear(),
+          month: normalizedDate.getUTCMonth() + 1,
+          monthName: normalizedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+        });
+        
+        return normalizedDate;
       }
     }
   } catch (error) {
@@ -106,7 +135,7 @@ const getSavedSelectedDate = (): Date => {
 export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboardLogicReturn => {
   const { context, currentUserId, managingGroupId } = params;
   
-  console.log('[useDashboardLogic] Main coordinator hook initialized - modular architecture');
+  console.log('[useDashboardLogic] Main coordinator hook initialized with UTC date handling');
 
   // Context data
   const { staffMembers, updateStaffMember } = useDataContext();
@@ -131,6 +160,18 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
   const lastGroupIdRef = useRef<string>('');
   // *** NEW: Callback для сброса состояния таблицы ***
   const resetTableStateCallbackRef = useRef<(() => void) | null>(null);
+
+  // *** ЛОГИРОВАНИЕ ВЫБРАННОЙ ДАТЫ ПРИ ИНИЦИАЛИЗАЦИИ ***
+  useEffect(() => {
+    console.log('[useDashboardLogic] *** INITIAL SELECTED DATE ANALYSIS ***');
+    console.log('[useDashboardLogic] Selected date (UTC):', selectedDate.toISOString());
+    console.log('[useDashboardLogic] Selected date (display):', formatDate(selectedDate));
+    console.log('[useDashboardLogic] Month/Year:', {
+      year: selectedDate.getUTCFullYear(),
+      month: selectedDate.getUTCMonth() + 1,
+      monthName: selectedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    });
+  }, []);
 
   // Memoized services
   const fillService = useMemo(() => {
@@ -291,10 +332,13 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     setIsLoadingLogs(true);
   }, []);
 
-  // Date change handler
+  // *** ИСПРАВЛЕНО: Date change handler с правильной UTC обработкой ***
   const handleDateChange = useCallback((date: Date | undefined): void => {
     if (date) {
       console.log('[useDashboardLogic] Date change requested:', formatDate(date));
+      console.log('[useDashboardLogic] *** INCOMING DATE ANALYSIS ***');
+      console.log('[useDashboardLogic] Raw input date:', date.toISOString());
+      console.log('[useDashboardLogic] Display format:', formatDate(date));
       
       setLogLoadingState(true);
       
@@ -306,12 +350,39 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
         console.log('[useDashboardLogic] Applying debounced date change:', formatDate(date));
         
         try {
-          sessionStorage.setItem('dashboardTab_selectedDate', date.toISOString());
+          // *** ИСПРАВЛЕНИЕ: Нормализуем дату перед сохранением ***
+          const normalizedDate = new Date(Date.UTC(
+            date.getUTCFullYear(),
+            date.getUTCMonth(),
+            1, // Всегда первое число месяца
+            0, 0, 0, 0
+          ));
+          
+          console.log('[useDashboardLogic] *** DATE NORMALIZATION BEFORE SAVING ***');
+          console.log('[useDashboardLogic] Input date:', date.toISOString());
+          console.log('[useDashboardLogic] Input display:', formatDate(date));
+          console.log('[useDashboardLogic] Normalized date:', normalizedDate.toISOString());
+          console.log('[useDashboardLogic] Normalized display:', formatDate(normalizedDate));
+          console.log('[useDashboardLogic] Month check:', {
+            inputMonth: date.getUTCMonth() + 1,
+            normalizedMonth: normalizedDate.getUTCMonth() + 1,
+            inputYear: date.getUTCFullYear(),
+            normalizedYear: normalizedDate.getUTCFullYear()
+          });
+          
+          sessionStorage.setItem('dashboardTab_selectedDate', normalizedDate.toISOString());
+          setSelectedDate(normalizedDate); // ✅ Используем нормализованную дату
+          
+          console.log('[useDashboardLogic] *** FINAL SELECTED DATE SET ***');
+          console.log('[useDashboardLogic] Final date:', normalizedDate.toISOString());
+          console.log('[useDashboardLogic] Will generate for month:', {
+            year: normalizedDate.getUTCFullYear(),
+            month: normalizedDate.getUTCMonth() + 1,
+            monthName: normalizedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+          });
         } catch (error) {
           console.warn('[useDashboardLogic] Error saving date:', error);
         }
-        
-        setSelectedDate(date);
         
         // *** СБРОС СОСТОЯНИЯ ТАБЛИЦЫ ПРИ СМЕНЕ ДАТЫ ***
         if (resetTableStateCallbackRef.current) {
