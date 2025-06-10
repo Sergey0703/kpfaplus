@@ -1,44 +1,40 @@
 // src/webparts/kpfaplus/services/ScheduleLogsService.ts
-// ИСПРАВЛЕНО: Заменены any на конкретные типы и удалены неиспользуемые переменные
-import { WebPartContext } from "@microsoft/sp-webpart-base";
-import { SPHttpClient, SPHttpClientResponse } from '@microsoft/sp-http';
+// ИСПРАВЛЕНО: Использует проверенные паттерны из ContractsService.ts
 
-// *** ИНТЕРФЕЙСЫ ДЛЯ SCHEDULE LOGS ***
+import { WebPartContext } from "@microsoft/sp-webpart-base";
+import { RemoteSiteService } from "./RemoteSiteService";
+import { DateUtils } from "../components/CustomDatePicker/CustomDatePicker";
+
+// ИСПРАВЛЕНО: Структура интерфейса для полной совместимости с LogDetailsDialog
+export interface IScheduleLogLookup {
+  Id: string;
+  Title: string;
+}
+
 export interface IScheduleLog {
-  ID?: string;
-  Title?: string;
-  Result?: number; // 1=Error, 2=Success, 3=Info
-  Message?: string;
-  Date?: string;
+  ID: string;
+  Title: string;
+  Result: number;
+  Message: string;
+  Date: Date;
+  // Для обратной совместимости - ID поля
   StaffMemberId?: string;
   ManagerId?: string;
   StaffGroupId?: string;
   WeeklyTimeTableId?: string;
-  Created: string; // ИСПРАВЛЕНО: убрана опциональность, всегда присутствует
-  Modified?: string;
-  // ИСПРАВЛЕНО: добавлены специфичные поля для LogDetailsDialog
-  StaffMember?: {
-    Id: string;
-    Title: string;
-  };
-  Manager?: {
-    Id: string;
-    Title: string;
-  };
-  StaffGroup?: {
-    Id: string;
-    Title: string;
-  };
-  WeeklyTimeTable?: {
-    Id: string;
-    Title: string;
-  };
-  [key: string]: unknown;
+  WeeklyTimeTableTitle?: string;
+  // Для LogDetailsDialog - объекты lookup
+  Manager?: IScheduleLogLookup;
+  StaffMember?: IScheduleLogLookup;
+  StaffGroup?: IScheduleLogLookup;
+  WeeklyTimeTable?: IScheduleLogLookup;
+  Created: Date;
+  Modified: Date;
 }
 
 export interface ICreateScheduleLogParams {
   title: string;
-  result: number; // 1=Error, 2=Success, 3=Info
+  result: number;
   message: string;
   date: Date;
   staffMemberId?: string;
@@ -51,10 +47,7 @@ export interface IGetScheduleLogsParams {
   staffMemberId?: string;
   managerId?: string;
   staffGroupId?: string;
-  weeklyTimeTableId?: string;
   periodDate?: Date;
-  startDate?: Date;
-  endDate?: Date;
   top?: number;
   skip?: number;
 }
@@ -65,512 +58,389 @@ export interface IScheduleLogsResult {
   error?: string;
 }
 
-// *** ИНТЕРФЕЙС ДЛЯ SHAREPOINT RESPONSE ***
-interface ISharePointListResponse {
-  value: IScheduleLogSharePointItem[];
-  '@odata.count'?: number;
-}
-
-interface IScheduleLogSharePointItem {
-  ID: string;
-  Title: string;
-  Result: number;
-  Message: string;
-  Date: string;
-  StaffMemberId?: string;
-  ManagerId?: string;
-  StaffGroupId?: string;
-  WeeklyTimeTableId?: string;
-  Created: string; // ИСПРАВЛЕНО: убрана опциональность
-  Modified: string;
-  // ИСПРАВЛЕНО: добавлены lookup поля
-  StaffMember?: {
-    Id: string;
-    Title: string;
-  };
-  Manager?: {
-    Id: string;
-    Title: string;
-  };
-  StaffGroup?: {
-    Id: string;
-    Title: string;
-  };
-  WeeklyTimeTable?: {
-    Id: string;
-    Title: string;
-  };
-  [key: string]: unknown;
-}
-
 export class ScheduleLogsService {
-  private static instance: ScheduleLogsService;
-  private context: WebPartContext;
-  private listName: string = 'ScheduleLogs';
+  private static _instance: ScheduleLogsService;
+  private _listName: string = "ScheduleLogs";
+  private _logSource: string = "ScheduleLogsService";
+  private _remoteSiteService: RemoteSiteService;
 
   private constructor(context: WebPartContext) {
-    this.context = context;
-    console.log('[ScheduleLogsService] Service initialized');
+    console.log('[ScheduleLogsService] Инициализация по образцу ContractsService');
+    this._remoteSiteService = RemoteSiteService.getInstance(context);
+    this.logInfo("ScheduleLogsService initialized with RemoteSiteService pattern from ContractsService");
   }
 
   public static getInstance(context: WebPartContext): ScheduleLogsService {
-    if (!ScheduleLogsService.instance) {
-      ScheduleLogsService.instance = new ScheduleLogsService(context);
+    if (!ScheduleLogsService._instance) {
+      console.log('[ScheduleLogsService] Создание нового экземпляра по образцу ContractsService');
+      ScheduleLogsService._instance = new ScheduleLogsService(context);
     }
-    return ScheduleLogsService.instance;
+    return ScheduleLogsService._instance;
+  }
+
+  // СКОПИРОВАНО ИЗ ContractsService: Вспомогательные методы для преобразования типов
+  private ensureString(value: unknown): string {
+    if (value === null || value === undefined) {
+      return '';
+    }
+    return String(value);
+  }
+
+  private ensureNumber(value: unknown): number {
+    if (value === null || value === undefined) {
+      return 0;
+    }
+    const num = Number(value);
+    return isNaN(num) ? 0 : num;
+  }
+
+  // Удален неиспользуемый метод ensureBoolean
+
+  // СКОПИРОВАНО ИЗ ContractsService: Преобразует значение в дату с нормализацией через DateUtils
+  private ensureDate(value: unknown): Date {
+    if (value === null || value === undefined) {
+      return new Date();
+    }
+    
+    try {
+      let date: Date;
+      
+      if (value instanceof Date) {
+        date = value;
+      } else if (typeof value === 'string') {
+        date = new Date(value);
+        if (isNaN(date.getTime())) {
+          this.logInfo(`[DEBUG] Invalid date string for ensureDate: ${value}`);
+          return new Date();
+        }
+      } else {
+        this.logInfo(`[DEBUG] Unsupported date type for ensureDate: ${typeof value}`);
+        return new Date();
+      }
+      
+      // Нормализуем дату через DateUtils как в ContractsService
+      const normalizedDate = DateUtils.normalizeDateToUTCMidnight(date);
+      return normalizedDate;
+    } catch (error) {
+      this.logError(`Error converting date: ${error}`);
+      return new Date();
+    }
   }
 
   /**
-   * Создает новый лог операции заполнения расписания
+   * Создает лог операции используя паттерн из ContractsService
    */
   public async createScheduleLog(params: ICreateScheduleLogParams): Promise<string | undefined> {
-    console.log('[ScheduleLogsService] Creating schedule log:', {
-      title: params.title,
-      result: params.result,
-      date: params.date.toLocaleDateString(),
-      staffMemberId: params.staffMemberId,
-      managerId: params.managerId
-    });
-
     try {
-      const siteUrl = this.context.pageContext.web.absoluteUrl;
-      const listUrl = `${siteUrl}/_api/web/lists/getbytitle('${this.listName}')/items`;
+      this.logInfo(`Creating schedule log using ContractsService pattern`);
+      this.logInfo(`Parameters: ${JSON.stringify(params)}`);
 
-      // Формируем данные для создания
-      const logData: Record<string, unknown> = {
+      // СКОПИРОВАНО ИЗ ContractsService: Подготавливаем данные для MS Graph API
+      const itemData: Record<string, unknown> = {
         Title: params.title,
         Result: params.result,
-        Message: params.message,
-        Date: params.date.toISOString()
+        Message: params.message
       };
 
-      // Добавляем опциональные поля только если они заданы
-      if (params.staffMemberId && params.staffMemberId.trim() !== '' && params.staffMemberId !== '0') {
-        logData.StaffMemberId = params.staffMemberId;
+      // СКОПИРОВАНО ИЗ ContractsService: Добавляем дату с нормализацией через DateUtils
+      if (params.date) {
+        const normalizedDate = DateUtils.normalizeDateToUTCMidnight(params.date);
+        itemData.Date = normalizedDate.toISOString();
+        this.logInfo(`[DEBUG] Date normalized: ${params.date.toISOString()} → ${normalizedDate.toISOString()}`);
       }
 
-      if (params.managerId && params.managerId.trim() !== '' && params.managerId !== '0') {
-        logData.ManagerId = params.managerId;
-      }
-
-      if (params.staffGroupId && params.staffGroupId.trim() !== '' && params.staffGroupId !== '0') {
-        logData.StaffGroupId = params.staffGroupId;
-      }
-
-      if (params.weeklyTimeTableId && params.weeklyTimeTableId.trim() !== '' && params.weeklyTimeTableId !== '0') {
-        logData.WeeklyTimeTableId = params.weeklyTimeTableId;
-      }
-
-      const response: SPHttpClientResponse = await this.context.spHttpClient.post(
-        listUrl,
-        SPHttpClient.configurations.v1,
-        {
-          headers: {
-            'Accept': 'application/json;odata=verbose',
-            'Content-Type': 'application/json;odata=verbose',
-            'X-RequestDigest': await this.getRequestDigest()
-          },
-          body: JSON.stringify(logData)
+      // СКОПИРОВАНО ИЗ ContractsService: Добавляем lookup поля если они есть
+      if (params.staffMemberId && params.staffMemberId !== '') {
+        try {
+          const staffMemberId = parseInt(params.staffMemberId);
+          if (!isNaN(staffMemberId)) {
+            itemData.StaffMemberLookupId = staffMemberId;
+          }
+        } catch (e) {
+          console.warn(`Could not parse staffMemberId: ${params.staffMemberId}`, e);
         }
-      );
-
-      if (response.ok) {
-        const responseData = await response.json() as { d: { ID: string } };
-        const logId = responseData.d.ID;
-        
-        console.log(`[ScheduleLogsService] ✓ Schedule log created successfully with ID: ${logId}`);
-        return logId;
-      } else {
-        const errorText = await response.text();
-        console.error('[ScheduleLogsService] ✗ Error creating schedule log:', response.status, errorText);
-        return undefined;
       }
 
-    } catch {
-      // ИСПРАВЛЕНО: Удалена неиспользуемая переменная error
-      console.error('[ScheduleLogsService] ✗ Exception creating schedule log');
+      if (params.managerId && params.managerId !== '') {
+        try {
+          const managerId = parseInt(params.managerId);
+          if (!isNaN(managerId)) {
+            itemData.ManagerLookupId = managerId;
+          }
+        } catch (e) {
+          console.warn(`Could not parse managerId: ${params.managerId}`, e);
+        }
+      }
+
+      if (params.staffGroupId && params.staffGroupId !== '') {
+        try {
+          const staffGroupId = parseInt(params.staffGroupId);
+          if (!isNaN(staffGroupId)) {
+            itemData.StaffGroupLookupId = staffGroupId;
+          }
+        } catch (e) {
+          console.warn(`Could not parse staffGroupId: ${params.staffGroupId}`, e);
+        }
+      }
+
+      if (params.weeklyTimeTableId && params.weeklyTimeTableId !== '') {
+        try {
+          const weeklyTimeTableId = parseInt(params.weeklyTimeTableId);
+          if (!isNaN(weeklyTimeTableId)) {
+            itemData.WeeklyTimeTableLookupId = weeklyTimeTableId;
+          }
+        } catch (e) {
+          console.warn(`Could not parse weeklyTimeTableId: ${params.weeklyTimeTableId}`, e);
+        }
+      }
+
+      this.logInfo(`Prepared item data for save: ${JSON.stringify(itemData, null, 2)}`);
+
+      // СКОПИРОВАНО ИЗ ContractsService: Создаем новый элемент через RemoteSiteService
+      try {
+        const listId = await this._remoteSiteService.getListId(this._listName);
+        
+        const response = await this._remoteSiteService.addListItem(
+          listId,
+          itemData
+        );
+        
+        if (response && response.id) {
+          const result = this.ensureString(response.id);
+          this.logInfo(`Created new schedule log with ID: ${result}`);
+          return result;
+        } else {
+          throw new Error('Failed to get ID from the created item');
+        }
+      } catch (error) {
+        this.logError(`Error creating new schedule log: ${error}`);
+        throw error;
+      }
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logError(`Error creating schedule log: ${errorMessage}`);
       return undefined;
     }
   }
 
   /**
-   * Получает логи операций заполнения расписания с фильтрацией
+   * УПРОЩЕНО: Получает логи БЕЗ фильтрации сначала, как временное решение
    */
   public async getScheduleLogs(params: IGetScheduleLogsParams = {}): Promise<IScheduleLogsResult> {
-    console.log('[ScheduleLogsService] Getting schedule logs with params:', params);
-
     try {
-      const siteUrl = this.context.pageContext.web.absoluteUrl;
-      let apiUrl = `${siteUrl}/_api/web/lists/getbytitle('${this.listName}')/items`;
+      this.logInfo(`Fetching schedule logs WITHOUT filtering (temporary solution)`);
+      this.logInfo(`Parameters: ${JSON.stringify(params)}`);
 
-      // Построение фильтров
-      const filters: string[] = [];
-
-      // Фильтр по сотруднику
-      if (params.staffMemberId && params.staffMemberId.trim() !== '' && params.staffMemberId !== '0') {
-        filters.push(`StaffMemberId eq '${params.staffMemberId}'`);
-      }
-
-      // Фильтр по менеджеру
-      if (params.managerId && params.managerId.trim() !== '' && params.managerId !== '0') {
-        filters.push(`ManagerId eq '${params.managerId}'`);
-      }
-
-      // Фильтр по группе
-      if (params.staffGroupId && params.staffGroupId.trim() !== '' && params.staffGroupId !== '0') {
-        filters.push(`StaffGroupId eq '${params.staffGroupId}'`);
-      }
-
-      // Фильтр по контракту
-      if (params.weeklyTimeTableId && params.weeklyTimeTableId.trim() !== '' && params.weeklyTimeTableId !== '0') {
-        filters.push(`WeeklyTimeTableId eq '${params.weeklyTimeTableId}'`);
-      }
-
-      // Фильтр по периоду (если указан periodDate)
-      if (params.periodDate) {
-        const year = params.periodDate.getFullYear();
-        const month = params.periodDate.getMonth();
-        const startOfMonth = new Date(year, month, 1);
-        const endOfMonth = new Date(year, month + 1, 0);
-        
-        const startDateStr = startOfMonth.toISOString();
-        const endDateStr = endOfMonth.toISOString();
-        
-        filters.push(`Date ge datetime'${startDateStr}' and Date le datetime'${endDateStr}'`);
-      }
-      // Альтернативно, фильтр по диапазону дат
-      else if (params.startDate && params.endDate) {
-        const startDateStr = params.startDate.toISOString();
-        const endDateStr = params.endDate.toISOString();
-        
-        filters.push(`Date ge datetime'${startDateStr}' and Date le datetime'${endDateStr}'`);
-      }
-
-      // Построение URL с параметрами
-      const queryParams: string[] = [];
-      
-      if (filters.length > 0) {
-        queryParams.push(`$filter=${encodeURIComponent(filters.join(' and '))}`);
-      }
-
-      // Сортировка по дате создания (новые первыми)
-      queryParams.push('$orderby=Created desc');
-
-      // Пагинация
-      if (params.top && params.top > 0) {
-        queryParams.push(`$top=${params.top}`);
-      }
-
-      if (params.skip && params.skip > 0) {
-        queryParams.push(`$skip=${params.skip}`);
-      }
-
-      // Подсчет общего количества
-      queryParams.push('$inlinecount=allpages');
-
-      if (queryParams.length > 0) {
-        apiUrl += `?${queryParams.join('&')}`;
-      }
-
-      console.log('[ScheduleLogsService] API URL:', apiUrl);
-
-      const response: SPHttpClientResponse = await this.context.spHttpClient.get(
-        apiUrl,
-        SPHttpClient.configurations.v1,
-        {
-          headers: {
-            'Accept': 'application/json;odata=verbose'
-          }
-        }
+      // ВРЕМЕННО: Получаем ВСЕ записи без фильтрации
+      const items = await this._remoteSiteService.getListItems(
+        this._listName,
+        true,
+        undefined, // БЕЗ фильтра
+        { field: "Title", ascending: true }
       );
+      
+      this.logInfo(`Retrieved ${items.length} schedule logs (all records)`);
+      
+      // Преобразуем данные в формат IScheduleLog
+      const logs: IScheduleLog[] = [];
+      
+      for (const item of items) {
+        try {
+          const fields = item.fields || {};
+          
+          // СКОПИРОВАНО ИЗ ContractsService: Получаем информацию о lookup полях
+          const createLookupInfo = (lookupField: unknown): IScheduleLogLookup | undefined => {
+            if (!lookupField || typeof lookupField !== 'object') return undefined;
+            const obj = lookupField as Record<string, unknown>;
+            const id = obj.Id || obj.ID || obj.id;
+            const title = obj.Title || obj.title;
+            if (id && title) {
+              return {
+                Id: this.ensureString(id),
+                Title: this.ensureString(title)
+              };
+            }
+            return undefined;
+          };
 
-      if (response.ok) {
-        const responseData = await response.json() as { d: ISharePointListResponse };
-        const items = responseData.d.value || [];
-        const totalCount = responseData.d['@odata.count'] || items.length;
-
-        // Преобразуем SharePoint элементы в наш формат
-        const logs: IScheduleLog[] = items.map((item: IScheduleLogSharePointItem): IScheduleLog => ({
-          ID: item.ID,
-          Title: item.Title,
-          Result: item.Result,
-          Message: item.Message,
-          Date: item.Date,
-          StaffMemberId: item.StaffMemberId,
-          ManagerId: item.ManagerId,
-          StaffGroupId: item.StaffGroupId,
-          WeeklyTimeTableId: item.WeeklyTimeTableId,
-          Created: item.Created, // ИСПРАВЛЕНО: всегда присутствует
-          Modified: item.Modified,
-          // ИСПРАВЛЕНО: добавляем lookup поля
-          StaffMember: item.StaffMember,
-          Manager: item.Manager,
-          StaffGroup: item.StaffGroup,
-          WeeklyTimeTable: item.WeeklyTimeTable
-        }));
-
-        console.log(`[ScheduleLogsService] ✓ Retrieved ${logs.length} schedule logs (total: ${totalCount})`);
-
-        return {
-          logs,
-          totalCount
-        };
-
-      } else {
-        const errorText = await response.text();
-        console.error('[ScheduleLogsService] ✗ Error getting schedule logs:', response.status, errorText);
-        
-        return {
-          logs: [],
-          totalCount: 0,
-          error: `HTTP ${response.status}: ${errorText}`
-        };
+          const log: IScheduleLog = {
+            ID: this.ensureString(item.id),
+            Title: this.ensureString(fields.Title),
+            Result: this.ensureNumber(fields.Result),
+            Message: this.ensureString(fields.Message),
+            Date: this.ensureDate(fields.Date),
+            // ID поля для обратной совместимости
+            StaffMemberId: fields.StaffMemberLookupId ? this.ensureString(fields.StaffMemberLookupId) : undefined,
+            ManagerId: fields.ManagerLookupId ? this.ensureString(fields.ManagerLookupId) : undefined,
+            StaffGroupId: fields.StaffGroupLookupId ? this.ensureString(fields.StaffGroupLookupId) : undefined,
+            WeeklyTimeTableId: fields.WeeklyTimeTableLookupId ? this.ensureString(fields.WeeklyTimeTableLookupId) : undefined,
+            WeeklyTimeTableTitle: fields.WeeklyTimeTableLookup ? this.ensureString(fields.WeeklyTimeTableLookup) : undefined,
+            // Объекты lookup для LogDetailsDialog
+            Manager: createLookupInfo(fields.Manager),
+            StaffMember: createLookupInfo(fields.StaffMember),
+            StaffGroup: createLookupInfo(fields.StaffGroup),
+            WeeklyTimeTable: createLookupInfo(fields.WeeklyTimeTable),
+            Created: this.ensureDate(fields.Created),
+            Modified: this.ensureDate(fields.Modified)
+          };
+          
+          logs.push(log);
+        } catch (itemError) {
+          this.logError(`Error processing log item: ${itemError}`);
+        }
       }
 
-    } catch {
-      // ИСПРАВЛЕНО: Удалена неиспользуемая переменная error
-      console.error('[ScheduleLogsService] ✗ Exception getting schedule logs');
+      // ПРИМЕНЯЕМ КЛИЕНТСКУЮ ФИЛЬТРАЦИЮ если нужно
+      let filteredLogs = logs;
+
+      if (params.staffMemberId && params.staffMemberId !== '') {
+        filteredLogs = filteredLogs.filter(log => log.StaffMemberId === params.staffMemberId);
+        this.logInfo(`Filtered by StaffMemberId ${params.staffMemberId}: ${filteredLogs.length} logs`);
+      }
+
+      if (params.managerId && params.managerId !== '') {
+        filteredLogs = filteredLogs.filter(log => log.ManagerId === params.managerId);
+        this.logInfo(`Filtered by ManagerId ${params.managerId}: ${filteredLogs.length} logs`);
+      }
+
+      if (params.staffGroupId && params.staffGroupId !== '') {
+        filteredLogs = filteredLogs.filter(log => log.StaffGroupId === params.staffGroupId);
+        this.logInfo(`Filtered by StaffGroupId ${params.staffGroupId}: ${filteredLogs.length} logs`);
+      }
+
+      if (params.periodDate) {
+        const startOfMonth = new Date(Date.UTC(
+          params.periodDate.getUTCFullYear(), 
+          params.periodDate.getUTCMonth(), 
+          1, 
+          0, 0, 0, 0
+        ));
+        
+        const endOfMonth = new Date(Date.UTC(
+          params.periodDate.getUTCFullYear(), 
+          params.periodDate.getUTCMonth() + 1, 
+          0, 
+          23, 59, 59, 999
+        ));
+
+        filteredLogs = filteredLogs.filter(log => {
+          const logDate = new Date(log.Date);
+          return logDate >= startOfMonth && logDate <= endOfMonth;
+        });
+        this.logInfo(`Filtered by period ${params.periodDate.toLocaleDateString()}: ${filteredLogs.length} logs`);
+      }
+
+      // Применяем пагинацию если нужно
+      if (params.top || params.skip) {
+        const skip = params.skip || 0;
+        const top = params.top || 50;
+        filteredLogs = filteredLogs.slice(skip, skip + top);
+        this.logInfo(`Applied pagination (skip: ${skip}, top: ${top}): ${filteredLogs.length} logs`);
+      }
+      
+      return {
+        logs: filteredLogs,
+        totalCount: filteredLogs.length,
+        error: undefined
+      };
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logError(`Error fetching schedule logs: ${errorMessage}`);
       
       return {
         logs: [],
         totalCount: 0,
-        error: 'Exception occurred while fetching logs'
+        error: errorMessage
       };
     }
   }
 
   /**
-   * Получает конкретный лог по ID
+   * Получает конкретный лог по ID используя паттерн из ContractsService
    */
   public async getScheduleLogById(logId: string): Promise<IScheduleLog | undefined> {
-    console.log(`[ScheduleLogsService] Getting schedule log by ID: ${logId}`);
-
     try {
-      const siteUrl = this.context.pageContext.web.absoluteUrl;
-      const apiUrl = `${siteUrl}/_api/web/lists/getbytitle('${this.listName}')/items(${logId})`;
+      this.logInfo(`Getting schedule log by ID: ${logId}`);
 
-      const response: SPHttpClientResponse = await this.context.spHttpClient.get(
-        apiUrl,
-        SPHttpClient.configurations.v1,
-        {
-          headers: {
-            'Accept': 'application/json;odata=verbose'
-          }
-        }
+      // Используем тот же подход что и в ContractsService
+      const items = await this._remoteSiteService.getListItems(
+        this._listName,
+        true,
+        `Id eq ${logId}`,
+        { field: "Title", ascending: true }
       );
 
-      if (response.ok) {
-        const responseData = await response.json() as { d: IScheduleLogSharePointItem };
-        const item = responseData.d;
+      if (items.length > 0) {
+        const item = items[0];
+        const fields = item.fields || {};
 
-        const log: IScheduleLog = {
-          ID: item.ID,
-          Title: item.Title,
-          Result: item.Result,
-          Message: item.Message,
-          Date: item.Date,
-          StaffMemberId: item.StaffMemberId,
-          ManagerId: item.ManagerId,
-          StaffGroupId: item.StaffGroupId,
-          WeeklyTimeTableId: item.WeeklyTimeTableId,
-          Created: item.Created, // ИСПРАВЛЕНО: всегда присутствует
-          Modified: item.Modified,
-          // ИСПРАВЛЕНО: добавляем lookup поля
-          StaffMember: item.StaffMember,
-          Manager: item.Manager,
-          StaffGroup: item.StaffGroup,
-          WeeklyTimeTable: item.WeeklyTimeTable
+        const createLookupInfo = (lookupField: unknown): IScheduleLogLookup | undefined => {
+          if (!lookupField || typeof lookupField !== 'object') return undefined;
+          const obj = lookupField as Record<string, unknown>;
+          const id = obj.Id || obj.ID || obj.id;
+          const title = obj.Title || obj.title;
+          if (id && title) {
+            return {
+              Id: this.ensureString(id),
+              Title: this.ensureString(title)
+            };
+          }
+          return undefined;
         };
 
-        console.log(`[ScheduleLogsService] ✓ Retrieved schedule log: ${log.Title}`);
+        const log: IScheduleLog = {
+          ID: this.ensureString(item.id),
+          Title: this.ensureString(fields.Title),
+          Result: this.ensureNumber(fields.Result),
+          Message: this.ensureString(fields.Message),
+          Date: this.ensureDate(fields.Date),
+          StaffMemberId: fields.StaffMemberLookupId ? this.ensureString(fields.StaffMemberLookupId) : undefined,
+          ManagerId: fields.ManagerLookupId ? this.ensureString(fields.ManagerLookupId) : undefined,
+          StaffGroupId: fields.StaffGroupLookupId ? this.ensureString(fields.StaffGroupLookupId) : undefined,
+          WeeklyTimeTableId: fields.WeeklyTimeTableLookupId ? this.ensureString(fields.WeeklyTimeTableLookupId) : undefined,
+          WeeklyTimeTableTitle: fields.WeeklyTimeTableLookup ? this.ensureString(fields.WeeklyTimeTableLookup) : undefined,
+          Manager: createLookupInfo(fields.Manager),
+          StaffMember: createLookupInfo(fields.StaffMember),
+          StaffGroup: createLookupInfo(fields.StaffGroup),
+          WeeklyTimeTable: createLookupInfo(fields.WeeklyTimeTable),
+          Created: this.ensureDate(fields.Created),
+          Modified: this.ensureDate(fields.Modified)
+        };
+
+        this.logInfo(`Successfully retrieved log: ${log.Title}`);
         return log;
-
-      } else if (response.status === 404) {
-        console.log(`[ScheduleLogsService] Schedule log with ID ${logId} not found`);
-        return undefined;
       } else {
-        const errorText = await response.text();
-        console.error('[ScheduleLogsService] ✗ Error getting schedule log by ID:', response.status, errorText);
+        this.logInfo(`Log with ID ${logId} not found`);
         return undefined;
-      }
-
-    } catch {
-      // ИСПРАВЛЕНО: Удалена неиспользуемая переменная error
-      console.error(`[ScheduleLogsService] ✗ Exception getting schedule log by ID: ${logId}`);
-      return undefined;
-    }
-  }
-
-  /**
-   * Удаляет лог по ID
-   */
-  public async deleteScheduleLog(logId: string): Promise<boolean> {
-    console.log(`[ScheduleLogsService] Deleting schedule log: ${logId}`);
-
-    try {
-      const siteUrl = this.context.pageContext.web.absoluteUrl;
-      const apiUrl = `${siteUrl}/_api/web/lists/getbytitle('${this.listName}')/items(${logId})`;
-
-      const response: SPHttpClientResponse = await this.context.spHttpClient.post(
-        apiUrl,
-        SPHttpClient.configurations.v1,
-        {
-          headers: {
-            'Accept': 'application/json;odata=verbose',
-            'X-RequestDigest': await this.getRequestDigest(),
-            'IF-MATCH': '*',
-            'X-HTTP-Method': 'DELETE'
-          }
-        }
-      );
-
-      if (response.ok || response.status === 204) {
-        console.log(`[ScheduleLogsService] ✓ Schedule log ${logId} deleted successfully`);
-        return true;
-      } else {
-        const errorText = await response.text();
-        console.error('[ScheduleLogsService] ✗ Error deleting schedule log:', response.status, errorText);
-        return false;
-      }
-
-    } catch {
-      // ИСПРАВЛЕНО: Удалена неиспользуемая переменная error
-      console.error(`[ScheduleLogsService] ✗ Exception deleting schedule log: ${logId}`);
-      return false;
-    }
-  }
-
-  /**
-   * Получает статистику логов
-   */
-  public async getLogsStatistics(params: Omit<IGetScheduleLogsParams, 'top' | 'skip'> = {}): Promise<{
-    total: number;
-    success: number;
-    errors: number;
-    info: number;
-    byStaff: Record<string, number>;
-    byManager: Record<string, number>;
-    byResult: Record<number, number>;
-  } | undefined> {
-    console.log('[ScheduleLogsService] Getting logs statistics');
-
-    try {
-      // Получаем все логи без пагинации для статистики
-      const result = await this.getScheduleLogs({ ...params, top: undefined, skip: undefined });
-      
-      if (result.error) {
-        console.error('[ScheduleLogsService] Error getting logs for statistics:', result.error);
-        return undefined;
-      }
-
-      const logs = result.logs;
-      
-      // ИСПРАВЛЕНО: Заменены any на конкретные типы
-      const byStaff: Record<string, number> = {};
-      const byManager: Record<string, number> = {};
-      const byResult: Record<number, number> = { 1: 0, 2: 0, 3: 0 }; // 1=Error, 2=Success, 3=Info
-      
-      let success = 0;
-      let errors = 0;
-      let info = 0;
-
-      logs.forEach((log: IScheduleLog) => {
-        // Подсчет по результатам
-        const result = log.Result || 1;
-        byResult[result] = (byResult[result] || 0) + 1;
-        
-        if (result === 2) success++;
-        else if (result === 1) errors++;
-        else if (result === 3) info++;
-
-        // Подсчет по сотрудникам
-        if (log.StaffMemberId) {
-          byStaff[log.StaffMemberId] = (byStaff[log.StaffMemberId] || 0) + 1;
-        }
-
-        // Подсчет по менеджерам
-        if (log.ManagerId) {
-          byManager[log.ManagerId] = (byManager[log.ManagerId] || 0) + 1;
-        }
-      });
-
-      const statistics = {
-        total: logs.length,
-        success,
-        errors,
-        info,
-        byStaff,
-        byManager,
-        byResult
-      };
-
-      console.log('[ScheduleLogsService] ✓ Statistics calculated:', {
-        total: statistics.total,
-        success: statistics.success,
-        errors: statistics.errors,
-        info: statistics.info
-      });
-
-      return statistics;
-
-    } catch {
-      // ИСПРАВЛЕНО: Удалена неиспользуемая переменная error
-      console.error('[ScheduleLogsService] ✗ Exception calculating logs statistics');
-      return undefined;
-    }
-  }
-
-  /**
-   * Получает Request Digest для операций записи
-   */
-  private async getRequestDigest(): Promise<string> {
-    try {
-      const siteUrl = this.context.pageContext.web.absoluteUrl;
-      const digestUrl = `${siteUrl}/_api/contextinfo`;
-
-      const response: SPHttpClientResponse = await this.context.spHttpClient.post(
-        digestUrl,
-        SPHttpClient.configurations.v1,
-        {
-          headers: {
-            'Accept': 'application/json;odata=verbose'
-          }
-        }
-      );
-
-      if (response.ok) {
-        const digestData = await response.json() as { d: { GetContextWebInformation: { FormDigestValue: string } } };
-        return digestData.d.GetContextWebInformation.FormDigestValue;
-      } else {
-        throw new Error(`Failed to get request digest: ${response.status}`);
       }
 
     } catch (error) {
-      console.error('[ScheduleLogsService] Error getting request digest:', error);
-      throw error;
+      this.logError(`Error getting schedule log by ID ${logId}: ${error}`);
+      return undefined;
     }
   }
 
   /**
-   * Очищает инстанс сервиса
+   * СКОПИРОВАНО ИЗ ContractsService: Статический метод для очистки экземпляра
    */
   public static clearInstance(): void {
-    ScheduleLogsService.instance = undefined as unknown as ScheduleLogsService;
+    ScheduleLogsService._instance = undefined as unknown as ScheduleLogsService;
     console.log('[ScheduleLogsService] Instance cleared');
   }
 
   /**
-   * Получает информацию о сервисе
+   * СКОПИРОВАНО ИЗ ContractsService: Helper method to log info messages
    */
-  public getServiceInfo(): {
-    listName: string;
-    context: boolean;
-    webUrl: string;
-  } {
-    return {
-      listName: this.listName,
-      context: !!this.context,
-      webUrl: this.context.pageContext.web.absoluteUrl
-    };
+  private logInfo(message: string): void {
+    console.log(`[${this._logSource}] ${message}`);
+  }
+
+  /**
+   * СКОПИРОВАНО ИЗ ContractsService: Helper method to log error messages
+   */
+  private logError(message: string): void {
+    console.error(`[${this._logSource}] ${message}`);
   }
 }
