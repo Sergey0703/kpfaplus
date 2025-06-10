@@ -1,10 +1,11 @@
 // src/webparts/kpfaplus/services/CommonFillGeneration.ts
-// ИСПРАВЛЕНО: Добавлена правильная обработка UTC времени как в Schedule tab + ИСПРАВЛЕНА логика дней недели
+// ИСПРАВЛЕНО: Используем тот же WeeklyTimeTableUtils.formatWeeklyTimeTableData что и в Schedule Tab
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { IStaffRecord, StaffRecordsService } from './StaffRecordsService';
 import { HolidaysService, IHoliday } from './HolidaysService';
 import { DaysOfLeavesService, ILeaveDay } from './DaysOfLeavesService';
 import { WeeklyTimeTableService } from './WeeklyTimeTableService';
+import { WeeklyTimeTableUtils, IFormattedWeeklyTimeRow } from '../models/IWeeklyTimeTable'; // *** ИСПРАВЛЕНО: Используем Schedule Tab утилиты ***
 import { RemoteSiteService } from './RemoteSiteService';
 import { SharePointTimeZoneUtils } from '../utils/SharePointTimeZoneUtils';
 import { IContract } from '../models/IContract';
@@ -107,7 +108,7 @@ export class CommonFillGeneration {
   private holidaysService: HolidaysService;
   private daysOfLeavesService: DaysOfLeavesService;
   private weeklyTimeTableService: WeeklyTimeTableService;
-  private remoteSiteService: RemoteSiteService; // *** ДОБАВЛЕН RemoteSiteService ***
+  private remoteSiteService: RemoteSiteService;
 
   // *** НОВЫЕ ПОЛЯ ДЛЯ ХРАНЕНИЯ АНАЛИЗА ***
   private contractsAnalysis?: IContractsAnalysis;
@@ -119,9 +120,9 @@ export class CommonFillGeneration {
     this.holidaysService = HolidaysService.getInstance(context);
     this.daysOfLeavesService = DaysOfLeavesService.getInstance(context);
     this.weeklyTimeTableService = new WeeklyTimeTableService(context);
-    this.remoteSiteService = RemoteSiteService.getInstance(context); // *** ИНИЦИАЛИЗАЦИЯ RemoteSiteService ***
+    this.remoteSiteService = RemoteSiteService.getInstance(context);
     
-    console.log('[CommonFillGeneration] Service initialized with UTC timezone handling like Schedule tab + FIXED day logic');
+    console.log('[CommonFillGeneration] Service initialized with SCHEDULE TAB formatting (fixed timezone)');
   }
 
   /**
@@ -285,38 +286,6 @@ export class CommonFillGeneration {
   }
 
   /**
-   * *** НОВЫЙ МЕТОД: Парсит время из SharePoint формата ***
-   */
-  private parseTimeFromSharePoint(timeValue: unknown): string | null {
-    if (!timeValue) return null;
-    
-    try {
-      // SharePoint возвращает время в формате "2025-01-01T09:00:00Z" или подобном
-      let timeStr = String(timeValue);
-      
-      // Извлекаем часть времени после "T"
-      if (timeStr.includes('T')) {
-        timeStr = timeStr.split('T')[1];
-      }
-      
-      // Убираем секунды и Z
-      if (timeStr.includes(':')) {
-        const timeParts = timeStr.split(':');
-        if (timeParts.length >= 2) {
-          const hours = timeParts[0].padStart(2, '0');
-          const minutes = timeParts[1].padStart(2, '0');
-          return `${hours}:${minutes}`;
-        }
-      }
-      
-      return null;
-    } catch (error) {
-      console.error(`[CommonFillGeneration] Error parsing time "${timeValue}":`, error);
-      return null;
-    }
-  }
-
-  /**
    * *** НОВЫЙ МЕТОД: Инициализирует пустой анализ шаблонов ***
    */
   private initializeEmptyTemplatesAnalysis(
@@ -371,7 +340,13 @@ export class CommonFillGeneration {
   /**
    * *** НОВЫЙ ВСПОМОГАТЕЛЬНЫЙ МЕТОД: Получает название дня из SharePoint номера ***
    */
- 
+  private getSharePointDayName(dayNumber: number): string {
+    // *** ИСПРАВЛЕНО: SharePoint всегда использует одинаковую нумерацию в шаблонах ***
+    // 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday, 7=Sunday
+    const sharePointNames = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    return sharePointNames[dayNumber] || 'Unknown';
+  }
+
   /**
    * *** ИСПРАВЛЕННЫЙ МЕТОД: Получает название дня недели для отображения ***
    */
@@ -381,7 +356,7 @@ export class CommonFillGeneration {
   }
 
   /**
-   * *** ПЕРЕПИСАННЫЙ МЕТОД: Загружает шаблоны с правильной клиентской фильтрацией ***
+   * *** ИСПРАВЛЕННЫЙ МЕТОД: Загружает шаблоны с Schedule Tab форматированием ***
    */
   public async loadWeeklyTemplates(
     contractId: string, 
@@ -390,13 +365,14 @@ export class CommonFillGeneration {
     managingGroupId: string
   ): Promise<IScheduleTemplate[]> {
     try {
-      console.log(`[CommonFillGeneration] Loading weekly templates with detailed analysis and client-side filtering`);
+      console.log(`[CommonFillGeneration] *** USING SCHEDULE TAB FORMATTING APPROACH ***`);
+      console.log(`[CommonFillGeneration] Loading weekly templates with Schedule Tab formatting`);
       console.log(`[CommonFillGeneration] Parameters: contractId=${contractId}, currentUserId=${currentUserId}, managingGroupId=${managingGroupId}, dayOfStartWeek=${dayOfStartWeek}`);
       
       const filteringDetails: string[] = [];
       
-      // *** ШАГ 1: ПОЛУЧЕНИЕ ДАННЫХ С СЕРВЕРА (ЧАСТИЧНАЯ ФИЛЬТРАЦИЯ) ***
-      filteringDetails.push('=== WEEKLY TEMPLATES LOADING PROCESS ===');
+      // *** ШАГ 1: ПОЛУЧЕНИЕ ДАННЫХ С СЕРВЕРА ***
+      filteringDetails.push('=== WEEKLY TEMPLATES LOADING WITH SCHEDULE TAB APPROACH ===');
       filteringDetails.push(`Contract ID: ${contractId}`);
       filteringDetails.push(`Current User ID: ${currentUserId}`);
       filteringDetails.push(`Managing Group ID: ${managingGroupId}`);
@@ -422,10 +398,8 @@ export class CommonFillGeneration {
       const afterManagerFilter = weeklyTimeItems.filter((item: IWeeklyTimeTableItem) => {
         const fields = item.fields || {};
         
-        // ИСПРАВЛЕНО: используем CreatorLookupId вместо ManagerLookupId
         const creatorLookupId = fields.CreatorLookupId || fields.creatorId || fields.Creator;
         
-        // Преобразуем в строку для сравнения
         const creatorIdStr = String(creatorLookupId || '0');
         const currentUserIdStr = String(currentUserId || '0');
         
@@ -453,7 +427,6 @@ export class CommonFillGeneration {
         const fields = item.fields || {};
         const deleted = fields.Deleted || 0;
         
-        // Проверяем что запись НЕ удалена (Deleted !== 1)
         const isNotDeleted = Number(deleted) !== 1;
         
         if (!isNotDeleted) {
@@ -476,76 +449,79 @@ export class CommonFillGeneration {
         return [];
       }
 
-      // *** ШАГ 4: ПРЕОБРАЗОВАНИЕ В ШАБЛОНЫ С РЕАЛЬНЫМИ ПОЛЯМИ ВРЕМЕНИ ***
-      console.log(`[CommonFillGeneration] Converting ${afterDeletedFilter.length} items to schedule templates with real time fields`);
+      // *** ШАГ 4: ИСПОЛЬЗУЕМ SCHEDULE TAB ФОРМАТИРОВАНИЕ ***
+      console.log(`[CommonFillGeneration] *** APPLYING SCHEDULE TAB FORMATTING ***`);
+      console.log(`[CommonFillGeneration] Using WeeklyTimeTableUtils.formatWeeklyTimeTableData() like Schedule Tab`);
       
+      // *** ИСПРАВЛЕНО: Используем тот же метод что и Schedule Tab ***
+      const formattedTemplates = WeeklyTimeTableUtils.formatWeeklyTimeTableData(afterDeletedFilter, dayOfStartWeek);
+      
+      console.log(`[CommonFillGeneration] *** SCHEDULE TAB FORMATTING APPLIED ***`);
+      console.log(`[CommonFillGeneration] Formatted templates count: ${formattedTemplates.length}`);
+      
+      if (formattedTemplates && formattedTemplates.length > 0) {
+        const firstTemplate = formattedTemplates[0];
+        console.log(`[CommonFillGeneration] *** SCHEDULE TAB TIME FORMAT EXAMPLE ***`);
+        console.log(`[CommonFillGeneration] Monday: start=${firstTemplate.monday.start.hours}:${firstTemplate.monday.start.minutes}, end=${firstTemplate.monday.end.hours}:${firstTemplate.monday.end.minutes}`);
+        console.log(`[CommonFillGeneration] Tuesday: start=${firstTemplate.tuesday.start.hours}:${firstTemplate.tuesday.start.minutes}, end=${firstTemplate.tuesday.end.hours}:${firstTemplate.tuesday.end.minutes}`);
+      }
+
+      // *** ШАГ 5: КОНВЕРТИРУЕМ В SCHEDULE TEMPLATES ***
       const scheduleTemplates: IScheduleTemplate[] = [];
       
-      afterDeletedFilter.forEach((item: IWeeklyTimeTableItem, index: number) => {
-        const fields = item.fields || {};
+      formattedTemplates.forEach((formattedTemplate: IFormattedWeeklyTimeRow) => {
+        const numberOfWeek = formattedTemplate.NumberOfWeek || 1;
+        const numberOfShift = formattedTemplate.NumberOfShift || 1;
+        const timeForLunch = parseInt(formattedTemplate.lunch || '30', 10);
         
-        console.log(`[CommonFillGeneration] Processing item ${index + 1}/${afterDeletedFilter.length}, ID=${item.id}`);
-        console.log(`[CommonFillGeneration] Item fields:`, {
-          NumberOfWeek: fields.NumberOfWeek,
-          NumberOfShift: fields.NumberOfShift,
-          TimeForLunch: fields.TimeForLunch,
-          Deleted: fields.Deleted
-        });
-        
-        const numberOfWeek = Number(fields.NumberOfWeek || 1);
-        const numberOfShift = Number(fields.NumberOfShift || 1);
-        const timeForLunch = Number(fields.TimeForLunch || 30);
-        const deleted = Number(fields.Deleted || 0);
-        
-        // *** ИЗВЛЕКАЕМ ВРЕМЯ РАБОТЫ ДЛЯ КАЖДОГО ДНЯ НЕДЕЛИ ***
+        // *** ОБРАБАТЫВАЕМ КАЖДЫЙ ДЕНЬ НЕДЕЛИ ***
         const daysData = [
-          { day: 1, name: 'Monday', startField: 'MondeyStartWork', endField: 'MondayEndWork' }, // ⚠️ Опечатка в SharePoint!
-          { day: 2, name: 'Tuesday', startField: 'TuesdayStartWork', endField: 'TuesdayEndWork' },
-          { day: 3, name: 'Wednesday', startField: 'WednesdayStartWork', endField: 'WednesdayEndWork' },
-          { day: 4, name: 'Thursday', startField: 'ThursdayStartWork', endField: 'ThursdayEndWork' },
-          { day: 5, name: 'Friday', startField: 'FridayStartWork', endField: 'FridayEndWork' },
-          { day: 6, name: 'Saturday', startField: 'SaturdayStartWork', endField: 'SaturdayEndWork' },
-          { day: 7, name: 'Sunday', startField: 'SundayStartWork', endField: 'SundayEndWork' }
+          { day: 1, name: 'Monday', dayData: formattedTemplate.monday },
+          { day: 2, name: 'Tuesday', dayData: formattedTemplate.tuesday },
+          { day: 3, name: 'Wednesday', dayData: formattedTemplate.wednesday },
+          { day: 4, name: 'Thursday', dayData: formattedTemplate.thursday },
+          { day: 5, name: 'Friday', dayData: formattedTemplate.friday },
+          { day: 6, name: 'Saturday', dayData: formattedTemplate.saturday },
+          { day: 7, name: 'Sunday', dayData: formattedTemplate.sunday }
         ];
         
-        daysData.forEach(dayData => {
-          const startTimeRaw = fields[dayData.startField as keyof typeof fields];
-          const endTimeRaw = fields[dayData.endField as keyof typeof fields];
+        daysData.forEach(dayInfo => {
+          const dayData = dayInfo.dayData;
           
-          if (startTimeRaw && endTimeRaw) {
-            const startTime = this.parseTimeFromSharePoint(startTimeRaw);
-            const endTime = this.parseTimeFromSharePoint(endTimeRaw);
+          // Проверяем что есть время начала и окончания
+          if (dayData.start && dayData.end && 
+              dayData.start.hours && dayData.end.hours &&
+              !(dayData.start.hours === '00' && dayData.start.minutes === '00' && 
+                dayData.end.hours === '00' && dayData.end.minutes === '00')) {
             
-            if (startTime && endTime) {
-              const template: IScheduleTemplate = {
-                id: String(item.id),
-                contractId: contractId,
-                NumberOfWeek: numberOfWeek,
-                NumberOfShift: numberOfShift,
-                dayOfWeek: dayData.day,
-                dayName: dayData.name,
-                startTime: startTime,
-                endTime: endTime,
-                lunchMinutes: timeForLunch,
-                deleted: deleted
-              };
-              
-              scheduleTemplates.push(template);
-              
-              console.log(`[CommonFillGeneration] Created template for ${dayData.name}: Week ${numberOfWeek}, Shift ${numberOfShift}, ${startTime}-${endTime}, Lunch: ${timeForLunch}min`);
-            } else {
-              console.log(`[CommonFillGeneration] Skipped ${dayData.name} - invalid time format: start="${startTimeRaw}", end="${endTimeRaw}"`);
-            }
-          } else {
-            console.log(`[CommonFillGeneration] Skipped ${dayData.name} - no time data: start="${startTimeRaw}", end="${endTimeRaw}"`);
+            const startTime = `${dayData.start.hours}:${dayData.start.minutes}`;
+            const endTime = `${dayData.end.hours}:${dayData.end.minutes}`;
+            
+            const template: IScheduleTemplate = {
+              id: String(formattedTemplate.id),
+              contractId: contractId,
+              NumberOfWeek: numberOfWeek,
+              NumberOfShift: numberOfShift,
+              dayOfWeek: dayInfo.day,
+              dayName: dayInfo.name,
+              startTime: startTime,
+              endTime: endTime,
+              lunchMinutes: timeForLunch,
+              deleted: 0
+            };
+            
+            scheduleTemplates.push(template);
+            
+            console.log(`[CommonFillGeneration] *** SCHEDULE TAB FORMATTED TEMPLATE ***`);
+            console.log(`[CommonFillGeneration] ${dayInfo.name}: Week ${numberOfWeek}, Shift ${numberOfShift}, ${startTime}-${endTime}, Lunch: ${timeForLunch}min`);
           }
         });
       });
 
-      // *** ШАГ 5: ГРУППИРОВКА ШАБЛОНОВ ДЛЯ БЫСТРОГО ДОСТУПА ***
+      // *** ШАГ 6: ГРУППИРОВКА ШАБЛОНОВ ДЛЯ БЫСТРОГО ДОСТУПА ***
       const groupedTemplates = this.groupTemplatesByWeekAndDay(scheduleTemplates);
 
-      // *** ШАГ 6: ДЕТАЛЬНЫЙ АНАЛИЗ ШАБЛОНОВ ***
+      // *** ШАГ 7: ДЕТАЛЬНЫЙ АНАЛИЗ ШАБЛОНОВ ***
       const contractName = this.contractsAnalysis?.selectedContract?.template || 'Unknown Contract';
       this.analyzeTemplates(
         contractId,
@@ -563,11 +539,12 @@ export class CommonFillGeneration {
       // Сохраняем группированные шаблоны для использования в generateScheduleRecords
       (scheduleTemplates as IScheduleTemplate[] & { _groupedTemplates?: Map<string, IScheduleTemplate[]> })._groupedTemplates = groupedTemplates;
 
-      console.log(`[CommonFillGeneration] Successfully loaded and processed ${scheduleTemplates.length} schedule templates`);
+      console.log(`[CommonFillGeneration] *** SCHEDULE TAB FORMATTING COMPLETED ***`);
+      console.log(`[CommonFillGeneration] Successfully processed ${scheduleTemplates.length} schedule templates with Schedule Tab formatting`);
       return scheduleTemplates;
       
     } catch (error) {
-      console.error('[CommonFillGeneration] Error loading weekly templates:', error);
+      console.error('[CommonFillGeneration] Error loading weekly templates with Schedule Tab formatting:', error);
       this.initializeEmptyTemplatesAnalysis(contractId, '', dayOfStartWeek, [`ERROR: ${error}`]);
       return [];
     }
@@ -604,7 +581,7 @@ export class CommonFillGeneration {
     const numberOfWeekTemplates = weeksInSchedule.length;
 
     // Финальные детали фильтрации
-    filteringDetails.push(`STEP 4: Template Conversion Completed`);
+    filteringDetails.push(`STEP 4: Schedule Tab Formatting Completed`);
     filteringDetails.push(`Final schedule templates: ${finalTemplatesCount}`);
     filteringDetails.push(`Weeks in schedule: [${weeksInSchedule.join(', ')}]`);
     filteringDetails.push(`Shifts available: [${shiftsAvailable.join(', ')}]`);
@@ -651,7 +628,7 @@ export class CommonFillGeneration {
     templates.forEach((template: IScheduleTemplate) => {
       const weekNumber = template.NumberOfWeek;
       const dayNumber = template.dayOfWeek;
-      const shiftNumber = template.NumberOfShift;  // ← ДОБАВЛЯЕМ СМЕНУ В ГРУППИРОВКУ
+      const shiftNumber = template.NumberOfShift;
       
       // *** НОВЫЙ КЛЮЧ: неделя-день-смена ***
       const key = `${weekNumber}-${dayNumber}-${shiftNumber}`;
@@ -679,153 +656,127 @@ export class CommonFillGeneration {
    * *** ИСПРАВЛЕННЫЙ МЕТОД: Вычисляет номер недели и день с учетом логики чередования ***
    * ИСПРАВЛЕНО: Правильная логика преобразования дней недели
    */
- /**
- * *** КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Логика преобразования дней недели ***
- * ПРОБЛЕМА: Неправильное понимание системы нумерации SharePoint
- */
-private calculateWeekAndDayWithChaining(
-  date: Date, 
-  startOfMonth: Date, 
-  dayOfStartWeek: number, 
-  numberOfWeekTemplates: number
-): { 
-  calendarWeekNumber: number; 
-  templateWeekNumber: number; 
-  dayNumber: number 
-} {
-  console.log(`[CommonFillGeneration] *** КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ ДНЯ НЕДЕЛИ ДЛЯ ${date.toISOString()} ***`);
-  console.log(`[CommonFillGeneration] Input parameters: dayOfStartWeek=${dayOfStartWeek}, numberOfWeekTemplates=${numberOfWeekTemplates}`);
-  
-  // *** 1. ПОЛУЧАЕМ СТАНДАРТНЫЙ ДЕНЬ НЕДЕЛИ ИЗ JAVASCRIPT (UTC) ***
-  const jsDay = date.getUTCDay(); // 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday
-  console.log(`[CommonFillGeneration] JavaScript UTC day: ${jsDay} (${this.getJSDayName(jsDay)})`);
-  
-  // *** 2. КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: ПРАВИЛЬНОЕ ПОНИМАНИЕ SHAREPOINT НУМЕРАЦИИ ***
-  // 
-  // ПРОБЛЕМА БЫЛА В ТОМ, ЧТО МЫ ДУМАЛИ ЧТО:
-  // - dayOfStartWeek=2 означает "понедельник = начало недели" 
-  // - И нужно преобразовывать JavaScript дни в SharePoint дни
-  //
-  // НО НА САМОМ ДЕЛЕ:
-  // - dayOfStartWeek указывает ТОЛЬКО на то, какой день считается началом недели для ОТОБРАЖЕНИЯ
-  // - В шаблонах (WeeklyTimeTables) дни всегда нумеруются ОДИНАКОВО:
-  //   1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday, 7=Sunday
-  // - Независимо от dayOfStartWeek!
-  
-  let dayNumber: number;
-  
-  // *** ИСПРАВЛЕННАЯ ЛОГИКА: ПРОСТОЕ ПРЕОБРАЗОВАНИЕ JS → SHAREPOINT ***
-  // JavaScript: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
-  // SharePoint: 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 7=Sun
-  
-  if (jsDay === 0) {
-    dayNumber = 7; // Sunday = 7
-  } else {
-    dayNumber = jsDay; // Monday=1, Tuesday=2, Wednesday=3, Thursday=4, Friday=5, Saturday=6
+  private calculateWeekAndDayWithChaining(
+    date: Date, 
+    startOfMonth: Date, 
+    dayOfStartWeek: number, 
+    numberOfWeekTemplates: number
+  ): { 
+    calendarWeekNumber: number; 
+    templateWeekNumber: number; 
+    dayNumber: number 
+  } {
+    console.log(`[CommonFillGeneration] *** КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ ДНЯ НЕДЕЛИ ДЛЯ ${date.toISOString()} ***`);
+    console.log(`[CommonFillGeneration] Input parameters: dayOfStartWeek=${dayOfStartWeek}, numberOfWeekTemplates=${numberOfWeekTemplates}`);
+    
+    // *** 1. ПОЛУЧАЕМ СТАНДАРТНЫЙ ДЕНЬ НЕДЕЛИ ИЗ JAVASCRIPT (UTC) ***
+    const jsDay = date.getUTCDay(); // 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday
+    console.log(`[CommonFillGeneration] JavaScript UTC day: ${jsDay} (${this.getJSDayName(jsDay)})`);
+    
+    // *** 2. КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: ПРАВИЛЬНОЕ ПОНИМАНИЕ SHAREPOINT НУМЕРАЦИИ ***
+    let dayNumber: number;
+    
+    // JavaScript: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+    // SharePoint: 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 7=Sun
+    
+    if (jsDay === 0) {
+      dayNumber = 7; // Sunday = 7
+    } else {
+      dayNumber = jsDay; // Monday=1, Tuesday=2, Wednesday=3, Thursday=4, Friday=5, Saturday=6
+    }
+    
+    console.log(`[CommonFillGeneration] *** ИСПРАВЛЕННОЕ ПРЕОБРАЗОВАНИЕ ***`);
+    console.log(`[CommonFillGeneration] JavaScript day ${jsDay} (${this.getJSDayName(jsDay)}) → SharePoint day ${dayNumber}`);
+    
+    // *** 3. ПРОВЕРЯЕМ ПРАВИЛЬНОСТЬ ПРЕОБРАЗОВАНИЯ ***
+    const expectedDayName = this.getJSDayName(jsDay);
+    const convertedDayName = this.getSharePointDayName(dayNumber);
+    
+    if (expectedDayName !== convertedDayName) {
+      console.error(`[CommonFillGeneration] *** КРИТИЧЕСКАЯ ОШИБКА ПРЕОБРАЗОВАНИЯ ***`);
+      console.error(`[CommonFillGeneration] Ожидалось: ${expectedDayName}, получено: ${convertedDayName}`);
+      console.error(`[CommonFillGeneration] JS day: ${jsDay}, SharePoint day: ${dayNumber}`);
+    } else {
+      console.log(`[CommonFillGeneration] ✅ Преобразование дня недели ИСПРАВЛЕНО: ${expectedDayName}`);
+    }
+    
+    // *** 4. ВЫЧИСЛЯЕМ КАЛЕНДАРНУЮ НЕДЕЛЮ МЕСЯЦА С UTC ***
+    const dayOfMonth = date.getUTCDate();
+    const firstDayOfMonth = new Date(Date.UTC(startOfMonth.getUTCFullYear(), startOfMonth.getUTCMonth(), 1, 0, 0, 0, 0));
+    const firstDayJS = firstDayOfMonth.getUTCDay(); // JavaScript день недели первого дня месяца в UTC
+    
+    console.log(`[CommonFillGeneration] Month calculation: dayOfMonth=${dayOfMonth}, firstDayJS=${firstDayJS}`);
+    
+    // *** ИСПРАВЛЕННАЯ ЛОГИКА РАСЧЕТА НЕДЕЛЬ ***
+    let adjustedFirstDay: number;
+    
+    if (dayOfStartWeek === 2) {
+      // Понедельник = начало недели для РАСЧЕТА НОМЕРА НЕДЕЛИ
+      adjustedFirstDay = firstDayJS === 0 ? 6 : firstDayJS - 1; // Sunday=6, Monday=0, Tuesday=1, etc.
+    } else if (dayOfStartWeek === 7) {
+      // Суббота = начало недели для РАСЧЕТА НОМЕРА НЕДЕЛИ
+      adjustedFirstDay = (firstDayJS + 1) % 7; // Saturday=0, Sunday=1, Monday=2, etc.
+    } else {
+      // Воскресенье = начало недели для РАСЧЕТА НОМЕРА НЕДЕЛИ (стандартная JS логика)
+      adjustedFirstDay = firstDayJS;
+    }
+    
+    const calendarWeekNumber = Math.floor((dayOfMonth - 1 + adjustedFirstDay) / 7) + 1;
+    
+    console.log(`[CommonFillGeneration] Week calculation: adjustedFirstDay=${adjustedFirstDay} → calendarWeekNumber=${calendarWeekNumber}`);
+    
+    // *** 5. ВЫЧИСЛЯЕМ НОМЕР НЕДЕЛИ ШАБЛОНА С УЧЕТОМ ЧЕРЕДОВАНИЯ ***
+    let templateWeekNumber: number;
+    
+    switch (numberOfWeekTemplates) {
+      case 1:
+        templateWeekNumber = 1;
+        console.log(`[CommonFillGeneration] Single week template: templateWeekNumber=1`);
+        break;
+      case 2:
+        templateWeekNumber = (calendarWeekNumber - 1) % 2 + 1;
+        console.log(`[CommonFillGeneration] Two week alternating: week ${calendarWeekNumber} → template ${templateWeekNumber}`);
+        break;
+      case 3:
+        templateWeekNumber = (calendarWeekNumber - 1) % 3 + 1;
+        console.log(`[CommonFillGeneration] Three week cycle: week ${calendarWeekNumber} → template ${templateWeekNumber}`);
+        break;
+      case 4:
+        templateWeekNumber = Math.min(calendarWeekNumber, 4);
+        console.log(`[CommonFillGeneration] Four week cycle: week ${calendarWeekNumber} → template ${templateWeekNumber}`);
+        break;
+      default:
+        templateWeekNumber = (calendarWeekNumber - 1) % numberOfWeekTemplates + 1;
+        console.log(`[CommonFillGeneration] Custom ${numberOfWeekTemplates} week cycle: week ${calendarWeekNumber} → template ${templateWeekNumber}`);
+        break;
+    }
+    
+    // *** 6. ФИНАЛЬНАЯ ПРОВЕРКА И ЛОГИРОВАНИЕ ***
+    console.log(`[CommonFillGeneration] *** ИСПРАВЛЕННЫЙ РЕЗУЛЬТАТ ДЛЯ ${date.toISOString()} ***`);
+    console.log(`[CommonFillGeneration] - Calendar week: ${calendarWeekNumber}`);
+    console.log(`[CommonFillGeneration] - Template week: ${templateWeekNumber}`);
+    console.log(`[CommonFillGeneration] - SharePoint day number: ${dayNumber}`);
+    console.log(`[CommonFillGeneration] - Day name: ${convertedDayName}`);
+    console.log(`[CommonFillGeneration] - Verification: ${date.toLocaleDateString('en-US', { weekday: 'long' })}`);
+    
+    // *** ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА КОРРЕКТНОСТИ ***
+    const expectedDayNameFromJS = date.toLocaleDateString('en-US', { weekday: 'long' });
+    if (convertedDayName !== expectedDayNameFromJS) {
+      console.error(`[CommonFillGeneration] *** КРИТИЧЕСКАЯ ОШИБКА *** Got: ${convertedDayName}, Expected: ${expectedDayNameFromJS}`);
+    } else {
+      console.log(`[CommonFillGeneration] ✅ День недели ОКОНЧАТЕЛЬНО ИСПРАВЛЕН: ${convertedDayName}`);
+    }
+    
+    return { 
+      calendarWeekNumber, 
+      templateWeekNumber, 
+      dayNumber 
+    };
   }
-  
-  console.log(`[CommonFillGeneration] *** ИСПРАВЛЕННОЕ ПРЕОБРАЗОВАНИЕ ***`);
-  console.log(`[CommonFillGeneration] JavaScript day ${jsDay} (${this.getJSDayName(jsDay)}) → SharePoint day ${dayNumber}`);
-  
-  // *** 3. ПРОВЕРЯЕМ ПРАВИЛЬНОСТЬ ПРЕОБРАЗОВАНИЯ ***
-  const expectedDayName = this.getJSDayName(jsDay);
-  const convertedDayName = this.getSharePointDayName(dayNumber);
-  
-  if (expectedDayName !== convertedDayName) {
-    console.error(`[CommonFillGeneration] *** КРИТИЧЕСКАЯ ОШИБКА ПРЕОБРАЗОВАНИЯ ***`);
-    console.error(`[CommonFillGeneration] Ожидалось: ${expectedDayName}, получено: ${convertedDayName}`);
-    console.error(`[CommonFillGeneration] JS day: ${jsDay}, SharePoint day: ${dayNumber}`);
-  } else {
-    console.log(`[CommonFillGeneration] ✅ Преобразование дня недели ИСПРАВЛЕНО: ${expectedDayName}`);
-  }
-  
-  // *** 4. ВЫЧИСЛЯЕМ КАЛЕНДАРНУЮ НЕДЕЛЮ МЕСЯЦА С UTC ***
-  const dayOfMonth = date.getUTCDate();
-  const firstDayOfMonth = new Date(Date.UTC(startOfMonth.getUTCFullYear(), startOfMonth.getUTCMonth(), 1, 0, 0, 0, 0));
-  const firstDayJS = firstDayOfMonth.getUTCDay(); // JavaScript день недели первого дня месяца в UTC
-  
-  console.log(`[CommonFillGeneration] Month calculation: dayOfMonth=${dayOfMonth}, firstDayJS=${firstDayJS}`);
-  
-  // *** ИСПРАВЛЕННАЯ ЛОГИКА РАСЧЕТА НЕДЕЛЬ ***
-  // dayOfStartWeek влияет ТОЛЬКО на расчет номера недели, НЕ на номер дня!
-  let adjustedFirstDay: number;
-  
-  if (dayOfStartWeek === 2) {
-    // Понедельник = начало недели для РАСЧЕТА НОМЕРА НЕДЕЛИ
-    adjustedFirstDay = firstDayJS === 0 ? 6 : firstDayJS - 1; // Sunday=6, Monday=0, Tuesday=1, etc.
-  } else if (dayOfStartWeek === 7) {
-    // Суббота = начало недели для РАСЧЕТА НОМЕРА НЕДЕЛИ
-    adjustedFirstDay = (firstDayJS + 1) % 7; // Saturday=0, Sunday=1, Monday=2, etc.
-  } else {
-    // Воскресенье = начало недели для РАСЧЕТА НОМЕРА НЕДЕЛИ (стандартная JS логика)
-    adjustedFirstDay = firstDayJS;
-  }
-  
-  const calendarWeekNumber = Math.floor((dayOfMonth - 1 + adjustedFirstDay) / 7) + 1;
-  
-  console.log(`[CommonFillGeneration] Week calculation: adjustedFirstDay=${adjustedFirstDay} → calendarWeekNumber=${calendarWeekNumber}`);
-  
-  // *** 5. ВЫЧИСЛЯЕМ НОМЕР НЕДЕЛИ ШАБЛОНА С УЧЕТОМ ЧЕРЕДОВАНИЯ ***
-  let templateWeekNumber: number;
-  
-  switch (numberOfWeekTemplates) {
-    case 1:
-      templateWeekNumber = 1;
-      console.log(`[CommonFillGeneration] Single week template: templateWeekNumber=1`);
-      break;
-    case 2:
-      templateWeekNumber = (calendarWeekNumber - 1) % 2 + 1;
-      console.log(`[CommonFillGeneration] Two week alternating: week ${calendarWeekNumber} → template ${templateWeekNumber}`);
-      break;
-    case 3:
-      templateWeekNumber = (calendarWeekNumber - 1) % 3 + 1;
-      console.log(`[CommonFillGeneration] Three week cycle: week ${calendarWeekNumber} → template ${templateWeekNumber}`);
-      break;
-    case 4:
-      templateWeekNumber = Math.min(calendarWeekNumber, 4);
-      console.log(`[CommonFillGeneration] Four week cycle: week ${calendarWeekNumber} → template ${templateWeekNumber}`);
-      break;
-    default:
-      templateWeekNumber = (calendarWeekNumber - 1) % numberOfWeekTemplates + 1;
-      console.log(`[CommonFillGeneration] Custom ${numberOfWeekTemplates} week cycle: week ${calendarWeekNumber} → template ${templateWeekNumber}`);
-      break;
-  }
-  
-  // *** 6. ФИНАЛЬНАЯ ПРОВЕРКА И ЛОГИРОВАНИЕ ***
-  console.log(`[CommonFillGeneration] *** ИСПРАВЛЕННЫЙ РЕЗУЛЬТАТ ДЛЯ ${date.toISOString()} ***`);
-  console.log(`[CommonFillGeneration] - Calendar week: ${calendarWeekNumber}`);
-  console.log(`[CommonFillGeneration] - Template week: ${templateWeekNumber}`);
-  console.log(`[CommonFillGeneration] - SharePoint day number: ${dayNumber}`);
-  console.log(`[CommonFillGeneration] - Day name: ${convertedDayName}`);
-  console.log(`[CommonFillGeneration] - Verification: ${date.toLocaleDateString('en-US', { weekday: 'long' })}`);
-  
-  // *** ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА КОРРЕКТНОСТИ ***
-  const expectedDayNameFromJS = date.toLocaleDateString('en-US', { weekday: 'long' });
-  if (convertedDayName !== expectedDayNameFromJS) {
-    console.error(`[CommonFillGeneration] *** КРИТИЧЕСКАЯ ОШИБКА *** Got: ${convertedDayName}, Expected: ${expectedDayNameFromJS}`);
-  } else {
-    console.log(`[CommonFillGeneration] ✅ День недели ОКОНЧАТЕЛЬНО ИСПРАВЛЕН: ${convertedDayName}`);
-  }
-  
-  return { 
-    calendarWeekNumber, 
-    templateWeekNumber, 
-    dayNumber 
-  };
-}
 
-/**
- * *** ИСПРАВЛЕННЫЙ МЕТОД: Получает название дня из SharePoint номера ***
- */
-private getSharePointDayName(dayNumber: number): string {
-  // *** ИСПРАВЛЕНО: SharePoint всегда использует одинаковую нумерацию в шаблонах ***
-  // 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday, 7=Sunday
-  const sharePointNames = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  return sharePointNames[dayNumber] || 'Unknown';
-}
   /**
    * *** ПОЛНОСТЬЮ ПЕРЕПИСАННЫЙ МЕТОД: Генерирует записи с правильной логикой чередования недель и UTC ***
-   * ИСПРАВЛЕНО: Теперь использует UTC для всех дат и async/await для timezone adjustment
+   * ИСПРАВЛЕНО: Теперь использует Schedule Tab форматирование и async/await для timezone adjustment
    */
   public async generateScheduleRecords(
     params: IFillParams,
@@ -834,7 +785,8 @@ private getSharePointDayName(dayNumber: number): string {
     leaves: ILeaveDay[],
     weeklyTemplates: IScheduleTemplate[]
   ): Promise<Partial<IStaffRecord>[]> {
-    console.log(`[CommonFillGeneration] Generating schedule records with CORRECTED UTC logic and ALL shifts for ${params.staffMember.name}`);
+    console.log(`[CommonFillGeneration] *** GENERATING WITH SCHEDULE TAB APPROACH ***`);
+    console.log(`[CommonFillGeneration] Generating schedule records with SCHEDULE TAB formatting for ${params.staffMember.name}`);
 
     // *** ИСПРАВЛЕННЫЙ РАСЧЕТ ПЕРИОДА МЕСЯЦА С UTC ***
     const startOfMonth = new Date(Date.UTC(
@@ -851,7 +803,7 @@ private getSharePointDayName(dayNumber: number): string {
       23, 59, 59, 999
     ));
 
-    console.log(`[CommonFillGeneration] CORRECTED UTC Month period: ${startOfMonth.toISOString()} - ${endOfMonth.toISOString()}`);
+    console.log(`[CommonFillGeneration] SCHEDULE TAB UTC Month period: ${startOfMonth.toISOString()} - ${endOfMonth.toISOString()}`);
 
     const contractStartDate = contract.startDate;
     const contractFinishDate = contract.finishDate;
@@ -881,11 +833,11 @@ private getSharePointDayName(dayNumber: number): string {
       lastDay = endOfMonth;
     }
 
-    console.log(`[CommonFillGeneration] CORRECTED UTC Generation period: ${firstDay.toISOString()} - ${lastDay.toISOString()}`);
+    console.log(`[CommonFillGeneration] SCHEDULE TAB UTC Generation period: ${firstDay.toISOString()} - ${lastDay.toISOString()}`);
 
     // *** ПРОВЕРЯЕМ КОЛИЧЕСТВО ДНЕЙ ***
     const totalDays = Math.floor((lastDay.getTime() - firstDay.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-    console.log(`[CommonFillGeneration] CORRECTED Total days in period: ${totalDays}`);
+    console.log(`[CommonFillGeneration] SCHEDULE TAB Total days in period: ${totalDays}`);
 
     this.initializeGenerationAnalysis(firstDay, lastDay);
 
@@ -990,7 +942,8 @@ private getSharePointDayName(dayNumber: number): string {
     // *** ЗАВЕРШАЕМ АНАЛИЗ ГЕНЕРАЦИИ ***
     this.finalizeGenerationAnalysis(records.length, holidays.length, leaves.length);
 
-    console.log(`[CommonFillGeneration] CORRECTED: Generated ${records.length} schedule records (including ALL shifts) with proper UTC week chaining logic`);
+    console.log(`[CommonFillGeneration] *** SCHEDULE TAB APPROACH COMPLETED ***`);
+    console.log(`[CommonFillGeneration] Generated ${records.length} schedule records with SCHEDULE TAB formatting and proper UTC timezone handling`);
     return records;
   }
 
@@ -1065,13 +1018,14 @@ private getSharePointDayName(dayNumber: number): string {
     const endTime = this.parseTimeString(template.endTime);
     const lunchTime = template.lunchMinutes;
 
+    console.log(`[CommonFillGeneration] *** USING SCHEDULE TAB TIME CREATION ***`);
     console.log(`[CommonFillGeneration] Creating record for ${date.toISOString()}: Shift ${template.NumberOfShift}, ${template.startTime}-${template.endTime}, lunch: ${lunchTime}min, holiday: ${isHoliday}, leave: ${isLeave}`);
 
     // *** ИСПРАВЛЕНО: Используем async createDateWithTime с timezone adjustment ***
     const shiftDate1 = await this.createDateWithTime(date, startTime);
     const shiftDate2 = await this.createDateWithTime(date, endTime);
 
-    console.log(`[CommonFillGeneration] *** UTC SHIFT TIMES CREATED ***`);
+    console.log(`[CommonFillGeneration] *** SCHEDULE TAB UTC SHIFT TIMES CREATED ***`);
     console.log(`[CommonFillGeneration] ShiftDate1 (start): ${shiftDate1.toISOString()}`);
     console.log(`[CommonFillGeneration] ShiftDate2 (end): ${shiftDate2.toISOString()}`);
 
@@ -1225,7 +1179,6 @@ private getSharePointDayName(dayNumber: number): string {
       typeOfLeave: leave.typeOfLeave.toString(),
       title: leave.title || ''
     }));
-    
     console.log(`[CommonFillGeneration] Created leave periods cache with ${leavePeriods.length} entries from ${leaves.length} total`);
     return leavePeriods;
   }
@@ -1234,7 +1187,8 @@ private getSharePointDayName(dayNumber: number): string {
    * *** ОБНОВЛЕННЫЙ МЕТОД: Сохраняет сгенерированные записи в SharePoint ***
    */
   public async saveGeneratedRecords(records: Partial<IStaffRecord>[], params: IFillParams): Promise<number> {
-    console.log(`[CommonFillGeneration] Saving ${records.length} generated records with UTC timezone handling`);
+    console.log(`[CommonFillGeneration] *** SAVING WITH SCHEDULE TAB APPROACH ***`);
+    console.log(`[CommonFillGeneration] Saving ${records.length} generated records with SCHEDULE TAB UTC timezone handling`);
 
     let successCount = 0;
     const errors: string[] = [];
@@ -1258,7 +1212,7 @@ private getSharePointDayName(dayNumber: number): string {
         
         // *** ЛОГИРУЕМ UTC ВРЕМЕНА ПЕРЕД СОХРАНЕНИЕМ ***
         if (record.ShiftDate1 && record.ShiftDate2) {
-          console.log(`[CommonFillGeneration] *** UTC TIMES BEING SAVED ***`);
+          console.log(`[CommonFillGeneration] *** SCHEDULE TAB UTC TIMES BEING SAVED ***`);
           console.log(`[CommonFillGeneration] Date: ${record.Date?.toISOString()}`);
           console.log(`[CommonFillGeneration] ShiftDate1: ${record.ShiftDate1.toISOString()}`);
           console.log(`[CommonFillGeneration] ShiftDate2: ${record.ShiftDate2.toISOString()}`);
@@ -1285,7 +1239,7 @@ private getSharePointDayName(dayNumber: number): string {
           }
           
           if (record.ShiftDate1 && record.ShiftDate2) {
-            console.log(`[CommonFillGeneration] ✓ Record ${newRecordId} saved with UTC times - no timezone shift should occur`);
+            console.log(`[CommonFillGeneration] ✓ Record ${newRecordId} saved with SCHEDULE TAB UTC times - no timezone shift should occur`);
           }
         } else {
           const errorMsg = `Failed to create record for ${record.Date?.toISOString()}: No ID returned`;
@@ -1303,7 +1257,8 @@ private getSharePointDayName(dayNumber: number): string {
       }
     }
 
-    console.log(`[CommonFillGeneration] Save operation completed with UTC handling: ${successCount}/${records.length} successful`);
+    console.log(`[CommonFillGeneration] *** SCHEDULE TAB SAVE COMPLETED ***`);
+    console.log(`[CommonFillGeneration] Save operation completed with SCHEDULE TAB handling: ${successCount}/${records.length} successful`);
     
     if (errors.length > 0) {
       console.error(`[CommonFillGeneration] Save errors (${errors.length}):`, errors);

@@ -25,18 +25,27 @@ export class SharePointTimeZoneUtils {
    * @param remoteSiteService Сервис для работы с SharePoint
    * @returns Promise с информацией о часовом поясе
    */
-  public static async getTimeZoneInfo(
-    remoteSiteService: RemoteSiteService
-  ): Promise<ISharePointTimeZoneInfo> {
-    if (!this._timeZoneInfo) {
-      this.logInfo('Fetching SharePoint site timezone information...');
-      this._timeZoneInfo = await remoteSiteService.getTimeZoneInfo();
-      this.logInfo(`Cached timezone: ${this._timeZoneInfo.description}`);
-      this.logInfo(`Bias components: Total=${this._timeZoneInfo.bias}, Daylight=${this._timeZoneInfo.daylightBias}, Standard=${this._timeZoneInfo.standardBias}`);
-    }
-    return this._timeZoneInfo;
-  }
-
+ public static async getTimeZoneInfo(
+ remoteSiteService: RemoteSiteService
+): Promise<ISharePointTimeZoneInfo> {
+ if (!this._timeZoneInfo) {
+   this.logInfo('Fetching SharePoint site timezone information...');
+   this._timeZoneInfo = await remoteSiteService.getTimeZoneInfo();
+   
+   // *** ДОБАВЛЕННОЕ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ***
+   this.logInfo(`*** RAW TIMEZONE DATA FROM SHAREPOINT ***`);
+   this.logInfo(`Description: ${this._timeZoneInfo.description}`);
+   this.logInfo(`ID: ${this._timeZoneInfo.id}`);
+   this.logInfo(`Raw bias: ${this._timeZoneInfo.bias}`);
+   this.logInfo(`Raw daylightBias: ${this._timeZoneInfo.daylightBias}`);
+   this.logInfo(`Raw standardBias: ${this._timeZoneInfo.standardBias}`);
+   this.logInfo(`*** END RAW DATA ***`);
+   
+   this.logInfo(`Cached timezone: ${this._timeZoneInfo.description}`);
+   this.logInfo(`Bias components: Total=${this._timeZoneInfo.bias}, Daylight=${this._timeZoneInfo.daylightBias}, Standard=${this._timeZoneInfo.standardBias}`);
+ }
+ return this._timeZoneInfo;
+}
   /**
    * Сбрасывает кэш информации о часовом поясе
    * Полезно для тестирования или при смене сайта
