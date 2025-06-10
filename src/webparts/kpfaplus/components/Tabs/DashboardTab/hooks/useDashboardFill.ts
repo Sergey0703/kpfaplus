@@ -134,6 +134,7 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
   }, [context, staffMembers, selectedDate, currentUserId, managingGroupId]);
 
   // *** GET ACTIVE CONTRACT FOR STAFF ***
+ // *** ИСПРАВЛЕНО: GET ACTIVE CONTRACT FOR STAFF WITH UTC BOUNDARIES ***
   const getActiveContractForStaff = useCallback(async (staffMember: IStaffMember): Promise<IContract | undefined> => {
     if (!context) return undefined;
 
@@ -148,28 +149,81 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
       const activeContracts = contracts.filter((contract: IContract) => {
         if (contract.isDeleted) return false;
         
-        // Check if contract is active in selected month
-        const year = selectedDate.getFullYear();
-        const month = selectedDate.getMonth();
-        const firstDayOfMonth = new Date(year, month, 1);
-        const lastDayOfMonth = new Date(year, month + 1, 0);
+        // *** ИСПРАВЛЕНО: Check if contract is active in selected month using UTC ***
+        const year = selectedDate.getUTCFullYear();
+        const month = selectedDate.getUTCMonth();
+        
+        // *** ИСПРАВЛЕНО: Create month boundaries using UTC methods ***
+        const firstDayOfMonth = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
+        const lastDayOfMonth = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
 
-        if (!contract.startDate) return false;
-        
-        const startDate = new Date(contract.startDate);
-        if (startDate > lastDayOfMonth) return false;
-        
-        if (contract.finishDate) {
-          const finishDate = new Date(contract.finishDate);
-          if (finishDate < firstDayOfMonth) return false;
+        console.log(`[useDashboardFill] *** UTC CONTRACT VALIDATION FOR ${staffMember.name} ***`);
+        console.log(`[useDashboardFill] Selected date: ${selectedDate.toISOString()}`);
+        console.log(`[useDashboardFill] Month boundaries (UTC): ${firstDayOfMonth.toISOString()} - ${lastDayOfMonth.toISOString()}`);
+        console.log(`[useDashboardFill] Contract ${contract.id} dates: ${contract.startDate ? new Date(contract.startDate).toISOString() : 'no start'} - ${contract.finishDate ? new Date(contract.finishDate).toISOString() : 'no end'}`);
+
+        if (!contract.startDate) {
+          console.log(`[useDashboardFill] Contract ${contract.id} has no start date - excluding`);
+          return false;
         }
         
-        return true;
+        // *** ИСПРАВЛЕНО: Normalize contract start date to UTC ***
+        const startDate = new Date(contract.startDate);
+        const startDateUTC = new Date(Date.UTC(
+          startDate.getUTCFullYear(),
+          startDate.getUTCMonth(),
+          startDate.getUTCDate(),
+          0, 0, 0, 0
+        ));
+        
+        // Check if contract starts after the month ends
+        if (startDateUTC > lastDayOfMonth) {
+          console.log(`[useDashboardFill] Contract ${contract.id} starts after selected month - excluding`);
+          console.log(`[useDashboardFill] Contract start (UTC): ${startDateUTC.toISOString()}, Month end (UTC): ${lastDayOfMonth.toISOString()}`);
+          return false;
+        }
+        
+        // If no finish date, contract is active (open-ended)
+        if (!contract.finishDate) {
+          console.log(`[useDashboardFill] Contract ${contract.id} is open-ended and starts before/in selected month - including`);
+          return true;
+        }
+
+        // *** ИСПРАВЛЕНО: Normalize contract finish date to UTC ***
+        const finishDate = new Date(contract.finishDate);
+        const finishDateUTC = new Date(Date.UTC(
+          finishDate.getUTCFullYear(),
+          finishDate.getUTCMonth(),
+          finishDate.getUTCDate(),
+          23, 59, 59, 999
+        ));
+        
+        // Check if contract ends before the month starts
+        const isActive = finishDateUTC >= firstDayOfMonth;
+        
+        console.log(`[useDashboardFill] Contract ${contract.id} UTC validation result:`, {
+          contractStart: startDateUTC.toISOString(),
+          contractEnd: finishDateUTC.toISOString(),
+          monthStart: firstDayOfMonth.toISOString(),
+          monthEnd: lastDayOfMonth.toISOString(),
+          isActive: isActive
+        });
+        
+        return isActive;
       });
 
-      return activeContracts.length > 0 ? activeContracts[0] : undefined;
+      const selectedContract = activeContracts.length > 0 ? activeContracts[0] : undefined;
+      
+      console.log(`[useDashboardFill] Contract selection result for ${staffMember.name}:`, {
+        totalContracts: contracts.length,
+        activeContracts: activeContracts.length,
+        selectedContract: selectedContract ? `${selectedContract.id} - ${selectedContract.template || 'No name'}` : 'None',
+        period: `${selectedDate.toISOString()} (UTC)`
+      });
+
+      return selectedContract;
     } catch (error) {
-      console.error('[useDashboardFill] Error getting active contract:', error);
+      console.error('[useDashboardFill] Error getting active contract with UTC validation:', error);
       return undefined;
     }
   }, [context, currentUserId, managingGroupId, selectedDate]);

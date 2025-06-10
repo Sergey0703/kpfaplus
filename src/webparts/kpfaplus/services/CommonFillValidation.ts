@@ -1,4 +1,5 @@
 // src/webparts/kpfaplus/services/CommonFillValidation.ts
+// ИСПРАВЛЕНО: Добавлена поддержка UTC для границ месяца и проверки записей
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { IStaffRecord, StaffRecordsService } from './StaffRecordsService';
 import { IContract } from '../models/IContract';
@@ -50,20 +51,35 @@ export class CommonFillValidation {
 
   constructor(context: WebPartContext) {
     this.staffRecordsService = StaffRecordsService.getInstance(context);
+    console.log('[CommonFillValidation] Service initialized with UTC support for month boundaries');
   }
 
   /**
-   * Проверяет существующие записи для сотрудника в указанном периоде
+   * *** ИСПРАВЛЕНО: Проверяет существующие записи с UTC границами месяца ***
    */
   public async checkExistingRecords(params: IFillParams): Promise<IExistingRecordsCheck> {
-    console.log('[CommonFillValidation] Checking existing records for staff:', params.staffMember.name);
+    console.log('[CommonFillValidation] Checking existing records with UTC boundaries for staff:', params.staffMember.name);
 
     try {
-      // Определяем период (весь месяц выбранной даты)
-      const startOfMonth = new Date(params.selectedDate.getFullYear(), params.selectedDate.getMonth(), 1);
-      const endOfMonth = new Date(params.selectedDate.getFullYear(), params.selectedDate.getMonth() + 1, 0);
+      // *** ИСПРАВЛЕНО: Определяем период используя UTC методы ***
+      const startOfMonth = new Date(Date.UTC(
+        params.selectedDate.getUTCFullYear(), 
+        params.selectedDate.getUTCMonth(), 
+        1, 
+        0, 0, 0, 0
+      ));
+      
+      const endOfMonth = new Date(Date.UTC(
+        params.selectedDate.getUTCFullYear(), 
+        params.selectedDate.getUTCMonth() + 1, 
+        0, 
+        23, 59, 59, 999
+      ));
 
-      console.log(`[CommonFillValidation] Checking period: ${startOfMonth.toLocaleDateString()} - ${endOfMonth.toLocaleDateString()}`);
+      console.log(`[CommonFillValidation] *** UTC MONTH BOUNDARIES ***`);
+      console.log(`[CommonFillValidation] Start of month (UTC): ${startOfMonth.toISOString()}`);
+      console.log(`[CommonFillValidation] End of month (UTC): ${endOfMonth.toISOString()}`);
+      console.log(`[CommonFillValidation] Selected date: ${params.selectedDate.toISOString()}`);
 
       if (!params.staffMember.employeeId) {
         console.warn('[CommonFillValidation] Staff member has no employeeId');
@@ -81,12 +97,20 @@ export class CommonFillValidation {
       const groupId = params.managingGroupId || '0';
       
       const queryParams = {
-        startDate: startOfMonth,
-        endDate: endOfMonth,
+        startDate: startOfMonth,  // *** UTC дата ***
+        endDate: endOfMonth,      // *** UTC дата ***
         currentUserID: managerId,
         staffGroupID: groupId,
         employeeID: employeeId,
       };
+
+      console.log('[CommonFillValidation] Query params with UTC boundaries:', {
+        startDate: queryParams.startDate.toISOString(),
+        endDate: queryParams.endDate.toISOString(),
+        employeeID: queryParams.employeeID,
+        managerId: queryParams.currentUserID,
+        groupId: queryParams.staffGroupID
+      });
 
       const result = await this.staffRecordsService.getAllStaffRecordsForTimetable(queryParams);
       
@@ -102,7 +126,7 @@ export class CommonFillValidation {
         return notDeleted;
       });
 
-      console.log(`[CommonFillValidation] Found ${allRecords.length} total records, ${existingRecords.length} active (not deleted)`);
+      console.log(`[CommonFillValidation] Found ${allRecords.length} total records, ${existingRecords.length} active (not deleted) with UTC boundaries`);
 
       // Проверяем, есть ли обработанные записи
       const processedRecords = existingRecords.filter((record: IStaffRecord) => {
@@ -122,7 +146,7 @@ export class CommonFillValidation {
         existingRecords: existingRecords
       };
 
-      console.log('[CommonFillValidation] Existing records check result:', {
+      console.log('[CommonFillValidation] Existing records check result with UTC boundaries:', {
         hasExisting: result_check.hasExistingRecords,
         totalActive: result_check.recordsCount,
         hasProcessed: result_check.hasProcessedRecords,
@@ -132,7 +156,7 @@ export class CommonFillValidation {
       return result_check;
 
     } catch (error) {
-      console.error('[CommonFillValidation] Error checking existing records:', error);
+      console.error('[CommonFillValidation] Error checking existing records with UTC boundaries:', error);
       throw new Error(`Failed to check existing records: ${error}`);
     }
   }
@@ -141,17 +165,17 @@ export class CommonFillValidation {
    * *** ОСНОВНОЙ МЕТОД: Реализует логику Schedule tab для проверки записей и определения диалога ***
    */
   public async checkExistingRecordsWithScheduleLogic(params: IFillParams, contractId: string): Promise<IScheduleLogicResult> {
-    console.log('[CommonFillValidation] Implementing Schedule tab logic for:', {
+    console.log('[CommonFillValidation] Implementing Schedule tab logic with UTC support for:', {
       staffMember: params.staffMember.name,
       contractId,
-      period: params.selectedDate.toLocaleDateString()
+      period: params.selectedDate.toISOString() // *** UTC дата ***
     });
 
     try {
       // *** ШАГ 1: ПОЛУЧЕНИЕ СУЩЕСТВУЮЩИХ ЗАПИСЕЙ С ФИЛЬТРАЦИЕЙ КАК В SCHEDULE TAB ***
       const existingRecords = await this.getExistingRecordsWithStatus(params, contractId);
       
-      console.log(`[CommonFillValidation] Schedule logic found ${existingRecords.length} existing records`);
+      console.log(`[CommonFillValidation] Schedule logic found ${existingRecords.length} existing records with UTC boundaries`);
 
       // *** ШАГ 2: АНАЛИЗ СТАТУСА ЗАПИСЕЙ ***
       const processingStatus = this.checkRecordsProcessingStatus(existingRecords);
@@ -172,7 +196,7 @@ export class CommonFillValidation {
       };
 
     } catch (error) {
-      console.error('[CommonFillValidation] Error in Schedule logic:', error);
+      console.error('[CommonFillValidation] Error in Schedule logic with UTC support:', error);
       
       // Возвращаем ошибку как блокирующий диалог
       return {
@@ -190,20 +214,33 @@ export class CommonFillValidation {
   }
 
   /**
-   * *** НОВЫЙ МЕТОД: Получает существующие записи с тем же фильтром что и Schedule tab ***
+   * *** ИСПРАВЛЕНО: Получает существующие записи с UTC фильтром как в Schedule tab ***
    */
   private async getExistingRecordsWithStatus(params: IFillParams, contractId: string): Promise<IStaffRecord[]> {
-    console.log('[CommonFillValidation] Getting existing records with Schedule tab filtering logic');
+    console.log('[CommonFillValidation] Getting existing records with Schedule tab filtering logic and UTC boundaries');
 
-    // Определяем период с учетом контракта (как в Schedule tab)
-    const startOfMonth = new Date(params.selectedDate.getFullYear(), params.selectedDate.getMonth(), 1);
-    const endOfMonth = new Date(params.selectedDate.getFullYear(), params.selectedDate.getMonth() + 1, 0);
+    // *** ИСПРАВЛЕНО: Определяем период с учетом контракта используя UTC ***
+    const startOfMonth = new Date(Date.UTC(
+      params.selectedDate.getUTCFullYear(), 
+      params.selectedDate.getUTCMonth(), 
+      1, 
+      0, 0, 0, 0
+    ));
+    
+    const endOfMonth = new Date(Date.UTC(
+      params.selectedDate.getUTCFullYear(), 
+      params.selectedDate.getUTCMonth() + 1, 
+      0, 
+      23, 59, 59, 999
+    ));
 
     // Корректируем период с учетом дат действия контракта (если нужно)
     const firstDay = startOfMonth;
     const lastDay = endOfMonth;
 
-    console.log(`[CommonFillValidation] Schedule tab filtering period: ${firstDay.toLocaleDateString()} - ${lastDay.toLocaleDateString()}`);
+    console.log(`[CommonFillValidation] *** UTC SCHEDULE TAB FILTERING PERIOD ***`);
+    console.log(`[CommonFillValidation] First day (UTC): ${firstDay.toISOString()}`);
+    console.log(`[CommonFillValidation] Last day (UTC): ${lastDay.toISOString()}`);
 
     if (!params.staffMember.employeeId) {
       console.warn('[CommonFillValidation] No employee ID for Schedule tab filtering');
@@ -214,18 +251,18 @@ export class CommonFillValidation {
     const managerId = params.currentUserId || '0';
     const groupId = params.managingGroupId || '0';
 
-    console.log('[CommonFillValidation] Schedule tab filter criteria:', {
+    console.log('[CommonFillValidation] Schedule tab filter criteria with UTC:', {
       employeeId,
       managerId,
       groupId,
       contractId,
-      period: `${firstDay.toLocaleDateString()} - ${lastDay.toLocaleDateString()}`
+      period: `${firstDay.toISOString()} - ${lastDay.toISOString()}`
     });
 
-    // Используем тот же запрос что и Schedule tab
+    // Используем тот же запрос что и Schedule tab с UTC границами
     const queryParams = {
-      startDate: firstDay,
-      endDate: lastDay,
+      startDate: firstDay,  // *** UTC дата ***
+      endDate: lastDay,     // *** UTC дата ***
       currentUserID: managerId,
       staffGroupID: groupId,
       employeeID: employeeId
@@ -254,7 +291,7 @@ export class CommonFillValidation {
       return true;
     });
 
-    console.log(`[CommonFillValidation] Schedule tab filtering result: ${result.records.length} total → ${filteredRecords.length} filtered`);
+    console.log(`[CommonFillValidation] Schedule tab filtering result with UTC: ${result.records.length} total → ${filteredRecords.length} filtered`);
 
     return filteredRecords;
   }
@@ -342,7 +379,7 @@ export class CommonFillValidation {
   }
 
   /**
-   * Проверяет, активен ли контракт в указанном месяце
+   * *** ИСПРАВЛЕНО: Проверяет активность контракта в указанном месяце с UTC ***
    */
   public isContractActiveInMonth(contract: IContract, date: Date): boolean {
     if (!contract.startDate) {
@@ -350,20 +387,30 @@ export class CommonFillValidation {
       return false;
     }
 
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const firstDayOfMonth = new Date(year, month, 1);
-    const lastDayOfMonth = new Date(year, month + 1, 0);
+    // *** ИСПРАВЛЕНО: Используем UTC методы для создания границ месяца ***
+    const year = date.getUTCFullYear();
+    const month = date.getUTCMonth();
+    
+    const firstDayOfMonth = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
+    const lastDayOfMonth = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
 
-    firstDayOfMonth.setHours(0, 0, 0, 0);
-    lastDayOfMonth.setHours(23, 59, 59, 999);
+    console.log(`[CommonFillValidation] *** UTC CONTRACT VALIDATION ***`);
+    console.log(`[CommonFillValidation] Month boundaries (UTC): ${firstDayOfMonth.toISOString()} - ${lastDayOfMonth.toISOString()}`);
+    console.log(`[CommonFillValidation] Contract ${contract.id} dates: ${contract.startDate ? new Date(contract.startDate).toISOString() : 'no start'} - ${contract.finishDate ? new Date(contract.finishDate).toISOString() : 'no end'}`);
 
+    // *** ИСПРАВЛЕНО: Нормализуем дату начала контракта к UTC ***
     const startDate = new Date(contract.startDate);
-    startDate.setHours(0, 0, 0, 0);
+    const startDateUTC = new Date(Date.UTC(
+      startDate.getUTCFullYear(),
+      startDate.getUTCMonth(),
+      startDate.getUTCDate(),
+      0, 0, 0, 0
+    ));
 
     // Проверяем дату начала контракта
-    if (startDate > lastDayOfMonth) {
+    if (startDateUTC > lastDayOfMonth) {
       console.log(`[CommonFillValidation] Contract ${contract.id} starts after selected month - excluding`);
+      console.log(`[CommonFillValidation] Contract start (UTC): ${startDateUTC.toISOString()}, Month end (UTC): ${lastDayOfMonth.toISOString()}`);
       return false;
     }
 
@@ -373,12 +420,24 @@ export class CommonFillValidation {
       return true;
     }
 
+    // *** ИСПРАВЛЕНО: Нормализуем дату окончания контракта к UTC ***
     const finishDate = new Date(contract.finishDate);
-    finishDate.setHours(23, 59, 59, 999);
+    const finishDateUTC = new Date(Date.UTC(
+      finishDate.getUTCFullYear(),
+      finishDate.getUTCMonth(),
+      finishDate.getUTCDate(),
+      23, 59, 59, 999
+    ));
 
     // Проверяем дату окончания контракта
-    const isActive = finishDate >= firstDayOfMonth;
-    console.log(`[CommonFillValidation] Contract ${contract.id} ends ${finishDate.toLocaleDateString()} - ${isActive ? 'including' : 'excluding'}`);
+    const isActive = finishDateUTC >= firstDayOfMonth;
+    console.log(`[CommonFillValidation] Contract ${contract.id} validation result with UTC:`, {
+      contractStart: startDateUTC.toISOString(),
+      contractEnd: finishDateUTC.toISOString(),
+      monthStart: firstDayOfMonth.toISOString(),
+      monthEnd: lastDayOfMonth.toISOString(),
+      isActive: isActive
+    });
     
     return isActive;
   }
@@ -407,6 +466,16 @@ export class CommonFillValidation {
 
     if (!params.context) {
       errors.push('Missing WebPart context');
+    }
+
+    // *** НОВАЯ ВАЛИДАЦИЯ: Проверяем что дата может быть конвертирована в UTC ***
+    try {
+      if (params.selectedDate) {
+        const utcTest = params.selectedDate.toISOString();
+        console.log(`[CommonFillValidation] Date UTC validation passed: ${utcTest}`);
+      }
+    } catch (error) {
+      errors.push('Selected date cannot be converted to UTC format');
     }
 
     return {

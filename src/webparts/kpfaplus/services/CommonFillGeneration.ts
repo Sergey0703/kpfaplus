@@ -1,10 +1,12 @@
 // src/webparts/kpfaplus/services/CommonFillGeneration.ts
-// ИСПРАВЛЕНО: Заменены any на конкретные типы и исправлена логика цикла
+// ИСПРАВЛЕНО: Добавлена правильная обработка UTC времени как в Schedule tab
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { IStaffRecord, StaffRecordsService } from './StaffRecordsService';
 import { HolidaysService, IHoliday } from './HolidaysService';
 import { DaysOfLeavesService, ILeaveDay } from './DaysOfLeavesService';
 import { WeeklyTimeTableService } from './WeeklyTimeTableService';
+import { RemoteSiteService } from './RemoteSiteService';
+import { SharePointTimeZoneUtils } from '../utils/SharePointTimeZoneUtils';
 import { IContract } from '../models/IContract';
 import { IFillParams } from './CommonFillValidation';
 
@@ -105,6 +107,7 @@ export class CommonFillGeneration {
   private holidaysService: HolidaysService;
   private daysOfLeavesService: DaysOfLeavesService;
   private weeklyTimeTableService: WeeklyTimeTableService;
+  private remoteSiteService: RemoteSiteService; // *** ДОБАВЛЕН RemoteSiteService ***
 
   // *** НОВЫЕ ПОЛЯ ДЛЯ ХРАНЕНИЯ АНАЛИЗА ***
   private contractsAnalysis?: IContractsAnalysis;
@@ -116,6 +119,9 @@ export class CommonFillGeneration {
     this.holidaysService = HolidaysService.getInstance(context);
     this.daysOfLeavesService = DaysOfLeavesService.getInstance(context);
     this.weeklyTimeTableService = new WeeklyTimeTableService(context);
+    this.remoteSiteService = RemoteSiteService.getInstance(context); // *** ИНИЦИАЛИЗАЦИЯ RemoteSiteService ***
+    
+    console.log('[CommonFillGeneration] Service initialized with UTC timezone handling like Schedule tab');
   }
 
   /**
@@ -229,6 +235,56 @@ export class CommonFillGeneration {
   }
 
   /**
+   * *** ИСПРАВЛЕНО: Helper function to create Date object with specified time using UTC + timezone adjustment ***
+   * Копирует логику из Schedule tab (ScheduleTabFillHelpers.createDateWithTime)
+   * 
+   * @param baseDate Base date
+   * @param time Object with hours and minutes (может быть undefined)
+   * @returns Date object with set time in UTC с корректировкой часового пояса
+   */
+  private async createDateWithTime(
+    baseDate: Date, 
+    time?: { hours: string; minutes: string }
+  ): Promise<Date> {
+    const result = new Date(baseDate);
+    
+    if (!time) {
+      result.setUTCHours(0, 0, 0, 0);
+      console.log(`[CommonFillGeneration] No time provided, set to UTC midnight: ${result.toISOString()}`);
+      return result;
+    }
+    
+    const hours = parseInt(time.hours || '0', 10);
+    const minutes = parseInt(time.minutes || '0', 10);
+    
+    if (isNaN(hours) || isNaN(minutes)) {
+      console.warn(`[CommonFillGeneration] Invalid time components: hours="${time.hours}", minutes="${time.minutes}"`);
+      result.setUTCHours(0, 0, 0, 0);
+      console.warn(`[CommonFillGeneration] Set to UTC midnight: ${result.toISOString()}`);
+      return result;
+    }
+    
+    console.log(`[CommonFillGeneration] *** UTC TIMEZONE ADJUSTMENT LIKE SCHEDULE TAB ***`);
+    console.log(`[CommonFillGeneration] Input time from template: ${hours}:${minutes}`);
+    
+    // *** ИСПРАВЛЕНО: Используем SharePointTimeZoneUtils как в Schedule tab ***
+    const adjustedTime = await SharePointTimeZoneUtils.adjustTimeForSharePointTimeZone(
+      hours, 
+      minutes, 
+      this.remoteSiteService, 
+      baseDate
+    );
+    
+    result.setUTCHours(adjustedTime.hours, adjustedTime.minutes, 0, 0);
+    
+    console.log(`[CommonFillGeneration] *** TIMEZONE ADJUSTMENT COMPLETED ***`);
+    console.log(`[CommonFillGeneration] ${hours}:${minutes} → ${adjustedTime.hours}:${adjustedTime.minutes} UTC`);
+    console.log(`[CommonFillGeneration] Final result: ${result.toISOString()}`);
+    
+    return result;
+  }
+
+  /**
    * *** НОВЫЙ МЕТОД: Парсит время из SharePoint формата ***
    */
   private parseTimeFromSharePoint(timeValue: unknown): string | null {
@@ -259,7 +315,6 @@ export class CommonFillGeneration {
       return null;
     }
   }
-
   /**
    * *** НОВЫЙ МЕТОД: Инициализирует пустой анализ шаблонов ***
    */
@@ -317,7 +372,7 @@ export class CommonFillGeneration {
     return dayNames[dayNumber] || 'Unknown';
   }
 
-/**
+  /**
    * *** ПЕРЕПИСАННЫЙ МЕТОД: Загружает шаблоны с правильной клиентской фильтрацией ***
    */
   public async loadWeeklyTemplates(
@@ -611,10 +666,9 @@ export class CommonFillGeneration {
     
     return templatesByWeekAndDay;
   }
-
   /**
-   * *** ПОЛНОСТЬЮ ПЕРЕПИСАННЫЙ МЕТОД: Генерирует записи с правильной логикой чередования недель ***
-   * ИСПРАВЛЕНО: Исправлена логика цикла для устранения lint ошибки
+   * *** ПОЛНОСТЬЮ ПЕРЕПИСАННЫЙ МЕТОД: Генерирует записи с правильной логикой чередования недель и UTC ***
+   * ИСПРАВЛЕНО: Теперь использует UTC для всех дат и async/await для timezone adjustment
    */
   public async generateScheduleRecords(
     params: IFillParams,
@@ -623,27 +677,54 @@ export class CommonFillGeneration {
     leaves: ILeaveDay[],
     weeklyTemplates: IScheduleTemplate[]
   ): Promise<Partial<IStaffRecord>[]> {
-    console.log(`[CommonFillGeneration] Generating schedule records with CORRECTED logic and ALL shifts for ${params.staffMember.name}`);
+    console.log(`[CommonFillGeneration] Generating schedule records with CORRECTED UTC logic and ALL shifts for ${params.staffMember.name}`);
 
-    // *** ИСПРАВЛЕННЫЙ РАСЧЕТ ПЕРИОДА МЕСЯЦА ***
-    const startOfMonth = new Date(params.selectedDate.getFullYear(), params.selectedDate.getMonth(), 1);
-    const endOfMonth = new Date(params.selectedDate.getFullYear(), params.selectedDate.getMonth() + 1, 0);
+    // *** ИСПРАВЛЕННЫЙ РАСЧЕТ ПЕРИОДА МЕСЯЦА С UTC ***
+    const startOfMonth = new Date(Date.UTC(
+      params.selectedDate.getUTCFullYear(), 
+      params.selectedDate.getUTCMonth(), 
+      1, 
+      0, 0, 0, 0
+    ));
+    
+    const endOfMonth = new Date(Date.UTC(
+      params.selectedDate.getUTCFullYear(), 
+      params.selectedDate.getUTCMonth() + 1, 
+      0, 
+      23, 59, 59, 999
+    ));
 
-    console.log(`[CommonFillGeneration] CORRECTED Month period: ${startOfMonth.toLocaleDateString()} - ${endOfMonth.toLocaleDateString()}`);
+    console.log(`[CommonFillGeneration] CORRECTED UTC Month period: ${startOfMonth.toISOString()} - ${endOfMonth.toISOString()}`);
 
     const contractStartDate = contract.startDate;
     const contractFinishDate = contract.finishDate;
 
-    // *** ИСПРАВЛЕННАЯ ЛОГИКА: ИСПОЛЬЗУЕМ ТОЧНЫЕ ГРАНИЦЫ МЕСЯЦА ***
-    const firstDay = contractStartDate && new Date(contractStartDate) > startOfMonth 
-      ? new Date(contractStartDate) 
-      : new Date(startOfMonth);
+    // *** ИСПРАВЛЕННАЯ ЛОГИКА: ИСПОЛЬЗУЕМ ТОЧНЫЕ ГРАНИЦЫ МЕСЯЦА С UTC ***
+    let firstDay: Date;
+    if (contractStartDate && new Date(contractStartDate) > startOfMonth) {
+      firstDay = new Date(Date.UTC(
+        new Date(contractStartDate).getUTCFullYear(),
+        new Date(contractStartDate).getUTCMonth(),
+        new Date(contractStartDate).getUTCDate(),
+        0, 0, 0, 0
+      ));
+    } else {
+      firstDay = startOfMonth;
+    }
 
-    const lastDay = contractFinishDate && new Date(contractFinishDate) < endOfMonth 
-      ? new Date(contractFinishDate) 
-      : new Date(endOfMonth);
+    let lastDay: Date;
+    if (contractFinishDate && new Date(contractFinishDate) < endOfMonth) {
+      lastDay = new Date(Date.UTC(
+        new Date(contractFinishDate).getUTCFullYear(),
+        new Date(contractFinishDate).getUTCMonth(),
+        new Date(contractFinishDate).getUTCDate(),
+        23, 59, 59, 999
+      ));
+    } else {
+      lastDay = endOfMonth;
+    }
 
-    console.log(`[CommonFillGeneration] CORRECTED Generation period: ${firstDay.toLocaleDateString()} - ${lastDay.toLocaleDateString()}`);
+    console.log(`[CommonFillGeneration] CORRECTED UTC Generation period: ${firstDay.toISOString()} - ${lastDay.toISOString()}`);
 
     // *** ПРОВЕРЯЕМ КОЛИЧЕСТВО ДНЕЙ ***
     const totalDays = Math.floor((lastDay.getTime() - firstDay.getTime()) / (1000 * 60 * 60 * 24)) + 1;
@@ -672,13 +753,17 @@ export class CommonFillGeneration {
     // *** ИСПРАВЛЕНО: Вычисляем общее количество дней и создаем массив дат заранее ***
     const totalDaysToProcess = Math.floor((lastDay.getTime() - firstDay.getTime()) / (1000 * 60 * 60 * 24)) + 1;
     
-    console.log(`[CommonFillGeneration] Will process ${totalDaysToProcess} days from ${firstDay.toLocaleDateString()} to ${lastDay.toLocaleDateString()}`);
+    console.log(`[CommonFillGeneration] Will process ${totalDaysToProcess} days from ${firstDay.toISOString()} to ${lastDay.toISOString()}`);
 
-    // *** ОСНОВНОЙ ЦИКЛ ГЕНЕРАЦИИ ЗАПИСЕЙ - БЕЗ LINT ОШИБОК ***
+    // *** ОСНОВНОЙ ЦИКЛ ГЕНЕРАЦИИ ЗАПИСЕЙ С UTC ДАТАМИ ***
     for (let dayIndex = 0; dayIndex < totalDaysToProcess; dayIndex++) {
-      // Создаем новую дату для каждой итерации
-      const currentDate = new Date(firstDay);
-      currentDate.setDate(firstDay.getDate() + dayIndex);
+      // *** СОЗДАЕМ UTC ДАТУ ДЛЯ КАЖДОЙ ИТЕРАЦИИ ***
+      const currentDate = new Date(Date.UTC(
+        firstDay.getUTCFullYear(),
+        firstDay.getUTCMonth(),
+        firstDay.getUTCDate() + dayIndex,
+        0, 0, 0, 0
+      ));
 
       // *** ВЫЧИСЛЯЕМ НОМЕР НЕДЕЛИ С ИСПРАВЛЕННЫМ АЛГОРИТМОМ ***
       const weekAndDay = this.calculateWeekAndDayWithChaining(
@@ -708,13 +793,15 @@ export class CommonFillGeneration {
       }
 
       if (templatesForDay.length > 0) {
-        // *** СОЗДАЕМ ЗАПИСИ ДЛЯ ВСЕХ СМЕН КАК В SCHEDULETAB ***
+        // *** СОЗДАЕМ ЗАПИСИ ДЛЯ ВСЕХ СМЕН КАК В SCHEDULETAB С UTC ***
         console.log(`[CommonFillGeneration] ${dayInfo.date} (${dayInfo.dayName}): Calendar week ${dayInfo.weekNumber}, Template week ${weekAndDay.templateWeekNumber}, Found ${templatesForDay.length} shifts`);
         
-        templatesForDay.forEach((template, shiftIndex) => {
+        // *** ОБРАБАТЫВАЕМ КАЖДЫЙ ШАБЛОН АСИНХРОННО С UTC ***
+        for (const template of templatesForDay) {
           console.log(`[CommonFillGeneration] Creating record for shift ${template.NumberOfShift}: ${template.startTime}-${template.endTime}, Lunch: ${template.lunchMinutes}min`);
           
-          const record = this.createStaffRecordFromTemplate(
+          // *** ИСПРАВЛЕНО: ИСПОЛЬЗУЕМ ASYNC createStaffRecordFromTemplate ***
+          const record = await this.createStaffRecordFromTemplate(
             currentDate, 
             template, 
             contract, 
@@ -724,7 +811,7 @@ export class CommonFillGeneration {
           );
           
           records.push(record);
-        });
+        }
         
         // Для анализа используем первый шаблон
         const firstTemplate = templatesForDay[0];
@@ -746,14 +833,14 @@ export class CommonFillGeneration {
     // *** ЗАВЕРШАЕМ АНАЛИЗ ГЕНЕРАЦИИ ***
     this.finalizeGenerationAnalysis(records.length, holidays.length, leaves.length);
 
-    console.log(`[CommonFillGeneration] CORRECTED: Generated ${records.length} schedule records (including ALL shifts) with proper week chaining logic`);
+    console.log(`[CommonFillGeneration] CORRECTED: Generated ${records.length} schedule records (including ALL shifts) with proper UTC week chaining logic`);
     return records;
   }
 
   /**
    * *** НОВЫЙ МЕТОД: Вычисляет номер недели и день с учетом логики чередования ***
    */
- private calculateWeekAndDayWithChaining(
+  private calculateWeekAndDayWithChaining(
     date: Date, 
     startOfMonth: Date, 
     dayOfStartWeek: number, 
@@ -763,12 +850,12 @@ export class CommonFillGeneration {
     templateWeekNumber: number; 
     dayNumber: number 
   } {
-    console.log(`[CommonFillGeneration] *** CALCULATING WEEK AND DAY FOR ${date.toLocaleDateString()} ***`);
+    console.log(`[CommonFillGeneration] *** CALCULATING WEEK AND DAY FOR ${date.toISOString()} ***`);
     console.log(`[CommonFillGeneration] Input parameters: dayOfStartWeek=${dayOfStartWeek}, numberOfWeekTemplates=${numberOfWeekTemplates}`);
     
-    // *** 1. ПОЛУЧАЕМ СТАНДАРТНЫЙ ДЕНЬ НЕДЕЛИ ИЗ JAVASCRIPT ***
-    const jsDay = date.getDay(); // 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday
-    console.log(`[CommonFillGeneration] JavaScript day: ${jsDay} (${this.getDayName(jsDay)})`);
+    // *** 1. ПОЛУЧАЕМ СТАНДАРТНЫЙ ДЕНЬ НЕДЕЛИ ИЗ JAVASCRIPT (UTC) ***
+    const jsDay = date.getUTCDay(); // 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday
+    console.log(`[CommonFillGeneration] JavaScript UTC day: ${jsDay} (${this.getDayName(jsDay)})`);
     
     // *** 2. ПРЕОБРАЗУЕМ В НУЖНУЮ НУМЕРАЦИЮ В ЗАВИСИМОСТИ ОТ dayOfStartWeek ***
     let dayNumber: number;
@@ -788,10 +875,10 @@ export class CommonFillGeneration {
       console.log(`[CommonFillGeneration] Sunday-based week: ${jsDay} → ${dayNumber}`);
     }
     
-    // *** 3. ВЫЧИСЛЯЕМ КАЛЕНДАРНУЮ НЕДЕЛЮ МЕСЯЦА ***
-    const dayOfMonth = date.getDate();
-    const firstDayOfMonth = new Date(startOfMonth.getFullYear(), startOfMonth.getMonth(), 1);
-    const firstDayJS = firstDayOfMonth.getDay(); // JavaScript день недели первого дня месяца
+    // *** 3. ВЫЧИСЛЯЕМ КАЛЕНДАРНУЮ НЕДЕЛЮ МЕСЯЦА С UTC ***
+    const dayOfMonth = date.getUTCDate();
+    const firstDayOfMonth = new Date(Date.UTC(startOfMonth.getUTCFullYear(), startOfMonth.getUTCMonth(), 1, 0, 0, 0, 0));
+    const firstDayJS = firstDayOfMonth.getUTCDay(); // JavaScript день недели первого дня месяца в UTC
     
     console.log(`[CommonFillGeneration] Month calculation: dayOfMonth=${dayOfMonth}, firstDayJS=${firstDayJS}`);
     
@@ -841,7 +928,7 @@ export class CommonFillGeneration {
     
     // *** 5. ФИНАЛЬНАЯ ПРОВЕРКА И ЛОГИРОВАНИЕ ***
     const dayName = this.getDayName(dayNumber);
-    console.log(`[CommonFillGeneration] *** FINAL RESULT FOR ${date.toLocaleDateString()} ***`);
+    console.log(`[CommonFillGeneration] *** FINAL RESULT FOR ${date.toISOString()} ***`);
     console.log(`[CommonFillGeneration] - Calendar week: ${calendarWeekNumber}`);
     console.log(`[CommonFillGeneration] - Template week: ${templateWeekNumber}`);
     console.log(`[CommonFillGeneration] - Day number: ${dayNumber}`);
@@ -864,7 +951,7 @@ export class CommonFillGeneration {
   /**
    * *** НОВЫЙ МЕТОД: Находит шаблоны для конкретной недели и дня ***
    */
-   private findTemplatesForDay(
+  private findTemplatesForDay(
     groupedTemplates: Map<string, IScheduleTemplate[]>, 
     templateWeekNumber: number, 
     dayNumber: number
@@ -906,17 +993,17 @@ export class CommonFillGeneration {
   }
 
   /**
-   * *** НОВЫЙ МЕТОД: Создает запись расписания из шаблона ***
+   * *** ИСПРАВЛЕННЫЙ МЕТОД: Создает запись расписания из шаблона с UTC ***
    */
-private createStaffRecordFromTemplate(
+  private async createStaffRecordFromTemplate(
     date: Date,
     template: IScheduleTemplate,
     contract: IContract,
     params: IFillParams,
     holidayCache: Map<string, IHoliday>,
     leavePeriods: Array<{startDate: Date, endDate: Date, typeOfLeave: string, title: string}>
-  ): Partial<IStaffRecord> {
-    const dateKey = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+  ): Promise<Partial<IStaffRecord>> {
+    const dateKey = `${date.getUTCFullYear()}-${date.getUTCMonth() + 1}-${date.getUTCDate()}`;
     
     // Проверяем, является ли день праздником
     const isHoliday = holidayCache.has(dateKey);
@@ -927,18 +1014,26 @@ private createStaffRecordFromTemplate(
     );
     const isLeave = !!leaveForDay;
 
-    // Парсим время из шаблона
+    // *** ИСПРАВЛЕНО: Парсим время из шаблона и создаем UTC даты с timezone adjustment ***
     const startTime = this.parseTimeString(template.startTime);
     const endTime = this.parseTimeString(template.endTime);
     const lunchTime = template.lunchMinutes;
 
-    console.log(`[CommonFillGeneration] Creating record for ${date.toLocaleDateString()}: Shift ${template.NumberOfShift}, ${template.startTime}-${template.endTime}, lunch: ${lunchTime}min, holiday: ${isHoliday}, leave: ${isLeave}`);
+    console.log(`[CommonFillGeneration] Creating record for ${date.toISOString()}: Shift ${template.NumberOfShift}, ${template.startTime}-${template.endTime}, lunch: ${lunchTime}min, holiday: ${isHoliday}, leave: ${isLeave}`);
+
+    // *** ИСПРАВЛЕНО: Используем async createDateWithTime с timezone adjustment ***
+    const shiftDate1 = await this.createDateWithTime(date, startTime);
+    const shiftDate2 = await this.createDateWithTime(date, endTime);
+
+    console.log(`[CommonFillGeneration] *** UTC SHIFT TIMES CREATED ***`);
+    console.log(`[CommonFillGeneration] ShiftDate1 (start): ${shiftDate1.toISOString()}`);
+    console.log(`[CommonFillGeneration] ShiftDate2 (end): ${shiftDate2.toISOString()}`);
 
     const record: Partial<IStaffRecord> = {
       Title: `Template=${contract.id} Week=${template.NumberOfWeek} Shift=${template.NumberOfShift}`,
-      Date: new Date(date),
-      ShiftDate1: new Date(date.getFullYear(), date.getMonth(), date.getDate(), startTime.hours, startTime.minutes),
-      ShiftDate2: new Date(date.getFullYear(), date.getMonth(), date.getDate(), endTime.hours, endTime.minutes),
+      Date: new Date(date), // *** UTC дата ***
+      ShiftDate1: shiftDate1, // *** UTC время с timezone adjustment ***
+      ShiftDate2: shiftDate2, // *** UTC время с timezone adjustment ***
       TimeForLunch: lunchTime,
       Contract: template.NumberOfShift,  // *** ИСПРАВЛЕНО: используем номер смены вместо total ***
       Holiday: isHoliday ? 1 : 0,
@@ -951,7 +1046,7 @@ private createStaffRecordFromTemplate(
     // Добавляем тип отпуска если сотрудник в отпуске
     if (isLeave && leaveForDay) {
       record.TypeOfLeaveID = leaveForDay.typeOfLeave;
-      console.log(`[CommonFillGeneration] Added leave type ${record.TypeOfLeaveID} for ${date.toLocaleDateString()}: ${leaveForDay.title}`);
+      console.log(`[CommonFillGeneration] Added leave type ${record.TypeOfLeaveID} for ${date.toISOString()}: ${leaveForDay.title}`);
     }
 
     return record;
@@ -960,22 +1055,21 @@ private createStaffRecordFromTemplate(
   /**
    * *** НОВЫЙ МЕТОД: Парсит строку времени в часы и минуты ***
    */
-  private parseTimeString(timeStr: string): { hours: number; minutes: number } {
+  private parseTimeString(timeStr: string): { hours: string; minutes: string } {
     try {
       const parts = timeStr.split(':');
-      const hours = parseInt(parts[0], 10);
-      const minutes = parts.length > 1 ? parseInt(parts[1], 10) : 0;
+      const hours = parts[0] || '9';
+      const minutes = parts.length > 1 ? parts[1] : '0';
       
       return {
-        hours: isNaN(hours) ? 9 : hours,
-        minutes: isNaN(minutes) ? 0 : minutes
+        hours: hours.padStart(2, '0'),
+        minutes: minutes.padStart(2, '0')
       };
     } catch (error) {
       console.error(`[CommonFillGeneration] Error parsing time string "${timeStr}":`, error);
-      return { hours: 9, minutes: 0 };
+      return { hours: '09', minutes: '00' };
     }
   }
-
   /**
    * *** НОВЫЙ МЕТОД: Инициализирует анализ генерации ***
    */
@@ -1038,7 +1132,7 @@ private createStaffRecordFromTemplate(
    * *** ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ДЛЯ АНАЛИЗА ***
    */
   private isHoliday(date: Date, holidayCache: Map<string, IHoliday>): boolean {
-    const dateKey = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+    const dateKey = `${date.getUTCFullYear()}-${date.getUTCMonth() + 1}-${date.getUTCDate()}`;
     return holidayCache.has(dateKey);
   }
 
@@ -1051,16 +1145,17 @@ private createStaffRecordFromTemplate(
   }
 
   /**
-   * *** НОВЫЙ МЕТОД: Создает кэш праздников для быстрого поиска ***
+   * *** НОВЫЙ МЕТОД: Создает кэш праздников для быстрого поиска с UTC ***
    */
   private createHolidayCache(holidays: IHoliday[]): Map<string, IHoliday> {
     const cache = new Map<string, IHoliday>();
     holidays.forEach((holiday: IHoliday) => {
       const date = new Date(holiday.date);
-      const key = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+      // *** ИСПРАВЛЕНО: Используем UTC методы ***
+      const key = `${date.getUTCFullYear()}-${date.getUTCMonth() + 1}-${date.getUTCDate()}`;
       cache.set(key, holiday);
     });
-    console.log(`[CommonFillGeneration] Created holiday cache with ${cache.size} entries`);
+    console.log(`[CommonFillGeneration] Created holiday cache with ${cache.size} entries using UTC`);
     return cache;
   }
 
@@ -1068,14 +1163,23 @@ private createStaffRecordFromTemplate(
    * *** НОВЫЙ МЕТОД: Создает массив периодов отпусков для быстрой проверки ***
    */
   private createLeavePeriods(leaves: ILeaveDay[]): Array<{startDate: Date, endDate: Date, typeOfLeave: string, title: string}> {
-    const leavePeriods = leaves.map((leave: ILeaveDay) => ({
+    // *** FILTER OUT DELETED LEAVES FOR DASHBOARD TAB ***
+    const activeLeaves = leaves.filter(leave => {
+      const isDeleted = leave.deleted === true;
+      if (isDeleted) {
+        console.log(`[CommonFillGeneration] Filtering out deleted leave: ${leave.title} (${new Date(leave.startDate).toLocaleDateString()} - ${leave.endDate ? new Date(leave.endDate).toLocaleDateString() : 'ongoing'})`);
+      }
+      return !isDeleted;
+    });
+    
+    const leavePeriods = activeLeaves.map((leave: ILeaveDay) => ({
       startDate: new Date(leave.startDate),
       endDate: leave.endDate ? new Date(leave.endDate) : new Date(2099, 11, 31),
       typeOfLeave: leave.typeOfLeave.toString(),
       title: leave.title || ''
     }));
     
-    console.log(`[CommonFillGeneration] Created leave periods cache with ${leavePeriods.length} entries`);
+    console.log(`[CommonFillGeneration] Created leave periods cache with ${leavePeriods.length} entries from ${leaves.length} total`);
     return leavePeriods;
   }
 
@@ -1083,7 +1187,7 @@ private createStaffRecordFromTemplate(
    * *** ОБНОВЛЕННЫЙ МЕТОД: Сохраняет сгенерированные записи в SharePoint ***
    */
   public async saveGeneratedRecords(records: Partial<IStaffRecord>[], params: IFillParams): Promise<number> {
-    console.log(`[CommonFillGeneration] Saving ${records.length} generated records with detailed analysis`);
+    console.log(`[CommonFillGeneration] Saving ${records.length} generated records with UTC timezone handling`);
 
     let successCount = 0;
     const errors: string[] = [];
@@ -1092,7 +1196,7 @@ private createStaffRecordFromTemplate(
       const record = records[i];
       
       try {
-        console.log(`[CommonFillGeneration] Saving record ${i + 1}/${records.length} for ${record.Date?.toLocaleDateString()}`);
+        console.log(`[CommonFillGeneration] Saving record ${i + 1}/${records.length} for ${record.Date?.toISOString()}`);
         
         const employeeId = params.staffMember.employeeId;
         const managerId = params.currentUserId;
@@ -1105,6 +1209,16 @@ private createStaffRecordFromTemplate(
           continue;
         }
         
+        // *** ЛОГИРУЕМ UTC ВРЕМЕНА ПЕРЕД СОХРАНЕНИЕМ ***
+        if (record.ShiftDate1 && record.ShiftDate2) {
+          console.log(`[CommonFillGeneration] *** UTC TIMES BEING SAVED ***`);
+          console.log(`[CommonFillGeneration] Date: ${record.Date?.toISOString()}`);
+          console.log(`[CommonFillGeneration] ShiftDate1: ${record.ShiftDate1.toISOString()}`);
+          console.log(`[CommonFillGeneration] ShiftDate2: ${record.ShiftDate2.toISOString()}`);
+          console.log(`[CommonFillGeneration] Local representation - Start: ${record.ShiftDate1.toLocaleString()}`);
+          console.log(`[CommonFillGeneration] Local representation - End: ${record.ShiftDate2.toLocaleString()}`);
+        }
+        
         const newRecordId = await this.staffRecordsService.createStaffRecord(
           record,
           managerId || '0',
@@ -1114,7 +1228,7 @@ private createStaffRecordFromTemplate(
 
         if (newRecordId) {
           successCount++;
-          console.log(`[CommonFillGeneration] ✓ Created record ID=${newRecordId} for ${record.Date?.toLocaleDateString()}`);
+          console.log(`[CommonFillGeneration] ✓ Created record ID=${newRecordId} for ${record.Date?.toISOString()}`);
           
           if (record.TypeOfLeaveID) {
             console.log(`[CommonFillGeneration] ✓ Record ${newRecordId} created with leave type: ${record.TypeOfLeaveID}`);
@@ -1124,17 +1238,15 @@ private createStaffRecordFromTemplate(
           }
           
           if (record.ShiftDate1 && record.ShiftDate2) {
-            const startTime = `${record.ShiftDate1.getHours()}:${record.ShiftDate1.getMinutes().toString().padStart(2, '0')}`;
-            const endTime = `${record.ShiftDate2.getHours()}:${record.ShiftDate2.getMinutes().toString().padStart(2, '0')}`;
-            console.log(`[CommonFillGeneration] ✓ Record ${newRecordId} time: ${startTime}-${endTime}, lunch: ${record.TimeForLunch}min`);
+            console.log(`[CommonFillGeneration] ✓ Record ${newRecordId} saved with UTC times - no timezone shift should occur`);
           }
         } else {
-          const errorMsg = `Failed to create record for ${record.Date?.toLocaleDateString()}: No ID returned`;
+          const errorMsg = `Failed to create record for ${record.Date?.toISOString()}: No ID returned`;
           errors.push(errorMsg);
           console.error(`[CommonFillGeneration] ✗ ${errorMsg}`);
         }
       } catch (error) {
-        const errorMsg = `Error creating record ${i + 1} for ${record.Date?.toLocaleDateString()}: ${error}`;
+        const errorMsg = `Error creating record ${i + 1} for ${record.Date?.toISOString()}: ${error}`;
         errors.push(errorMsg);
         console.error(`[CommonFillGeneration] ✗ ${errorMsg}`);
       }
@@ -1144,7 +1256,7 @@ private createStaffRecordFromTemplate(
       }
     }
 
-    console.log(`[CommonFillGeneration] Save operation completed with detailed analysis: ${successCount}/${records.length} successful`);
+    console.log(`[CommonFillGeneration] Save operation completed with UTC handling: ${successCount}/${records.length} successful`);
     
     if (errors.length > 0) {
       console.error(`[CommonFillGeneration] Save errors (${errors.length}):`, errors);

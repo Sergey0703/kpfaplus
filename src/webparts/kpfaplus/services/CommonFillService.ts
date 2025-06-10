@@ -1,5 +1,5 @@
-// src/webparts/kpfaplus/services/CommonFillService.ts - WITH DETAILED LOGGING AND CLIENT-SIDE FILTERING
-// ИСПРАВЛЕНО: Заменены any на конкретные типы
+// src/webparts/kpfaplus/services/CommonFillService.ts - WITH UTC SUPPORT AND ASYNC HANDLING
+// ИСПРАВЛЕНО: Добавлена поддержка UTC и передача RemoteSiteService в генерацию
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { MessageBarType } from '@fluentui/react';
 import { ContractsService } from './ContractsService';
@@ -15,6 +15,7 @@ import {
 } from './CommonFillValidation';
 import { CommonFillGeneration } from './CommonFillGeneration';
 import { ScheduleLogsService, ICreateScheduleLogParams } from './ScheduleLogsService';
+import { RemoteSiteService } from './RemoteSiteService';
 import { IStaffRecord } from './StaffRecordsService';
 
 // Export interfaces for compatibility
@@ -55,6 +56,7 @@ export class CommonFillService {
   private scheduleLogsService: ScheduleLogsService;
   private validationService: CommonFillValidation;
   private generationService: CommonFillGeneration;
+  private remoteSiteService: RemoteSiteService; // *** ДОБАВЛЕН RemoteSiteService ***
 
   private constructor(context: WebPartContext) {
     this.webPartContext = context;
@@ -62,8 +64,9 @@ export class CommonFillService {
     this.scheduleLogsService = ScheduleLogsService.getInstance(context);
     this.validationService = new CommonFillValidation(context);
     this.generationService = new CommonFillGeneration(context);
+    this.remoteSiteService = RemoteSiteService.getInstance(context); // *** ИНИЦИАЛИЗАЦИЯ RemoteSiteService ***
     
-    console.log('[CommonFillService] Service initialized with detailed logging and client-side filtering support');
+    console.log('[CommonFillService] Service initialized with UTC support and timezone handling');
   }
 
   public static getInstance(context: WebPartContext): CommonFillService {
@@ -90,11 +93,11 @@ export class CommonFillService {
    * Проверяет записи и возвращает конфигурацию диалога (НЕ ЗАПОЛНЯЕТ АВТОМАТИЧЕСКИ)
    */
   public async checkScheduleForFill(params: IFillParams): Promise<IFillResult> {
-    console.log('[CommonFillService] Checking schedule for fill with detailed analysis and client-side filtering:', params.staffMember.name);
+    console.log('[CommonFillService] Checking schedule for fill with UTC support and timezone handling:', params.staffMember.name);
     console.log('[CommonFillService] Parameters for filtering:', {
       currentUserId: params.currentUserId,
       managingGroupId: params.managingGroupId,
-      selectedDate: params.selectedDate.toLocaleDateString()
+      selectedDate: params.selectedDate.toISOString() // *** Логируем в UTC ***
     });
     
     try {
@@ -142,7 +145,7 @@ export class CommonFillService {
       );
 
       // *** ПРОВЕРЯЕМ ШАБЛОНЫ С НОВОЙ ФИЛЬТРАЦИЕЙ (ТОЛЬКО ДЛЯ АНАЛИЗА) ***
-      console.log('[CommonFillService] Checking weekly templates availability with client-side filtering...');
+      console.log('[CommonFillService] Checking weekly templates availability with UTC support...');
       try {
         const weeklyTemplates = await this.generationService.loadWeeklyTemplates(
           selectedContract.id,
@@ -274,7 +277,7 @@ export class CommonFillService {
     analysisDetails.push(`CONTRACTS ANALYSIS FOR EMPLOYEE ${employeeId}:`);
     analysisDetails.push(`Manager ID: ${managerId}`);
     analysisDetails.push(`Group ID: ${groupId}`);
-    analysisDetails.push(`Selected Date: ${params.selectedDate.toLocaleDateString()}`);
+    analysisDetails.push(`Selected Date: ${params.selectedDate.toISOString()}`); // *** UTC дата ***
     analysisDetails.push(`Total contracts found: ${allContracts.length}`);
     analysisDetails.push('');
 
@@ -303,7 +306,7 @@ export class CommonFillService {
     analysisDetails.push('ACTIVE CONTRACTS IN SELECTED PERIOD:');
     if (activeContracts.length === 0) {
       analysisDetails.push('ERROR: No active contracts found for the selected period');
-      analysisDetails.push(`Selected period: ${params.selectedDate.toLocaleDateString()}`);
+      analysisDetails.push(`Selected period: ${params.selectedDate.toISOString()}`); // *** UTC дата ***
     } else {
       activeContracts.forEach((contract, index) => {
         const startDateStr = contract.startDate ? new Date(contract.startDate).toLocaleDateString() : 'No start date';
@@ -330,14 +333,14 @@ export class CommonFillService {
   }
 
   /**
-   * Выполняет фактическое заполнение ПОСЛЕ подтверждения пользователя
+   * *** ИСПРАВЛЕНО: Выполняет фактическое заполнение ПОСЛЕ подтверждения пользователя с UTC поддержкой ***
    */
   public async performFillOperation(performParams: IPerformFillParams): Promise<IFillResult> {
-    console.log('[CommonFillService] Performing fill operation with detailed logging and client-side filtering:', {
+    console.log('[CommonFillService] Performing fill operation with UTC support and timezone handling:', {
       staffMember: performParams.staffMember.name,
       contractId: performParams.contractId,
       replaceExisting: performParams.replaceExisting,
-      period: performParams.selectedDate.toLocaleDateString(),
+      period: performParams.selectedDate.toISOString(), // *** UTC дата ***
       currentUserId: performParams.currentUserId,
       managingGroupId: performParams.managingGroupId
     });
@@ -345,11 +348,11 @@ export class CommonFillService {
     const operationDetails: string[] = [];
     
     try {
-      operationDetails.push('=== DETAILED FILL OPERATION AFTER CONFIRMATION WITH CLIENT-SIDE FILTERING ===');
+      operationDetails.push('=== DETAILED FILL OPERATION WITH UTC SUPPORT ===');
       operationDetails.push(`Staff: ${performParams.staffMember.name} (ID: ${performParams.staffMember.employeeId})`);
       operationDetails.push(`Contract: ${performParams.contractId}`);
       operationDetails.push(`Replace existing: ${performParams.replaceExisting}`);
-      operationDetails.push(`Period: ${performParams.selectedDate.toLocaleDateString()}`);
+      operationDetails.push(`Period: ${performParams.selectedDate.toISOString()}`); // *** UTC дата ***
       operationDetails.push(`Manager: ${performParams.currentUserId}`);
       operationDetails.push(`Staff Group: ${performParams.managingGroupId}`);
       operationDetails.push(`Day of Start Week: ${performParams.dayOfStartWeek || 7}`);
@@ -383,8 +386,8 @@ export class CommonFillService {
         }
       }
 
-      // *** ДЕТАЛЬНАЯ ЗАГРУЗКА ДАННЫХ С АНАЛИЗОМ И НОВОЙ ФИЛЬТРАЦИЕЙ ***
-      operationDetails.push('STEP 2: Loading data for generation with detailed analysis and client-side filtering...');
+      // *** ДЕТАЛЬНАЯ ЗАГРУЗКА ДАННЫХ С UTC ПОДДЕРЖКОЙ ***
+      operationDetails.push('STEP 2: Loading data for generation with UTC support...');
       
       const [holidays, leaves, weeklyTemplates] = await Promise.all([
         this.generationService.loadHolidays(performParams.selectedDate),
@@ -392,8 +395,8 @@ export class CommonFillService {
         this.generationService.loadWeeklyTemplates(
           performParams.contractId, 
           performParams.dayOfStartWeek || 7,
-          performParams.currentUserId || '0',     // *** НОВЫЙ ПАРАМЕТР ***
-          performParams.managingGroupId || '0'   // *** НОВЫЙ ПАРАМЕТР ***
+          performParams.currentUserId || '0',
+          performParams.managingGroupId || '0'
         )
       ]);
 
@@ -440,8 +443,10 @@ export class CommonFillService {
         return result;
       }
 
-      // *** ГЕНЕРАЦИЯ ЗАПИСЕЙ С ДЕТАЛЬНЫМ АНАЛИЗОМ ***
-      operationDetails.push('STEP 3: Generating schedule records with detailed analysis...');
+      // *** ГЕНЕРАЦИЯ ЗАПИСЕЙ С UTC ПОДДЕРЖКОЙ ***
+      operationDetails.push('STEP 3: Generating schedule records with UTC support...');
+      console.log('[CommonFillService] *** CALLING ASYNC generateScheduleRecords WITH UTC SUPPORT ***');
+      
       const generatedRecords = await this.generationService.generateScheduleRecords(
         performParams,
         selectedContract,
@@ -450,7 +455,7 @@ export class CommonFillService {
         weeklyTemplates
       );
 
-      operationDetails.push(`✓ Generated ${generatedRecords.length} schedule records`);
+      operationDetails.push(`✓ Generated ${generatedRecords.length} schedule records with UTC timezone handling`);
 
       if (generatedRecords.length === 0) {
         const result: IFillResult = {
@@ -479,7 +484,7 @@ export class CommonFillService {
 
       if (detailedAnalysis.templates) {
         operationDetails.push('');
-        operationDetails.push('DETAILED TEMPLATES ANALYSIS WITH CLIENT-SIDE FILTERING:');
+        operationDetails.push('DETAILED TEMPLATES ANALYSIS WITH UTC SUPPORT:');
         operationDetails.push(`Contract: ID=${detailedAnalysis.templates.contractId}, Name="${detailedAnalysis.templates.contractName}"`);
         operationDetails.push(`Items from server: ${detailedAnalysis.templates.totalItemsFromServer}`);
         operationDetails.push(`After manager filter: ${detailedAnalysis.templates.afterManagerFilter}`);
@@ -496,7 +501,7 @@ export class CommonFillService {
 
       if (detailedAnalysis.generation) {
         operationDetails.push('');
-        operationDetails.push('DETAILED GENERATION ANALYSIS:');
+        operationDetails.push('DETAILED GENERATION ANALYSIS WITH UTC:');
         operationDetails.push(`Total days in period: ${detailedAnalysis.generation.totalDaysInPeriod}`);
         operationDetails.push(`Days generated: ${detailedAnalysis.generation.daysGenerated}`);
         operationDetails.push(`Days skipped: ${detailedAnalysis.generation.daysSkipped}`);
@@ -524,11 +529,13 @@ export class CommonFillService {
         }
       }
 
-      // Сохранение записей
+      // *** СОХРАНЕНИЕ ЗАПИСЕЙ С UTC ПОДДЕРЖКОЙ ***
       operationDetails.push('');
-      operationDetails.push('STEP 4: Saving generated records...');
+      operationDetails.push('STEP 4: Saving generated records with UTC support...');
+      console.log('[CommonFillService] *** SAVING RECORDS WITH UTC TIMEZONE HANDLING ***');
+      
       const savedCount = await this.generationService.saveGeneratedRecords(generatedRecords, performParams);
-      operationDetails.push(`✓ Successfully saved ${savedCount} of ${generatedRecords.length} records`);
+      operationDetails.push(`✓ Successfully saved ${savedCount} of ${generatedRecords.length} records with UTC handling`);
 
       // Формирование результата
       const result: IFillResult = {
@@ -543,11 +550,11 @@ export class CommonFillService {
         logResult: savedCount > 0 ? 2 : 1
       };
 
-      console.log('[CommonFillService] Fill operation completed with detailed analysis and client-side filtering:', {
+      console.log('[CommonFillService] Fill operation completed with UTC support:', {
         success: result.success,
         created: result.createdRecordsCount,
         deleted: result.deletedRecordsCount,
-        period: performParams.selectedDate.toLocaleDateString()
+        period: performParams.selectedDate.toISOString() // *** UTC дата ***
       });
 
       await this.createFillLog(performParams, result, performParams.contractId, operationDetails.join('\n'));
@@ -570,15 +577,14 @@ export class CommonFillService {
       return result;
     }
   }
-
   /**
    * Логирует отказ пользователя
    */
   public async logUserRefusal(params: IFillParams, dialogType: DialogType, contractId?: string): Promise<void> {
-    console.log('[CommonFillService] Logging user refusal with detailed info:', {
+    console.log('[CommonFillService] Logging user refusal with UTC support:', {
       staffMember: params.staffMember.name,
       dialogType,
-      period: params.selectedDate.toLocaleDateString()
+      period: params.selectedDate.toISOString() // *** UTC дата ***
     });
 
     const result: IFillResult = {
@@ -594,7 +600,7 @@ export class CommonFillService {
       'USER REFUSAL DETAILS:',
       `Dialog type: ${dialogType}`,
       `Staff member: ${params.staffMember.name} (ID: ${params.staffMember.employeeId})`,
-      `Period: ${params.selectedDate.toLocaleDateString()}`,
+      `Period: ${params.selectedDate.toISOString()}`, // *** UTC дата ***
       `Contract ID: ${contractId || 'Not specified'}`,
       `Manager ID: ${params.currentUserId || 'Not specified'}`,
       `Group ID: ${params.managingGroupId || 'Not specified'}`,
@@ -620,7 +626,7 @@ export class CommonFillService {
   }
 
   /**
-   * *** ОБНОВЛЕНО: Создает лог с детальной информацией включая фильтрацию ***
+   * *** ОБНОВЛЕНО: Создает лог с детальной информацией включая UTC поддержку ***
    */
   private async createFillLog(
     params: IFillParams, 
@@ -658,7 +664,7 @@ export class CommonFillService {
       const logId = await this.scheduleLogsService.createScheduleLog(logParams);
       
       if (logId) {
-        console.log(`[CommonFillService] Detailed log created with ID: ${logId}, Result: ${logParams.result}`);
+        console.log(`[CommonFillService] Detailed log created with UTC support, ID: ${logId}, Result: ${logParams.result}`);
       }
 
     } catch (error) {
@@ -667,7 +673,7 @@ export class CommonFillService {
   }
 
   /**
-   * *** ОБНОВЛЕНО: Формирует детальное сообщение для лога с информацией о фильтрации ***
+   * *** ОБНОВЛЕНО: Формирует детальное сообщение для лога с UTC информацией ***
    */
   private buildDetailedLogMessage(
     params: IFillParams, 
@@ -677,23 +683,35 @@ export class CommonFillService {
   ): string {
     const lines: string[] = [];
     
-    lines.push(`=== DETAILED FILL OPERATION LOG WITH CLIENT-SIDE FILTERING ===`);
-    lines.push(`Date: ${new Date().toLocaleString()}`);
+    lines.push(`=== DETAILED FILL OPERATION LOG WITH UTC SUPPORT ===`);
+    lines.push(`Date: ${new Date().toISOString()}`); // *** UTC timestamp ***
     lines.push(`Staff: ${params.staffMember.name} (ID: ${params.staffMember.employeeId})`);
-    lines.push(`Period: ${params.selectedDate.toLocaleDateString()}`);
+    lines.push(`Period: ${params.selectedDate.toISOString()}`); // *** UTC дата ***
     lines.push(`Manager: ${params.currentUserId || 'N/A'}`);
     lines.push(`Staff Group: ${params.managingGroupId || 'N/A'}`);
     lines.push('');
 
-    // *** ДОПОЛНИТЕЛЬНАЯ ИНФОРМАЦИЯ О ПЕРИОДЕ И ФИЛЬТРАЦИИ ***
-    const startOfMonth = new Date(params.selectedDate.getFullYear(), params.selectedDate.getMonth(), 1);
-    const endOfMonth = new Date(params.selectedDate.getFullYear(), params.selectedDate.getMonth() + 1, 0);
-    lines.push(`PERIOD AND FILTERING DETAILS:`);
-    lines.push(`Selected Date: ${params.selectedDate.toLocaleDateString()}`);
-    lines.push(`Month Range: ${startOfMonth.toLocaleDateString()} - ${endOfMonth.toLocaleDateString()}`);
+    // *** ДОПОЛНИТЕЛЬНАЯ ИНФОРМАЦИЯ О ПЕРИОДЕ И UTC ОБРАБОТКЕ ***
+    const startOfMonth = new Date(Date.UTC(
+      params.selectedDate.getUTCFullYear(), 
+      params.selectedDate.getUTCMonth(), 
+      1, 
+      0, 0, 0, 0
+    ));
+    const endOfMonth = new Date(Date.UTC(
+      params.selectedDate.getUTCFullYear(), 
+      params.selectedDate.getUTCMonth() + 1, 
+      0, 
+      23, 59, 59, 999
+    ));
+    
+    lines.push(`PERIOD AND UTC PROCESSING DETAILS:`);
+    lines.push(`Selected Date (UTC): ${params.selectedDate.toISOString()}`);
+    lines.push(`Month Range (UTC): ${startOfMonth.toISOString()} - ${endOfMonth.toISOString()}`);
     lines.push(`Day of Start Week: ${params.dayOfStartWeek || 7}`);
     lines.push(`Current User ID (for filtering): ${params.currentUserId || 'N/A'}`);
     lines.push(`Managing Group ID (for filtering): ${params.managingGroupId || 'N/A'}`);
+    lines.push(`UTC Timezone Handling: ENABLED (like Schedule tab)`);
     lines.push('');
 
     // *** ПРАВИЛЬНЫЙ СТАТУС ОПЕРАЦИИ ***
@@ -723,9 +741,9 @@ export class CommonFillService {
     
     lines.push('');
 
-    // *** ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ВКЛЮЧАЯ ФИЛЬТРАЦИЮ ***
+    // *** ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ВКЛЮЧАЯ UTC ОБРАБОТКУ ***
     if (additionalDetails) {
-      lines.push('DETAILED OPERATION ANALYSIS:');
+      lines.push('DETAILED OPERATION ANALYSIS WITH UTC SUPPORT:');
       lines.push(additionalDetails);
       lines.push('');
     }
@@ -749,19 +767,23 @@ export class CommonFillService {
       scheduleLogs: boolean;
       validation: boolean;
       generation: boolean;
+      remoteSite: boolean;
     };
-    clientSideFiltering: boolean;
+    utcSupport: boolean;
+    timezoneHandling: boolean;
   } {
     return {
-      version: '4.0.0', // *** ВЕРСИЯ С КЛИЕНТСКОЙ ФИЛЬТРАЦИЕЙ ***
+      version: '5.0.0', // *** ВЕРСИЯ С UTC ПОДДЕРЖКОЙ ***
       context: !!this.webPartContext,
       services: {
         contracts: !!this.contractsService,
         scheduleLogs: !!this.scheduleLogsService,
         validation: !!this.validationService,
-        generation: !!this.generationService
+        generation: !!this.generationService,
+        remoteSite: !!this.remoteSiteService // *** НОВЫЙ СЕРВИС ***
       },
-      clientSideFiltering: true // *** НОВАЯ ВОЗМОЖНОСТЬ ***
+      utcSupport: true, // *** НОВАЯ ВОЗМОЖНОСТЬ ***
+      timezoneHandling: true // *** НОВАЯ ВОЗМОЖНОСТЬ ***
     };
   }
 
@@ -770,7 +792,9 @@ export class CommonFillService {
     scheduleLogs: boolean;
     validation: boolean;
     generation: boolean;
-    clientSideFiltering: boolean;
+    remoteSite: boolean;
+    utcSupport: boolean;
+    timezoneHandling: boolean;
     errors: string[];
   }> {
     const results = {
@@ -778,7 +802,9 @@ export class CommonFillService {
       scheduleLogs: false,
       validation: false,
       generation: false,
-      clientSideFiltering: false,
+      remoteSite: false,
+      utcSupport: false,
+      timezoneHandling: false,
       errors: [] as string[]
     };
 
@@ -817,15 +843,35 @@ export class CommonFillService {
       results.errors.push(`Generation: ${error}`);
     }
 
-    // *** ТЕСТИРУЕМ КЛИЕНТСКУЮ ФИЛЬТРАЦИЮ ***
+    // *** ТЕСТИРУЕМ RemoteSiteService ***
     try {
-      await this.generationService.loadWeeklyTemplates('1', 7, '1', '1');
-      results.clientSideFiltering = true;
+      const isAuthorized = this.remoteSiteService.isAuthorized();
+      results.remoteSite = true; // Сервис инициализирован
+      console.log(`[CommonFillService] RemoteSiteService authorized: ${isAuthorized}`);
     } catch (error) {
-      results.errors.push(`ClientSideFiltering: ${error}`);
+      results.errors.push(`RemoteSite: ${error}`);
     }
 
-    console.log('[CommonFillService] Detailed service test results with client-side filtering:', results);
+    // *** ТЕСТИРУЕМ UTC ПОДДЕРЖКУ ***
+    try {
+      const utcDate = new Date(Date.UTC(2025, 0, 1, 9, 0, 0, 0));
+      const isoString = utcDate.toISOString();
+      results.utcSupport = isoString.includes('2025-01-01T09:00:00.000Z');
+      console.log(`[CommonFillService] UTC support test: ${results.utcSupport}`);
+    } catch (error) {
+      results.errors.push(`UTC Support: ${error}`);
+    }
+
+    // *** ТЕСТИРУЕМ TIMEZONE HANDLING ***
+    try {
+      // Проверяем что у нас есть RemoteSiteService для timezone adjustment
+      results.timezoneHandling = !!this.remoteSiteService;
+      console.log(`[CommonFillService] Timezone handling available: ${results.timezoneHandling}`);
+    } catch (error) {
+      results.errors.push(`Timezone Handling: ${error}`);
+    }
+
+    console.log('[CommonFillService] Detailed service test results with UTC support:', results);
     return results;
   }
 }
