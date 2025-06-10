@@ -1,5 +1,5 @@
 // src/webparts/kpfaplus/services/CommonFillGeneration.ts
-// ИСПРАВЛЕНО: Добавлена правильная обработка UTC времени как в Schedule tab
+// ИСПРАВЛЕНО: Добавлена правильная обработка UTC времени как в Schedule tab + ИСПРАВЛЕНА логика дней недели
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { IStaffRecord, StaffRecordsService } from './StaffRecordsService';
 import { HolidaysService, IHoliday } from './HolidaysService';
@@ -121,7 +121,7 @@ export class CommonFillGeneration {
     this.weeklyTimeTableService = new WeeklyTimeTableService(context);
     this.remoteSiteService = RemoteSiteService.getInstance(context); // *** ИНИЦИАЛИЗАЦИЯ RemoteSiteService ***
     
-    console.log('[CommonFillGeneration] Service initialized with UTC timezone handling like Schedule tab');
+    console.log('[CommonFillGeneration] Service initialized with UTC timezone handling like Schedule tab + FIXED day logic');
   }
 
   /**
@@ -315,6 +315,7 @@ export class CommonFillGeneration {
       return null;
     }
   }
+
   /**
    * *** НОВЫЙ МЕТОД: Инициализирует пустой анализ шаблонов ***
    */
@@ -360,16 +361,23 @@ export class CommonFillGeneration {
   }
 
   /**
-   * *** НОВЫЙ МЕТОД: Получает название дня недели ***
+   * *** НОВЫЙ ВСПОМОГАТЕЛЬНЫЙ МЕТОД: Получает название дня из JavaScript номера ***
+   */
+  private getJSDayName(jsDay: number): string {
+    const jsNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    return jsNames[jsDay] || 'Unknown';
+  }
+
+  /**
+   * *** НОВЫЙ ВСПОМОГАТЕЛЬНЫЙ МЕТОД: Получает название дня из SharePoint номера ***
+   */
+ 
+  /**
+   * *** ИСПРАВЛЕННЫЙ МЕТОД: Получает название дня недели для отображения ***
    */
   private getDayName(dayNumber: number): string {
-    // *** ИСПОЛЬЗУЕМ СТАНДАРТНУЮ JAVASCRIPT НУМЕРАЦИЮ ***
-    // 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    
-    console.log(`[CommonFillGeneration] getDayName: dayNumber=${dayNumber} → ${dayNames[dayNumber] || 'Unknown'}`);
-    
-    return dayNames[dayNumber] || 'Unknown';
+    // Теперь dayNumber приходит в SharePoint формате (1-7)
+    return this.getSharePointDayName(dayNumber);
   }
 
   /**
@@ -666,6 +674,155 @@ export class CommonFillGeneration {
     
     return templatesByWeekAndDay;
   }
+
+  /**
+   * *** ИСПРАВЛЕННЫЙ МЕТОД: Вычисляет номер недели и день с учетом логики чередования ***
+   * ИСПРАВЛЕНО: Правильная логика преобразования дней недели
+   */
+ /**
+ * *** КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Логика преобразования дней недели ***
+ * ПРОБЛЕМА: Неправильное понимание системы нумерации SharePoint
+ */
+private calculateWeekAndDayWithChaining(
+  date: Date, 
+  startOfMonth: Date, 
+  dayOfStartWeek: number, 
+  numberOfWeekTemplates: number
+): { 
+  calendarWeekNumber: number; 
+  templateWeekNumber: number; 
+  dayNumber: number 
+} {
+  console.log(`[CommonFillGeneration] *** КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ ДНЯ НЕДЕЛИ ДЛЯ ${date.toISOString()} ***`);
+  console.log(`[CommonFillGeneration] Input parameters: dayOfStartWeek=${dayOfStartWeek}, numberOfWeekTemplates=${numberOfWeekTemplates}`);
+  
+  // *** 1. ПОЛУЧАЕМ СТАНДАРТНЫЙ ДЕНЬ НЕДЕЛИ ИЗ JAVASCRIPT (UTC) ***
+  const jsDay = date.getUTCDay(); // 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday
+  console.log(`[CommonFillGeneration] JavaScript UTC day: ${jsDay} (${this.getJSDayName(jsDay)})`);
+  
+  // *** 2. КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: ПРАВИЛЬНОЕ ПОНИМАНИЕ SHAREPOINT НУМЕРАЦИИ ***
+  // 
+  // ПРОБЛЕМА БЫЛА В ТОМ, ЧТО МЫ ДУМАЛИ ЧТО:
+  // - dayOfStartWeek=2 означает "понедельник = начало недели" 
+  // - И нужно преобразовывать JavaScript дни в SharePoint дни
+  //
+  // НО НА САМОМ ДЕЛЕ:
+  // - dayOfStartWeek указывает ТОЛЬКО на то, какой день считается началом недели для ОТОБРАЖЕНИЯ
+  // - В шаблонах (WeeklyTimeTables) дни всегда нумеруются ОДИНАКОВО:
+  //   1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday, 7=Sunday
+  // - Независимо от dayOfStartWeek!
+  
+  let dayNumber: number;
+  
+  // *** ИСПРАВЛЕННАЯ ЛОГИКА: ПРОСТОЕ ПРЕОБРАЗОВАНИЕ JS → SHAREPOINT ***
+  // JavaScript: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+  // SharePoint: 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 7=Sun
+  
+  if (jsDay === 0) {
+    dayNumber = 7; // Sunday = 7
+  } else {
+    dayNumber = jsDay; // Monday=1, Tuesday=2, Wednesday=3, Thursday=4, Friday=5, Saturday=6
+  }
+  
+  console.log(`[CommonFillGeneration] *** ИСПРАВЛЕННОЕ ПРЕОБРАЗОВАНИЕ ***`);
+  console.log(`[CommonFillGeneration] JavaScript day ${jsDay} (${this.getJSDayName(jsDay)}) → SharePoint day ${dayNumber}`);
+  
+  // *** 3. ПРОВЕРЯЕМ ПРАВИЛЬНОСТЬ ПРЕОБРАЗОВАНИЯ ***
+  const expectedDayName = this.getJSDayName(jsDay);
+  const convertedDayName = this.getSharePointDayName(dayNumber);
+  
+  if (expectedDayName !== convertedDayName) {
+    console.error(`[CommonFillGeneration] *** КРИТИЧЕСКАЯ ОШИБКА ПРЕОБРАЗОВАНИЯ ***`);
+    console.error(`[CommonFillGeneration] Ожидалось: ${expectedDayName}, получено: ${convertedDayName}`);
+    console.error(`[CommonFillGeneration] JS day: ${jsDay}, SharePoint day: ${dayNumber}`);
+  } else {
+    console.log(`[CommonFillGeneration] ✅ Преобразование дня недели ИСПРАВЛЕНО: ${expectedDayName}`);
+  }
+  
+  // *** 4. ВЫЧИСЛЯЕМ КАЛЕНДАРНУЮ НЕДЕЛЮ МЕСЯЦА С UTC ***
+  const dayOfMonth = date.getUTCDate();
+  const firstDayOfMonth = new Date(Date.UTC(startOfMonth.getUTCFullYear(), startOfMonth.getUTCMonth(), 1, 0, 0, 0, 0));
+  const firstDayJS = firstDayOfMonth.getUTCDay(); // JavaScript день недели первого дня месяца в UTC
+  
+  console.log(`[CommonFillGeneration] Month calculation: dayOfMonth=${dayOfMonth}, firstDayJS=${firstDayJS}`);
+  
+  // *** ИСПРАВЛЕННАЯ ЛОГИКА РАСЧЕТА НЕДЕЛЬ ***
+  // dayOfStartWeek влияет ТОЛЬКО на расчет номера недели, НЕ на номер дня!
+  let adjustedFirstDay: number;
+  
+  if (dayOfStartWeek === 2) {
+    // Понедельник = начало недели для РАСЧЕТА НОМЕРА НЕДЕЛИ
+    adjustedFirstDay = firstDayJS === 0 ? 6 : firstDayJS - 1; // Sunday=6, Monday=0, Tuesday=1, etc.
+  } else if (dayOfStartWeek === 7) {
+    // Суббота = начало недели для РАСЧЕТА НОМЕРА НЕДЕЛИ
+    adjustedFirstDay = (firstDayJS + 1) % 7; // Saturday=0, Sunday=1, Monday=2, etc.
+  } else {
+    // Воскресенье = начало недели для РАСЧЕТА НОМЕРА НЕДЕЛИ (стандартная JS логика)
+    adjustedFirstDay = firstDayJS;
+  }
+  
+  const calendarWeekNumber = Math.floor((dayOfMonth - 1 + adjustedFirstDay) / 7) + 1;
+  
+  console.log(`[CommonFillGeneration] Week calculation: adjustedFirstDay=${adjustedFirstDay} → calendarWeekNumber=${calendarWeekNumber}`);
+  
+  // *** 5. ВЫЧИСЛЯЕМ НОМЕР НЕДЕЛИ ШАБЛОНА С УЧЕТОМ ЧЕРЕДОВАНИЯ ***
+  let templateWeekNumber: number;
+  
+  switch (numberOfWeekTemplates) {
+    case 1:
+      templateWeekNumber = 1;
+      console.log(`[CommonFillGeneration] Single week template: templateWeekNumber=1`);
+      break;
+    case 2:
+      templateWeekNumber = (calendarWeekNumber - 1) % 2 + 1;
+      console.log(`[CommonFillGeneration] Two week alternating: week ${calendarWeekNumber} → template ${templateWeekNumber}`);
+      break;
+    case 3:
+      templateWeekNumber = (calendarWeekNumber - 1) % 3 + 1;
+      console.log(`[CommonFillGeneration] Three week cycle: week ${calendarWeekNumber} → template ${templateWeekNumber}`);
+      break;
+    case 4:
+      templateWeekNumber = Math.min(calendarWeekNumber, 4);
+      console.log(`[CommonFillGeneration] Four week cycle: week ${calendarWeekNumber} → template ${templateWeekNumber}`);
+      break;
+    default:
+      templateWeekNumber = (calendarWeekNumber - 1) % numberOfWeekTemplates + 1;
+      console.log(`[CommonFillGeneration] Custom ${numberOfWeekTemplates} week cycle: week ${calendarWeekNumber} → template ${templateWeekNumber}`);
+      break;
+  }
+  
+  // *** 6. ФИНАЛЬНАЯ ПРОВЕРКА И ЛОГИРОВАНИЕ ***
+  console.log(`[CommonFillGeneration] *** ИСПРАВЛЕННЫЙ РЕЗУЛЬТАТ ДЛЯ ${date.toISOString()} ***`);
+  console.log(`[CommonFillGeneration] - Calendar week: ${calendarWeekNumber}`);
+  console.log(`[CommonFillGeneration] - Template week: ${templateWeekNumber}`);
+  console.log(`[CommonFillGeneration] - SharePoint day number: ${dayNumber}`);
+  console.log(`[CommonFillGeneration] - Day name: ${convertedDayName}`);
+  console.log(`[CommonFillGeneration] - Verification: ${date.toLocaleDateString('en-US', { weekday: 'long' })}`);
+  
+  // *** ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА КОРРЕКТНОСТИ ***
+  const expectedDayNameFromJS = date.toLocaleDateString('en-US', { weekday: 'long' });
+  if (convertedDayName !== expectedDayNameFromJS) {
+    console.error(`[CommonFillGeneration] *** КРИТИЧЕСКАЯ ОШИБКА *** Got: ${convertedDayName}, Expected: ${expectedDayNameFromJS}`);
+  } else {
+    console.log(`[CommonFillGeneration] ✅ День недели ОКОНЧАТЕЛЬНО ИСПРАВЛЕН: ${convertedDayName}`);
+  }
+  
+  return { 
+    calendarWeekNumber, 
+    templateWeekNumber, 
+    dayNumber 
+  };
+}
+
+/**
+ * *** ИСПРАВЛЕННЫЙ МЕТОД: Получает название дня из SharePoint номера ***
+ */
+private getSharePointDayName(dayNumber: number): string {
+  // *** ИСПРАВЛЕНО: SharePoint всегда использует одинаковую нумерацию в шаблонах ***
+  // 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday, 7=Sunday
+  const sharePointNames = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  return sharePointNames[dayNumber] || 'Unknown';
+}
   /**
    * *** ПОЛНОСТЬЮ ПЕРЕПИСАННЫЙ МЕТОД: Генерирует записи с правильной логикой чередования недель и UTC ***
    * ИСПРАВЛЕНО: Теперь использует UTC для всех дат и async/await для timezone adjustment
@@ -838,117 +995,6 @@ export class CommonFillGeneration {
   }
 
   /**
-   * *** НОВЫЙ МЕТОД: Вычисляет номер недели и день с учетом логики чередования ***
-   */
-  private calculateWeekAndDayWithChaining(
-    date: Date, 
-    startOfMonth: Date, 
-    dayOfStartWeek: number, 
-    numberOfWeekTemplates: number
-  ): { 
-    calendarWeekNumber: number; 
-    templateWeekNumber: number; 
-    dayNumber: number 
-  } {
-    console.log(`[CommonFillGeneration] *** CALCULATING WEEK AND DAY FOR ${date.toISOString()} ***`);
-    console.log(`[CommonFillGeneration] Input parameters: dayOfStartWeek=${dayOfStartWeek}, numberOfWeekTemplates=${numberOfWeekTemplates}`);
-    
-    // *** 1. ПОЛУЧАЕМ СТАНДАРТНЫЙ ДЕНЬ НЕДЕЛИ ИЗ JAVASCRIPT (UTC) ***
-    const jsDay = date.getUTCDay(); // 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday
-    console.log(`[CommonFillGeneration] JavaScript UTC day: ${jsDay} (${this.getDayName(jsDay)})`);
-    
-    // *** 2. ПРЕОБРАЗУЕМ В НУЖНУЮ НУМЕРАЦИЮ В ЗАВИСИМОСТИ ОТ dayOfStartWeek ***
-    let dayNumber: number;
-    
-    if (dayOfStartWeek === 2) {
-      // *** ПОНЕДЕЛЬНИК = НАЧАЛО НЕДЕЛИ (1=Monday, 2=Tuesday, ..., 7=Sunday) ***
-      dayNumber = jsDay === 0 ? 7 : jsDay; // Воскресенье становится 7, остальные без изменений
-      console.log(`[CommonFillGeneration] Monday-based week: ${jsDay} → ${dayNumber}`);
-    } else if (dayOfStartWeek === 7) {
-      // *** СУББОТА = НАЧАЛО НЕДЕЛИ (1=Saturday, 2=Sunday, ..., 7=Friday) ***
-      dayNumber = (jsDay + 2) % 7;
-      if (dayNumber === 0) dayNumber = 7;
-      console.log(`[CommonFillGeneration] Saturday-based week: ${jsDay} → ${dayNumber}`);
-    } else {
-      // *** ВОСКРЕСЕНЬЕ = НАЧАЛО НЕДЕЛИ (стандартная JS логика) ***
-      dayNumber = jsDay;
-      console.log(`[CommonFillGeneration] Sunday-based week: ${jsDay} → ${dayNumber}`);
-    }
-    
-    // *** 3. ВЫЧИСЛЯЕМ КАЛЕНДАРНУЮ НЕДЕЛЮ МЕСЯЦА С UTC ***
-    const dayOfMonth = date.getUTCDate();
-    const firstDayOfMonth = new Date(Date.UTC(startOfMonth.getUTCFullYear(), startOfMonth.getUTCMonth(), 1, 0, 0, 0, 0));
-    const firstDayJS = firstDayOfMonth.getUTCDay(); // JavaScript день недели первого дня месяца в UTC
-    
-    console.log(`[CommonFillGeneration] Month calculation: dayOfMonth=${dayOfMonth}, firstDayJS=${firstDayJS}`);
-    
-    // Корректируем первый день месяца в зависимости от dayOfStartWeek
-    let adjustedFirstDay: number;
-    
-    if (dayOfStartWeek === 2) {
-      // Понедельник = начало недели
-      adjustedFirstDay = firstDayJS === 0 ? 6 : firstDayJS - 1; // Sunday=6, Monday=0, Tuesday=1, etc.
-    } else if (dayOfStartWeek === 7) {
-      // Суббота = начало недели
-      adjustedFirstDay = (firstDayJS + 1) % 7; // Saturday=0, Sunday=1, Monday=2, etc.
-    } else {
-      // Воскресенье = начало недели (стандартная JS логика)
-      adjustedFirstDay = firstDayJS;
-    }
-    
-    const calendarWeekNumber = Math.floor((dayOfMonth - 1 + adjustedFirstDay) / 7) + 1;
-    
-    console.log(`[CommonFillGeneration] Week calculation: adjustedFirstDay=${adjustedFirstDay} → calendarWeekNumber=${calendarWeekNumber}`);
-    
-    // *** 4. ВЫЧИСЛЯЕМ НОМЕР НЕДЕЛИ ШАБЛОНА С УЧЕТОМ ЧЕРЕДОВАНИЯ ***
-    let templateWeekNumber: number;
-    
-    switch (numberOfWeekTemplates) {
-      case 1:
-        templateWeekNumber = 1;
-        console.log(`[CommonFillGeneration] Single week template: templateWeekNumber=1`);
-        break;
-      case 2:
-        templateWeekNumber = (calendarWeekNumber - 1) % 2 + 1;
-        console.log(`[CommonFillGeneration] Two week alternating: week ${calendarWeekNumber} → template ${templateWeekNumber}`);
-        break;
-      case 3:
-        templateWeekNumber = (calendarWeekNumber - 1) % 3 + 1;
-        console.log(`[CommonFillGeneration] Three week cycle: week ${calendarWeekNumber} → template ${templateWeekNumber}`);
-        break;
-      case 4:
-        templateWeekNumber = Math.min(calendarWeekNumber, 4);
-        console.log(`[CommonFillGeneration] Four week cycle: week ${calendarWeekNumber} → template ${templateWeekNumber}`);
-        break;
-      default:
-        templateWeekNumber = (calendarWeekNumber - 1) % numberOfWeekTemplates + 1;
-        console.log(`[CommonFillGeneration] Custom ${numberOfWeekTemplates} week cycle: week ${calendarWeekNumber} → template ${templateWeekNumber}`);
-        break;
-    }
-    
-    // *** 5. ФИНАЛЬНАЯ ПРОВЕРКА И ЛОГИРОВАНИЕ ***
-    const dayName = this.getDayName(dayNumber);
-    console.log(`[CommonFillGeneration] *** FINAL RESULT FOR ${date.toISOString()} ***`);
-    console.log(`[CommonFillGeneration] - Calendar week: ${calendarWeekNumber}`);
-    console.log(`[CommonFillGeneration] - Template week: ${templateWeekNumber}`);
-    console.log(`[CommonFillGeneration] - Day number: ${dayNumber}`);
-    console.log(`[CommonFillGeneration] - Day name: ${dayName}`);
-    console.log(`[CommonFillGeneration] - Expected day name: ${date.toLocaleDateString('en-US', { weekday: 'long' })}`);
-    
-    // *** ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА КОРРЕКТНОСТИ ***
-    const expectedDayName = date.toLocaleDateString('en-US', { weekday: 'long' });
-    if (dayName !== expectedDayName) {
-      console.error(`[CommonFillGeneration] *** DAY NAME MISMATCH *** Got: ${dayName}, Expected: ${expectedDayName}`);
-    }
-    
-    return { 
-      calendarWeekNumber, 
-      templateWeekNumber, 
-      dayNumber 
-    };
-  }
-
-  /**
    * *** НОВЫЙ МЕТОД: Находит шаблоны для конкретной недели и дня ***
    */
   private findTemplatesForDay(
@@ -1070,6 +1116,7 @@ export class CommonFillGeneration {
       return { hours: '09', minutes: '00' };
     }
   }
+
   /**
    * *** НОВЫЙ МЕТОД: Инициализирует анализ генерации ***
    */
