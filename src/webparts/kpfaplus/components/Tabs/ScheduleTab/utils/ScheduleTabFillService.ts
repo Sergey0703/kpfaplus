@@ -84,18 +84,18 @@ export const fillScheduleFromTemplate = async (
       0, 0, 0, 0
     ));
     
-  /*  const endOfMonth = new Date(Date.UTC(
+    const endOfMonth = new Date(Date.UTC(
       selectedDate.getUTCFullYear(), 
       selectedDate.getUTCMonth() + 1, 
       0, 
       23, 59, 59, 999
-    )); */
-    const endOfMonth = new Date(Date.UTC(
+    )); 
+  /*  const endOfMonth = new Date(Date.UTC(
   selectedDate.getUTCFullYear(), 
   selectedDate.getUTCMonth(), 
   selectedDate.getUTCDate(), 
   23, 59, 59, 999
-));
+)); */
 
     console.log(`[ScheduleTabFillService] *** UTC MONTH BOUNDARIES FOR FILL OPERATION ***`);
     console.log(`[ScheduleTabFillService] Start of month (UTC): ${startOfMonth.toISOString()}`);
@@ -357,18 +357,18 @@ export const checkExistingRecordsStatus = async (
       0, 0, 0, 0
     ));
     
-   /* const endOfMonth = new Date(Date.UTC(
+    const endOfMonth = new Date(Date.UTC(
       selectedDate.getUTCFullYear(), 
       selectedDate.getUTCMonth() + 1, 
       0, 
       23, 59, 59, 999
-    )); */
-    const endOfMonth = new Date(Date.UTC(
+    ));
+ /*   const endOfMonth = new Date(Date.UTC(
   selectedDate.getUTCFullYear(), 
   selectedDate.getUTCMonth(), 
   selectedDate.getUTCDate(), 
   23, 59, 59, 999
-));
+)); */
     
     const contractStartDate = selectedContract.startDate;
     const contractFinishDate = selectedContract.finishDate;
