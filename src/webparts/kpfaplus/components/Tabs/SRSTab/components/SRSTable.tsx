@@ -181,7 +181,7 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
                 options={options}
                 isEven={index % 2 === 0}
                 onItemChange={onItemChange}
-                onItemCheck={onItemCheck}
+                // ИСПРАВЛЕНО: Убрали onItemCheck, так как он не определен в ISRSTableRowProps
               />
             ))
           )}
