@@ -454,9 +454,9 @@ export const RemoteConnectionTest: React.FC<IRemoteConnectionTestProps> = (props
 
           {/* Usage Instructions */}
           <MessageBar messageBarType={MessageBarType.info}>
-            <strong>How to use:</strong> Select a staff member from the dropdown to temporarily act as that user. 
-            All operations in the application will be performed with the selected user's identity. 
-            Click "Stop Acting As" to return to your original user account.
+         <strong>How to use:</strong> Select a staff member from the dropdown to temporarily act as that user. 
+All operations in the application will be performed with the selected user&apos;s identity. 
+Click &quot;Stop Acting As&quot; to return to your original user account.
           </MessageBar>
         </Stack>
       </div>

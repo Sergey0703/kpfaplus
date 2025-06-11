@@ -15,8 +15,8 @@ export class UserService {
   private context: WebPartContext;
   
   // --- NEW IMPERSONATION PROPERTIES ---
-  private _originalUser: IUserInfo | null = null;
-  private _impersonatedUser: IUserInfo | null = null;
+  private _originalUser: IUserInfo | undefined = undefined;
+  private _impersonatedUser: IUserInfo | undefined = undefined;
   private _isImpersonating: boolean = false;
   // --- END NEW PROPERTIES ---
 
@@ -238,7 +238,7 @@ export class UserService {
     
     const previousImpersonatedUser = this._impersonatedUser?.Title || "Unknown";
     
-    this._impersonatedUser = null;
+    this._impersonatedUser = undefined;
     this._isImpersonating = false;
     
     this.logInfo(`Impersonation stopped. Returned from: ${previousImpersonatedUser} to original user: ${this._originalUser?.Title || "Unknown"}`);
@@ -250,13 +250,13 @@ export class UserService {
    * @returns Object with impersonation state information
    */
   public getImpersonationState(): {
-    originalUser: IUserInfo | null;
-    impersonatedUser: IUserInfo | null;
+    originalUser: IUserInfo | undefined;
+    impersonatedUser: IUserInfo | undefined;
     isImpersonating: boolean;
   } {
     return {
-      originalUser: this._originalUser ? { ...this._originalUser } : null,
-      impersonatedUser: this._impersonatedUser ? { ...this._impersonatedUser } : null,
+      originalUser: this._originalUser ? { ...this._originalUser } : undefined,
+      impersonatedUser: this._impersonatedUser ? { ...this._impersonatedUser } : undefined,
       isImpersonating: this._isImpersonating
     };
   }
@@ -266,12 +266,12 @@ export class UserService {
    * Gets the effective user as IUserInfo
    * @returns The effective user (impersonated or original)
    */
-  public getEffectiveUserInfo(): IUserInfo | null {
+  public getEffectiveUserInfo(): IUserInfo | undefined {
     if (this._isImpersonating && this._impersonatedUser) {
       return { ...this._impersonatedUser };
     }
     
-    return this._originalUser ? { ...this._originalUser } : null;
+    return this._originalUser ? { ...this._originalUser } : undefined;
   }
 
   /**

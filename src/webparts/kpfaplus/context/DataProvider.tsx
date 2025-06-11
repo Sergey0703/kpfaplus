@@ -29,8 +29,8 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
  
  // --- NEW IMPERSONATION STATE ---
  const [impersonationState, setImpersonationState] = useState<IImpersonationState>({
-   originalUser: null,
-   impersonatedUser: null,
+   originalUser: undefined,
+   impersonatedUser: undefined,
    isImpersonating: false
  });
  // --- END NEW IMPERSONATION STATE ---
@@ -151,7 +151,7 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
    
    setImpersonationState(prev => ({
      ...prev,
-     impersonatedUser: null,
+     impersonatedUser: undefined,
      isImpersonating: false
    }));
    
@@ -164,7 +164,7 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
  /**
   * Gets the currently effective user (impersonated or original)
   */
- const getEffectiveUser = useCallback((): IUserInfo | null => {
+ const getEffectiveUser = useCallback((): IUserInfo | undefined => {
    if (impersonationState.isImpersonating && impersonationState.impersonatedUser) {
      return { ...impersonationState.impersonatedUser };
    }
@@ -177,7 +177,7 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
      return convertCurrentUserToUserInfo(currentUser);
    }
    
-   return null;
+   return undefined;
  }, [impersonationState, currentUser]);
 
  /**
@@ -235,9 +235,8 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
      return undefined;
    }
  }, [userService, impersonationState.originalUser]);
- 
  // --- MODIFIED: Function to fetch departments using effective user ---
- const fetchDepartments = useCallback(async (effectiveUserOverride?: IUserInfo | null) => {
+ const fetchDepartments = useCallback(async (effectiveUserOverride?: IUserInfo | undefined) => {
    try {
      // Use the override if provided, otherwise get current effective user
      const effectiveUser = effectiveUserOverride || getEffectiveUser();

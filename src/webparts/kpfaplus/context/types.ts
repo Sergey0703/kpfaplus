@@ -45,7 +45,7 @@ export interface IDataContext {
   // Методы для управления импersonацией
   startImpersonation: (user: IUserInfo) => void;
   stopImpersonation: () => void;
-  getEffectiveUser: () => IUserInfo | null;
+  getEffectiveUser: () => IUserInfo | undefined;
   getAllStaffForImpersonation: () => Promise<IUserInfo[]>;
   // --- END NEW IMPERSONATION PROPERTIES ---
   

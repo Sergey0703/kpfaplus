@@ -12,15 +12,15 @@ const initialContextState: IDataContext = {
   
   // --- NEW IMPERSONATION STATE ---
   impersonationState: {
-    originalUser: null,
-    impersonatedUser: null,
+    originalUser: undefined,
+    impersonatedUser: undefined,
     isImpersonating: false
   },
   
   // NEW IMPERSONATION METHODS
   startImpersonation: () => {}, // Заглушка, будет заменена реальной функцией
   stopImpersonation: () => {}, // Заглушка, будет заменена реальной функцией
-  getEffectiveUser: () => null, // Заглушка, будет заменена реальной функцией
+  getEffectiveUser: () => undefined, // Заглушка, будет заменена реальной функцией
   getAllStaffForImpersonation: async () => [], // Заглушка, будет заменена реальной функцией
   // --- END NEW IMPERSONATION ---
   
@@ -48,7 +48,7 @@ const initialContextState: IDataContext = {
   refreshStaffMembers: async () => {}, // Заглушка, будет заменена реальной функцией
   
   // Добавляем метод обновления сотрудника в начальное значение контекста
-  updateStaffMember: async () => false ,// Заглушка, будет заменена реальной функцией
+  updateStaffMember: async () => false, // Заглушка, будет заменена реальной функцией
   
   // Добавляем новый метод добавления сотрудника в группу
   addStaffToGroup: async () => ({ success: false, alreadyExists: false })

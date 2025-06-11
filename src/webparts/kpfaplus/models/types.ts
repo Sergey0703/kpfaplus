@@ -38,9 +38,9 @@ export interface IUserInfo {
  */
 export interface IImpersonationState {
   /** The original logged-in user */
-  originalUser: IUserInfo | null;
+  originalUser: IUserInfo | undefined;
   /** The user being impersonated (if any) */
-  impersonatedUser: IUserInfo | null;
+  impersonatedUser: IUserInfo | undefined;
   /** Whether impersonation is currently active */
   isImpersonating: boolean;
 }
@@ -54,7 +54,7 @@ export interface IImpersonationActions {
   /** Stop impersonation and return to original user */
   stopImpersonation: () => void;
   /** Get the currently effective user (impersonated or original) */
-  getEffectiveUser: () => IUserInfo | null;
+  getEffectiveUser: () => IUserInfo | undefined;
 }
 
 // --- END NEW INTERFACES ---
