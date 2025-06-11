@@ -568,7 +568,10 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
      case 'srsReports':
        return <SRSReportsTab {...tabProps} />;  
      case 'remoteConnection':
-       return <RemoteConnectionTest context={props.context} />;
+       if (impersonationState.originalUser?.IsAdmin !== 1) {
+    return <div>Access denied</div>;
+  }
+  return <RemoteConnectionTest context={props.context} />;
      default:
        return <div>Select a tab</div>;
    }
@@ -857,8 +860,11 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
                <PivotItem itemKey="srs" headerText="SRS" />
                <PivotItem itemKey="srsReports" headerText="SRS Reports" />
                <PivotItem itemKey="notes" headerText="Notes" />
-               <PivotItem itemKey="leaveTimeByYears" headerText="Leave Time by Years" />
-               <PivotItem itemKey="remoteConnection" headerText="Tests" />
+               <PivotItem itemKey="leaveTimeByYears" headerText="Leave by Years" />
+               {/* ПОКАЗЫВАТЬ ТОЛЬКО ДЛЯ ОРИГИНАЛЬНЫХ АДМИНОВ */}
+{impersonationState.originalUser?.IsAdmin === 1 && (
+  <PivotItem itemKey="remoteConnection" headerText="Admin" />
+)}
              </Pivot>
            </div>
            

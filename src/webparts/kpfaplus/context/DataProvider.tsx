@@ -27,13 +27,18 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
  // Состояние для данных пользователя
  const [currentUser, setCurrentUser] = useState<ICurrentUser | undefined>(undefined);
  
- // --- NEW IMPERSONATION STATE ---
+ // --- NEW ADMIN STATE ---
+ const [isCurrentUserAdmin, setIsCurrentUserAdmin] = useState<boolean>(false);
+ const [canImpersonate, setCanImpersonate] = useState<boolean>(false);
+ // --- END NEW ADMIN STATE ---
+ 
+ // --- IMPERSONATION STATE ---
  const [impersonationState, setImpersonationState] = useState<IImpersonationState>({
    originalUser: undefined,
    impersonatedUser: undefined,
    isImpersonating: false
  });
- // --- END NEW IMPERSONATION STATE ---
+ // --- END IMPERSONATION STATE ---
  
  // Состояние для данных департаментов
  const [departments, setDepartments] = useState<IDepartment[]>([]);
@@ -88,7 +93,24 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
    });
  };
 
- // --- NEW IMPERSONATION METHODS ---
+ // --- NEW HELPER METHOD FOR UPDATING ADMIN RIGHTS ---
+ 
+ /**
+  * Updates admin rights state based on current UserService state
+  */
+ const updateAdminRights = useCallback((): void => {
+   const isAdmin = userService.isCurrentUserAdmin();
+   const canImp = userService.canImpersonate();
+   
+   console.log(`[DataProvider] Updating admin rights: isAdmin=${isAdmin}, canImpersonate=${canImp}`);
+   
+   setIsCurrentUserAdmin(isAdmin);
+   setCanImpersonate(canImp);
+ }, [userService]);
+
+ // --- END NEW HELPER METHOD ---
+
+ // --- IMPERSONATION METHODS ---
  
  /**
   * Converts ICurrentUser to IUserInfo format
@@ -97,7 +119,8 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
    return {
      ID: user.ID,
      Title: user.Title,
-     Email: user.Email
+     Email: user.Email,
+     IsAdmin: user.IsAdmin // Include IsAdmin field
    };
  };
 
@@ -120,6 +143,10 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
      // Also update the UserService
      userService.startImpersonation(user);
      
+     // --- NEW: Update admin rights after impersonation ---
+     updateAdminRights();
+     // --- END NEW ---
+     
      console.log(`[DataProvider] Impersonation started. Acting as: ${user.Title}, Original: ${originalUserInfo.Title}`);
    } else if (impersonationState.originalUser) {
      // If we already have an original user, just switch impersonation
@@ -132,11 +159,15 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
      // Update the UserService
      userService.startImpersonation(user);
      
+     // --- NEW: Update admin rights after impersonation ---
+     updateAdminRights();
+     // --- END NEW ---
+     
      console.log(`[DataProvider] Switched impersonation to: ${user.Title}`);
    } else {
      console.error('[DataProvider] Cannot start impersonation: currentUser not available');
    }
- }, [currentUser, impersonationState.originalUser, userService]);
+ }, [currentUser, impersonationState.originalUser, userService, updateAdminRights]);
 
  /**
   * Stops impersonation and returns to original user
@@ -158,8 +189,12 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
    // Update the UserService
    userService.stopImpersonation();
    
+   // --- NEW: Update admin rights after stopping impersonation ---
+   updateAdminRights();
+   // --- END NEW ---
+   
    console.log(`[DataProvider] Impersonation stopped. Returned to original user: ${impersonationState.originalUser?.Title || 'Unknown'}`);
- }, [impersonationState.isImpersonating, impersonationState.originalUser, userService]);
+ }, [impersonationState.isImpersonating, impersonationState.originalUser, userService, updateAdminRights]);
 
  /**
   * Gets the currently effective user (impersonated or original)
@@ -195,7 +230,7 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
    }
  }, [userService]);
 
- // --- END NEW IMPERSONATION METHODS ---
+ // --- END IMPERSONATION METHODS ---
  
  // Функция для загрузки данных текущего пользователя
  const fetchCurrentUser = useCallback(async () => {
@@ -205,8 +240,12 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
      const user = await userService.getCurrentUser();
      
      if (user) {
-       addLoadingStep('fetch-current-user', 'Loading current user data', 'success', `Found user: ${user.Title} (ID: ${user.ID})`);
+       addLoadingStep('fetch-current-user', 'Loading current user data', 'success', `Found user: ${user.Title} (ID: ${user.ID}) (Admin: ${user.IsAdmin === 1 ? 'YES' : 'NO'})`);
        setCurrentUser(user);
+       
+       // --- NEW: Update admin rights after loading user ---
+       updateAdminRights();
+       // --- END NEW ---
        
        // --- NEW: Initialize impersonation state with original user ---
        if (!impersonationState.originalUser) {
@@ -215,7 +254,7 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
            ...prev,
            originalUser: userInfo
          }));
-         console.log(`[DataProvider] Initialized original user: ${userInfo.Title} (ID: ${userInfo.ID})`);
+         console.log(`[DataProvider] Initialized original user: ${userInfo.Title} (ID: ${userInfo.ID}) (Admin: ${userInfo.IsAdmin === 1 ? 'YES' : 'NO'})`);
        }
        // --- END NEW ---
      } else {
@@ -234,7 +273,7 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
      }));
      return undefined;
    }
- }, [userService, impersonationState.originalUser]);
+ }, [userService, impersonationState.originalUser, updateAdminRights]);
  // --- MODIFIED: Function to fetch departments using effective user ---
  const fetchDepartments = useCallback(async (effectiveUserOverride?: IUserInfo | undefined) => {
    try {
@@ -243,7 +282,7 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
      
      if (effectiveUser && effectiveUser.ID) {
        // If we have an effective user, get their departments
-       addLoadingStep('fetch-departments', 'Loading departments data', 'loading', `Loading departments for effective user ID: ${effectiveUser.ID} (${effectiveUser.Title})`);
+       addLoadingStep('fetch-departments', 'Loading departments data', 'loading', `Loading departments for effective user ID: ${effectiveUser.ID} (${effectiveUser.Title}) (Admin: ${effectiveUser.IsAdmin === 1 ? 'YES' : 'NO'})`);
        
        const depts = await departmentService.fetchDepartmentsByManager(effectiveUser.ID);
        
@@ -436,7 +475,7 @@ const fetchGroupMembers = useCallback(async (departmentId: string) => {
      
      // Get effective user for department loading
      const effectiveUser = getEffectiveUser();
-     console.log(`[DataProvider] Refreshing data for effective user: ${effectiveUser?.Title || 'Unknown'} (ID: ${effectiveUser?.ID || 'Unknown'})`);
+     console.log(`[DataProvider] Refreshing data for effective user: ${effectiveUser?.Title || 'Unknown'} (ID: ${effectiveUser?.ID || 'Unknown'}) (Admin: ${effectiveUser?.IsAdmin === 1 ? 'YES' : 'NO'})`);
      
      // Load departments for effective user
      await fetchDepartments(effectiveUser);
@@ -467,7 +506,7 @@ const fetchGroupMembers = useCallback(async (departmentId: string) => {
  const refreshDepartments = useCallback(async () => {
    try {
      const effectiveUser = getEffectiveUser();
-     addLoadingStep('refresh-departments', 'Refreshing departments', 'loading', `For user: ${effectiveUser?.Title || 'Unknown'}`);
+     addLoadingStep('refresh-departments', 'Refreshing departments', 'loading', `For user: ${effectiveUser?.Title || 'Unknown'} (Admin: ${effectiveUser?.IsAdmin === 1 ? 'YES' : 'NO'})`);
      await fetchDepartments(effectiveUser);
      addLoadingStep('refresh-departments', 'Refreshing departments', 'success', 'Departments refreshed successfully');
    } catch (error) {
@@ -651,7 +690,7 @@ const addStaffToGroup = useCallback(async (
    // If impersonation state changes (start or stop), reload departments
    if (impersonationState.originalUser) { // Only after initial user is loaded
      const effectiveUser = getEffectiveUser();
-     console.log(`[DataProvider] Impersonation state changed. Reloading data for effective user: ${effectiveUser?.Title || 'Unknown'} (ID: ${effectiveUser?.ID || 'Unknown'})`);
+     console.log(`[DataProvider] Impersonation state changed. Reloading data for effective user: ${effectiveUser?.Title || 'Unknown'} (ID: ${effectiveUser?.ID || 'Unknown'}) (Admin: ${effectiveUser?.IsAdmin === 1 ? 'YES' : 'NO'})`);
      
      // Clear current staff selection to avoid confusion
      setSelectedStaff(undefined);
@@ -700,7 +739,7 @@ const addStaffToGroup = useCallback(async (
  // eslint-disable-next-line react-hooks/exhaustive-deps
  }, [selectedDepartmentId]);
  
- // Формируем значение контекста
+ // --- MODIFIED: Updated contextValue with admin properties from state ---
  const contextValue = {
    // Сервисные данные
    spContext: context,
@@ -708,13 +747,18 @@ const addStaffToGroup = useCallback(async (
    // Данные пользователя
    currentUser,
    
-   // --- NEW IMPERSONATION CONTEXT VALUES ---
+   // --- NEW ADMIN PROPERTIES FROM STATE ---
+   isCurrentUserAdmin: isCurrentUserAdmin,
+   canImpersonate: canImpersonate,
+   // --- END NEW ADMIN PROPERTIES ---
+   
+   // --- IMPERSONATION CONTEXT VALUES ---
    impersonationState,
    startImpersonation,
    stopImpersonation,
    getEffectiveUser,
    getAllStaffForImpersonation,
-   // --- END NEW IMPERSONATION CONTEXT VALUES ---
+   // --- END IMPERSONATION CONTEXT VALUES ---
    
    // Данные департаментов
    departments,
@@ -738,6 +782,7 @@ const addStaffToGroup = useCallback(async (
    updateStaffMember,
    addStaffToGroup // Новый метод
  };
+ // --- END MODIFIED ---
  
  return (
    <DataContext.Provider value={contextValue}>

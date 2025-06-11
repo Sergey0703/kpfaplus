@@ -10,19 +10,24 @@ const initialContextState: IDataContext = {
   // Данные пользователя
   currentUser: undefined, // изменено с null на undefined
   
-  // --- NEW IMPERSONATION STATE ---
+  // --- NEW ADMIN PROPERTIES ---
+  isCurrentUserAdmin: false, // По умолчанию не администратор
+  canImpersonate: false, // По умолчанию нет прав на импersonацию
+  // --- END NEW ADMIN PROPERTIES ---
+  
+  // --- IMPERSONATION STATE ---
   impersonationState: {
     originalUser: undefined,
     impersonatedUser: undefined,
     isImpersonating: false
   },
   
-  // NEW IMPERSONATION METHODS
+  // IMPERSONATION METHODS
   startImpersonation: () => {}, // Заглушка, будет заменена реальной функцией
   stopImpersonation: () => {}, // Заглушка, будет заменена реальной функцией
   getEffectiveUser: () => undefined, // Заглушка, будет заменена реальной функцией
   getAllStaffForImpersonation: async () => [], // Заглушка, будет заменена реальной функцией
-  // --- END NEW IMPERSONATION ---
+  // --- END IMPERSONATION ---
   
   // Данные департаментов
   departments: [],

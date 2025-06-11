@@ -38,7 +38,14 @@ export interface IDataContext {
   // Данные пользователя
   currentUser: ICurrentUser | undefined;
   
-  // --- NEW IMPERSONATION PROPERTIES ---
+  // --- NEW ADMIN PROPERTIES ---
+  // Флаг является ли текущий пользователь администратором
+  isCurrentUserAdmin: boolean;
+  // Может ли текущий пользователь использовать импersonацию
+  canImpersonate: boolean;
+  // --- END NEW ADMIN PROPERTIES ---
+  
+  // --- IMPERSONATION PROPERTIES ---
   // Состояние импersonации
   impersonationState: IImpersonationState;
   
@@ -47,7 +54,7 @@ export interface IDataContext {
   stopImpersonation: () => void;
   getEffectiveUser: () => IUserInfo | undefined;
   getAllStaffForImpersonation: () => Promise<IUserInfo[]>;
-  // --- END NEW IMPERSONATION PROPERTIES ---
+  // --- END IMPERSONATION PROPERTIES ---
   
   // Данные департаментов
   departments: IDepartment[];

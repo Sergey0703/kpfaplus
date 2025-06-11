@@ -31,6 +31,7 @@ export interface IUserInfo {
   ID: number;
   Title: string;
   Email: string;
+  IsAdmin?: number; // NEW: Admin field (1 = admin, 0 = regular user)
 }
 
 /**

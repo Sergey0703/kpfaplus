@@ -7,6 +7,7 @@ export interface ICurrentUser {
   ID: number;
   Title: string;
   Email: string;
+  IsAdmin?: number; // NEW: Admin field (1 = admin, 0 = regular user)
 }
 
 export class UserService {
@@ -61,8 +62,32 @@ export class UserService {
     return {
       ID: user.ID,
       Title: user.Title,
-      Email: user.Email
+      Email: user.Email,
+      IsAdmin: user.IsAdmin // NEW: Include IsAdmin field
     };
+  }
+
+  /**
+   * --- NEW METHOD ---
+   * Checks if the current user is an administrator
+   * @returns true if current user is admin (IsAdmin = 1), false otherwise
+   */
+  public isCurrentUserAdmin(): boolean {
+    const effectiveUser = this.getEffectiveUserInfo();
+    const isAdmin = effectiveUser?.IsAdmin === 1;
+    this.logInfo(`Admin check for user ${effectiveUser?.Title || 'Unknown'}: ${isAdmin ? 'YES' : 'NO'} (IsAdmin: ${effectiveUser?.IsAdmin})`);
+    return isAdmin;
+  }
+
+  /**
+   * --- NEW METHOD ---
+   * Checks if the current user can perform impersonation
+   * @returns true if user can impersonate (is admin), false otherwise
+   */
+  public canImpersonate(): boolean {
+    const canImpersonate = this.isCurrentUserAdmin();
+    this.logInfo(`Impersonation permission check: ${canImpersonate ? 'ALLOWED' : 'DENIED'}`);
+    return canImpersonate;
   }
 
   /**
@@ -83,7 +108,8 @@ export class UserService {
         return {
           ID: 0,
           Title: spUser.displayName || "Unknown",
-          Email: ""
+          Email: "",
+          IsAdmin: 0 // NEW: Default to non-admin
         };
       }
       
@@ -106,25 +132,30 @@ export class UserService {
           const userItem = matchingItems[0];
           const fields = userItem.fields || {};
           
+          // NEW: Extract IsAdmin field
+          const isAdminValue = this.ensureNumber(fields.IsAdmin);
+          
           // Логируем найденный элемент для отладки
           this.logInfo(`Staff member data: ${JSON.stringify({
             id: userItem.id,
             title: fields.Title,
-            email: fields.Email
+            email: fields.Email,
+            isAdmin: isAdminValue // NEW: Log admin status
           })}`);
           
           const currentUser: ICurrentUser = {
             ID: this.ensureNumber(userItem.id),
             Title: this.ensureString(fields.Title) || spUser.displayName,
-            Email: this.ensureString(fields.Email) || spUser.email
+            Email: this.ensureString(fields.Email) || spUser.email,
+            IsAdmin: isAdminValue // NEW: Include IsAdmin field
           };
           
-          this.logInfo(`Found current user in Staff list: ${currentUser.Title}`);
+          this.logInfo(`Found current user in Staff list: ${currentUser.Title} (Admin: ${isAdminValue === 1 ? 'YES' : 'NO'})`);
           
           // --- NEW: Store original user on first load ---
           if (!this._originalUser && !this._isImpersonating) {
             this._originalUser = this.convertToUserInfo(currentUser);
-            this.logInfo(`Stored original user: ${this._originalUser.Title}`);
+            this.logInfo(`Stored original user: ${this._originalUser.Title} (Admin: ${this._originalUser.IsAdmin === 1 ? 'YES' : 'NO'})`);
           }
           // --- END NEW ---
           
@@ -136,13 +167,14 @@ export class UserService {
           const fallbackUser: ICurrentUser = {
             ID: 0,
             Title: spUser.displayName || "Unknown",
-            Email: spUser.email
+            Email: spUser.email,
+            IsAdmin: 0 // NEW: Default to non-admin for unknown users
           };
           
           // --- NEW: Store original user on first load ---
           if (!this._originalUser && !this._isImpersonating) {
             this._originalUser = this.convertToUserInfo(fallbackUser);
-            this.logInfo(`Stored fallback original user: ${this._originalUser.Title}`);
+            this.logInfo(`Stored fallback original user: ${this._originalUser.Title} (Admin: NO - not in Staff list)`);
           }
           // --- END NEW ---
           
@@ -154,13 +186,14 @@ export class UserService {
         const errorFallbackUser: ICurrentUser = {
           ID: 0,
           Title: spUser.displayName || "Unknown",
-          Email: spUser.email
+          Email: spUser.email,
+          IsAdmin: 0 // NEW: Default to non-admin on error
         };
         
         // --- NEW: Store original user on first load ---
         if (!this._originalUser && !this._isImpersonating) {
           this._originalUser = this.convertToUserInfo(errorFallbackUser);
-          this.logInfo(`Stored error fallback original user: ${this._originalUser.Title}`);
+          this.logInfo(`Stored error fallback original user: ${this._originalUser.Title} (Admin: NO - error loading)`);
         }
         // --- END NEW ---
         
@@ -172,13 +205,14 @@ export class UserService {
       const minimalUser: ICurrentUser = {
         ID: 0,
         Title: "Unknown User",
-        Email: ""
+        Email: "",
+        IsAdmin: 0 // NEW: Default to non-admin
       };
       
       // --- NEW: Store original user on first load ---
       if (!this._originalUser && !this._isImpersonating) {
         this._originalUser = this.convertToUserInfo(minimalUser);
-        this.logInfo(`Stored minimal original user: ${this._originalUser.Title}`);
+        this.logInfo(`Stored minimal original user: ${this._originalUser.Title} (Admin: NO - critical error)`);
       }
       // --- END NEW ---
       
@@ -197,7 +231,8 @@ export class UserService {
       return {
         ID: this._impersonatedUser.ID,
         Title: this._impersonatedUser.Title,
-        Email: this._impersonatedUser.Email
+        Email: this._impersonatedUser.Email,
+        IsAdmin: this._impersonatedUser.IsAdmin // NEW: Include IsAdmin for impersonated user
       };
     }
     
@@ -207,12 +242,18 @@ export class UserService {
   }
 
   /**
-   * --- NEW METHOD ---
-   * Starts impersonating a specific user
+   * --- MODIFIED METHOD ---
+   * Starts impersonating a specific user (only if current user is admin)
    * @param user The user to impersonate
    */
   public startImpersonation(user: IUserInfo): void {
     this.logInfo(`Starting impersonation of user: ${user.Title} (ID: ${user.ID})`);
+    
+    // NEW: Check if current user has admin privileges
+    if (!this.isCurrentUserAdmin()) {
+      this.logError("Cannot start impersonation: current user is not an administrator");
+      return;
+    }
     
     // Ensure we have original user stored
     if (!this._originalUser) {
@@ -223,7 +264,7 @@ export class UserService {
     this._impersonatedUser = { ...user }; // Clone the user object
     this._isImpersonating = true;
     
-    this.logInfo(`Impersonation started. Acting as: ${this._impersonatedUser.Title}`);
+    this.logInfo(`Impersonation started. Acting as: ${this._impersonatedUser.Title} (Admin: ${this._impersonatedUser.IsAdmin === 1 ? 'YES' : 'NO'})`);
   }
 
   /**
@@ -296,7 +337,8 @@ export class UserService {
         return {
           ID: this.ensureNumber(item.id),
           Title: this.ensureString(fields.Title),
-          Email: this.ensureString(fields.Email)
+          Email: this.ensureString(fields.Email),
+          IsAdmin: this.ensureNumber(fields.IsAdmin) // NEW: Include IsAdmin field
         };
       });
       
