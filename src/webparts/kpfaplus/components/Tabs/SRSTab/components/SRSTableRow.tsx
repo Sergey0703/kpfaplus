@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useCallback } from 'react';
-import { Checkbox, Dropdown, DefaultButton } from '@fluentui/react';
+import { Checkbox, Dropdown, DefaultButton, IDropdownOption } from '@fluentui/react';
 import { ISRSTableRowProps } from '../utils/SRSTabInterfaces';
 
 export const SRSTableRow: React.FC<ISRSTableRowProps> = (props) => {
@@ -26,7 +26,6 @@ export const SRSTableRow: React.FC<ISRSTableRowProps> = (props) => {
   const rowStyle: React.CSSProperties = {
     backgroundColor: item.deleted ? '#f5f5f5' : (isEven ? '#ffffff' : '#f9f9f9'),
     opacity: item.deleted ? 0.6 : 1,
-    // УДАЛЕНО: Убираем дополнительные границы и отступы
   };
 
   // Обработчики изменений
@@ -36,43 +35,43 @@ export const SRSTableRow: React.FC<ISRSTableRowProps> = (props) => {
     }
   }, [item, onItemChange]);
 
-  const handleStartHourChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: any): void => {
+  const handleStartHourChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
     if (option) {
-      const newStartWork = { ...item.startWork, hours: option.key };
+      const newStartWork = { ...item.startWork, hours: option.key as string };
       onItemChange(item, 'startWork', newStartWork);
     }
   }, [item, onItemChange]);
 
-  const handleStartMinuteChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: any): void => {
+  const handleStartMinuteChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
     if (option) {
-      const newStartWork = { ...item.startWork, minutes: option.key };
+      const newStartWork = { ...item.startWork, minutes: option.key as string };
       onItemChange(item, 'startWork', newStartWork);
     }
   }, [item, onItemChange]);
 
-  const handleFinishHourChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: any): void => {
+  const handleFinishHourChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
     if (option) {
-      const newFinishWork = { ...item.finishWork, hours: option.key };
+      const newFinishWork = { ...item.finishWork, hours: option.key as string };
       onItemChange(item, 'finishWork', newFinishWork);
     }
   }, [item, onItemChange]);
 
-  const handleFinishMinuteChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: any): void => {
+  const handleFinishMinuteChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
     if (option) {
-      const newFinishWork = { ...item.finishWork, minutes: option.key };
+      const newFinishWork = { ...item.finishWork, minutes: option.key as string };
       onItemChange(item, 'finishWork', newFinishWork);
     }
   }, [item, onItemChange]);
 
-  const handleLunchChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: any): void => {
+  const handleLunchChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
     if (option) {
-      onItemChange(item, 'lunch', option.key);
+      onItemChange(item, 'lunch', option.key as string);
     }
   }, [item, onItemChange]);
 
-  const handleLeaveTypeChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: any): void => {
+  const handleLeaveTypeChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
     if (option) {
-      onItemChange(item, 'typeOfLeave', option.key);
+      onItemChange(item, 'typeOfLeave', option.key as string);
     }
   }, [item, onItemChange]);
 
@@ -80,9 +79,9 @@ export const SRSTableRow: React.FC<ISRSTableRowProps> = (props) => {
     onItemChange(item, 'timeLeave', event.target.value);
   }, [item, onItemChange]);
 
-  const handleContractChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: any): void => {
+  const handleContractChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
     if (option) {
-      onItemChange(item, 'contract', option.key);
+      onItemChange(item, 'contract', option.key as string);
     }
   }, [item, onItemChange]);
 
@@ -102,7 +101,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps> = (props) => {
   const dayOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][item.date.getDay()];
 
   // ИЗМЕНЕНО: Стили для dropdown в стиле Schedule
-  const getDropdownStyles = () => ({
+  const getDropdownStyles = (): object => ({
     root: { 
       width: 60, 
       margin: '0 2px',
@@ -126,7 +125,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps> = (props) => {
     }
   });
 
-  const getLunchDropdownStyles = () => ({
+  const getLunchDropdownStyles = (): object => ({
     root: { 
       width: 80,
       ...(item.deleted && {
@@ -144,7 +143,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps> = (props) => {
     }
   });
 
-  const getLeaveDropdownStyles = () => ({
+  const getLeaveDropdownStyles = (): object => ({
     root: { 
       width: 140, // Уменьшили ширину
       ...(item.deleted && {
@@ -162,7 +161,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps> = (props) => {
     }
   });
 
-  const getContractDropdownStyles = () => ({
+  const getContractDropdownStyles = (): object => ({
     root: { 
       width: 50,
       ...(item.deleted && {
