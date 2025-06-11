@@ -474,7 +474,7 @@ export class CommonFillValidation {
         const utcTest = params.selectedDate.toISOString();
         console.log(`[CommonFillValidation] Date UTC validation passed: ${utcTest}`);
       }
-    } catch (error) {
+    } catch {
       errors.push('Selected date cannot be converted to UTC format');
     }
 
