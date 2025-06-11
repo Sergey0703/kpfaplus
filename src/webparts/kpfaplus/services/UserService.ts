@@ -1,6 +1,7 @@
 // src/webparts/kpfaplus/services/UserService.ts
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { RemoteSiteService } from "./RemoteSiteService";
+import { IUserInfo } from "../models/types";
 
 export interface ICurrentUser {
   ID: number;
@@ -12,6 +13,12 @@ export class UserService {
   private logSource: string = "UserService";
   private remoteSiteService: RemoteSiteService;
   private context: WebPartContext;
+  
+  // --- NEW IMPERSONATION PROPERTIES ---
+  private _originalUser: IUserInfo | null = null;
+  private _impersonatedUser: IUserInfo | null = null;
+  private _isImpersonating: boolean = false;
+  // --- END NEW PROPERTIES ---
 
   constructor(context: WebPartContext) {
     this.context = context;
@@ -42,6 +49,20 @@ export class UserService {
     }
     const num = Number(value);
     return isNaN(num) ? 0 : num;
+  }
+
+  /**
+   * --- NEW METHOD ---
+   * Converts ICurrentUser to IUserInfo format
+   * @param user ICurrentUser object
+   * @returns IUserInfo object
+   */
+  private convertToUserInfo(user: ICurrentUser): IUserInfo {
+    return {
+      ID: user.ID,
+      Title: user.Title,
+      Email: user.Email
+    };
   }
 
   /**
@@ -99,35 +120,158 @@ export class UserService {
           };
           
           this.logInfo(`Found current user in Staff list: ${currentUser.Title}`);
+          
+          // --- NEW: Store original user on first load ---
+          if (!this._originalUser && !this._isImpersonating) {
+            this._originalUser = this.convertToUserInfo(currentUser);
+            this.logInfo(`Stored original user: ${this._originalUser.Title}`);
+          }
+          // --- END NEW ---
+          
           return currentUser;
         } else {
           this.logInfo(`Current user with email ${spUser.email} not found in Staff list`);
           
           // Возвращаем информацию из контекста SharePoint
-          return {
+          const fallbackUser: ICurrentUser = {
             ID: 0,
             Title: spUser.displayName || "Unknown",
             Email: spUser.email
           };
+          
+          // --- NEW: Store original user on first load ---
+          if (!this._originalUser && !this._isImpersonating) {
+            this._originalUser = this.convertToUserInfo(fallbackUser);
+            this.logInfo(`Stored fallback original user: ${this._originalUser.Title}`);
+          }
+          // --- END NEW ---
+          
+          return fallbackUser;
         }
       } catch (staffError) {
         this.logError(`Error getting staff list: ${staffError}`);
         // В случае ошибки все равно возвращаем данные из контекста
-        return {
+        const errorFallbackUser: ICurrentUser = {
           ID: 0,
           Title: spUser.displayName || "Unknown",
           Email: spUser.email
         };
+        
+        // --- NEW: Store original user on first load ---
+        if (!this._originalUser && !this._isImpersonating) {
+          this._originalUser = this.convertToUserInfo(errorFallbackUser);
+          this.logInfo(`Stored error fallback original user: ${this._originalUser.Title}`);
+        }
+        // --- END NEW ---
+        
+        return errorFallbackUser;
       }
     } catch (error) {
       this.logError(`Error getting current user: ${error}`);
       // Возвращаем минимальные данные
-      return {
+      const minimalUser: ICurrentUser = {
         ID: 0,
         Title: "Unknown User",
         Email: ""
       };
+      
+      // --- NEW: Store original user on first load ---
+      if (!this._originalUser && !this._isImpersonating) {
+        this._originalUser = this.convertToUserInfo(minimalUser);
+        this.logInfo(`Stored minimal original user: ${this._originalUser.Title}`);
+      }
+      // --- END NEW ---
+      
+      return minimalUser;
     }
+  }
+
+  /**
+   * --- NEW METHOD ---
+   * Gets the effective current user (impersonated user if active, otherwise original user)
+   * @returns Promise with the effective current user data
+   */
+  public async getEffectiveCurrentUser(): Promise<ICurrentUser | undefined> {
+    if (this._isImpersonating && this._impersonatedUser) {
+      this.logInfo(`Returning impersonated user: ${this._impersonatedUser.Title} (ID: ${this._impersonatedUser.ID})`);
+      return {
+        ID: this._impersonatedUser.ID,
+        Title: this._impersonatedUser.Title,
+        Email: this._impersonatedUser.Email
+      };
+    }
+    
+    // Return original user
+    this.logInfo("Returning original current user");
+    return this.getCurrentUser();
+  }
+
+  /**
+   * --- NEW METHOD ---
+   * Starts impersonating a specific user
+   * @param user The user to impersonate
+   */
+  public startImpersonation(user: IUserInfo): void {
+    this.logInfo(`Starting impersonation of user: ${user.Title} (ID: ${user.ID})`);
+    
+    // Ensure we have original user stored
+    if (!this._originalUser) {
+      this.logError("Cannot start impersonation: original user not stored");
+      return;
+    }
+    
+    this._impersonatedUser = { ...user }; // Clone the user object
+    this._isImpersonating = true;
+    
+    this.logInfo(`Impersonation started. Acting as: ${this._impersonatedUser.Title}`);
+  }
+
+  /**
+   * --- NEW METHOD ---
+   * Stops impersonation and returns to original user
+   */
+  public stopImpersonation(): void {
+    if (!this._isImpersonating) {
+      this.logInfo("No active impersonation to stop");
+      return;
+    }
+    
+    const previousImpersonatedUser = this._impersonatedUser?.Title || "Unknown";
+    
+    this._impersonatedUser = null;
+    this._isImpersonating = false;
+    
+    this.logInfo(`Impersonation stopped. Returned from: ${previousImpersonatedUser} to original user: ${this._originalUser?.Title || "Unknown"}`);
+  }
+
+  /**
+   * --- NEW METHOD ---
+   * Gets the current impersonation state
+   * @returns Object with impersonation state information
+   */
+  public getImpersonationState(): {
+    originalUser: IUserInfo | null;
+    impersonatedUser: IUserInfo | null;
+    isImpersonating: boolean;
+  } {
+    return {
+      originalUser: this._originalUser ? { ...this._originalUser } : null,
+      impersonatedUser: this._impersonatedUser ? { ...this._impersonatedUser } : null,
+      isImpersonating: this._isImpersonating
+    };
+  }
+
+  /**
+   * --- NEW METHOD ---
+   * Gets the effective user as IUserInfo
+   * @returns The effective user (impersonated or original)
+   */
+  public getEffectiveUserInfo(): IUserInfo | null {
+    if (this._isImpersonating && this._impersonatedUser) {
+      return { ...this._impersonatedUser };
+    }
+    
+    return this._originalUser ? { ...this._originalUser } : null;
   }
 
   /**
@@ -161,6 +305,21 @@ export class UserService {
       this.logError(`Error fetching staff from remote site: ${error}`);
       
       // Возвращаем пустой массив вместо выбрасывания исключения
+      return [];
+    }
+  }
+
+  /**
+   * --- NEW METHOD ---
+   * Gets all staff members as IUserInfo objects (useful for impersonation selectors)
+   * @returns Promise with array of staff members in IUserInfo format
+   */
+  public async getAllStaffAsUserInfo(): Promise<IUserInfo[]> {
+    try {
+      const staff = await this.getAllStaff();
+      return staff.map(member => this.convertToUserInfo(member));
+    } catch (error) {
+      this.logError(`Error fetching staff as UserInfo: ${error}`);
       return [];
     }
   }

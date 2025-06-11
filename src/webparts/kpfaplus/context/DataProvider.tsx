@@ -5,7 +5,7 @@ import { DataContext } from './DataContext';
 import { IDataProviderProps, ILoadingState, ILoadingStep, IStaffMemberUpdateData } from './types';
 import { DepartmentService } from '../services/DepartmentService';
 import { UserService, ICurrentUser } from '../services/UserService';
-import { IStaffMember, IGroupMember, IDepartment } from '../models/types';
+import { IStaffMember, IGroupMember, IDepartment, IUserInfo, IImpersonationState } from '../models/types';
 import { GroupMemberService } from '../services/GroupMemberService';
 
 // Интерфейс для данных обновления сотрудника, передаваемых в GroupMemberService
@@ -26,6 +26,14 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
  
  // Состояние для данных пользователя
  const [currentUser, setCurrentUser] = useState<ICurrentUser | undefined>(undefined);
+ 
+ // --- NEW IMPERSONATION STATE ---
+ const [impersonationState, setImpersonationState] = useState<IImpersonationState>({
+   originalUser: null,
+   impersonatedUser: null,
+   isImpersonating: false
+ });
+ // --- END NEW IMPERSONATION STATE ---
  
  // Состояние для данных департаментов
  const [departments, setDepartments] = useState<IDepartment[]>([]);
@@ -79,6 +87,115 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
      };
    });
  };
+
+ // --- NEW IMPERSONATION METHODS ---
+ 
+ /**
+  * Converts ICurrentUser to IUserInfo format
+  */
+ const convertCurrentUserToUserInfo = (user: ICurrentUser): IUserInfo => {
+   return {
+     ID: user.ID,
+     Title: user.Title,
+     Email: user.Email
+   };
+ };
+
+ /**
+  * Starts impersonating a specific user
+  */
+ const startImpersonation = useCallback((user: IUserInfo): void => {
+   console.log(`[DataProvider] Starting impersonation of user: ${user.Title} (ID: ${user.ID})`);
+   
+   // Store original user if not already stored
+   if (!impersonationState.originalUser && currentUser) {
+     const originalUserInfo = convertCurrentUserToUserInfo(currentUser);
+     
+     setImpersonationState({
+       originalUser: originalUserInfo,
+       impersonatedUser: { ...user },
+       isImpersonating: true
+     });
+     
+     // Also update the UserService
+     userService.startImpersonation(user);
+     
+     console.log(`[DataProvider] Impersonation started. Acting as: ${user.Title}, Original: ${originalUserInfo.Title}`);
+   } else if (impersonationState.originalUser) {
+     // If we already have an original user, just switch impersonation
+     setImpersonationState(prev => ({
+       ...prev,
+       impersonatedUser: { ...user },
+       isImpersonating: true
+     }));
+     
+     // Update the UserService
+     userService.startImpersonation(user);
+     
+     console.log(`[DataProvider] Switched impersonation to: ${user.Title}`);
+   } else {
+     console.error('[DataProvider] Cannot start impersonation: currentUser not available');
+   }
+ }, [currentUser, impersonationState.originalUser, userService]);
+
+ /**
+  * Stops impersonation and returns to original user
+  */
+ const stopImpersonation = useCallback((): void => {
+   console.log(`[DataProvider] Stopping impersonation`);
+   
+   if (!impersonationState.isImpersonating) {
+     console.log('[DataProvider] No active impersonation to stop');
+     return;
+   }
+   
+   setImpersonationState(prev => ({
+     ...prev,
+     impersonatedUser: null,
+     isImpersonating: false
+   }));
+   
+   // Update the UserService
+   userService.stopImpersonation();
+   
+   console.log(`[DataProvider] Impersonation stopped. Returned to original user: ${impersonationState.originalUser?.Title || 'Unknown'}`);
+ }, [impersonationState.isImpersonating, impersonationState.originalUser, userService]);
+
+ /**
+  * Gets the currently effective user (impersonated or original)
+  */
+ const getEffectiveUser = useCallback((): IUserInfo | null => {
+   if (impersonationState.isImpersonating && impersonationState.impersonatedUser) {
+     return { ...impersonationState.impersonatedUser };
+   }
+   
+   if (impersonationState.originalUser) {
+     return { ...impersonationState.originalUser };
+   }
+   
+   if (currentUser) {
+     return convertCurrentUserToUserInfo(currentUser);
+   }
+   
+   return null;
+ }, [impersonationState, currentUser]);
+
+ /**
+  * Gets all staff members for impersonation selector
+  */
+ const getAllStaffForImpersonation = useCallback(async (): Promise<IUserInfo[]> => {
+   try {
+     console.log('[DataProvider] Fetching all staff for impersonation');
+     const allStaff = await userService.getAllStaffAsUserInfo();
+     console.log(`[DataProvider] Fetched ${allStaff.length} staff members for impersonation`);
+     return allStaff;
+   } catch (error) {
+     console.error('[DataProvider] Error fetching staff for impersonation:', error);
+     return [];
+   }
+ }, [userService]);
+
+ // --- END NEW IMPERSONATION METHODS ---
  
  // Функция для загрузки данных текущего пользователя
  const fetchCurrentUser = useCallback(async () => {
@@ -90,6 +207,17 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
      if (user) {
        addLoadingStep('fetch-current-user', 'Loading current user data', 'success', `Found user: ${user.Title} (ID: ${user.ID})`);
        setCurrentUser(user);
+       
+       // --- NEW: Initialize impersonation state with original user ---
+       if (!impersonationState.originalUser) {
+         const userInfo = convertCurrentUserToUserInfo(user);
+         setImpersonationState(prev => ({
+           ...prev,
+           originalUser: userInfo
+         }));
+         console.log(`[DataProvider] Initialized original user: ${userInfo.Title} (ID: ${userInfo.ID})`);
+       }
+       // --- END NEW ---
      } else {
        addLoadingStep('fetch-current-user', 'Loading current user data', 'error', 'User not found in Staff list');
      }
@@ -106,7 +234,7 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
      }));
      return undefined;
    }
- }, [userService]);
+ }, [userService, impersonationState.originalUser]);
  
  // Функция для загрузки данных департаментов с фильтрацией неудаленных
  const fetchDepartments = useCallback(async (user: ICurrentUser | undefined) => {
@@ -449,11 +577,15 @@ const addStaffToGroup = useCallback(async (
     addLoadingStep('add-staff-to-group', 'Adding staff to group', 'loading', 
       `Department ID: ${departmentId}, Staff ID: ${staffId}`);
     
-    // Добавляем ID текущего пользователя к additionalData
+    // --- MODIFIED: Use effective user instead of currentUser ---
+    const effectiveUser = getEffectiveUser();
+    
+    // Добавляем ID эффективного пользователя к additionalData
     const extendedData = {
       ...additionalData,
-      currentUserId: currentUser?.ID
+      currentUserId: effectiveUser?.ID
     };
+    // --- END MODIFIED ---
     
     // Вызываем метод из GroupMemberService с изменённым возвратом
     const result = await groupMemberService.createGroupMemberFromStaff(
@@ -486,7 +618,7 @@ const addStaffToGroup = useCallback(async (
     addLoadingStep('add-staff-to-group', 'Adding staff to group', 'error', `Error: ${error}`);
     return { success: false, alreadyExists: false };
   }
-}, [groupMemberService, refreshStaffMembers, addLoadingStep, currentUser]);
+}, [groupMemberService, refreshStaffMembers, addLoadingStep, getEffectiveUser]);
 
  // Инициализация приложения
  useEffect(() => {
@@ -521,6 +653,14 @@ const addStaffToGroup = useCallback(async (
    
    // Данные пользователя
    currentUser,
+   
+   // --- NEW IMPERSONATION CONTEXT VALUES ---
+   impersonationState,
+   startImpersonation,
+   stopImpersonation,
+   getEffectiveUser,
+   getAllStaffForImpersonation,
+   // --- END NEW IMPERSONATION CONTEXT VALUES ---
    
    // Данные департаментов
    departments,

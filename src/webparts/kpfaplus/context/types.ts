@@ -3,7 +3,7 @@ import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { ICurrentUser } from "../services/UserService";
 // Уберем этот импорт, который конфликтует с локальным объявлением
 // import { IDepartment } from "../services/DepartmentService";
-import { IStaffMember, IDepartment } from "../models/types";
+import { IStaffMember, IDepartment, IUserInfo, IImpersonationState } from "../models/types";
 
 // Интерфейс для шага загрузки
 export interface ILoadingStep {
@@ -38,6 +38,17 @@ export interface IDataContext {
   // Данные пользователя
   currentUser: ICurrentUser | undefined;
   
+  // --- NEW IMPERSONATION PROPERTIES ---
+  // Состояние импersonации
+  impersonationState: IImpersonationState;
+  
+  // Методы для управления импersonацией
+  startImpersonation: (user: IUserInfo) => void;
+  stopImpersonation: () => void;
+  getEffectiveUser: () => IUserInfo | null;
+  getAllStaffForImpersonation: () => Promise<IUserInfo[]>;
+  // --- END NEW IMPERSONATION PROPERTIES ---
+  
   // Данные департаментов
   departments: IDepartment[];
   selectedDepartmentId: string;
@@ -60,19 +71,18 @@ export interface IDataContext {
   updateStaffMember: (staffId: string, data: IStaffMemberUpdateData) => Promise<boolean>;
 
   // В types.ts обновите сигнатуру метода addStaffToGroup
-addStaffToGroup: (
-  departmentId: string, 
-  staffId: number, 
-  additionalData: {
-    autoSchedule?: boolean,
-    pathForSRSFile?: string,
-    generalNote?: string
-  }
-) => Promise<{ success: boolean; alreadyExists: boolean }>;
+  addStaffToGroup: (
+    departmentId: string, 
+    staffId: number, 
+    additionalData: {
+      autoSchedule?: boolean,
+      pathForSRSFile?: string,
+      generalNote?: string
+    }
+  ) => Promise<{ success: boolean; alreadyExists: boolean }>;
 }
 
 export interface IDataProviderProps {
   context: WebPartContext;
   children?: React.ReactNode;
 }
-

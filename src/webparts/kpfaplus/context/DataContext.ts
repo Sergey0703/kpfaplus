@@ -10,6 +10,20 @@ const initialContextState: IDataContext = {
   // Данные пользователя
   currentUser: undefined, // изменено с null на undefined
   
+  // --- NEW IMPERSONATION STATE ---
+  impersonationState: {
+    originalUser: null,
+    impersonatedUser: null,
+    isImpersonating: false
+  },
+  
+  // NEW IMPERSONATION METHODS
+  startImpersonation: () => {}, // Заглушка, будет заменена реальной функцией
+  stopImpersonation: () => {}, // Заглушка, будет заменена реальной функцией
+  getEffectiveUser: () => null, // Заглушка, будет заменена реальной функцией
+  getAllStaffForImpersonation: async () => [], // Заглушка, будет заменена реальной функцией
+  // --- END NEW IMPERSONATION ---
+  
   // Данные департаментов
   departments: [],
   selectedDepartmentId: "",
