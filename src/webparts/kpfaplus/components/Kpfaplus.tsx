@@ -3,7 +3,7 @@ import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { IKPFAprops } from './IKpfaplusProps';
 import { StaffGallery } from './StaffGallery/StaffGallery';
-import { Pivot, PivotItem, Toggle, MessageBar, MessageBarType } from '@fluentui/react';
+import { Pivot, PivotItem, Toggle, MessageBar, MessageBarType, Icon } from '@fluentui/react';
 import { useDataContext } from '../context';
 import { LoadingProgress } from './LoadingProgress/LoadingProgress';
 import { LoadingSpinner } from './LoadingSpinner/LoadingSpinner';
@@ -44,6 +44,11 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
  const {
    // Данные пользователя
    currentUser,
+   
+   // --- NEW IMPERSONATION CONTEXT ---
+   impersonationState,
+   getEffectiveUser,
+   // --- END NEW IMPERSONATION CONTEXT ---
    
    // Данные департаментов
    departments,
@@ -107,6 +112,10 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
 
  // Добавляем состояние для хранения DayOfStartWeek выбранного департамента
  const [selectedDepartmentDayOfStartWeek, setSelectedDepartmentDayOfStartWeek] = useState<number>(7); // По умолчанию - суббота (7)
+
+ // --- NEW: Get effective user for display ---
+ const effectiveUser = getEffectiveUser();
+ // --- END NEW ---
 
  // Обработчик для отмены изменений - определен раньше, чтобы использовать в handleTabChange
  const handleCancel = (): void => {
@@ -206,7 +215,6 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
    }
  // eslint-disable-next-line react-hooks/exhaustive-deps
  }, [selectedDepartmentId]);
-
  const handleDepartmentChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
    logInfo(`Department changed to ID: ${e.target.value}`);
    setSelectedDepartmentId(e.target.value);
@@ -497,13 +505,16 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
       logError(`Error refreshing data after returning from Manage Groups: ${error}`);
     });
  };
-
  // Рендеринг содержимого вкладки
  const renderTabContent = (): JSX.Element => {
    if (!selectedStaff && selectedTabKey !== 'remoteConnection') {
      return <div>Please select a staff member</div>;
    }
-   const currentUserId = currentUser?.ID !== undefined ? currentUser.ID.toString() : undefined;
+   
+   // --- MODIFIED: Use effective user instead of currentUser ---
+   const currentUserId = effectiveUser?.ID !== undefined ? effectiveUser.ID.toString() : undefined;
+   // --- END MODIFIED ---
+   
    const managingGroupId = selectedDepartmentId; 
    
    // Логируем передачу DayOfStartWeek в пропсы при каждом рендеринге вкладки
@@ -620,7 +631,9 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
 
  // Если показан экран управления группами, рендерим только его
  if (showManageGroups) {
-   const currentUserId = currentUser?.ID !== undefined ? currentUser.ID.toString() : undefined;
+   // --- MODIFIED: Use effective user instead of currentUser ---
+   const currentUserId = effectiveUser?.ID !== undefined ? effectiveUser.ID.toString() : undefined;
+   // --- END MODIFIED ---
    
    return (
      <ManageGroups
@@ -725,20 +738,55 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
        }
        rightPanel={
          <div style={{ padding: '10px', height: '100%', display: 'flex', flexDirection: 'column' }}>
-           {/* Информация о текущем пользователе и система логирования */}
+           {/* --- MODIFIED: Enhanced user information with impersonation status --- */}
            <div style={{ 
-             backgroundColor: '#f6f6f6', 
+             backgroundColor: impersonationState.isImpersonating ? '#fff4ce' : '#f6f6f6', 
              padding: '8px', 
              marginBottom: '10px',
              borderRadius: '4px',
              fontSize: '12px',
-             flexShrink: 0
+             flexShrink: 0,
+             border: impersonationState.isImpersonating ? '1px solid #ffb900' : '1px solid #edebe9'
            }}>
              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-               <div>
-                 {currentUser && `Current user: ${currentUser.Title} (ID: ${currentUser.ID})`}
-                 {departments.length > 0 && ` | Managing groups: ${departments.length}`}
+               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                 {/* Impersonation status icon */}
+                 {impersonationState.isImpersonating && (
+                   <Icon 
+                     iconName="Contact" 
+                     style={{ 
+                       color: '#ffb900', 
+                       fontSize: '14px' 
+                     }} 
+                     title="Currently impersonating another user"
+                   />
+                 )}
+                 
+                 <div>
+                   {/* Show impersonation status */}
+                   {impersonationState.isImpersonating ? (
+                     <div>
+                       <strong style={{ color: '#d83b01' }}>Acting as:</strong> {effectiveUser?.Title || 'Unknown'} (ID: {effectiveUser?.ID || 'Unknown'})
+                       <br />
+                       <span style={{ fontSize: '11px', color: '#605e5c' }}>
+                         Original: {impersonationState.originalUser?.Title || currentUser?.Title || 'Unknown'} (ID: {impersonationState.originalUser?.ID || currentUser?.ID || 'Unknown'})
+                       </span>
+                     </div>
+                   ) : (
+                     <div>
+                       <strong>Current user:</strong> {effectiveUser?.Title || currentUser?.Title || 'Unknown'} (ID: {effectiveUser?.ID || currentUser?.ID || 'Unknown'})
+                     </div>
+                   )}
+                   
+                   {/* Department count */}
+                   {departments.length > 0 && (
+                     <div style={{ fontSize: '11px', color: '#605e5c', marginTop: '2px' }}>
+                       Managing groups: {departments.length}
+                     </div>
+                   )}
+                 </div>
                </div>
+               
                <div style={{ display: 'flex', alignItems: 'center' }}>
                  <RefreshButton 
                    title="Refresh data" 
@@ -784,7 +832,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
                </div>
              )}
            </div>
-
+           {/* --- END MODIFIED USER INFORMATION --- */}
            {/* Сообщение о статусе операции */}
            {statusMessage && (
              <div style={{ marginBottom: '15px', flexShrink: 0 }}>

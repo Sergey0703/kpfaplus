@@ -236,45 +236,53 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
    }
  }, [userService, impersonationState.originalUser]);
  
- // Функция для загрузки данных департаментов с фильтрацией неудаленных
- const fetchDepartments = useCallback(async (user: ICurrentUser | undefined) => {
+ // --- MODIFIED: Function to fetch departments using effective user ---
+ const fetchDepartments = useCallback(async (effectiveUserOverride?: IUserInfo | null) => {
    try {
-     if (user && user.ID) {
-       // Если у нас есть пользователь, получаем его департаменты
-       addLoadingStep('fetch-departments', 'Loading departments data', 'loading', `Loading departments for manager ID: ${user.ID}`);
+     // Use the override if provided, otherwise get current effective user
+     const effectiveUser = effectiveUserOverride || getEffectiveUser();
+     
+     if (effectiveUser && effectiveUser.ID) {
+       // If we have an effective user, get their departments
+       addLoadingStep('fetch-departments', 'Loading departments data', 'loading', `Loading departments for effective user ID: ${effectiveUser.ID} (${effectiveUser.Title})`);
        
-       const depts = await departmentService.fetchDepartmentsByManager(user.ID);
+       const depts = await departmentService.fetchDepartmentsByManager(effectiveUser.ID);
        
-       // Фильтруем только активные (неудаленные) департаменты
+       // Filter only active (non-deleted) departments
        const activeDepts = depts.filter(dept => !dept.Deleted);
        
-       addLoadingStep('fetch-departments', 'Loading departments data', 'success', `Loaded ${activeDepts.length} active departments (filtered ${depts.length - activeDepts.length} deleted)`);
+       addLoadingStep('fetch-departments', 'Loading departments data', 'success', `Loaded ${activeDepts.length} active departments for ${effectiveUser.Title} (filtered ${depts.length - activeDepts.length} deleted)`);
        setDepartments(activeDepts);
        
-       // Выбираем первый департамент, если он есть
+       // Select first department if available
        if (activeDepts.length > 0) {
          setSelectedDepartmentId(activeDepts[0].ID.toString());
-         addLoadingStep('select-department', 'Selecting default department', 'success', `Selected department: ${activeDepts[0].Title} (ID: ${activeDepts[0].ID})`);
+         addLoadingStep('select-department', 'Selecting default department', 'success', `Selected department: ${activeDepts[0].Title} (ID: ${activeDepts[0].ID}) for user ${effectiveUser.Title}`);
        } else {
-         addLoadingStep('select-department', 'Selecting default department', 'error', 'No active departments available to select');
+         setSelectedDepartmentId("");
+         setDepartments([]);
+         setStaffMembers([]);
+         setSelectedStaff(undefined);
+         addLoadingStep('select-department', 'Selecting default department', 'error', `No active departments available for user ${effectiveUser.Title}`);
        }
      } else {
-       // Если пользователь не определен, получаем все департаменты
-       addLoadingStep('fetch-departments', 'Loading all departments', 'loading', 'User not identified, loading all departments');
+       // If no effective user, try to get all departments (fallback)
+       addLoadingStep('fetch-departments', 'Loading all departments', 'loading', 'Effective user not identified, loading all departments');
        
        const depts = await departmentService.fetchDepartments();
        
-       // Фильтруем только активные (неудаленные) департаменты
+       // Filter only active (non-deleted) departments
        const activeDepts = depts.filter(dept => !dept.Deleted);
        
        addLoadingStep('fetch-departments', 'Loading all departments', 'success', `Loaded ${activeDepts.length} active departments (filtered ${depts.length - activeDepts.length} deleted)`);
        setDepartments(activeDepts);
        
-       // Выбираем первый департамент, если он есть
+       // Select first department if available
        if (activeDepts.length > 0) {
          setSelectedDepartmentId(activeDepts[0].ID.toString());
          addLoadingStep('select-department', 'Selecting default department', 'success', `Selected department: ${activeDepts[0].Title} (ID: ${activeDepts[0].ID})`);
        } else {
+         setSelectedDepartmentId("");
          addLoadingStep('select-department', 'Selecting default department', 'error', 'No active departments available to select');
        }
      }
@@ -282,13 +290,20 @@ export const DataProvider: React.FC<IDataProviderProps> = (props) => {
      console.error("Error fetching departments:", error);
      addLoadingStep('fetch-departments', 'Loading departments data', 'error', `Error: ${error}`);
      
+     // Clear departments on error
+     setDepartments([]);
+     setSelectedDepartmentId("");
+     setStaffMembers([]);
+     setSelectedStaff(undefined);
+     
      setLoadingState((prevState: ILoadingState) => ({
        ...prevState,
        hasError: true,
        errorMessage: `Error fetching departments: ${error}`
      }));
    }
- }, [departmentService]);
+ }, [departmentService, getEffectiveUser]);
+ // --- END MODIFIED ---
 
 // Функция для загрузки членов группы с выбором первого неудаленного сотрудника
 const fetchGroupMembers = useCallback(async (departmentId: string) => {
@@ -358,6 +373,7 @@ const fetchGroupMembers = useCallback(async (departmentId: string) => {
       addLoadingStep('select-staff', 'No active staff found, selecting first staff member', 'success', 
         `Selected staff: ${sortedStaffMembers[0].name} (ID: ${sortedStaffMembers[0].id}) (Note: This staff member is marked as deleted)`);
     } else {
+      setSelectedStaff(undefined);
       addLoadingStep('select-staff', 'Selecting default staff member', 'error', 'No staff members available to select');
     }
     
@@ -368,6 +384,10 @@ const fetchGroupMembers = useCallback(async (departmentId: string) => {
   } catch (error) {
     console.error("Error fetching group members:", error);
     addLoadingStep('fetch-group-members', 'Loading staff members', 'error', `Error: ${error}`);
+    
+    // Clear staff on error
+    setStaffMembers([]);
+    setSelectedStaff(undefined);
     
     setLoadingState((prevState: ILoadingState) => ({
       ...prevState,
@@ -394,7 +414,7 @@ const fetchGroupMembers = useCallback(async (departmentId: string) => {
    }
  }, [fetchGroupMembers, addLoadingStep]);
  
- // Функция для полного обновления данных
+ // --- MODIFIED: Function for full data refresh using effective user ---
  const refreshData = useCallback(async () => {
    try {
      setLoadingState({
@@ -409,18 +429,22 @@ const fetchGroupMembers = useCallback(async (departmentId: string) => {
        }]
      });
      
-     // Загружаем данные пользователя
-     const user = await fetchCurrentUser();
-     
-     // Загружаем данные департаментов
-     await fetchDepartments(user);
-     
-     // Если выбран департамент, загружаем его сотрудников
-     if (selectedDepartmentId) {
-       await fetchStaffMembers(selectedDepartmentId);
+     // Load user data first (if not already loaded)
+     let user = currentUser;
+     if (!user) {
+       user = await fetchCurrentUser();
      }
      
-     addLoadingStep('refresh-complete', 'Data refresh complete', 'success', 'All data loaded successfully');
+     // Get effective user for department loading
+     const effectiveUser = getEffectiveUser();
+     console.log(`[DataProvider] Refreshing data for effective user: ${effectiveUser?.Title || 'Unknown'} (ID: ${effectiveUser?.ID || 'Unknown'})`);
+     
+     // Load departments for effective user
+     await fetchDepartments(effectiveUser);
+     
+     // Note: Staff members will be loaded automatically when selectedDepartmentId changes
+     
+     addLoadingStep('refresh-complete', 'Data refresh complete', 'success', `All data loaded successfully for user: ${effectiveUser?.Title || 'Unknown'}`);
      
      setLoadingState((prevState: ILoadingState) => ({
        ...prevState,
@@ -437,19 +461,22 @@ const fetchGroupMembers = useCallback(async (departmentId: string) => {
        errorMessage: `Error refreshing data: ${error}`
      }));
    }
- }, [fetchCurrentUser, fetchDepartments, fetchStaffMembers, selectedDepartmentId]);
+ }, [fetchCurrentUser, fetchDepartments, getEffectiveUser, currentUser]);
+ // --- END MODIFIED ---
  
- // Функция для обновления только департаментов
+ // --- MODIFIED: Function for refreshing departments using effective user ---
  const refreshDepartments = useCallback(async () => {
    try {
-     addLoadingStep('refresh-departments', 'Refreshing departments', 'loading');
-     await fetchDepartments(currentUser);
+     const effectiveUser = getEffectiveUser();
+     addLoadingStep('refresh-departments', 'Refreshing departments', 'loading', `For user: ${effectiveUser?.Title || 'Unknown'}`);
+     await fetchDepartments(effectiveUser);
      addLoadingStep('refresh-departments', 'Refreshing departments', 'success', 'Departments refreshed successfully');
    } catch (error) {
      console.error("Error refreshing departments:", error);
      addLoadingStep('refresh-departments', 'Refreshing departments', 'error', `Error: ${error}`);
    }
- }, [fetchDepartments, currentUser]);
+ }, [fetchDepartments, getEffectiveUser]);
+ // --- END MODIFIED ---
  
  // Функция для обновления только сотрудников
  const refreshStaffMembers = useCallback(async (departmentId: string) => {
@@ -620,6 +647,30 @@ const addStaffToGroup = useCallback(async (
   }
 }, [groupMemberService, refreshStaffMembers, addLoadingStep, getEffectiveUser]);
 
+ // --- NEW: Effect to watch for impersonation changes and reload data ---
+ useEffect(() => {
+   // If impersonation state changes (start or stop), reload departments
+   if (impersonationState.originalUser) { // Only after initial user is loaded
+     const effectiveUser = getEffectiveUser();
+     console.log(`[DataProvider] Impersonation state changed. Reloading data for effective user: ${effectiveUser?.Title || 'Unknown'} (ID: ${effectiveUser?.ID || 'Unknown'})`);
+     
+     // Clear current staff selection to avoid confusion
+     setSelectedStaff(undefined);
+     setStaffMembers([]);
+     setSelectedDepartmentId("");
+     
+     // Reload departments for the new effective user
+     fetchDepartments(effectiveUser)
+       .then(() => {
+         console.log(`[DataProvider] Successfully reloaded departments for user: ${effectiveUser?.Title || 'Unknown'}`);
+       })
+       .catch(error => {
+         console.error(`[DataProvider] Error reloading departments for user ${effectiveUser?.Title || 'Unknown'}:`, error);
+       });
+   }
+ }, [impersonationState.isImpersonating, impersonationState.impersonatedUser?.ID, fetchDepartments, getEffectiveUser]);
+ // --- END NEW ---
+
  // Инициализация приложения
  useEffect(() => {
    const initializeApp = async (): Promise<void> => {
@@ -642,6 +693,10 @@ const addStaffToGroup = useCallback(async (
    if (selectedDepartmentId) {
      // Используем .catch() вместо void operator
      fetchStaffMembers(selectedDepartmentId).catch(error => console.error("Error fetching staff:", error));
+   } else {
+     // If no department selected, clear staff
+     setStaffMembers([]);
+     setSelectedStaff(undefined);
    }
  // eslint-disable-next-line react-hooks/exhaustive-deps
  }, [selectedDepartmentId]);
