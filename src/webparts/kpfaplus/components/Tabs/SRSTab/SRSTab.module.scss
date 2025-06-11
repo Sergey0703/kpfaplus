@@ -1,109 +1,68 @@
+/* src/webparts/kpfaplus/components/Tabs/SRSTab/SRSTab.module.scss */
+
 .srsTab {
-    width: 100%;
-    height: 100%;
-    padding: 0;
-    position: relative;
-  }
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  position: relative;
+}
+
+.srsHeader {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.headerButtonsContainer {
+  display: flex;
+  gap: 10px;
+}
+
+.exportButton {
+  background-color: #0078d4;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 2px;
+  font-weight: normal;
   
-  .srsHeader {
-    font-size: 16px;
-    font-weight: 600;
-    margin-bottom: 10px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+  &:hover {
+    background-color: #106ebe;
   }
+}
+
+.dateRow {
+  display: flex;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  align-items: center;
+  position: relative;
   
-  .headerButtonsContainer {
-    display: flex;
-    gap: 10px;
-  }
-  
-  .exportButton {
-    background-color: #0078d4;
-    color: white;
-    border: none;
-    padding: 5px 10px;
-    font-size: 12px;
-    cursor: pointer;
-    border-radius: 2px;
-    font-weight: normal;
-    
-    &:hover {
-      background-color: #106ebe;
-    }
-  }
-  
-  .dateRow {
-    display: flex;
-    flex-wrap: wrap;
-    margin-bottom: 10px;
-    align-items: center;
-    position: relative;
-    
-    .dateField {
-      display: flex;
-      align-items: center;
-      margin-right: 15px;
-      
-      .dateLabel {
-        margin-right: 5px;
-        font-size: 12px;
-      }
-      
-      .dateInput {
-        width: 120px;
-        height: 24px;
-        padding: 2px 5px;
-        border: 1px solid #d6d6d6;
-        font-size: 12px;
-      }
-    }
-    
-    .refreshButton {
-      background-color: #0078d4;
-      color: white;
-      border: none;
-      padding: 5px 10px;
-      font-size: 12px;
-      cursor: pointer;
-      border-radius: 2px;
-      
-      &:hover {
-        background-color: #106ebe;
-      }
-    }
-  }
-  
-  .totalHours {
-    color: #d83b01;
-    font-weight: 600;
-    margin-bottom: 30px;
-    font-size: 12px;
-  }
-  
-  .saveButton {
-    background-color: #0078d4;
-    color: white;
-    border: none;
-    padding: 5px 10px;
-    margin-right: 5px;
-    font-size: 12px;
-    cursor: pointer;
-    border-radius: 2px;
+  .dateField {
     display: flex;
     align-items: center;
+    margin-right: 15px;
     
-    .saveIcon {
+    .dateLabel {
       margin-right: 5px;
+      font-size: 12px;
     }
     
-    &:hover {
-      background-color: #106ebe;
+    .dateInput {
+      width: 120px;
+      height: 24px;
+      padding: 2px 5px;
+      border: 1px solid #d6d6d6;
+      font-size: 12px;
     }
   }
   
-  .checkedSaveButton {
+  .refreshButton {
     background-color: #0078d4;
     color: white;
     border: none;
@@ -116,163 +75,235 @@
       background-color: #106ebe;
     }
   }
+}
+
+.totalHours {
+  color: #d83b01;
+  font-weight: 600;
+  margin-bottom: 30px;
+  font-size: 12px;
+}
+
+.saveButton {
+  background-color: #0078d4;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  margin-right: 5px;
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
   
-  .tableContainer {
-    width: 100%;
-    overflow-x: auto;
-    margin-bottom: 15px;
+  .saveIcon {
+    margin-right: 5px;
   }
   
-  .srsTable {
-    width: 100%;
-    border-collapse: collapse;
-    table-layout: fixed;
-    border: 2px solid black !important;
+  &:hover {
+    background-color: #106ebe;
+  }
+}
+
+.checkedSaveButton {
+  background-color: #0078d4;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 2px;
+  
+  &:hover {
+    background-color: #106ebe;
+  }
+}
+
+/* ИЗМЕНЕНО: Стили таблицы в едином стиле с Schedule */
+.tableContainer {
+  width: 100%;
+  overflow-x: auto;
+  margin-bottom: 15px;
+}
+
+.srsTable {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  /* ИЗМЕНЕНО: Убираем толстые черные границы, используем мягкие как в Schedule */
+  border: 1px solid #edebe9;
+}
+
+.srsTable th {
+  /* ИЗМЕНЕНО: Стиль заголовков как в Schedule */
+  background-color: #f3f3f3;
+  padding: 8px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+  white-space: nowrap;
+  border: 1px solid #edebe9;
+}
+
+.srsTable td {
+  /* ИЗМЕНЕНО: Стиль ячеек как в Schedule */
+  padding: 8px;
+  font-size: 12px;
+  vertical-align: middle;
+  border: 1px solid #edebe9;
+}
+
+.dateColumn {
+  width: 70px;
+}
+
+.hoursColumn {
+  width: 60px;
+}
+
+.checkboxColumn {
+  width: 40px;
+  text-align: center;
+}
+
+.timeColumn {
+  width: 100px;
+}
+
+.typeColumn {
+  width: 120px;
+}
+
+.timeleaveColumn {
+  width: 40px;
+}
+
+.centerColumn {
+  text-align: center;
+  width: 40px;
+}
+
+/* ИЗМЕНЕНО: Более мягкое выделение строк как в Schedule */
+.rowHighlight {
+  background-color: #f5f5f5;
+}
+
+.checkboxInput {
+  width: 16px;
+  height: 16px;
+}
+
+.timeInput {
+  width: 45px;
+  height: 24px;
+  padding: 2px;
+  border: 1px solid #d6d6d6;
+  font-size: 12px;
+}
+
+.timeSelect {
+  width: 45px;
+  height: 24px;
+  padding: 2px;
+  border: 1px solid #d6d6d6;
+  font-size: 12px;
+  -webkit-appearance: menulist;
+  -moz-appearance: menulist;
+  appearance: menulist;
+  background-color: white;
+  cursor: pointer;
+}
+
+.shiftButton {
+  background-color: #0078d4;
+  color: white;
+  border: none;
+  padding: 2px 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  border-radius: 2px;
+  cursor: pointer;
+  
+  .plusIcon {
+    margin-right: 3px;
+    font-size: 10px;
   }
   
-  .srsTable th {
-    background-color: #f0f0f0;
-    padding: 5px;
-    text-align: left;
-    font-weight: 600;
-    font-size: 12px;
-    white-space: nowrap;
-    border: 1px solid black !important;
+  &:hover {
+    background-color: #106ebe;
+  }
+}
+
+.timeleaveInput {
+  width: 40px;
+  height: 24px;
+  padding: 2px 4px;
+  border: 1px solid #d6d6d6;
+  font-size: 12px;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.selectField {
+  width: 110px;
+  height: 24px;
+  padding: 2px;
+  border: 1px solid #d6d6d6;
+  font-size: 12px;
+  background-color: white;
+}
+
+.contractSelect {
+  width: 45px;
+  height: 24px;
+  padding: 2px;
+  border: 1px solid #d6d6d6;
+  font-size: 12px;
+  -webkit-appearance: menulist;
+  -moz-appearance: menulist;
+  appearance: menulist;
+  background-color: white;
+  cursor: pointer;
+}
+
+.thumbsUp {
+  color: green;
+  font-size: 14px;
+}
+
+.thumbsDown {
+  color: red;
+  font-size: 14px;
+}
+
+.srsTag {
+  color: #0078d4;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+/* ДОБАВЛЕНО: Стили для строк с чередованием как в Schedule */
+.tableRow {
+  border-bottom: 1px solid #edebe9;
+  
+  &:hover {
+    background-color: #f5f5f5;
   }
   
-  .srsTable td {
-    padding: 5px;
-    font-size: 12px;
-    vertical-align: middle;
-    border: 1px solid black !important;
+  &:nth-child(even) {
+    background-color: #fafafa;
   }
+}
+
+/* ДОБАВЛЕНО: Стили для удаленных записей как в Schedule */
+.deletedRow {
+  background-color: #f5f5f5 !important;
+  color: #888 !important;
+  opacity: 0.6;
   
-  .dateColumn {
-    width: 70px;
+  &:hover {
+    background-color: #f0f0f0 !important;
   }
-  
-  .hoursColumn {
-    width: 60px;
-  }
-  
-  .checkboxColumn {
-    width: 40px;
-    text-align: center;
-  }
-  
-  .timeColumn {
-    width: 100px;
-  }
-  
-  .typeColumn {
-    width: 120px;
-  }
-  
-  .timeleaveColumn {
-    width: 40px;
-  }
-  
-  .centerColumn {
-    text-align: center;
-    width: 40px;
-  }
-  
-  .rowHighlight {
-    background-color: #e6f2ff;
-  }
-  
-  .checkboxInput {
-    width: 16px;
-    height: 16px;
-  }
-  
-  .timeInput {
-    width: 45px;
-    height: 24px;
-    padding: 2px;
-    border: 1px solid #d6d6d6;
-    font-size: 12px;
-  }
-  
-  .timeSelect {
-    width: 45px;
-    height: 24px;
-    padding: 2px;
-    border: 1px solid #d6d6d6;
-    font-size: 12px;
-    -webkit-appearance: menulist;
-    -moz-appearance: menulist;
-    appearance: menulist;
-    background-color: white;
-    cursor: pointer;
-  }
-  
-  .shiftButton {
-    background-color: #0078d4;
-    color: white;
-    border: none;
-    padding: 2px 5px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    border-radius: 2px;
-    cursor: pointer;
-    
-    .plusIcon {
-      margin-right: 3px;
-      font-size: 10px;
-    }
-    
-    &:hover {
-      background-color: #106ebe;
-    }
-  }
-  
-  .timeleaveInput {
-    width: 40px;
-    height: 24px;
-    padding: 2px 4px;
-    border: 1px solid #d6d6d6;
-    font-size: 12px;
-    text-align: center;
-    box-sizing: border-box;
-  }
-  
-  .selectField {
-    width: 110px;
-    height: 24px;
-    padding: 2px;
-    border: 1px solid #d6d6d6;
-    font-size: 12px;
-    background-color: white;
-  }
-  
-  .contractSelect {
-    width: 45px;
-    height: 24px;
-    padding: 2px;
-    border: 1px solid #d6d6d6;
-    font-size: 12px;
-    -webkit-appearance: menulist;
-    -moz-appearance: menulist;
-    appearance: menulist;
-    background-color: white;
-    cursor: pointer;
-  }
-  
-  .thumbsUp {
-    color: green;
-    font-size: 14px;
-  }
-  
-  .thumbsDown {
-    color: red;
-    font-size: 14px;
-  }
-  
-  .srsTag {
-    color: #0078d4;
-    font-weight: 600;
-    font-size: 12px;
-  }
+}

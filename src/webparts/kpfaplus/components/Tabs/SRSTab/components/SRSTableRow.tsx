@@ -11,22 +11,22 @@ export const SRSTableRow: React.FC<ISRSTableRowProps> = (props) => {
     options,
     isEven,
     onItemChange
-    // Убираем неиспользуемый: onItemCheck
   } = props;
 
-  // Стили для ячейки таблицы
+  // ИЗМЕНЕНО: Стили ячеек в стиле Schedule таблицы
   const cellStyle: React.CSSProperties = {
-    border: '1px solid black',
-    padding: '5px',
+    border: '1px solid #edebe9', // Мягкая граница как в Schedule
+    padding: '8px', // Увеличенный padding как в Schedule
     textAlign: 'center',
     fontSize: '12px',
     verticalAlign: 'middle'
   };
 
-  // Стиль строки с чередованием цветов
+  // ИЗМЕНЕНО: Стиль строки с чередованием цветов как в Schedule
   const rowStyle: React.CSSProperties = {
-    backgroundColor: item.deleted ? '#f5f5f5' : (isEven ? '#f9f9f9' : '#ffffff'),
-    opacity: item.deleted ? 0.6 : 1
+    backgroundColor: item.deleted ? '#f5f5f5' : (isEven ? '#ffffff' : '#f9f9f9'),
+    opacity: item.deleted ? 0.6 : 1,
+    // УДАЛЕНО: Убираем дополнительные границы и отступы
   };
 
   // Обработчики изменений
@@ -87,7 +87,6 @@ export const SRSTableRow: React.FC<ISRSTableRowProps> = (props) => {
   }, [item, onItemChange]);
 
   const handleAddShift = useCallback((): void => {
-    // Пока заглушка - в будущем будет реальная логика
     console.log('[SRSTableRow] Add shift clicked for date:', item.date.toLocaleDateString());
   }, [item.date]);
 
@@ -99,21 +98,131 @@ export const SRSTableRow: React.FC<ISRSTableRowProps> = (props) => {
     return `${day}.${month}.${year}`;
   };
 
+  // ДОБАВЛЕНО: Определяем день недели как в Schedule
+  const dayOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][item.date.getDay()];
+
+  // ИЗМЕНЕНО: Стили для dropdown в стиле Schedule
+  const getDropdownStyles = () => ({
+    root: { 
+      width: 60, 
+      margin: '0 2px',
+      ...(item.deleted && {
+        backgroundColor: '#f5f5f5',
+        color: '#888',
+        borderColor: '#ddd'
+      })
+    },
+    title: {
+      fontSize: '12px',
+      ...(item.deleted && {
+        color: '#888',
+        textDecoration: 'line-through'
+      })
+    },
+    caretDown: {
+      ...(item.deleted && {
+        color: '#aaa'
+      })
+    }
+  });
+
+  const getLunchDropdownStyles = () => ({
+    root: { 
+      width: 80,
+      ...(item.deleted && {
+        backgroundColor: '#f5f5f5',
+        color: '#888',
+        borderColor: '#ddd'
+      })
+    },
+    title: {
+      fontSize: '12px',
+      ...(item.deleted && {
+        color: '#888',
+        textDecoration: 'line-through'
+      })
+    }
+  });
+
+  const getLeaveDropdownStyles = () => ({
+    root: { 
+      width: 140, // Уменьшили ширину
+      ...(item.deleted && {
+        backgroundColor: '#f5f5f5',
+        color: '#888',
+        borderColor: '#ddd'
+      })
+    },
+    title: {
+      fontSize: '12px',
+      ...(item.deleted && {
+        color: '#888',
+        textDecoration: 'line-through'
+      })
+    }
+  });
+
+  const getContractDropdownStyles = () => ({
+    root: { 
+      width: 50,
+      ...(item.deleted && {
+        backgroundColor: '#f5f5f5',
+        color: '#888',
+        borderColor: '#ddd'
+      })
+    },
+    title: {
+      fontSize: '12px',
+      ...(item.deleted && {
+        color: '#888',
+        textDecoration: 'line-through'
+      })
+    }
+  });
+
   return (
     <tr style={rowStyle}>
-      {/* Date */}
-      <td style={{ ...cellStyle, width: '100px', textAlign: 'left' }}>
-        <div>{formatDate(item.date)}</div>
-        <div style={{ fontSize: '10px', color: '#666' }}>{item.dayOfWeek}</div>
+      {/* ИЗМЕНЕНО: Ячейка с датой в стиле Schedule */}
+      <td style={{ ...cellStyle, textAlign: 'left' }}>
+        <div style={{ 
+          fontWeight: '600',
+          fontSize: '12px',
+          ...(item.deleted && { color: '#888', textDecoration: 'line-through' })
+        }}>
+          {formatDate(item.date)}
+        </div>
+        <div style={{ 
+          fontSize: '11px', 
+          color: '#666',
+          marginTop: '2px',
+          ...(item.deleted && { color: '#aaa', textDecoration: 'line-through' })
+        }}>
+          {dayOfWeek}
+        </div>
       </td>
 
-      {/* Hours */}
-      <td style={{ ...cellStyle, width: '60px', fontWeight: 'bold' }}>
+      {/* Ячейка с рабочими часами */}
+      <td style={{ 
+        ...cellStyle, 
+        fontWeight: 'bold',
+        color: item.hours === '0.00' ? '#666' : 'inherit',
+        ...(item.deleted && { color: '#888', textDecoration: 'line-through' })
+      }}>
         {item.hours}
+        {item.deleted && (
+          <div style={{ 
+            fontSize: '10px', 
+            color: '#d83b01', 
+            marginTop: '2px',
+            textDecoration: 'none' 
+          }}>
+            (deleted)
+          </div>
+        )}
       </td>
 
-      {/* Relief? */}
-      <td style={{ ...cellStyle, width: '60px' }}>
+      {/* Ячейка Relief */}
+      <td style={cellStyle}>
         <Checkbox
           checked={item.relief}
           onChange={handleReliefChange}
@@ -121,90 +230,71 @@ export const SRSTableRow: React.FC<ISRSTableRowProps> = (props) => {
         />
       </td>
 
-      {/* Start Work */}
-      <td style={{ ...cellStyle, width: '150px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', justifyContent: 'center' }}>
+      {/* ИЗМЕНЕНО: Ячейки времени в стиле Schedule */}
+      <td style={cellStyle}>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px' }}>
           <Dropdown
             selectedKey={item.startWork.hours}
             options={options.hours}
             onChange={handleStartHourChange}
             disabled={item.deleted}
-            styles={{
-              root: { width: '45px' },
-              dropdown: { minHeight: '24px', fontSize: '12px' }
-            }}
+            styles={getDropdownStyles()}
           />
-          <span style={{ fontSize: '12px' }}>:</span>
+          <span style={{ fontSize: '12px', color: '#666' }}>:</span>
           <Dropdown
             selectedKey={item.startWork.minutes}
             options={options.minutes}
             onChange={handleStartMinuteChange}
             disabled={item.deleted}
-            styles={{
-              root: { width: '45px' },
-              dropdown: { minHeight: '24px', fontSize: '12px' }
-            }}
+            styles={getDropdownStyles()}
           />
         </div>
       </td>
 
-      {/* Finish Work */}
-      <td style={{ ...cellStyle, width: '150px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', justifyContent: 'center' }}>
+      <td style={cellStyle}>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px' }}>
           <Dropdown
             selectedKey={item.finishWork.hours}
             options={options.hours}
             onChange={handleFinishHourChange}
             disabled={item.deleted}
-            styles={{
-              root: { width: '45px' },
-              dropdown: { minHeight: '24px', fontSize: '12px' }
-            }}
+            styles={getDropdownStyles()}
           />
-          <span style={{ fontSize: '12px' }}>:</span>
+          <span style={{ fontSize: '12px', color: '#666' }}>:</span>
           <Dropdown
             selectedKey={item.finishWork.minutes}
             options={options.minutes}
             onChange={handleFinishMinuteChange}
             disabled={item.deleted}
-            styles={{
-              root: { width: '45px' },
-              dropdown: { minHeight: '24px', fontSize: '12px' }
-            }}
+            styles={getDropdownStyles()}
           />
         </div>
       </td>
 
-      {/* Lunch */}
-      <td style={{ ...cellStyle, width: '100px' }}>
+      {/* Ячейка Lunch */}
+      <td style={cellStyle}>
         <Dropdown
           selectedKey={item.lunch}
           options={options.lunchTimes}
           onChange={handleLunchChange}
           disabled={item.deleted}
-          styles={{
-            root: { width: '60px' },
-            dropdown: { minHeight: '24px', fontSize: '12px' }
-          }}
+          styles={getLunchDropdownStyles()}
         />
       </td>
 
-      {/* Type of Leave */}
-      <td style={{ ...cellStyle, width: '150px' }}>
+      {/* Ячейка Type of Leave */}
+      <td style={cellStyle}>
         <Dropdown
           selectedKey={item.typeOfLeave}
           options={options.leaveTypes}
           onChange={handleLeaveTypeChange}
           disabled={item.deleted}
-          styles={{
-            root: { width: '140px' },
-            dropdown: { minHeight: '24px', fontSize: '12px' }
-          }}
+          styles={getLeaveDropdownStyles()}
         />
       </td>
 
-      {/* Time Leave (h) */}
-      <td style={{ ...cellStyle, width: '100px' }}>
+      {/* Ячейка Time Leave */}
+      <td style={cellStyle}>
         <input
           type="text"
           value={item.timeLeave}
@@ -212,60 +302,64 @@ export const SRSTableRow: React.FC<ISRSTableRowProps> = (props) => {
           maxLength={4}
           disabled={item.deleted}
           style={{
-            width: '80px',
-            height: '24px',
+            width: '70px',
+            height: '28px', // Увеличена высота как в Schedule
             border: '1px solid #d6d6d6',
             fontSize: '12px',
             textAlign: 'center',
+            borderRadius: '2px', // Добавлен радиус
             backgroundColor: item.deleted ? '#f5f5f5' : 'white'
           }}
         />
       </td>
 
-      {/* Shift */}
-      <td style={{ ...cellStyle, width: '70px' }}>
+      {/* ИЗМЕНЕНО: Кнопка +Shift в стиле Schedule */}
+      <td style={cellStyle}>
         <DefaultButton
-          text="+ Shift"
+          text="+Shift"
           onClick={handleAddShift}
           disabled={item.deleted}
-          styles={{
-            root: {
+          styles={{ 
+            root: { 
               backgroundColor: '#107c10',
               color: 'white',
               border: 'none',
               minWidth: '60px',
-              height: '24px',
-              fontSize: '10px'
+              height: '28px',
+              fontSize: '11px',
+              borderRadius: '2px',
+              ...(item.deleted && {
+                backgroundColor: '#f5f5f5',
+                color: '#888',
+                borderColor: '#ddd'
+              })
             },
-            rootHovered: {
+            rootHovered: !item.deleted ? {
               backgroundColor: '#0b5a0b'
-            }
+            } : undefined
           }}
         />
       </td>
 
-      {/* Contract */}
-      <td style={{ ...cellStyle, width: '60px' }}>
+      {/* Ячейка Contract */}
+      <td style={cellStyle}>
         <Dropdown
           selectedKey={item.contract}
           options={options.contractNumbers}
           onChange={handleContractChange}
           disabled={item.deleted}
-          styles={{
-            root: { width: '50px' },
-            dropdown: { minHeight: '24px', fontSize: '12px' }
-          }}
+          styles={getContractDropdownStyles()}
         />
       </td>
 
-      {/* Check */}
-      <td style={{ ...cellStyle, width: '50px' }}>
-        {item.status === 'positive' && <span style={{ color: 'green', fontSize: '14px' }}>👍</span>}
-        {item.status === 'negative' && <span style={{ color: 'red', fontSize: '14px' }}>👎</span>}
+      {/* Ячейка Check (Status) */}
+      <td style={cellStyle}>
+        {item.status === 'positive' && <span style={{ color: 'green', fontSize: '16px' }}>👍</span>}
+        {item.status === 'negative' && <span style={{ color: 'red', fontSize: '16px' }}>👎</span>}
       </td>
 
-      {/* SRS */}
-      <td style={{ ...cellStyle, width: '50px' }}>
+      {/* Ячейка SRS */}
+      <td style={cellStyle}>
         {item.srs && (
           <span style={{
             color: '#0078d4',

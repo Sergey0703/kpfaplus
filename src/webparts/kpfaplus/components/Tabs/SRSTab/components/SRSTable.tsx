@@ -11,7 +11,6 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
     options,
     isLoading,
     onItemChange
-    // Убираем неиспользуемые: onItemCheck, onSelectAll, allSelected, hasSelectedItems
   } = props;
 
   console.log('[SRSTable] Rendering with items count:', items.length);
@@ -36,7 +35,8 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
         borderCollapse: 'collapse', 
         width: '100%', 
         tableLayout: 'fixed',
-        border: '2px solid black'
+        // ИЗМЕНЕНО: Убираем толстую черную границу, используем стиль как в Schedule
+        border: '1px solid #edebe9'
       }}>
         <colgroup>
           <col style={{ width: '100px' }} /> {/* Date */}
@@ -56,100 +56,101 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
         <thead>
           <tr>
             <th style={{ 
-              backgroundColor: '#f0f0f0',
-              padding: '5px',
+              // ИЗМЕНЕНО: Стиль заголовков как в Schedule
+              backgroundColor: '#f3f3f3',
+              padding: '8px',
               textAlign: 'left',
               fontWeight: '600',
               fontSize: '12px',
-              border: '1px solid black'
+              border: '1px solid #edebe9'
             }}>Date</th>
             <th style={{ 
-              backgroundColor: '#f0f0f0',
-              padding: '5px',
+              backgroundColor: '#f3f3f3',
+              padding: '8px',
               textAlign: 'center',
               fontWeight: '600',
               fontSize: '12px',
-              border: '1px solid black'
+              border: '1px solid #edebe9'
             }}>Hrs</th>
             <th style={{ 
-              backgroundColor: '#f0f0f0',
-              padding: '5px',
+              backgroundColor: '#f3f3f3',
+              padding: '8px',
               textAlign: 'center',
               fontWeight: '600',
               fontSize: '12px',
-              border: '1px solid black'
+              border: '1px solid #edebe9'
             }}>Relief?</th>
             <th style={{ 
-              backgroundColor: '#f0f0f0',
-              padding: '5px',
+              backgroundColor: '#f3f3f3',
+              padding: '8px',
               textAlign: 'center',
               fontWeight: '600',
               fontSize: '12px',
-              border: '1px solid black'
+              border: '1px solid #edebe9'
             }}>Start Work</th>
             <th style={{ 
-              backgroundColor: '#f0f0f0',
-              padding: '5px',
+              backgroundColor: '#f3f3f3',
+              padding: '8px',
               textAlign: 'center',
               fontWeight: '600',
               fontSize: '12px',
-              border: '1px solid black'
+              border: '1px solid #edebe9'
             }}>Finish Work</th>
             <th style={{ 
-              backgroundColor: '#f0f0f0',
-              padding: '5px',
+              backgroundColor: '#f3f3f3',
+              padding: '8px',
               textAlign: 'center',
               fontWeight: '600',
               fontSize: '12px',
-              border: '1px solid black'
+              border: '1px solid #edebe9'
             }}>Lunch</th>
             <th style={{ 
-              backgroundColor: '#f0f0f0',
-              padding: '5px',
+              backgroundColor: '#f3f3f3',
+              padding: '8px',
               textAlign: 'center',
               fontWeight: '600',
               fontSize: '12px',
-              border: '1px solid black'
+              border: '1px solid #edebe9'
             }}>Type of Leave</th>
             <th style={{ 
-              backgroundColor: '#f0f0f0',
-              padding: '5px',
+              backgroundColor: '#f3f3f3',
+              padding: '8px',
               textAlign: 'center',
               fontWeight: '600',
               fontSize: '12px',
-              border: '1px solid black'
+              border: '1px solid #edebe9'
             }}>Time Leave (h)</th>
             <th style={{ 
-              backgroundColor: '#f0f0f0',
-              padding: '5px',
+              backgroundColor: '#f3f3f3',
+              padding: '8px',
               textAlign: 'center',
               fontWeight: '600',
               fontSize: '12px',
-              border: '1px solid black'
+              border: '1px solid #edebe9'
             }}>Shift</th>
             <th style={{ 
-              backgroundColor: '#f0f0f0',
-              padding: '5px',
+              backgroundColor: '#f3f3f3',
+              padding: '8px',
               textAlign: 'center',
               fontWeight: '600',
               fontSize: '12px',
-              border: '1px solid black'
+              border: '1px solid #edebe9'
             }}>Contract</th>
             <th style={{ 
-              backgroundColor: '#f0f0f0',
-              padding: '5px',
+              backgroundColor: '#f3f3f3',
+              padding: '8px',
               textAlign: 'center',
               fontWeight: '600',
               fontSize: '12px',
-              border: '1px solid black'
+              border: '1px solid #edebe9'
             }}>Check</th>
             <th style={{ 
-              backgroundColor: '#f0f0f0',
-              padding: '5px',
+              backgroundColor: '#f3f3f3',
+              padding: '8px',
               textAlign: 'center',
               fontWeight: '600',
               fontSize: '12px',
-              border: '1px solid black'
+              border: '1px solid #edebe9'
             }}>SRS</th>
           </tr>
         </thead>
@@ -165,7 +166,8 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
                   fontSize: '14px',
                   color: '#666',
                   fontStyle: 'italic',
-                  border: '1px solid black'
+                  // ИЗМЕНЕНО: Более мягкая граница
+                  border: '1px solid #edebe9'
                 }}
               >
                 No SRS records found for the selected date range.
@@ -181,7 +183,6 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
                 options={options}
                 isEven={index % 2 === 0}
                 onItemChange={onItemChange}
-                // ИСПРАВЛЕНО: Убрали onItemCheck, так как он не определен в ISRSTableRowProps
               />
             ))
           )}
