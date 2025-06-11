@@ -16,7 +16,12 @@ import {
   Stack,
   Separator,
   Icon,
-  Toggle
+  Toggle,
+  Dropdown,
+  IDropdownOption,
+  CommandBar,
+  ICommandBarItemProps,
+  Label
 } from '@fluentui/react';
 import { RemoteSiteService, IRemoteSiteInfo } from '../../services';
 import { 
@@ -26,6 +31,8 @@ import {
   IMigrationResult,
   MigrationStatus
 } from '../../services/DateMigrationService';
+import { useDataContext } from '../../context';
+import { IUserInfo } from '../../models/types';
 
 export interface IRemoteConnectionTestProps {
   context: WebPartContext;
@@ -34,10 +41,25 @@ export interface IRemoteConnectionTestProps {
 export const RemoteConnectionTest: React.FC<IRemoteConnectionTestProps> = (props) => {
   const { context } = props;
   
+  // Get impersonation functionality from context
+  const {
+    impersonationState,
+    startImpersonation,
+    stopImpersonation,
+    getEffectiveUser,
+    getAllStaffForImpersonation
+  } = useDataContext();
+  
   // Connection test states
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [siteInfo, setSiteInfo] = useState<IRemoteSiteInfo | null>(null);
+  
+  // --- NEW IMPERSONATION STATES ---
+  const [availableStaff, setAvailableStaff] = useState<IUserInfo[]>([]);
+  const [isLoadingStaff, setIsLoadingStaff] = useState<boolean>(false);
+  const [impersonationMessage, setImpersonationMessage] = useState<{text: string, type: MessageBarType} | null>(null);
+  // --- END NEW IMPERSONATION STATES ---
   
   // Date migration states
   const [migrationService] = useState<DateMigrationService>(() => DateMigrationService.getInstance(context));
@@ -64,6 +86,138 @@ export const RemoteConnectionTest: React.FC<IRemoteConnectionTestProps> = (props
     
     setListStates(initialStates);
   }, [availableLists]);
+
+  // --- NEW: Load available staff for impersonation ---
+  useEffect(() => {
+    const loadStaffForImpersonation = async (): Promise<void> => {
+      try {
+        setIsLoadingStaff(true);
+        console.log('[RemoteConnectionTest] Loading staff for impersonation...');
+        
+        const staff = await getAllStaffForImpersonation();
+        console.log(`[RemoteConnectionTest] Loaded ${staff.length} staff members for impersonation`);
+        
+        setAvailableStaff(staff);
+      } catch (error) {
+        console.error('[RemoteConnectionTest] Error loading staff for impersonation:', error);
+        setImpersonationMessage({
+          text: `Error loading staff: ${error}`,
+          type: MessageBarType.error
+        });
+      } finally {
+        setIsLoadingStaff(false);
+      }
+    };
+
+    loadStaffForImpersonation()
+      .then(() => console.log('[RemoteConnectionTest] Staff loading completed'))
+      .catch(error => console.error('[RemoteConnectionTest] Staff loading failed:', error));
+  }, [getAllStaffForImpersonation]);
+  // --- NEW IMPERSONATION METHODS ---
+
+  /**
+   * Handles staff selection for impersonation
+   */
+  const handleStaffSelection = (event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
+    if (!option) return;
+
+    const selectedStaffId = option.key as number;
+    const selectedStaff = availableStaff.find(staff => staff.ID === selectedStaffId);
+    
+    if (selectedStaff) {
+      console.log(`[RemoteConnectionTest] Starting impersonation of: ${selectedStaff.Title} (ID: ${selectedStaff.ID})`);
+      
+      startImpersonation(selectedStaff);
+      
+      setImpersonationMessage({
+        text: `Now acting as: ${selectedStaff.Title} (${selectedStaff.Email})`,
+        type: MessageBarType.success
+      });
+
+      // Clear message after 5 seconds
+      setTimeout(() => {
+        setImpersonationMessage(null);
+      }, 5000);
+    }
+  };
+
+  /**
+   * Handles stopping impersonation
+   */
+  const handleStopImpersonation = (): void => {
+    console.log('[RemoteConnectionTest] Stopping impersonation');
+    
+    const originalUser = impersonationState.originalUser;
+    stopImpersonation();
+    
+    setImpersonationMessage({
+      text: `Returned to original user: ${originalUser?.Title || 'Unknown'} (${originalUser?.Email || 'Unknown'})`,
+      type: MessageBarType.info
+    });
+
+    // Clear message after 5 seconds
+    setTimeout(() => {
+      setImpersonationMessage(null);
+    }, 5000);
+  };
+
+  /**
+   * Gets command bar items for impersonation
+   */
+  const getImpersonationCommandBarItems = (): ICommandBarItemProps[] => {
+    const items: ICommandBarItemProps[] = [];
+
+    if (impersonationState.isImpersonating) {
+      items.push({
+        key: 'stopImpersonation',
+        text: 'Stop Acting As',
+        iconProps: { iconName: 'SignOut' },
+        onClick: handleStopImpersonation,
+        buttonStyles: {
+          root: { backgroundColor: '#d83b01', color: 'white' },
+          rootHovered: { backgroundColor: '#a4262c', color: 'white' }
+        }
+      });
+    }
+
+    items.push({
+      key: 'refreshStaff',
+      text: 'Refresh Staff List',
+      iconProps: { iconName: 'Refresh' },
+      onClick: () => {
+        getAllStaffForImpersonation()
+          .then(staff => {
+            setAvailableStaff(staff);
+            setImpersonationMessage({
+              text: `Staff list refreshed (${staff.length} members)`,
+              type: MessageBarType.info
+            });
+            setTimeout(() => setImpersonationMessage(null), 3000);
+          })
+          .catch(error => {
+            setImpersonationMessage({
+              text: `Error refreshing staff: ${error}`,
+              type: MessageBarType.error
+            });
+          });
+      }
+    });
+
+    return items;
+  };
+
+  /**
+   * Gets dropdown options for staff selection
+   */
+  const getStaffDropdownOptions = (): IDropdownOption[] => {
+    return availableStaff.map(staff => ({
+      key: staff.ID,
+      text: `${staff.Title} (${staff.Email})`,
+      data: staff
+    }));
+  };
+
+  // --- END NEW IMPERSONATION METHODS ---
 
   // Connection test function
   const testConnection = async (): Promise<void> => {
@@ -204,11 +358,112 @@ export const RemoteConnectionTest: React.FC<IRemoteConnectionTestProps> = (props
       .then(() => console.log('Initial connection test completed'))
       .catch(error => console.error('Error during initial connection test:', error));
   }, []);
+  // Get effective user for display
+  const effectiveUser = getEffectiveUser();
   
   return (
     <div style={{ padding: '20px' }}>
       <h2>Remote Site Connection & Date Migration</h2>
       
+      {/* --- NEW USER IMPERSONATION SECTION --- */}
+      <div style={{ marginBottom: '30px' }}>
+        <Stack tokens={{ childrenGap: 15 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h3 style={{ margin: 0 }}>User Impersonation</h3>
+            <CommandBar
+              items={getImpersonationCommandBarItems()}
+              styles={{
+                root: { padding: 0 }
+              }}
+            />
+          </div>
+
+          {/* Current User Status */}
+          <div style={{ 
+            padding: '15px', 
+            backgroundColor: impersonationState.isImpersonating ? '#fff4ce' : '#f3f2f1', 
+            borderRadius: '4px',
+            border: impersonationState.isImpersonating ? '1px solid #ffb900' : '1px solid #edebe9'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+              <Icon 
+                iconName={impersonationState.isImpersonating ? "Contact" : "UserFollowed"} 
+                style={{ 
+                  color: impersonationState.isImpersonating ? '#ffb900' : '#0078d4',
+                  fontSize: '16px' 
+                }} 
+              />
+              <Text variant="mediumPlus" style={{ fontWeight: '600' }}>
+                {impersonationState.isImpersonating ? 'Acting As' : 'Current User'}
+              </Text>
+            </div>
+            
+            <div style={{ marginLeft: '26px' }}>
+              <div><strong>Name:</strong> {effectiveUser?.Title || 'Unknown'}</div>
+              <div><strong>Email:</strong> {effectiveUser?.Email || 'Unknown'}</div>
+              <div><strong>ID:</strong> {effectiveUser?.ID || 'Unknown'}</div>
+              
+              {impersonationState.isImpersonating && impersonationState.originalUser && (
+                <div style={{ marginTop: '10px', fontSize: '12px', color: '#605e5c' }}>
+                  <strong>Original User:</strong> {impersonationState.originalUser.Title} ({impersonationState.originalUser.Email})
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Staff Selection */}
+          <div>
+            <Label style={{ fontWeight: '600', marginBottom: '8px', display: 'block' }}>
+              Select Staff Member to Act As:
+            </Label>
+            
+            {isLoadingStaff ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Spinner size={SpinnerSize.small} />
+                <Text>Loading staff members...</Text>
+              </div>
+            ) : (
+              <Dropdown
+                placeholder="Choose a staff member..."
+                options={getStaffDropdownOptions()}
+                onChange={handleStaffSelection}
+                disabled={isLoadingStaff || availableStaff.length === 0}
+                styles={{
+                  root: { maxWidth: '400px' },
+                  dropdown: { 
+                    backgroundColor: impersonationState.isImpersonating ? '#fff4ce' : 'white'
+                  }
+                }}
+              />
+            )}
+            
+            <Text variant="small" style={{ color: '#605e5c', marginTop: '5px', display: 'block' }}>
+              {availableStaff.length > 0 
+                ? `${availableStaff.length} staff members available for impersonation`
+                : 'No staff members available'
+              }
+            </Text>
+          </div>
+
+          {/* Impersonation Status Message */}
+          {impersonationMessage && (
+            <MessageBar messageBarType={impersonationMessage.type}>
+              {impersonationMessage.text}
+            </MessageBar>
+          )}
+
+          {/* Usage Instructions */}
+          <MessageBar messageBarType={MessageBarType.info}>
+            <strong>How to use:</strong> Select a staff member from the dropdown to temporarily act as that user. 
+            All operations in the application will be performed with the selected user's identity. 
+            Click "Stop Acting As" to return to your original user account.
+          </MessageBar>
+        </Stack>
+      </div>
+
+      <Separator />
+      {/* --- END NEW USER IMPERSONATION SECTION --- */}
+
       {/* CONNECTION TEST SECTION */}
       <div style={{ marginBottom: '30px' }}>
         <h3>Connection Test</h3>
