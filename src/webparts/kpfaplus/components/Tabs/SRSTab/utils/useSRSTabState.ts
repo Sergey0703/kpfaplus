@@ -2,11 +2,12 @@
 
 import { useState } from 'react';
 import { IStaffRecord } from '../../../../services/StaffRecordsService';
+import { ITypeOfLeave } from '../../../../services/TypeOfLeaveService';
 import { SRSDateUtils } from './SRSDateUtils';
 
 /**
  * Интерфейс для состояния SRS Tab
- * Упрощенная версия по сравнению с ScheduleTab - только необходимые поля для SRS
+ * ОБНОВЛЕНО: Добавлены поля для типов отпусков
  */
 export interface ISRSTabState {
   // Основные даты периода
@@ -16,6 +17,10 @@ export interface ISRSTabState {
   // Данные SRS записей
   srsRecords: IStaffRecord[];        // Записи SRS (только с TypeOfLeave)
   totalHours: string;                // Общее количество часов в формате "127:00"
+  
+  // *** НОВОЕ: Типы отпусков ***
+  typesOfLeave: ITypeOfLeave[];      // Справочник типов отпусков
+  isLoadingTypesOfLeave: boolean;    // Состояние загрузки типов отпусков
   
   // Состояния загрузки
   isLoading: boolean;                // Общее состояние загрузки
@@ -128,10 +133,7 @@ const getSavedDates = (): { fromDate: Date; toDate: Date } => {
 
 /**
  * Функция для рассчета общего количества часов из записей SRS
- * *** ИСПРАВЛЕНО: Теперь форматирует в часы:минуты (HH:MM) ***
- * 
- * @param records Массив записей SRS
- * @returns Отформатированная строка с общим количеством часов в формате "40:20"
+ * ИСПРАВЛЕНО: Теперь форматирует в часы:минуты (HH:MM)
  */
 const calculateTotalHours = (records: IStaffRecord[]): string => {
   try {
@@ -147,7 +149,7 @@ const calculateTotalHours = (records: IStaffRecord[]): string => {
         if (record.WorkTime) {
           const workTimeStr = record.WorkTime.toString();
           
-          // *** ИСПРАВЛЕНО: Поддерживаем оба формата - точка и двоеточие ***
+          // ИСПРАВЛЕНО: Поддерживаем оба формата - точка и двоеточие
           let hours = 0;
           let minutes = 0;
           
@@ -188,7 +190,7 @@ const calculateTotalHours = (records: IStaffRecord[]): string => {
       }
     });
     
-    // *** ИСПРАВЛЕНО: Конвертируем в часы:минуты формат ***
+    // ИСПРАВЛЕНО: Конвертируем в часы:минуты формат
     const totalHours = Math.floor(totalMinutes / 60);
     const remainingMinutes = totalMinutes % 60;
     const formattedHours = `${totalHours}:${remainingMinutes.toString().padStart(2, '0')}`;
@@ -211,7 +213,7 @@ const calculateTotalHours = (records: IStaffRecord[]): string => {
 
 /**
  * Custom hook для управления состоянием SRS Tab
- * Предоставляет централизованное управление состоянием и вспомогательные функции
+ * ОБНОВЛЕНО: Добавлена инициализация типов отпусков
  */
 export const useSRSTabState = (): UseSRSTabStateReturn => {
   // Получаем сохраненные или дефолтные даты
@@ -225,7 +227,11 @@ export const useSRSTabState = (): UseSRSTabStateReturn => {
     
     // Данные SRS
     srsRecords: [],
-    totalHours: '0:00', // *** ИСПРАВЛЕНО: Инициализация в новом формате ***
+    totalHours: '0:00',
+    
+    // *** НОВОЕ: Типы отпусков ***
+    typesOfLeave: [],
+    isLoadingTypesOfLeave: false,
     
     // Состояния загрузки
     isLoading: false,
@@ -245,10 +251,11 @@ export const useSRSTabState = (): UseSRSTabStateReturn => {
     isInitialized: false
   });
   
-  console.log('[useSRSTabState] State initialized with dates:', {
+  console.log('[useSRSTabState] State initialized with dates and types of leave support:', {
     fromDate: state.fromDate.toISOString(),
     toDate: state.toDate.toISOString(),
-    daysInRange: SRSDateUtils.calculateDaysInRange(state.fromDate, state.toDate)
+    daysInRange: SRSDateUtils.calculateDaysInRange(state.fromDate, state.toDate),
+    typesOfLeaveSupport: true
   });
   
   return {
@@ -259,13 +266,12 @@ export const useSRSTabState = (): UseSRSTabStateReturn => {
 
 /**
  * Вспомогательные функции для работы с состоянием SRS Tab
- * Эти функции можно использовать в компонентах для обновления состояния
+ * ОБНОВЛЕНО: Добавлены функции для работы с типами отпусков
  */
 export const SRSTabStateHelpers = {
   
   /**
    * Обновляет SRS записи и пересчитывает общее количество часов
-   * *** ИСПРАВЛЕНО: Теперь использует новый формат часы:минуты ***
    */
   updateSRSRecords: (
     setState: React.Dispatch<React.SetStateAction<ISRSTabState>>,
@@ -276,7 +282,7 @@ export const SRSTabStateHelpers = {
     setState(prevState => ({
       ...prevState,
       srsRecords: records,
-      totalHours: totalHours, // *** Теперь в формате "40:20" ***
+      totalHours: totalHours,
       isLoadingSRS: false,
       errorSRS: undefined
     }));
@@ -285,6 +291,42 @@ export const SRSTabStateHelpers = {
       recordsCount: records.length,
       totalHours
     });
+  },
+
+  // *** НОВЫЕ HELPER ФУНКЦИИ ДЛЯ ТИПОВ ОТПУСКОВ ***
+
+  /**
+   * Обновляет типы отпусков
+   */
+  updateTypesOfLeave: (
+    setState: React.Dispatch<React.SetStateAction<ISRSTabState>>,
+    typesOfLeave: ITypeOfLeave[]
+  ): void => {
+    setState(prevState => ({
+      ...prevState,
+      typesOfLeave: typesOfLeave,
+      isLoadingTypesOfLeave: false
+    }));
+    
+    console.log('[SRSTabStateHelpers] updateTypesOfLeave:', {
+      typesCount: typesOfLeave.length,
+      types: typesOfLeave.map(t => ({ id: t.id, title: t.title }))
+    });
+  },
+
+  /**
+   * Устанавливает состояние загрузки типов отпусков
+   */
+  setLoadingTypesOfLeave: (
+    setState: React.Dispatch<React.SetStateAction<ISRSTabState>>,
+    isLoading: boolean
+  ): void => {
+    setState(prevState => ({
+      ...prevState,
+      isLoadingTypesOfLeave: isLoading
+    }));
+    
+    console.log('[SRSTabStateHelpers] setLoadingTypesOfLeave:', isLoading);
   },
   
   /**
@@ -434,6 +476,7 @@ export const SRSTabStateHelpers = {
   
   /**
    * Сбрасывает состояние к начальным значениям
+   * ОБНОВЛЕНО: Включает сброс типов отпусков
    */
   resetState: (
     setState: React.Dispatch<React.SetStateAction<ISRSTabState>>
@@ -444,7 +487,10 @@ export const SRSTabStateHelpers = {
       fromDate,
       toDate,
       srsRecords: [],
-      totalHours: '0:00', // *** ИСПРАВЛЕНО: Сброс в новом формате ***
+      totalHours: '0:00',
+      // *** НОВОЕ: Сброс типов отпусков ***
+      typesOfLeave: [],
+      isLoadingTypesOfLeave: false,
       isLoading: false,
       isLoadingSRS: false,
       error: undefined,
@@ -454,6 +500,6 @@ export const SRSTabStateHelpers = {
       isInitialized: false
     });
     
-    console.log('[SRSTabStateHelpers] State reset to initial values');
+    console.log('[SRSTabStateHelpers] State reset to initial values with types of leave support');
   }
 };

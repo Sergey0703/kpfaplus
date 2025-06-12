@@ -17,7 +17,9 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
     isLoading,
     onItemChange,
     onLunchTimeChange,
-    onContractNumberChange
+    onContractNumberChange,
+    // *** НОВОЕ: Обработчик типов отпусков ***
+    onTypeOfLeaveChange
   } = props;
 
   // *** КЛЮЧЕВОЕ ДОБАВЛЕНИЕ: State для вычисленного времени работы ***
@@ -30,7 +32,11 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
     lunch: string;
   }>>({});
 
-  console.log('[SRSTable] Rendering with items count:', items.length);
+  console.log('[SRSTable] Rendering with items count and types of leave support:', {
+    itemsCount: items.length,
+    hasTypeOfLeaveHandler: !!onTypeOfLeaveChange,
+    optionsLeaveTypesCount: options.leaveTypes?.length || 0
+  });
 
   // *** ДОБАВЛЕНО: Инициализация вычисленного времени и актуальных значений при загрузке элементов ***
   useEffect(() => {
@@ -81,7 +87,6 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
       lunch: '0'
     };
   }, [currentItemValues]);
-
   // *** ИСПРАВЛЕНО: Обработчик изменения времени с обновлением актуальных значений ***
   const handleTimeChange = useCallback((item: ISRSRecord, field: string, value: string | { hours: string; minutes: string }): void => {
     if (item.deleted) { return; }
@@ -222,6 +227,48 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
     console.log(`[SRSTable] *** LUNCH TIME CHANGE COMPLETE ***`);
   }, [calculatedWorkTimes, onItemChange, onLunchTimeChange, getCurrentItemValues]);
 
+  // *** НОВЫЙ ОБРАБОТЧИК: Изменение типа отпуска ***
+  const handleTypeOfLeaveChange = useCallback((item: ISRSRecord, value: string): void => {
+    if (item.deleted) { return; }
+    
+    console.log(`[SRSTable] *** TYPE OF LEAVE CHANGE ***`);
+    console.log(`[SRSTable] Item ID: ${item.id}`);
+    console.log(`[SRSTable] Old type of leave: "${item.typeOfLeave}"`);
+    console.log(`[SRSTable] New type of leave: "${value}"`);
+    
+    // Находим информацию о типе отпуска в опциях
+    const selectedLeaveType = options.leaveTypes.find(option => option.key === value);
+    if (selectedLeaveType) {
+      console.log(`[SRSTable] Selected leave type details:`, {
+        key: selectedLeaveType.key,
+        text: selectedLeaveType.text,
+        data: selectedLeaveType.data
+      });
+    }
+    
+    // *** ВАЖНО: Типы отпусков НЕ влияют на время работы ***
+    console.log(`[SRSTable] Type of leave change does NOT affect work time calculation`);
+    
+    // Вызываем специальный обработчик типов отпусков если доступен
+    if (onTypeOfLeaveChange) {
+      console.log(`[SRSTable] Calling onTypeOfLeaveChange handler`);
+      onTypeOfLeaveChange(item, value);
+    } else {
+      // Fallback к общему обработчику
+      console.log(`[SRSTable] Using fallback onItemChange for typeOfLeave`);
+      onItemChange(item, 'typeOfLeave', value);
+    }
+    
+    console.log(`[SRSTable] *** TYPE OF LEAVE CHANGE COMPLETE ***`);
+  }, [options.leaveTypes, onTypeOfLeaveChange, onItemChange]);
+
+  // *** ОБРАБОТЧИК: Изменение номера контракта ***
+  const handleContractNumberChange = useCallback((item: ISRSRecord, value: string): void => {
+    if (item.deleted) { return; }
+    
+    console.log(`[SRSTable] Contract number change for item ${item.id}: ${item.contract} -> ${value}`);
+    onContractNumberChange(item, value);
+  }, [onContractNumberChange]);
   // Helper function to check if this is the first row with a new date
   const isFirstRowWithNewDate = (items: typeof props.items, index: number): boolean => {
     if (index === 0) return true; // First row always starts a new date
@@ -477,6 +524,13 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
                 No SRS records found for the selected date range.
                 <br />
                 Please adjust the date range and click Refresh.
+                {/* *** НОВОЕ: Информация о типах отпусков *** */}
+                <br />
+                <small style={{ color: '#888', marginTop: '10px', display: 'block' }}>
+                  {options.leaveTypes.length > 0 
+                    ? `${options.leaveTypes.length - 1} types of leave available` 
+                    : 'Loading types of leave...'}
+                </small>
               </td>
             </tr>
           ) : (
@@ -506,7 +560,9 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
                   isTimesEqual={checkSRSStartEndTimeSame(item)}
                   onItemChange={handleTimeChange} // *** ИСПОЛЬЗУЕМ НАШИ ОБРАБОТЧИКИ С ПРОВЕРКОЙ НА RELIEF ***
                   onLunchTimeChange={handleLunchTimeChange} // *** ИСПОЛЬЗУЕМ НАШИ ОБРАБОТЧИКИ С АКТУАЛЬНЫМИ ЗНАЧЕНИЯМИ ***
-                  onContractNumberChange={onContractNumberChange}
+                  onContractNumberChange={handleContractNumberChange}
+                  // *** НОВОЕ: Передаем обработчик типов отпусков ***
+                  onTypeOfLeaveChange={handleTypeOfLeaveChange}
                 />
               </React.Fragment>
             ))

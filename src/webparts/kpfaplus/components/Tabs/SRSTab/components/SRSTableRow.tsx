@@ -14,6 +14,8 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   isTimesEqual: boolean;
   onLunchTimeChange: (item: ISRSRecord, value: string) => void;
   onContractNumberChange: (item: ISRSRecord, value: string) => void;
+  // *** НОВОЕ: Обработчик типов отпусков ***
+  onTypeOfLeaveChange?: (item: ISRSRecord, value: string) => void;
 }> = (props) => {
   const {
     item,
@@ -24,7 +26,9 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     totalRowsInDate,
     displayWorkTime,
     isTimesEqual,
-    onItemChange
+    onItemChange,
+    // *** НОВОЕ: Извлекаем обработчик типов отпусков ***
+    onTypeOfLeaveChange
   } = props;
 
   // Extract handlers directly from props to avoid unused variable errors
@@ -36,22 +40,27 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   const [localFinishWork, setLocalFinishWork] = useState(item.finishWork);
   const [localLunch, setLocalLunch] = useState(item.lunch);
   const [localContract, setLocalContract] = useState(item.contract);
+  // *** НОВОЕ: Локальное состояние для типа отпуска ***
+  const [localTypeOfLeave, setLocalTypeOfLeave] = useState(item.typeOfLeave);
 
   // Синхронизируем локальное состояние с props при изменении item
   useEffect(() => {
-    console.log('[SRSTableRow] Syncing local state with item:', {
+    console.log('[SRSTableRow] Syncing local state with item (including type of leave):', {
       itemId: item.id,
       startWork: item.startWork,
       finishWork: item.finishWork,
       lunch: item.lunch,
-      contract: item.contract
+      contract: item.contract,
+      typeOfLeave: item.typeOfLeave // *** НОВОЕ ***
     });
     
     setLocalStartWork(item.startWork);
     setLocalFinishWork(item.finishWork);
     setLocalLunch(item.lunch);
     setLocalContract(item.contract);
-  }, [item.id, item.startWork, item.finishWork, item.lunch, item.contract]);
+    // *** НОВОЕ: Синхронизация типа отпуска ***
+    setLocalTypeOfLeave(item.typeOfLeave);
+  }, [item.id, item.startWork, item.finishWork, item.lunch, item.contract, item.typeOfLeave]);
 
   // Styles for cells in Schedule table style
   const cellStyle: React.CSSProperties = {
@@ -214,15 +223,40 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     }
   }, [item, lunchTimeChangeHandler, localLunch, localStartWork, localFinishWork, displayWorkTime]);
 
-  const handleLeaveTypeChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
+  // *** НОВЫЙ ОБРАБОТЧИК: Изменение типа отпуска ***
+  const handleTypeOfLeaveChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
     if (option) {
-      onItemChange(item, 'typeOfLeave', option.key as string);
+      console.log('[SRSTableRow] *** TYPE OF LEAVE CHANGE ***');
+      console.log('[SRSTableRow] Type of leave changing from', localTypeOfLeave, 'to', option.key);
+      
+      // Находим информацию о выбранном типе отпуска
+      const selectedType = options.leaveTypes.find(leaveType => leaveType.key === option.key);
+      if (selectedType) {
+        console.log('[SRSTableRow] Selected type details:', {
+          key: selectedType.key,
+          text: selectedType.text,
+          data: selectedType.data
+        });
+      }
+      
+      // Обновляем локальное состояние немедленно
+      setLocalTypeOfLeave(option.key as string);
+      
+      // *** ВАЖНО: Типы отпусков НЕ влияют на время работы ***
+      console.log('[SRSTableRow] Type of leave change does NOT affect work time calculation');
+      
+      // Вызываем специальный обработчик для типов отпусков
+      if (onTypeOfLeaveChange) {
+        console.log('[SRSTableRow] Calling onTypeOfLeaveChange handler');
+        onTypeOfLeaveChange(item, option.key as string);
+      } else {
+        console.log('[SRSTableRow] No onTypeOfLeaveChange handler, using fallback');
+        onItemChange(item, 'typeOfLeave', option.key as string);
+      }
+      
+      console.log('[SRSTableRow] *** TYPE OF LEAVE CHANGE COMPLETE ***');
     }
-  }, [item, onItemChange]);
-
-  const handleTimeLeaveChange = useCallback((event: React.ChangeEvent<HTMLInputElement>): void => {
-    onItemChange(item, 'timeLeave', event.target.value);
-  }, [item, onItemChange]);
+  }, [item, localTypeOfLeave, options.leaveTypes, onTypeOfLeaveChange, onItemChange]);
 
   const handleContractChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
     if (option) {
@@ -280,6 +314,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     }
   });
 
+  // *** НОВЫЕ СТИЛИ: Для dropdown типов отпусков ***
   const getLeaveDropdownStyles = (): object => ({
     root: { 
       width: 140,
@@ -323,6 +358,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     localFinishWork,
     localLunch,
     localContract,
+    localTypeOfLeave, // *** НОВОЕ ***
     isTimesEqual
   });
 
@@ -423,14 +459,15 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
         />
       </td>
 
-      {/* Type of Leave cell */}
+      {/* *** НОВАЯ ЯЧЕЙКА: Type of Leave - ИСПОЛЬЗУЕМ ЛОКАЛЬНЫЕ ЗНАЧЕНИЯ *** */}
       <td style={cellStyle}>
         <Dropdown
-          selectedKey={item.typeOfLeave}
+          selectedKey={localTypeOfLeave}
           options={options.leaveTypes}
-          onChange={handleLeaveTypeChange}
+          onChange={handleTypeOfLeaveChange}
           disabled={item.deleted}
           styles={getLeaveDropdownStyles()}
+          placeholder="Select type..."
         />
       </td>
 
@@ -439,7 +476,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
         <input
           type="text"
           value={item.timeLeave}
-          onChange={handleTimeLeaveChange}
+          onChange={(e) => onItemChange(item, 'timeLeave', e.target.value)}
           maxLength={4}
           disabled={item.deleted}
           style={{

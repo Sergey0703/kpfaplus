@@ -4,12 +4,14 @@ import { useCallback, useMemo, useState } from 'react';
 import { ITabProps } from '../../../../models/types';
 import { ISRSTabState, useSRSTabState, SRSTabStateHelpers } from './useSRSTabState';
 import { useSRSData } from './useSRSData';
+import { useTypesOfLeave } from './useTypesOfLeave'; // *** НОВЫЙ ИМПОРТ ***
 import { SRSDateUtils } from './SRSDateUtils';
 import { ISRSRecord } from './SRSTabInterfaces';
 import { calculateSRSWorkTime } from './SRSTimeCalculationUtils';
 
 /**
  * Интерфейс для возвращаемых значений главного хука useSRSTabLogic
+ * ОБНОВЛЕНО: Добавлены типы отпусков
  */
 export interface UseSRSTabLogicReturn extends ISRSTabState {
   // Обработчики дат
@@ -35,6 +37,8 @@ export interface UseSRSTabLogicReturn extends ISRSTabState {
   onItemChange: (item: ISRSRecord, field: string, value: string | boolean | { hours: string; minutes: string }) => void;
   onLunchTimeChange: (item: ISRSRecord, value: string) => void;
   onContractNumberChange: (item: ISRSRecord, value: string) => void;
+  // *** НОВОЕ: Обработчик типов отпусков ***
+  onTypeOfLeaveChange: (item: ISRSRecord, value: string) => void;
   
   // Вычисляемые значения
   hasCheckedItems: boolean;
@@ -43,17 +47,19 @@ export interface UseSRSTabLogicReturn extends ISRSTabState {
   // Функции для работы с данными
   loadSRSData: () => Promise<void>;
   isDataValid: boolean;
+  
+  // *** НОВОЕ: Функция загрузки типов отпусков ***
+  loadTypesOfLeave: () => void;
 }
 
 /**
  * Главный оркестрирующий хук для SRS Tab
- * Координирует состояние, загрузку данных и обработчики событий
- * Упрощенная версия по сравнению с ScheduleTab - только SRS функциональность
+ * ОБНОВЛЕНО: Добавлена интеграция типов отпусков
  */
 export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   const { selectedStaff, context, currentUserId, managingGroupId } = props;
 
-  console.log('[useSRSTabLogic] Orchestrator hook initialized with props:', {
+  console.log('[useSRSTabLogic] Orchestrator hook initialized with types of leave support:', {
     hasSelectedStaff: !!selectedStaff,
     selectedStaffId: selectedStaff?.id,
     selectedStaffEmployeeId: selectedStaff?.employeeId,
@@ -67,6 +73,12 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
 
   // Локальное состояние для отслеживания изменений в таблице
   const [modifiedRecords, setModifiedRecords] = useState<Map<string, Partial<ISRSRecord>>>(new Map());
+
+  // *** НОВОЕ: Инициализируем хук загрузки типов отпусков ***
+  const { loadTypesOfLeave } = useTypesOfLeave({
+    context,
+    setState
+  });
 
   // Инициализируем хук загрузки SRS данных
   const { loadSRSData, refreshSRSData, isDataValid } = useSRSData({
@@ -159,11 +171,10 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
 
   /**
    * Обработчик изменения элементов таблицы
-   * Обновляет локальное состояние изменений для немедленного отображения
-   * *** ФИНАЛЬНОЕ ИСПРАВЛЕНИЕ: Правильная обработка всех полей, включая relief ***
+   * ОБНОВЛЕНО: Добавлена обработка типов отпусков
    */
   const handleItemChange = useCallback((item: ISRSRecord, field: string, value: string | boolean | { hours: string; minutes: string }): void => {
-    console.log('[useSRSTabLogic] *** HANDLE ITEM CHANGE ***');
+    console.log('[useSRSTabLogic] *** HANDLE ITEM CHANGE WITH TYPES OF LEAVE SUPPORT ***');
     console.log('[useSRSTabLogic] Item ID:', item.id);
     console.log('[useSRSTabLogic] Field:', field);
     console.log('[useSRSTabLogic] Value:', value);
@@ -172,7 +183,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     // Создаем обновленную запись
     let updatedItem = { ...item };
     
-    // *** ИСПРАВЛЕНО: Обрабатываем различные типы полей с правильной логикой пересчета ***
+    // ИСПРАВЛЕНО: Обрабатываем различные типы полей с правильной логикой пересчета
     if (field === 'startWork' && typeof value === 'object') {
       updatedItem.startWork = value;
       console.log('[useSRSTabLogic] Updated startWork:', value);
@@ -180,14 +191,15 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       updatedItem.finishWork = value;
       console.log('[useSRSTabLogic] Updated finishWork:', value);
     } else if (field === 'relief') {
-      // *** ИСПРАВЛЕНО: Relief НЕ влияет на время работы ***
+      // ИСПРАВЛЕНО: Relief НЕ влияет на время работы
       updatedItem.relief = value as boolean;
       console.log('[useSRSTabLogic] Updated relief (NO time recalculation):', value);
     } else if (field === 'workingHours') {
-      // *** ИСПРАВЛЕНО: workingHours приходит уже вычисленным из SRSTable ***
+      // ИСПРАВЛЕНО: workingHours приходит уже вычисленным из SRSTable
       updatedItem.hours = value as string;
       console.log('[useSRSTabLogic] Updated workingHours directly (pre-calculated):', value);
     } else if (field === 'typeOfLeave') {
+      // *** НОВОЕ: Обработка типов отпусков ***
       updatedItem.typeOfLeave = value as string;
       console.log('[useSRSTabLogic] Updated typeOfLeave:', value);
     } else if (field === 'timeLeave') {
@@ -199,8 +211,8 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       console.log('[useSRSTabLogic] Updated field', field, 'with value:', value);
     }
     
-    // *** ИСПРАВЛЕНО: Пересчитываем время ТОЛЬКО для временных полей (НЕ для relief и workingHours) ***
-    const timeFields = ['startWork', 'finishWork']; // НЕ включаем relief!
+    // ИСПРАВЛЕНО: Пересчитываем время ТОЛЬКО для временных полей (НЕ для relief, typeOfLeave и workingHours)
+    const timeFields = ['startWork', 'finishWork']; // НЕ включаем relief и typeOfLeave!
     if (timeFields.includes(field)) {
       const newWorkTime = calculateSRSWorkTime(updatedItem);
       updatedItem.hours = newWorkTime;
@@ -230,11 +242,13 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       } else if (field === 'workingHours') {
         newModifications.hours = value as string;
       } else if (field === 'relief') {
-        // *** ИСПРАВЛЕНО: Сохраняем relief без пересчета времени ***
+        // ИСПРАВЛЕНО: Сохраняем relief без пересчета времени
         newModifications.relief = value as boolean;
         console.log('[useSRSTabLogic] Saved relief change without time recalculation');
       } else if (field === 'typeOfLeave') {
+        // *** НОВОЕ: Сохранение типа отпуска ***
         newModifications.typeOfLeave = value as string;
+        console.log('[useSRSTabLogic] Saved typeOfLeave change:', value);
       } else if (field === 'timeLeave') {
         newModifications.timeLeave = value as string;
       } else {
@@ -259,13 +273,27 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   }, [setState, modifiedRecords.size]);
 
   /**
+   * *** НОВЫЙ ОБРАБОТЧИК: Изменение типа отпуска ***
+   */
+  const handleTypeOfLeaveChange = useCallback((item: ISRSRecord, value: string): void => {
+    console.log('[useSRSTabLogic] *** HANDLE TYPE OF LEAVE CHANGE ***');
+    console.log('[useSRSTabLogic] Item ID:', item.id);
+    console.log('[useSRSTabLogic] New type of leave:', value);
+    
+    // Используем общий обработчик изменений
+    handleItemChange(item, 'typeOfLeave', value);
+    
+    console.log('[useSRSTabLogic] Type of leave change delegated to handleItemChange');
+  }, [handleItemChange]);
+
+  /**
    * Обработчик изменения времени обеда
-   * *** ИСПРАВЛЕНО: Не пересчитывает время локально, полагается на SRSTable ***
+   * ИСПРАВЛЕНО: Не пересчитывает время локально, полагается на SRSTable
    */
   const handleLunchTimeChange = useCallback((item: ISRSRecord, value: string): void => {
     console.log('[useSRSTabLogic] handleLunchTimeChange:', { itemId: item.id, value });
     
-    // *** ИСПРАВЛЕНО: Не пересчитываем время здесь - это делает SRSTable ***
+    // ИСПРАВЛЕНО: Не пересчитываем время здесь - это делает SRSTable
     // SRSTable.handleLunchTimeChange уже пересчитал время и вызовет handleItemChange с 'workingHours'
     
     // Сохраняем только изменение времени обеда в локальном состоянии
@@ -313,14 +341,20 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
 
   /**
    * Обработчик принудительного обновления данных
+   * ОБНОВЛЕНО: Включает обновление типов отпусков
    */
   const handleRefreshData = useCallback((): void => {
-    console.log('[useSRSTabLogic] Manual refresh requested');
+    console.log('[useSRSTabLogic] Manual refresh requested (including types of leave)');
     // Очищаем локальные изменения при обновлении
     setModifiedRecords(new Map());
     SRSTabStateHelpers.setHasUnsavedChanges(setState, false);
+    
+    // Обновляем SRS данные
     void refreshSRSData();
-  }, [refreshSRSData, setState]);
+    
+    // *** НОВОЕ: Обновляем типы отпусков ***
+    loadTypesOfLeave();
+  }, [refreshSRSData, setState, loadTypesOfLeave]);
 
   /**
    * Обработчик экспорта всех SRS данных
@@ -328,27 +362,30 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   const handleExportAll = useCallback((): void => {
     console.log('[useSRSTabLogic] Export all SRS data requested');
     console.log('[useSRSTabLogic] Current SRS records count:', state.srsRecords.length);
+    console.log('[useSRSTabLogic] Types of leave available:', state.typesOfLeave.length);
     
     if (state.srsRecords.length === 0) {
       console.warn('[useSRSTabLogic] No SRS records to export');
       return;
     }
 
-    console.log('[useSRSTabLogic] Exporting SRS records:', {
+    console.log('[useSRSTabLogic] Exporting SRS records with types of leave:', {
       recordsCount: state.srsRecords.length,
       totalHours: state.totalHours,
-      dateRange: `${SRSDateUtils.formatDateForDisplay(state.fromDate)} - ${SRSDateUtils.formatDateForDisplay(state.toDate)}`
+      dateRange: `${SRSDateUtils.formatDateForDisplay(state.fromDate)} - ${SRSDateUtils.formatDateForDisplay(state.toDate)}`,
+      typesOfLeaveCount: state.typesOfLeave.length
     });
 
-    // TODO: Реализовать экспорт SRS данных
-    alert(`Export functionality will be implemented. Records to export: ${state.srsRecords.length}`);
-  }, [state.srsRecords, state.totalHours, state.fromDate, state.toDate]);
+    // TODO: Реализовать экспорт SRS данных с типами отпусков
+    alert(`Export functionality will be implemented. Records to export: ${state.srsRecords.length}, Types of leave: ${state.typesOfLeave.length}`);
+  }, [state.srsRecords, state.totalHours, state.fromDate, state.toDate, state.typesOfLeave]);
 
   /**
    * Обработчик сохранения всех изменений
+   * ОБНОВЛЕНО: Учитывает изменения типов отпусков
    */
   const handleSave = useCallback((): void => {
-    console.log('[useSRSTabLogic] Save all changes requested');
+    console.log('[useSRSTabLogic] Save all changes requested (including types of leave changes)');
     
     if (!state.hasUnsavedChanges) {
       console.log('[useSRSTabLogic] No unsaved changes to save');
@@ -360,11 +397,14 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       modifiedIds: Array.from(modifiedRecords.keys())
     });
     
-    // Логируем детали изменений для отладки (включая relief)
+    // Логируем детали изменений для отладки (включая typeOfLeave)
     modifiedRecords.forEach((modifications, itemId) => {
       console.log(`[useSRSTabLogic] Modified record ${itemId}:`, modifications);
       if ('relief' in modifications) {
         console.log(`[useSRSTabLogic] Record ${itemId} has relief change:`, modifications.relief);
+      }
+      if ('typeOfLeave' in modifications) {
+        console.log(`[useSRSTabLogic] Record ${itemId} has typeOfLeave change:`, modifications.typeOfLeave);
       }
     });
     
@@ -506,6 +546,8 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     onItemChange: handleItemChange,
     onLunchTimeChange: handleLunchTimeChange,
     onContractNumberChange: handleContractNumberChange,
+    // *** НОВОЕ: Обработчик типов отпусков ***
+    onTypeOfLeaveChange: handleTypeOfLeaveChange,
     
     // Вычисляемые значения
     hasCheckedItems,
@@ -513,7 +555,9 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     
     // Функции работы с данными
     loadSRSData,
-    isDataValid
+    isDataValid,
+    // *** НОВОЕ: Функция загрузки типов отпусков ***
+    loadTypesOfLeave
   }), [
     state,
     handleFromDateChange,
@@ -528,13 +572,15 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     handleItemChange,
     handleLunchTimeChange,
     handleContractNumberChange,
+    handleTypeOfLeaveChange, // *** НОВОЕ ***
     hasCheckedItems,
     selectedItemsCount,
     loadSRSData,
-    isDataValid
+    isDataValid,
+    loadTypesOfLeave // *** НОВОЕ ***
   ]);
 
-  console.log('[useSRSTabLogic] Hook return object prepared with computed values:', {
+  console.log('[useSRSTabLogic] Hook return object prepared with computed values and types of leave support:', {
     recordsCount: state.srsRecords.length,
     totalHours: state.totalHours,
     hasCheckedItems,
@@ -542,7 +588,9 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     isDataValid,
     hasUnsavedChanges: state.hasUnsavedChanges,
     isLoading: state.isLoadingSRS,
-    modifiedRecordsCount: modifiedRecords.size
+    modifiedRecordsCount: modifiedRecords.size,
+    typesOfLeaveCount: state.typesOfLeave.length, // *** НОВОЕ ***
+    isLoadingTypesOfLeave: state.isLoadingTypesOfLeave // *** НОВОЕ ***
   });
 
   return hookReturn;

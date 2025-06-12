@@ -33,12 +33,13 @@ export interface ISRSRecord {
 
 /**
  * Опции для выпадающих списков в SRS таблице
+ * ОБНОВЛЕНО: Добавлены типы отпусков
  */
 export interface ISRSTableOptions {
   hours: IDropdownOption[]; // 00-23
   minutes: IDropdownOption[]; // 00, 05, 10, ..., 55
   lunchTimes: IDropdownOption[]; // 0, 5, 10, ..., 30
-  leaveTypes: IDropdownOption[]; // Типы отпусков
+  leaveTypes: IDropdownOption[]; // *** ОБНОВЛЕНО: Типы отпусков из справочника ***
   contractNumbers: IDropdownOption[]; // 1, 2, 3
 }
 
@@ -62,6 +63,7 @@ export interface ISRSFilterControlsProps {
 
 /**
  * Пропсы для компонента SRSTable
+ * ОБНОВЛЕНО: Добавлены типы отпусков
  */
 export interface ISRSTableProps {
   items: ISRSRecord[];
@@ -70,20 +72,26 @@ export interface ISRSTableProps {
   onItemChange: (item: ISRSRecord, field: string, value: string | boolean | { hours: string; minutes: string }) => void;
   onLunchTimeChange: (item: ISRSRecord, value: string) => void;
   onContractNumberChange: (item: ISRSRecord, value: string) => void;
+  // *** НОВОЕ: Обработчик изменения типа отпуска ***
+  onTypeOfLeaveChange?: (item: ISRSRecord, value: string) => void;
 }
 
 /**
  * Пропсы для компонента SRSTableRow
+ * ОБНОВЛЕНО: Добавлены типы отпусков
  */
 export interface ISRSTableRowProps {
   item: ISRSRecord;
   options: ISRSTableOptions;
   isEven: boolean; // Для чередования цветов строк
   onItemChange: (item: ISRSRecord, field: string, value: string | boolean | { hours: string; minutes: string }) => void;
+  // *** НОВОЕ: Дополнительные обработчики ***
+  onTypeOfLeaveChange?: (item: ISRSRecord, value: string) => void;
 }
 
 /**
  * Состояние SRS вкладки (для будущего использования)
+ * ОБНОВЛЕНО: Добавлены типы отпусков
  */
 export interface ISRSTabState {
   fromDate: Date;
@@ -94,6 +102,9 @@ export interface ISRSTabState {
   error?: string;
   hasUnsavedChanges: boolean;
   selectedItems: Set<string>; // ID выбранных записей
+  // *** НОВОЕ: Типы отпусков ***
+  typesOfLeave: Array<{ id: string; title: string; color?: string }>; // Упрощенный интерфейс типов отпусков
+  isLoadingTypesOfLeave: boolean;
 }
 
 /**
@@ -125,4 +136,162 @@ export interface ISRSSaveResult {
   savedCount: number;
   failedCount: number;
   errors?: string[];
+}
+
+/**
+ * *** НОВЫЕ ИНТЕРФЕЙСЫ ДЛЯ РАБОТЫ С ТИПАМИ ОТПУСКОВ ***
+ */
+
+/**
+ * Интерфейс для передачи типов отпусков в компоненты
+ */
+export interface ISRSTypeOfLeave {
+  id: string;
+  title: string;
+  color?: string;
+}
+
+/**
+ * Расширенные пропсы для главного компонента SRS Tab
+ * Включает типы отпусков
+ */
+export interface ISRSTabProps {
+  // Основные пропсы
+  selectedStaff?: { id: string; name: string; employeeId: string };
+  context?: any;
+  currentUserId?: string;
+  managingGroupId?: string;
+  
+  // Данные состояния
+  fromDate: Date;
+  toDate: Date;
+  srsRecords: ISRSRecord[];
+  totalHours: string;
+  
+  // *** НОВОЕ: Типы отпусков ***
+  typesOfLeave: ISRSTypeOfLeave[];
+  isLoadingTypesOfLeave: boolean;
+  
+  // Состояния загрузки
+  isLoading: boolean;
+  isLoadingSRS: boolean;
+  
+  // Ошибки
+  error?: string;
+  errorSRS?: string;
+  
+  // Изменения и выбор
+  hasUnsavedChanges: boolean;
+  selectedItems: Set<string>;
+  hasCheckedItems: boolean;
+  
+  // Обработчики
+  onFromDateChange: (date: Date | undefined) => void;
+  onToDateChange: (date: Date | undefined) => void;
+  onRefreshData: () => void;
+  onExportAll: () => void;
+  onSave: () => void;
+  onSaveChecked: () => void;
+  onItemChange: (item: ISRSRecord, field: string, value: string | boolean | { hours: string; minutes: string }) => void;
+  onLunchTimeChange: (item: ISRSRecord, value: string) => void;
+  onContractNumberChange: (item: ISRSRecord, value: string) => void;
+  // *** НОВОЕ: Обработчик типов отпусков ***
+  onTypeOfLeaveChange: (item: ISRSRecord, value: string) => void;
+}
+
+/**
+ * *** НОВОЕ: Конфигурация опций SRS таблицы ***
+ * Функция-помощник для создания опций с типами отпусков
+ */
+export interface ISRSTableOptionsConfig {
+  /**
+   * Создает опции для SRS таблицы включая типы отпусков
+   */
+  createSRSTableOptions: (typesOfLeave: ISRSTypeOfLeave[]) => ISRSTableOptions;
+}
+
+/**
+ * *** НОВОЕ: Утилиты для работы с типами отпусков в SRS ***
+ */
+export class SRSTableOptionsHelper {
+  /**
+   * Создает стандартные опции для SRS таблицы
+   */
+  public static createStandardOptions(): Omit<ISRSTableOptions, 'leaveTypes'> {
+    return {
+      hours: Array.from({ length: 24 }, (_, i) => ({
+        key: i.toString().padStart(2, '0'),
+        text: i.toString().padStart(2, '0')
+      })),
+      minutes: Array.from({ length: 12 }, (_, i) => {
+        const value = (i * 5).toString().padStart(2, '0');
+        return { key: value, text: value };
+      }),
+      lunchTimes: Array.from({ length: 13 }, (_, i) => {
+        const value = (i * 5).toString();
+        return { key: value, text: value };
+      }),
+      contractNumbers: [
+        { key: '1', text: '1' },
+        { key: '2', text: '2' },
+        { key: '3', text: '3' }
+      ]
+    };
+  }
+
+  /**
+   * Создает опции для типов отпусков
+   */
+  public static createLeaveTypesOptions(typesOfLeave: ISRSTypeOfLeave[]): IDropdownOption[] {
+    const options: IDropdownOption[] = [
+      { key: '', text: 'None' } // Первый элемент - "Нет типа отпуска"
+    ];
+
+    // Добавляем типы отпусков из справочника
+    typesOfLeave.forEach(type => {
+      options.push({
+        key: type.id,
+        text: type.title,
+        data: { color: type.color } // Сохраняем цвет для возможного использования
+      });
+    });
+
+    return options;
+  }
+
+  /**
+   * Создает полные опции для SRS таблицы
+   */
+  public static createFullSRSTableOptions(typesOfLeave: ISRSTypeOfLeave[]): ISRSTableOptions {
+    const standardOptions = SRSTableOptionsHelper.createStandardOptions();
+    const leaveTypesOptions = SRSTableOptionsHelper.createLeaveTypesOptions(typesOfLeave);
+
+    return {
+      ...standardOptions,
+      leaveTypes: leaveTypesOptions
+    };
+  }
+
+  /**
+   * Находит тип отпуска по ID
+   */
+  public static findLeaveTypeById(typesOfLeave: ISRSTypeOfLeave[], id: string): ISRSTypeOfLeave | undefined {
+    return typesOfLeave.find(type => type.id === id);
+  }
+
+  /**
+   * Получает название типа отпуска по ID
+   */
+  public static getLeaveTypeTitle(typesOfLeave: ISRSTypeOfLeave[], id: string): string {
+    const leaveType = SRSTableOptionsHelper.findLeaveTypeById(typesOfLeave, id);
+    return leaveType ? leaveType.title : 'Unknown';
+  }
+
+  /**
+   * Получает цвет типа отпуска по ID
+   */
+  public static getLeaveTypeColor(typesOfLeave: ISRSTypeOfLeave[], id: string): string | undefined {
+    const leaveType = SRSTableOptionsHelper.findLeaveTypeById(typesOfLeave, id);
+    return leaveType?.color;
+  }
 }
