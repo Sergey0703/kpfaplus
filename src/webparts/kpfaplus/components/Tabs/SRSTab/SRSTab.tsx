@@ -1,59 +1,41 @@
 // src/webparts/kpfaplus/components/Tabs/SRSTab/SRSTab.tsx
 import * as React from 'react';
-import { useState, useCallback } from 'react';
 import { ITabProps } from '../../../models/types';
-// Убираем неиспользуемый импорт: import { useDataContext } from '../../../context';
 
 // Импортируем новые компоненты
 import { SRSFilterControls } from './components/SRSFilterControls';
 import { SRSTable } from './components/SRSTable';
 
-// Импортируем интерфейсы
-import { 
-  ISRSRecord, 
-  ISRSTableOptions,
-  ISRSTabState 
-} from './utils/SRSTabInterfaces';
+// Импортируем главный хук логики
+import { useSRSTabLogic } from './utils/useSRSTabLogic';
+
+// Импортируем интерфейсы 
+import { ISRSTableOptions, ISRSRecord } from './utils/SRSTabInterfaces';
+import { SRSDataMapper } from './utils/SRSDataMapper';
 
 export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
   const { selectedStaff } = props;
   
-  // Получаем данные из контекста
-  // const { currentUser } = useDataContext(); // Убираем, так как не используется
+  console.log('[SRSTab] Rendering with props:', {
+    hasSelectedStaff: !!selectedStaff,
+    selectedStaffId: selectedStaff?.id,
+    selectedStaffName: selectedStaff?.name
+  });
   
-  // Временное состояние с mock данными (позже заменим на хуки)
-  const [state, setState] = useState<ISRSTabState>({
-    fromDate: new Date(2025, 4, 3), // 03.05.2025
-    toDate: new Date(2025, 4, 3),   // 03.05.2025
-    srsData: [
-      {
-        id: '1',
-        date: new Date(2024, 11, 1), // 01.12.2024
-        dayOfWeek: 'Sun',
-        hours: '7.50',
-        relief: true,
-        startWork: { hours: '08', minutes: '00' },
-        finishWork: { hours: '16', minutes: '00' },
-        lunch: '30',
-        typeOfLeave: 'Unpaid Leave',
-        timeLeave: '7.50',
-        shift: 1,
-        contract: '1',
-        contractCheck: true,
-        status: 'positive',
-        srs: true,
-        checked: false,
-        deleted: false
-      }
-    ],
-    totalHours: '127.00',
-    isLoading: false,
-    error: undefined,
-    hasUnsavedChanges: false,
-    selectedItems: new Set<string>()
+  // Используем главный хук логики вместо локального состояния
+  const srsLogic = useSRSTabLogic(props);
+
+  console.log('[SRSTab] SRS Logic state:', {
+    recordsCount: srsLogic.srsRecords.length,
+    totalHours: srsLogic.totalHours,
+    fromDate: srsLogic.fromDate.toLocaleDateString(),
+    toDate: srsLogic.toDate.toLocaleDateString(),
+    isLoading: srsLogic.isLoadingSRS,
+    hasError: !!srsLogic.errorSRS,
+    isDataValid: srsLogic.isDataValid
   });
 
-  // Опции для выпадающих списков
+  // Опции для выпадающих списков (оставляем как есть)
   const tableOptions: ISRSTableOptions = {
     hours: Array.from({ length: 24 }, (_, i) => ({
       key: i.toString().padStart(2, '0'),
@@ -81,64 +63,28 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     ]
   };
 
-  // Обработчики для FilterControls
-  const handleFromDateChange = useCallback((date: Date | undefined): void => {
-    if (date) {
-      console.log('[SRSTab] From date changed to:', date.toISOString());
-      setState(prev => ({ ...prev, fromDate: date }));
-    }
-  }, []);
+  // Преобразуем IStaffRecord[] в ISRSRecord[] для компонентов
+  const srsRecordsForTable: ISRSRecord[] = React.useMemo(() => {
+    return SRSDataMapper.mapStaffRecordsToSRSRecords(srsLogic.srsRecords);
+  }, [srsLogic.srsRecords]);
 
-  const handleToDateChange = useCallback((date: Date | undefined): void => {
-    if (date) {
-      console.log('[SRSTab] To date changed to:', date.toISOString());
-      setState(prev => ({ ...prev, toDate: date }));
-    }
-  }, []);
+  console.log('[SRSTab] Mapped SRS records for table:', {
+    originalCount: srsLogic.srsRecords.length,
+    mappedCount: srsRecordsForTable.length
+  });
 
-  const handleRefresh = useCallback((): void => {
-    console.log('[SRSTab] Refresh clicked');
-    // Пока заглушка - в будущем здесь будет загрузка данных
-    setState(prev => ({ ...prev, isLoading: true }));
-    setTimeout(() => {
-      setState(prev => ({ ...prev, isLoading: false }));
-    }, 1000);
-  }, []);
-
-  const handleExportAll = useCallback((): void => {
-    console.log('[SRSTab] Export all clicked');
-    // Пока заглушка - в будущем здесь будет экспорт
-  }, []);
-
-  const handleSave = useCallback((): void => {
-    console.log('[SRSTab] Save clicked');
-    // Пока заглушка - в будущем здесь будет сохранение изменений
-    setState(prev => ({ ...prev, hasUnsavedChanges: false }));
-  }, []);
-
-  const handleSaveChecked = useCallback((): void => {
-    console.log('[SRSTab] Save checked clicked');
-    // Пока заглушка - в будущем здесь будет сохранение отмеченных записей
-    setState(prev => ({ 
-      ...prev, 
-      hasUnsavedChanges: false,
-      selectedItems: new Set()
-    }));
-  }, []);
-
-  // Обработчики для таблицы (пока не используются, но могут понадобиться позже)
-  const handleItemChange = useCallback((item: ISRSRecord, field: string, value: string | boolean | number | { hours: string; minutes: string }): void => {
-    console.log(`[SRSTab] Item ${item.id} field ${field} changed to:`, value);
+  // Обработчик изменения элементов таблицы (адаптируем под ISRSRecord)
+  const handleItemChange = React.useCallback((item: ISRSRecord, field: string, value: any): void => {
+    console.log(`[SRSTab] Item change requested: ${item.id} field ${field} =`, value);
     
-    setState(prev => ({
-      ...prev,
-      srsData: prev.srsData.map(record => 
-        record.id === item.id 
-          ? { ...record, [field]: value }
-          : record
-      ),
-      hasUnsavedChanges: true
-    }));
+    // TODO: Реализовать изменение элементов через StaffRecordsService
+    // Пока что заглушка с логированием
+    console.log('[SRSTab] Item change not yet implemented - will use StaffRecordsService.updateStaffRecord()');
+    
+    // В будущем здесь будет:
+    // const updateData = SRSDataMapper.mapSRSRecordToStaffRecordUpdate(item);
+    // await staffRecordsService.updateStaffRecord(item.id, updateData);
+    // srsLogic.loadSRSData(); // Перезагрузить данные
   }, []);
 
   /*
@@ -178,8 +124,8 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
   }, []);
   */
 
-  // Вычисляемые значения
-  const hasCheckedItems = state.srsData.some(item => item.checked);
+  // Вычисляемые значения теперь берем из srsLogic
+  // const hasCheckedItems = state.srsData.some(item => item.checked);
 
   if (!selectedStaff) {
     return (
@@ -212,27 +158,27 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         SRS for {selectedStaff.name}
       </div>
       
-      {/* Панель управления */}
+      {/* Панель управления - передаем данные из srsLogic */}
       <SRSFilterControls
-        fromDate={state.fromDate}
-        toDate={state.toDate}
-        totalHours={state.totalHours}
-        isLoading={state.isLoading}
-        onFromDateChange={handleFromDateChange}
-        onToDateChange={handleToDateChange}
-        onRefresh={handleRefresh}
-        onExportAll={handleExportAll}
-        onSave={handleSave}
-        onSaveChecked={handleSaveChecked}
-        hasChanges={state.hasUnsavedChanges}
-        hasCheckedItems={hasCheckedItems}
+        fromDate={srsLogic.fromDate}
+        toDate={srsLogic.toDate}
+        totalHours={srsLogic.totalHours}
+        isLoading={srsLogic.isLoadingSRS}
+        onFromDateChange={srsLogic.onFromDateChange}
+        onToDateChange={srsLogic.onToDateChange}
+        onRefresh={srsLogic.onRefreshData}
+        onExportAll={srsLogic.onExportAll}
+        onSave={srsLogic.onSave}
+        onSaveChecked={srsLogic.onSaveChecked}
+        hasChanges={srsLogic.hasUnsavedChanges}
+        hasCheckedItems={srsLogic.hasCheckedItems}
       />
       
-      {/* Таблица SRS */}
+      {/* Таблица SRS - передаем преобразованные данные */}
       <SRSTable
-        items={state.srsData}
+        items={srsRecordsForTable}
         options={tableOptions}
-        isLoading={state.isLoading}
+        isLoading={srsLogic.isLoadingSRS}
         onItemChange={handleItemChange}
       />
     </div>

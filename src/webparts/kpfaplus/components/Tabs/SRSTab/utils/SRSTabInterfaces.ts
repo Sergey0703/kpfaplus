@@ -68,11 +68,6 @@ export interface ISRSTableProps {
   options: ISRSTableOptions;
   isLoading: boolean;
   onItemChange: (item: ISRSRecord, field: string, value: string | boolean | number | { hours: string; minutes: string }) => void;
-  // Убираем все неиспользуемые в текущей версии:
-  // onItemCheck: (itemId: string, checked: boolean) => void;
-  // onSelectAll: (checked: boolean) => void;
-  // allSelected: boolean;
-  // hasSelectedItems: boolean;
 }
 
 /**
@@ -83,8 +78,6 @@ export interface ISRSTableRowProps {
   options: ISRSTableOptions;
   isEven: boolean; // Для чередования цветов строк
   onItemChange: (item: ISRSRecord, field: string, value: string | boolean | number | { hours: string; minutes: string }) => void;
-  // Убираем неиспользуемый в текущей версии:
-  // onItemCheck: (itemId: string, checked: boolean) => void;
 }
 
 /**
