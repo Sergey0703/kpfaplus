@@ -15,7 +15,9 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
     items,
     options,
     isLoading,
-    onItemChange
+    onItemChange,
+    onLunchTimeChange,
+    onContractNumberChange
   } = props;
 
   // State for calculated work times (similar to Schedule table)
@@ -28,7 +30,7 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
     console.log('[SRSTable] Effect: items array changed. Calculating work times for all items.');
     const initialWorkTimes: Record<string, string> = {};
     items.forEach(item => {
-      // ИСПРАВЛЕНО: Вычисляем время сразу при загрузке, а не берем из item.hours
+      // Вычисляем время сразу при загрузке, а не берем из item.hours
       const calculatedTime = calculateSRSWorkTime(item);
       initialWorkTimes[item.id] = calculatedTime;
       console.log(`[SRSTable] Calculated time for item ${item.id}: ${calculatedTime} (was: ${item.hours})`);
@@ -43,64 +45,6 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
     }
     return item.hours;
   }, [calculatedWorkTimes]);
-
-  // Handle time-related field changes with recalculation (like in Schedule table)
-  const handleTimeChange = useCallback((item: ISRSRecord, field: string, value: string): void => {
-    if (item.deleted) { return; }
-    
-    console.log('[SRSTable] handleTimeChange:', { itemId: item.id, field, value });
-    
-    // Create updated record with new field value
-    const updatedItem = { ...item, [field]: value };
-    
-    // For time fields, update the nested structure
-    if (field === 'startHour') {
-      updatedItem.startWork = { ...item.startWork, hours: value };
-    } else if (field === 'startMinute') {
-      updatedItem.startWork = { ...item.startWork, minutes: value };
-    } else if (field === 'finishHour') {
-      updatedItem.finishWork = { ...item.finishWork, hours: value };
-    } else if (field === 'finishMinute') {
-      updatedItem.finishWork = { ...item.finishWork, minutes: value };
-    }
-    
-    // Recalculate work time
-    const workTime = calculateSRSWorkTime(updatedItem);
-
-    // Update local calculated work times state
-    setCalculatedWorkTimes(prev => ({
-      ...prev,
-      [item.id]: workTime
-    }));
-    
-    // Call parent's onChange handler
-    onItemChange(updatedItem, field, value);
-    onItemChange(updatedItem, 'hours', workTime);
-  }, [onItemChange]);
-
-  // Handle lunch time change (like in Schedule table)
-  const handleLunchTimeChange = useCallback((item: ISRSRecord, value: string): void => {
-    if (item.deleted) { return; }
-    
-    console.log('[SRSTable] handleLunchTimeChange:', { itemId: item.id, value });
-    
-    const updatedItem = { ...item, lunch: value };
-    const workTime = calculateSRSWorkTime(updatedItem);
-
-    setCalculatedWorkTimes(prev => ({
-      ...prev,
-      [item.id]: workTime
-    }));
-    
-    onItemChange(updatedItem, 'lunch', value);
-    onItemChange(updatedItem, 'hours', workTime);
-  }, [onItemChange]);
-
-  // Handle contract number change
-  const handleContractNumberChange = useCallback((item: ISRSRecord, value: string): void => {
-    if (item.deleted) { return; }
-    onItemChange(item, 'contract', value);
-  }, [onItemChange]);
 
   // Helper function to check if this is the first row with a new date
   const isFirstRowWithNewDate = (items: typeof props.items, index: number): boolean => {
@@ -166,7 +110,7 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
         return;
       }
       
-      // ИСПРАВЛЕНО: Используем вычисленное время, а не item.hours из API
+      // Используем вычисленное время, а не item.hours из API
       const workTime = getDisplayWorkTime(item);
       const [hoursStr, minutesStr] = workTime.split('.');
       
@@ -384,9 +328,9 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
                   totalRowsInDate={countTotalRowsInDate(items, index)}
                   displayWorkTime={getDisplayWorkTime(item)}
                   isTimesEqual={checkSRSStartEndTimeSame(item)}
-                  onItemChange={handleTimeChange}
-                  onLunchTimeChange={handleLunchTimeChange}
-                  onContractNumberChange={handleContractNumberChange}
+                  onItemChange={onItemChange}
+                  onLunchTimeChange={onLunchTimeChange}
+                  onContractNumberChange={onContractNumberChange}
                 />
               </React.Fragment>
             ))

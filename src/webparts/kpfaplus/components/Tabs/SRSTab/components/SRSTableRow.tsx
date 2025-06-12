@@ -26,6 +26,10 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     onItemChange
   } = props;
 
+  // Extract handlers directly from props to avoid unused variable errors
+  const lunchTimeChangeHandler = props.onLunchTimeChange;
+  const contractNumberChangeHandler = props.onContractNumberChange;
+
   // Styles for cells in Schedule table style
   const cellStyle: React.CSSProperties = {
     border: '1px solid #edebe9', // Soft border like in Schedule
@@ -140,9 +144,9 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
 
   const handleLunchChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
     if (option) {
-      onItemChange(item, 'lunch', option.key as string);
+      lunchTimeChangeHandler(item, option.key as string);
     }
-  }, [item, onItemChange]);
+  }, [item, lunchTimeChangeHandler]);
 
   const handleLeaveTypeChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
     if (option) {
@@ -156,9 +160,9 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
 
   const handleContractChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
     if (option) {
-      onItemChange(item, 'contract', option.key as string);
+      contractNumberChangeHandler(item, option.key as string);
     }
-  }, [item, onItemChange]);
+  }, [item, contractNumberChangeHandler]);
 
   const handleAddShift = useCallback((): void => {
     console.log('[SRSTableRow] Add shift clicked for date:', item.date.toLocaleDateString());

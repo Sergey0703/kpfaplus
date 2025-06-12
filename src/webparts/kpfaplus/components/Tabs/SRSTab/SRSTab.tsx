@@ -22,7 +22,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     selectedStaffName: selectedStaff?.name
   });
   
-  // Используем главный хук логики вместо локального состояния
+  // Используем главный хук логики (как в ScheduleTab)
   const srsLogic = useSRSTabLogic(props);
 
   console.log('[SRSTab] SRS Logic state:', {
@@ -35,7 +35,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     isDataValid: srsLogic.isDataValid
   });
 
-  // Опции для выпадающих списков (оставляем как есть)
+  // Опции для выпадающих списков
   const tableOptions: ISRSTableOptions = {
     hours: Array.from({ length: 24 }, (_, i) => ({
       key: i.toString().padStart(2, '0'),
@@ -72,60 +72,6 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     originalCount: srsLogic.srsRecords.length,
     mappedCount: srsRecordsForTable.length
   });
-
-  // Обработчик изменения элементов таблицы (адаптируем под ISRSRecord)
-  const handleItemChange = React.useCallback((item: ISRSRecord, field: string, value: any): void => {
-    console.log(`[SRSTab] Item change requested: ${item.id} field ${field} =`, value);
-    
-    // TODO: Реализовать изменение элементов через StaffRecordsService
-    // Пока что заглушка с логированием
-    console.log('[SRSTab] Item change not yet implemented - will use StaffRecordsService.updateStaffRecord()');
-    
-    // В будущем здесь будет:
-    // const updateData = SRSDataMapper.mapSRSRecordToStaffRecordUpdate(item);
-    // await staffRecordsService.updateStaffRecord(item.id, updateData);
-    // srsLogic.loadSRSData(); // Перезагрузить данные
-  }, []);
-
-  /*
-  const handleItemCheck = useCallback((itemId: string, checked: boolean): void => {
-    console.log(`[SRSTab] Item ${itemId} checked:`, checked);
-    
-    setState(prev => {
-      const newSelectedItems = new Set(prev.selectedItems);
-      if (checked) {
-        newSelectedItems.add(itemId);
-      } else {
-        newSelectedItems.delete(itemId);
-      }
-      
-      return {
-        ...prev,
-        srsData: prev.srsData.map(record => 
-          record.id === itemId 
-            ? { ...record, checked }
-            : record
-        ),
-        selectedItems: newSelectedItems
-      };
-    });
-  }, []);
-
-  const handleSelectAll = useCallback((checked: boolean): void => {
-    console.log('[SRSTab] Select all:', checked);
-    
-    setState(prev => ({
-      ...prev,
-      srsData: prev.srsData.map(record => ({ ...record, checked })),
-      selectedItems: checked 
-        ? new Set(prev.srsData.map(record => record.id))
-        : new Set()
-    }));
-  }, []);
-  */
-
-  // Вычисляемые значения теперь берем из srsLogic
-  // const hasCheckedItems = state.srsData.some(item => item.checked);
 
   if (!selectedStaff) {
     return (
@@ -174,12 +120,14 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         hasCheckedItems={srsLogic.hasCheckedItems}
       />
       
-      {/* Таблица SRS - передаем преобразованные данные */}
+      {/* Таблица SRS - передаем все необходимые обработчики */}
       <SRSTable
         items={srsRecordsForTable}
         options={tableOptions}
         isLoading={srsLogic.isLoadingSRS}
-        onItemChange={handleItemChange}
+        onItemChange={srsLogic.onItemChange}
+        onLunchTimeChange={srsLogic.onLunchTimeChange}
+        onContractNumberChange={srsLogic.onContractNumberChange}
       />
     </div>
   );

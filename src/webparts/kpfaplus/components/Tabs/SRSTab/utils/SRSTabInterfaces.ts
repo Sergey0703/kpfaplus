@@ -67,7 +67,9 @@ export interface ISRSTableProps {
   items: ISRSRecord[];
   options: ISRSTableOptions;
   isLoading: boolean;
-  onItemChange: (item: ISRSRecord, field: string, value: string | boolean | number | { hours: string; minutes: string }) => void;
+  onItemChange: (item: ISRSRecord, field: string, value: string | boolean | { hours: string; minutes: string }) => void;
+  onLunchTimeChange: (item: ISRSRecord, value: string) => void;
+  onContractNumberChange: (item: ISRSRecord, value: string) => void;
 }
 
 /**
@@ -77,7 +79,7 @@ export interface ISRSTableRowProps {
   item: ISRSRecord;
   options: ISRSTableOptions;
   isEven: boolean; // Для чередования цветов строк
-  onItemChange: (item: ISRSRecord, field: string, value: string | boolean | number | { hours: string; minutes: string }) => void;
+  onItemChange: (item: ISRSRecord, field: string, value: string | boolean | { hours: string; minutes: string }) => void;
 }
 
 /**
