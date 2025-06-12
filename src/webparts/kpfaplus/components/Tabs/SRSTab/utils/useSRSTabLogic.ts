@@ -160,45 +160,59 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   /**
    * Обработчик изменения элементов таблицы
    * Обновляет локальное состояние изменений для немедленного отображения
-   * *** ИСПРАВЛЕНО: Поддержка поля 'workingHours' ***
+   * *** ФИНАЛЬНОЕ ИСПРАВЛЕНИЕ: Правильная обработка всех полей, включая relief ***
    */
   const handleItemChange = useCallback((item: ISRSRecord, field: string, value: string | boolean | { hours: string; minutes: string }): void => {
-    console.log('[useSRSTabLogic] handleItemChange:', { itemId: item.id, field, value });
+    console.log('[useSRSTabLogic] *** HANDLE ITEM CHANGE ***');
+    console.log('[useSRSTabLogic] Item ID:', item.id);
+    console.log('[useSRSTabLogic] Field:', field);
+    console.log('[useSRSTabLogic] Value:', value);
+    console.log('[useSRSTabLogic] Value type:', typeof value);
     
     // Создаем обновленную запись
     let updatedItem = { ...item };
     
-    // Обрабатываем различные типы полей
+    // *** ИСПРАВЛЕНО: Обрабатываем различные типы полей с правильной логикой пересчета ***
     if (field === 'startWork' && typeof value === 'object') {
       updatedItem.startWork = value;
+      console.log('[useSRSTabLogic] Updated startWork:', value);
     } else if (field === 'finishWork' && typeof value === 'object') {
       updatedItem.finishWork = value;
+      console.log('[useSRSTabLogic] Updated finishWork:', value);
     } else if (field === 'relief') {
+      // *** ИСПРАВЛЕНО: Relief НЕ влияет на время работы ***
       updatedItem.relief = value as boolean;
+      console.log('[useSRSTabLogic] Updated relief (NO time recalculation):', value);
     } else if (field === 'workingHours') {
-      // *** ДОБАВЛЕНО: Специальная обработка поля workingHours ***
-      // Это поле приходит уже вычисленным из SRSTable, не нужно его пересчитывать
+      // *** ИСПРАВЛЕНО: workingHours приходит уже вычисленным из SRSTable ***
       updatedItem.hours = value as string;
-      console.log('[useSRSTabLogic] Updated workingHours directly:', {
-        itemId: item.id,
-        newHours: value
-      });
+      console.log('[useSRSTabLogic] Updated workingHours directly (pre-calculated):', value);
+    } else if (field === 'typeOfLeave') {
+      updatedItem.typeOfLeave = value as string;
+      console.log('[useSRSTabLogic] Updated typeOfLeave:', value);
+    } else if (field === 'timeLeave') {
+      updatedItem.timeLeave = value as string;
+      console.log('[useSRSTabLogic] Updated timeLeave:', value);
     } else {
       // Для других полей используем прямое присвоение с проверкой типа
       (updatedItem as any)[field] = value;
+      console.log('[useSRSTabLogic] Updated field', field, 'with value:', value);
     }
     
-    // Пересчитываем время ТОЛЬКО для временных полей (НЕ для workingHours)
-    const timeFields = ['startWork', 'finishWork'];
+    // *** ИСПРАВЛЕНО: Пересчитываем время ТОЛЬКО для временных полей (НЕ для relief и workingHours) ***
+    const timeFields = ['startWork', 'finishWork']; // НЕ включаем relief!
     if (timeFields.includes(field)) {
       const newWorkTime = calculateSRSWorkTime(updatedItem);
       updatedItem.hours = newWorkTime;
-      console.log('[useSRSTabLogic] Time recalculated in useSRSTabLogic:', {
+      console.log('[useSRSTabLogic] *** TIME RECALCULATED ***:', {
         itemId: item.id,
         field,
         newValue: value,
-        newWorkTime
+        calculatedTime: newWorkTime,
+        reliefStatus: updatedItem.relief // Показываем, что relief не влияет
       });
+    } else {
+      console.log('[useSRSTabLogic] *** NO TIME RECALCULATION *** for field:', field);
     }
     
     // Сохраняем изменения в локальном состоянии
@@ -214,8 +228,15 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       } else if (field === 'finishWork') {
         newModifications.finishWork = updatedItem.finishWork;
       } else if (field === 'workingHours') {
-        // *** ДОБАВЛЕНО: Сохраняем workingHours в изменениях ***
         newModifications.hours = value as string;
+      } else if (field === 'relief') {
+        // *** ИСПРАВЛЕНО: Сохраняем relief без пересчета времени ***
+        newModifications.relief = value as boolean;
+        console.log('[useSRSTabLogic] Saved relief change without time recalculation');
+      } else if (field === 'typeOfLeave') {
+        newModifications.typeOfLeave = value as string;
+      } else if (field === 'timeLeave') {
+        newModifications.timeLeave = value as string;
       } else {
         newModifications[field] = value;
       }
@@ -223,6 +244,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       // Если пересчитали время, добавляем и его
       if (timeFields.includes(field)) {
         newModifications.hours = updatedItem.hours;
+        console.log('[useSRSTabLogic] Saved recalculated hours:', updatedItem.hours);
       }
       
       newModified.set(item.id, newModifications);
@@ -232,11 +254,8 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     // Помечаем как измененное
     SRSTabStateHelpers.setHasUnsavedChanges(setState, true);
     
-    console.log('[useSRSTabLogic] Item change applied to local state:', {
-      itemId: item.id,
-      field,
-      modifiedRecordsSize: modifiedRecords.size + 1
-    });
+    console.log('[useSRSTabLogic] *** ITEM CHANGE COMPLETE ***');
+    console.log('[useSRSTabLogic] Modified records count:', modifiedRecords.size + 1);
   }, [setState, modifiedRecords.size]);
 
   /**
@@ -341,9 +360,12 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       modifiedIds: Array.from(modifiedRecords.keys())
     });
     
-    // Логируем детали изменений для отладки
+    // Логируем детали изменений для отладки (включая relief)
     modifiedRecords.forEach((modifications, itemId) => {
       console.log(`[useSRSTabLogic] Modified record ${itemId}:`, modifications);
+      if ('relief' in modifications) {
+        console.log(`[useSRSTabLogic] Record ${itemId} has relief change:`, modifications.relief);
+      }
     });
     
     // TODO: Реализовать сохранение изменений через StaffRecordsService

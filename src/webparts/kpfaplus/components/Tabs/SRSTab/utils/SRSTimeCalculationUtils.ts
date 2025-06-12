@@ -1,12 +1,5 @@
 // src/webparts/kpfaplus/components/Tabs/SRSTab/utils/SRSTimeCalculationUtils.ts
 
-import { 
-  calculateWorkTime, 
-  IWorkTimeInput, 
-  createTimeFromComponents,
-  isStartEndTimeSame,
-  isZeroTime
-} from '../../../../utils/TimeCalculationUtils';
 import { ISRSRecord } from './SRSTabInterfaces';
 
 /**
@@ -17,6 +10,7 @@ import { ISRSRecord } from './SRSTabInterfaces';
 /**
  * Calculates working hours for an SRS record
  * Takes start time, end time, and lunch time into account
+ * *** ИСПРАВЛЕНО: Упрощенная логика расчета времени ***
  * 
  * @param record - The SRS record to calculate time for
  * @returns Formatted time string (e.g., "7.50")
@@ -28,79 +22,84 @@ export const calculateSRSWorkTime = (record: ISRSRecord): string => {
   const finishHour = parseInt(record.finishWork.hours, 10) || 0;
   const finishMinute = parseInt(record.finishWork.minutes, 10) || 0;
   
-  // FIXED: Parse lunch time - it should be in minutes, not a string to parse
-  // The lunch field contains minutes as string (e.g., "0", "15", "30", "45", "60")
+  // ИСПРАВЛЕНО: Lunch time is in minutes as string (e.g., "0", "15", "30", "45", "60")
   const lunchMinutes = parseInt(record.lunch, 10) || 0;
 
-  console.log('[SRSTimeCalculationUtils] calculateSRSWorkTime input:', {
-    recordId: record.id,
-    date: record.date.toLocaleDateString(),
-    startTime: `${record.startWork.hours}:${record.startWork.minutes}`,
-    finishTime: `${record.finishWork.hours}:${record.finishWork.minutes}`,
-    lunchString: record.lunch,
-    lunchMinutes,
-    parsedValues: { startHour, startMinute, finishHour, finishMinute }
-  });
+  console.log('[SRSTimeCalculationUtils] *** CALCULATING WORK TIME ***');
+  console.log('[SRSTimeCalculationUtils] Record ID:', record.id);
+  console.log('[SRSTimeCalculationUtils] Start time:', `${record.startWork.hours}:${record.startWork.minutes}`, `(${startHour}:${startMinute})`);
+  console.log('[SRSTimeCalculationUtils] Finish time:', `${record.finishWork.hours}:${record.finishWork.minutes}`, `(${finishHour}:${finishMinute})`);
+  console.log('[SRSTimeCalculationUtils] Lunch minutes:', lunchMinutes);
+  console.log('[SRSTimeCalculationUtils] Relief status:', record.relief, '(should NOT affect calculation)');
 
-  // Create dates for calculation using the record's date
-  const startDate = createTimeFromComponents(record.date, startHour, startMinute);
-  const finishDate = createTimeFromComponents(record.date, finishHour, finishMinute);
-
-  // Check if date creation failed
-  if (!startDate || !finishDate) {
-    console.error('[SRSTimeCalculationUtils] Failed to create time components for record:', record.id);
-    return "0.00";
+  // *** ИСПРАВЛЕНО: Простая проверка на одинаковое время ***
+  if (startHour === finishHour && startMinute === finishMinute) {
+    if (startHour === 0 && startMinute === 0) {
+      console.log('[SRSTimeCalculationUtils] Both times are 00:00, returning 0.00');
+      return "0.00";
+    } else {
+      console.log('[SRSTimeCalculationUtils] Start and finish times are the same, returning 0.00');
+      return "0.00";
+    }
   }
 
-  console.log('[SRSTimeCalculationUtils] Created time components:', {
-    startDate: startDate.toISOString(),
-    finishDate: finishDate.toISOString()
-  });
+  // *** ИСПРАВЛЕНО: Упрощенная логика расчета в минутах ***
+  const startMinutesTotal = startHour * 60 + startMinute;
+  let finishMinutesTotal = finishHour * 60 + finishMinute;
 
-  // If start and end times are the same, and they are not both 00:00
-  if (isStartEndTimeSame(startDate, finishDate) && 
-      (!isZeroTime(startDate) || !isZeroTime(finishDate))) {
-    console.log(`[SRSTimeCalculationUtils] Start and end times are the same for record ${record.id}. Returning 0.00`);
-    return "0.00";
+  console.log('[SRSTimeCalculationUtils] Start minutes total:', startMinutesTotal);
+  console.log('[SRSTimeCalculationUtils] Finish minutes total (initial):', finishMinutesTotal);
+
+  // *** ИСПРАВЛЕНО: Обработка ночных смен (когда время окончания меньше времени начала) ***
+  if (finishMinutesTotal <= startMinutesTotal) {
+    console.log('[SRSTimeCalculationUtils] Finish time is before or equal to start time, assuming next day shift');
+    finishMinutesTotal += (24 * 60); // Добавляем сутки (1440 минут)
+    console.log('[SRSTimeCalculationUtils] Adjusted finish minutes for next day:', finishMinutesTotal);
   }
 
-  // If both times are 00:00, return 0.00
-  if (isZeroTime(startDate) && isZeroTime(finishDate)) {
-    console.log(`[SRSTimeCalculationUtils] Both start and end times are 00:00 for record ${record.id}. Returning 0.00`);
-    return "0.00";
-  }
-
-  // Prepare input data for calculation
-  const input: IWorkTimeInput = {
-    startTime: startDate,
-    endTime: finishDate,
-    lunchDurationMinutes: lunchMinutes
-  };
-
-  console.log('[SRSTimeCalculationUtils] Calling calculateWorkTime with input:', {
-    startTime: startDate.toISOString(),
-    endTime: finishDate.toISOString(),
-    lunchDurationMinutes: input.lunchDurationMinutes
-  });
-
-  // Use the utility to calculate work time
-  const result = calculateWorkTime(input);
+  // Рассчитываем общее рабочее время в минутах
+  let totalWorkMinutes = finishMinutesTotal - startMinutesTotal;
   
-  console.log('[SRSTimeCalculationUtils] calculateWorkTime result:', {
-    recordId: record.id,
-    input: {
-      startTime: startDate.toISOString(),
-      endTime: finishDate.toISOString(),
-      lunchDurationMinutes: lunchMinutes
-    },
-    result: {
-      formattedTime: result.formattedTime,
-      totalMinutes: result.totalMinutes
-    },
-    expected: `For ${formatSRSTimeForDisplay(record.startWork.hours, record.startWork.minutes)} to ${formatSRSTimeForDisplay(record.finishWork.hours, record.finishWork.minutes)} with ${lunchMinutes}min lunch should be ${((finishHour * 60 + finishMinute) - (startHour * 60 + startMinute) - lunchMinutes) / 60} hours`
-  });
+  console.log('[SRSTimeCalculationUtils] Work minutes before lunch subtraction:', totalWorkMinutes);
+  console.log('[SRSTimeCalculationUtils] Lunch minutes to subtract:', lunchMinutes);
 
-  return result.formattedTime;
+  // Вычитаем время обеда
+  totalWorkMinutes -= lunchMinutes;
+
+  console.log('[SRSTimeCalculationUtils] Total work minutes after lunch subtraction:', totalWorkMinutes);
+
+  // *** ИСПРАВЛЕНО: Проверка на отрицательное время ***
+  if (totalWorkMinutes < 0) {
+    console.warn('[SRSTimeCalculationUtils] Negative work time calculated, returning 0.00');
+    return "0.00";
+  }
+
+  // *** ИСПРАВЛЕНО: Правильное форматирование в часы и минуты ***
+  const hours = Math.floor(totalWorkMinutes / 60);
+  const minutes = totalWorkMinutes % 60;
+
+  // Форматируем результат в формат "H.MM" (как ожидается в системе)
+  const formattedTime = `${hours}.${minutes.toString().padStart(2, '0')}`;
+
+  console.log('[SRSTimeCalculationUtils] *** CALCULATION RESULT ***');
+  console.log('[SRSTimeCalculationUtils] Total work minutes:', totalWorkMinutes);
+  console.log('[SRSTimeCalculationUtils] Hours:', hours);
+  console.log('[SRSTimeCalculationUtils] Minutes:', minutes);
+  console.log('[SRSTimeCalculationUtils] Formatted time:', formattedTime);
+
+  // *** ТЕСТОВЫЕ СЛУЧАИ ДЛЯ ПРОВЕРКИ ***
+  console.log('[SRSTimeCalculationUtils] *** VERIFICATION ***');
+  if (startHour === 8 && startMinute === 0 && finishHour === 9 && finishMinute === 0 && lunchMinutes === 0) {
+    console.log('[SRSTimeCalculationUtils] TEST CASE: 08:00-09:00, no lunch, expected: 1.00, actual:', formattedTime);
+  }
+  if (startHour === 8 && startMinute === 0 && finishHour === 16 && finishMinute === 0 && lunchMinutes === 30) {
+    console.log('[SRSTimeCalculationUtils] TEST CASE: 08:00-16:00, 30min lunch, expected: 7.30, actual:', formattedTime);
+  }
+  if (startHour === 23 && startMinute === 0 && finishHour === 7 && finishMinute === 0 && lunchMinutes === 0) {
+    console.log('[SRSTimeCalculationUtils] TEST CASE: 23:00-07:00, no lunch, expected: 8.00, actual:', formattedTime);
+  }
+
+  return formattedTime;
 };
 
 /**
@@ -117,22 +116,12 @@ export const checkSRSStartEndTimeSame = (record: ISRSRecord): boolean => {
   const finishHour = parseInt(record.finishWork.hours, 10) || 0;
   const finishMinute = parseInt(record.finishWork.minutes, 10) || 0;
 
-  // Create dates for comparison
-  const startDate = createTimeFromComponents(record.date, startHour, startMinute);
-  const finishDate = createTimeFromComponents(record.date, finishHour, finishMinute);
-
-  // Check if date creation failed
-  if (!startDate || !finishDate) {
-    console.error('[SRSTimeCalculationUtils] Failed to create time components for comparison:', record.id);
-    return false;
-  }
-
-  // Check if dates are the same and not both 00:00
-  const areSame = isStartEndTimeSame(startDate, finishDate) && 
-                  !(isZeroTime(startDate) && isZeroTime(finishDate));
+  // *** ИСПРАВЛЕНО: Простая проверка без создания Date объектов ***
+  const areSame = (startHour === finishHour && startMinute === finishMinute) && 
+                  !(startHour === 0 && startMinute === 0 && finishHour === 0 && finishMinute === 0);
 
   if (areSame) {
-    console.log(`[SRSTimeCalculationUtils] Start and end times are the same for record ${record.id}`);
+    console.log(`[SRSTimeCalculationUtils] Start and end times are the same for record ${record.id}: ${startHour}:${startMinute}`);
   }
 
   return areSame;
@@ -159,14 +148,20 @@ export const validateSRSTimeConfiguration = (record: ISRSRecord): {
   const finishMinute = parseInt(record.finishWork.minutes, 10) || 0;
   const lunchMinutes = parseInt(record.lunch, 10) || 0;
 
-  // Create time objects
-  const startDate = createTimeFromComponents(record.date, startHour, startMinute);
-  const finishDate = createTimeFromComponents(record.date, finishHour, finishMinute);
+  // Validate hour ranges
+  if (startHour < 0 || startHour > 23) {
+    errors.push(`Invalid start hour: ${startHour}`);
+  }
+  if (finishHour < 0 || finishHour > 23) {
+    errors.push(`Invalid finish hour: ${finishHour}`);
+  }
 
-  // Check if date creation failed
-  if (!startDate || !finishDate) {
-    errors.push('Invalid time configuration - unable to create time objects');
-    return { isValid: false, errors, warnings };
+  // Validate minute ranges
+  if (startMinute < 0 || startMinute > 59) {
+    errors.push(`Invalid start minute: ${startMinute}`);
+  }
+  if (finishMinute < 0 || finishMinute > 59) {
+    errors.push(`Invalid finish minute: ${finishMinute}`);
   }
 
   // Check for same start/end times
@@ -174,14 +169,17 @@ export const validateSRSTimeConfiguration = (record: ISRSRecord): {
     errors.push('Start and end work times cannot be the same');
   }
 
-  // Check if end time is before start time (next day scenario)
-  if (finishDate < startDate && !(isZeroTime(startDate) && isZeroTime(finishDate))) {
-    warnings.push('End time is before start time - assuming next day shift');
-  }
-
   // Check lunch time validity
   if (lunchMinutes > 0) {
-    const totalPossibleMinutes = Math.abs(finishDate.getTime() - startDate.getTime()) / (1000 * 60);
+    const startMinutesTotal = startHour * 60 + startMinute;
+    let finishMinutesTotal = finishHour * 60 + finishMinute;
+    
+    // Handle next day scenario
+    if (finishMinutesTotal <= startMinutesTotal) {
+      finishMinutesTotal += (24 * 60);
+    }
+    
+    const totalPossibleMinutes = finishMinutesTotal - startMinutesTotal;
     
     if (lunchMinutes >= totalPossibleMinutes) {
       errors.push('Lunch time cannot be longer than or equal to total work period');
@@ -189,8 +187,9 @@ export const validateSRSTimeConfiguration = (record: ISRSRecord): {
   }
 
   // Check for extremely long shifts
-  const totalHours = Math.abs(finishDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
-  if (totalHours > 16) {
+  const calculatedTime = calculateSRSWorkTime(record);
+  const hours = parseFloat(calculatedTime);
+  if (hours > 16) {
     warnings.push('Work shift longer than 16 hours detected');
   }
 
@@ -217,6 +216,7 @@ export const formatSRSTimeForDisplay = (hours: string, minutes: string): string 
 /**
  * Creates an updated SRS record with recalculated work time
  * Used when any time-related field changes
+ * *** ИСПРАВЛЕНО: НЕ пересчитывает для relief ***
  * 
  * @param record - Original SRS record
  * @param field - Field that changed
@@ -241,12 +241,17 @@ export const updateSRSRecordWithCalculatedTime = (
     case 'lunch':
       updatedRecord = { ...record, lunch: value };
       break;
+    case 'relief':
+      // *** ИСПРАВЛЕНО: Relief не влияет на время работы ***
+      updatedRecord = { ...record, relief: value };
+      console.log('[SRSTimeCalculationUtils] Relief changed, NOT recalculating time');
+      return updatedRecord; // Возвращаем без пересчета времени
     default:
       updatedRecord = { ...record, [field]: value };
       break;
   }
 
-  // Recalculate hours only if it's a time-related field
+  // Recalculate hours only if it's a time-related field (NOT relief)
   const timeRelatedFields = ['startWork', 'finishWork', 'lunch'];
   if (timeRelatedFields.includes(field)) {
     const newHours = calculateSRSWorkTime(updatedRecord);

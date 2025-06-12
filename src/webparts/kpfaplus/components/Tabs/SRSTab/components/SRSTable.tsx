@@ -1,6 +1,4 @@
-// 1. ИСПРАВЛЕНИЕ в src/webparts/kpfaplus/components/Tabs/SRSTab/components/SRSTable.tsx
-
-// Замените весь компонент SRSTable на эту исправленную версию:
+// src/webparts/kpfaplus/components/Tabs/SRSTab/components/SRSTable.tsx
 
 import * as React from 'react';
 import { useState, useCallback, useEffect } from 'react';
@@ -48,13 +46,31 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
     return item.hours;
   }, [calculatedWorkTimes]);
 
-  // *** ДОБАВЛЕНО: Обработчик изменения времени с пересчетом ***
+  // *** ИСПРАВЛЕНО: Обработчик изменения времени с проверкой на relief ***
   const handleTimeChange = useCallback((item: ISRSRecord, field: string, value: string | { hours: string; minutes: string }): void => {
     if (item.deleted) { return; }
     
-    console.log(`[SRSTable] handleTimeChange called for item ${item.id}, field: ${field}, value:`, value);
+    console.log(`[SRSTable] *** TIME CHANGE EVENT ***`);
+    console.log(`[SRSTable] Item ID: ${item.id}`);
+    console.log(`[SRSTable] Field: ${field}`);
+    console.log(`[SRSTable] New value:`, value);
     
-    // Создаем обновленный элемент
+    // *** ИСПРАВЛЕНО: НЕ пересчитываем время для relief ***
+    if (field === 'relief') {
+      console.log(`[SRSTable] Relief change detected - no time recalculation needed`);
+      onItemChange(item, field, value);
+      return; // Выходим без пересчета времени
+    }
+    
+    // *** ИСПРАВЛЕНО: НЕ пересчитываем время для других нетемпоральных полей ***
+    const temporalFields = ['startWork', 'finishWork', 'lunch'];
+    if (!temporalFields.includes(field)) {
+      console.log(`[SRSTable] Non-temporal field ${field} changed - no time recalculation needed`);
+      onItemChange(item, field, value);
+      return; // Выходим без пересчета времени для других полей
+    }
+    
+    // Создаем обновленный элемент только для временных полей
     let updatedItem = { ...item };
     if (field === 'startWork' && typeof value === 'object') {
       updatedItem.startWork = value;
@@ -64,23 +80,42 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
       updatedItem.lunch = value as string;
     }
     
-    // Пересчитываем время работы
+    console.log(`[SRSTable] Updated item before calculation:`, {
+      startWork: updatedItem.startWork,
+      finishWork: updatedItem.finishWork,
+      lunch: updatedItem.lunch,
+      relief: updatedItem.relief // Relief не должен влиять на расчет
+    });
+    
+    // Пересчитываем время работы только для временных полей
     const workTime = calculateSRSWorkTime(updatedItem);
-    console.log(`[SRSTable] Recalculated work time for item ${item.id}: ${workTime}`);
+    console.log(`[SRSTable] *** CALCULATED NEW WORK TIME: ${workTime} ***`);
     
     // Обновляем локальное состояние вычисленного времени
-    setCalculatedWorkTimes(prev => ({
-      ...prev,
-      [item.id]: workTime
-    }));
+    setCalculatedWorkTimes(prev => {
+      const newTimes = {
+        ...prev,
+        [item.id]: workTime
+      };
+      console.log(`[SRSTable] Updated calculatedWorkTimes for item ${item.id}:`, {
+        oldTime: prev[item.id],
+        newTime: workTime
+      });
+      return newTimes;
+    });
     
     // Вызываем родительский обработчик
+    console.log(`[SRSTable] Calling parent onItemChange for field: ${field}`);
     onItemChange(updatedItem, field, value);
+    
     // Также обновляем hours в родительском состоянии
+    console.log(`[SRSTable] Calling parent onItemChange for workingHours: ${workTime}`);
     onItemChange(updatedItem, 'workingHours', workTime);
+    
+    console.log(`[SRSTable] *** TIME CHANGE COMPLETE ***`);
   }, [calculatedWorkTimes, onItemChange]);
 
-  // *** ДОБАВЛЕНО: Обработчик изменения времени обеда ***
+  // *** ИСПРАВЛЕНО: Обработчик изменения времени обеда ***
   const handleLunchTimeChange = useCallback((item: ISRSRecord, value: string): void => {
     if (item.deleted) { return; }
     
@@ -384,7 +419,7 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
                   totalRowsInDate={countTotalRowsInDate(items, index)}
                   displayWorkTime={getDisplayWorkTime(item)} // *** ПЕРЕДАЕМ ВЫЧИСЛЕННОЕ ВРЕМЯ ***
                   isTimesEqual={checkSRSStartEndTimeSame(item)}
-                  onItemChange={handleTimeChange} // *** ИСПОЛЬЗУЕМ НАШИ ОБРАБОТЧИКИ ***
+                  onItemChange={handleTimeChange} // *** ИСПОЛЬЗУЕМ НАШИ ОБРАБОТЧИКИ С ПРОВЕРКОЙ НА RELIEF ***
                   onLunchTimeChange={handleLunchTimeChange} // *** ИСПОЛЬЗУЕМ НАШИ ОБРАБОТЧИКИ ***
                   onContractNumberChange={onContractNumberChange}
                 />
