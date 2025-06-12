@@ -31,7 +31,7 @@ export interface UseSRSTabLogicReturn extends ISRSTabState {
   onItemCheck: (itemId: string, checked: boolean) => void;
   onSelectAll: (checked: boolean) => void;
   
-  // ДОБАВЛЕНО: Обработчики изменения элементов таблицы (как в Schedule)
+  // Обработчики изменения элементов таблицы
   onItemChange: (item: ISRSRecord, field: string, value: string | boolean | { hours: string; minutes: string }) => void;
   onLunchTimeChange: (item: ISRSRecord, value: string) => void;
   onContractNumberChange: (item: ISRSRecord, value: string) => void;
@@ -65,7 +65,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   // Инициализируем состояние SRS Tab
   const { state, setState } = useSRSTabState();
 
-  // ДОБАВЛЕНО: Локальное состояние для отслеживания изменений в таблице (как в Schedule)
+  // Локальное состояние для отслеживания изменений в таблице
   const [modifiedRecords, setModifiedRecords] = useState<Map<string, Partial<ISRSRecord>>>(new Map());
 
   // Инициализируем хук загрузки SRS данных
@@ -114,6 +114,10 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       console.log('[useSRSTabLogic] Keeping current toDate, only updating fromDate');
       SRSTabStateHelpers.updateDates(setState, normalizedFromDate, state.toDate);
     }
+
+    // Очищаем локальные изменения при смене дат
+    setModifiedRecords(new Map());
+    SRSTabStateHelpers.setHasUnsavedChanges(setState, false);
   }, [state.toDate, setState]);
 
   /**
@@ -143,15 +147,20 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       // Обновляем только toDate
       SRSTabStateHelpers.updateDates(setState, state.fromDate, normalizedToDate);
     }
+
+    // Очищаем локальные изменения при смене дат
+    setModifiedRecords(new Map());
+    SRSTabStateHelpers.setHasUnsavedChanges(setState, false);
   }, [state.fromDate, setState]);
 
   // ===============================================
-  // ОБРАБОТЧИКИ ИЗМЕНЕНИЯ ЭЛЕМЕНТОВ ТАБЛИЦЫ (как в Schedule)
+  // ОБРАБОТЧИКИ ИЗМЕНЕНИЯ ЭЛЕМЕНТОВ ТАБЛИЦЫ
   // ===============================================
 
   /**
    * Обработчик изменения элементов таблицы
    * Обновляет локальное состояние изменений для немедленного отображения
+   * *** ИСПРАВЛЕНО: Поддержка поля 'workingHours' ***
    */
   const handleItemChange = useCallback((item: ISRSRecord, field: string, value: string | boolean | { hours: string; minutes: string }): void => {
     console.log('[useSRSTabLogic] handleItemChange:', { itemId: item.id, field, value });
@@ -166,17 +175,25 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       updatedItem.finishWork = value;
     } else if (field === 'relief') {
       updatedItem.relief = value as boolean;
+    } else if (field === 'workingHours') {
+      // *** ДОБАВЛЕНО: Специальная обработка поля workingHours ***
+      // Это поле приходит уже вычисленным из SRSTable, не нужно его пересчитывать
+      updatedItem.hours = value as string;
+      console.log('[useSRSTabLogic] Updated workingHours directly:', {
+        itemId: item.id,
+        newHours: value
+      });
     } else {
       // Для других полей используем прямое присвоение с проверкой типа
       (updatedItem as any)[field] = value;
     }
     
-    // Пересчитываем время для временных полей
+    // Пересчитываем время ТОЛЬКО для временных полей (НЕ для workingHours)
     const timeFields = ['startWork', 'finishWork'];
     if (timeFields.includes(field)) {
       const newWorkTime = calculateSRSWorkTime(updatedItem);
       updatedItem.hours = newWorkTime;
-      console.log('[useSRSTabLogic] Time recalculated:', {
+      console.log('[useSRSTabLogic] Time recalculated in useSRSTabLogic:', {
         itemId: item.id,
         field,
         newValue: value,
@@ -196,6 +213,9 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
         newModifications.startWork = updatedItem.startWork;
       } else if (field === 'finishWork') {
         newModifications.finishWork = updatedItem.finishWork;
+      } else if (field === 'workingHours') {
+        // *** ДОБАВЛЕНО: Сохраняем workingHours в изменениях ***
+        newModifications.hours = value as string;
       } else {
         newModifications[field] = value;
       }
@@ -212,38 +232,38 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     // Помечаем как измененное
     SRSTabStateHelpers.setHasUnsavedChanges(setState, true);
     
-    console.log('[useSRSTabLogic] Item change applied to local state');
-  }, [setState]);
+    console.log('[useSRSTabLogic] Item change applied to local state:', {
+      itemId: item.id,
+      field,
+      modifiedRecordsSize: modifiedRecords.size + 1
+    });
+  }, [setState, modifiedRecords.size]);
 
   /**
    * Обработчик изменения времени обеда
+   * *** ИСПРАВЛЕНО: Не пересчитывает время локально, полагается на SRSTable ***
    */
   const handleLunchTimeChange = useCallback((item: ISRSRecord, value: string): void => {
     console.log('[useSRSTabLogic] handleLunchTimeChange:', { itemId: item.id, value });
     
-    const updatedItem = { ...item, lunch: value };
-    const newWorkTime = calculateSRSWorkTime(updatedItem);
-    updatedItem.hours = newWorkTime;
+    // *** ИСПРАВЛЕНО: Не пересчитываем время здесь - это делает SRSTable ***
+    // SRSTable.handleLunchTimeChange уже пересчитал время и вызовет handleItemChange с 'workingHours'
     
-    // Сохраняем изменения в локальном состоянии
+    // Сохраняем только изменение времени обеда в локальном состоянии
     setModifiedRecords(prev => {
       const newModified = new Map(prev);
       const existingModifications = newModified.get(item.id) || {};
       newModified.set(item.id, {
         ...existingModifications,
-        lunch: value,
-        hours: newWorkTime
+        lunch: value
+        // hours будет добавлено отдельным вызовом handleItemChange с 'workingHours'
       });
       return newModified;
     });
     
     SRSTabStateHelpers.setHasUnsavedChanges(setState, true);
     
-    console.log('[useSRSTabLogic] Lunch time change applied, time recalculated:', {
-      itemId: item.id,
-      newLunch: value,
-      newWorkTime
-    });
+    console.log('[useSRSTabLogic] Lunch time change applied, waiting for workingHours update from SRSTable');
   }, [setState]);
 
   /**
@@ -269,7 +289,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   }, [setState]);
 
   // ===============================================
-  // ОСТАЛЬНЫЕ ОБРАБОТЧИКИ (как в оригинале)
+  // ОСТАЛЬНЫЕ ОБРАБОТЧИКИ
   // ===============================================
 
   /**
@@ -316,7 +336,15 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       return;
     }
 
-    console.log('[useSRSTabLogic] Saving changes for modified records:', modifiedRecords.size);
+    console.log('[useSRSTabLogic] Saving changes for modified records:', {
+      modifiedRecordsCount: modifiedRecords.size,
+      modifiedIds: Array.from(modifiedRecords.keys())
+    });
+    
+    // Логируем детали изменений для отладки
+    modifiedRecords.forEach((modifications, itemId) => {
+      console.log(`[useSRSTabLogic] Modified record ${itemId}:`, modifications);
+    });
     
     // TODO: Реализовать сохранение изменений через StaffRecordsService
     // Пока что заглушка
@@ -339,12 +367,33 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     const selectedIds = Array.from(state.selectedItems);
     console.log('[useSRSTabLogic] Saving changes for selected records:', selectedIds);
     
+    // Фильтруем только изменения для выбранных записей
+    const selectedModifications = new Map();
+    selectedIds.forEach(id => {
+      if (modifiedRecords.has(id)) {
+        selectedModifications.set(id, modifiedRecords.get(id));
+      }
+    });
+    
+    console.log('[useSRSTabLogic] Selected modifications to save:', {
+      selectedCount: selectedIds.length,
+      modifiedSelectedCount: selectedModifications.size
+    });
+    
     // TODO: Реализовать сохранение выбранных записей
     // Пока что заглушка
     SRSTabStateHelpers.clearSelection(setState);
     SRSTabStateHelpers.setHasUnsavedChanges(setState, false);
+    
+    // Удаляем сохраненные изменения из локального состояния
+    setModifiedRecords(prev => {
+      const newModified = new Map(prev);
+      selectedIds.forEach(id => newModified.delete(id));
+      return newModified;
+    });
+    
     console.log('[useSRSTabLogic] Selected records saved successfully (mock)');
-  }, [state.selectedItems, setState]);
+  }, [state.selectedItems, setState, modifiedRecords]);
 
   /**
    * Обработчик закрытия ошибок
@@ -431,7 +480,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     onItemCheck: handleItemCheck,
     onSelectAll: handleSelectAll,
     
-    // ДОБАВЛЕНО: Обработчики изменения элементов таблицы
+    // Обработчики изменения элементов таблицы
     onItemChange: handleItemChange,
     onLunchTimeChange: handleLunchTimeChange,
     onContractNumberChange: handleContractNumberChange,

@@ -1,4 +1,6 @@
-// src/webparts/kpfaplus/components/Tabs/SRSTab/components/SRSTable.tsx
+// 1. ИСПРАВЛЕНИЕ в src/webparts/kpfaplus/components/Tabs/SRSTab/components/SRSTable.tsx
+
+// Замените весь компонент SRSTable на эту исправленную версию:
 
 import * as React from 'react';
 import { useState, useCallback, useEffect } from 'react';
@@ -20,12 +22,12 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
     onContractNumberChange
   } = props;
 
-  // State for calculated work times (similar to Schedule table)
+  // *** КЛЮЧЕВОЕ ДОБАВЛЕНИЕ: State для вычисленного времени работы ***
   const [calculatedWorkTimes, setCalculatedWorkTimes] = useState<Record<string, string>>({});
 
   console.log('[SRSTable] Rendering with items count:', items.length);
 
-  // Initialize calculated work times when items change
+  // *** ДОБАВЛЕНО: Инициализация вычисленного времени при загрузке элементов ***
   useEffect(() => {
     console.log('[SRSTable] Effect: items array changed. Calculating work times for all items.');
     const initialWorkTimes: Record<string, string> = {};
@@ -38,13 +40,67 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
     setCalculatedWorkTimes(initialWorkTimes);
   }, [items]);
 
-  // Function to get display work time (calculated or original)
+  // *** ДОБАВЛЕНО: Функция для получения отображаемого времени работы ***
   const getDisplayWorkTime = useCallback((item: ISRSRecord): string => {
     if (calculatedWorkTimes[item.id]) {
       return calculatedWorkTimes[item.id];
     }
     return item.hours;
   }, [calculatedWorkTimes]);
+
+  // *** ДОБАВЛЕНО: Обработчик изменения времени с пересчетом ***
+  const handleTimeChange = useCallback((item: ISRSRecord, field: string, value: string | { hours: string; minutes: string }): void => {
+    if (item.deleted) { return; }
+    
+    console.log(`[SRSTable] handleTimeChange called for item ${item.id}, field: ${field}, value:`, value);
+    
+    // Создаем обновленный элемент
+    let updatedItem = { ...item };
+    if (field === 'startWork' && typeof value === 'object') {
+      updatedItem.startWork = value;
+    } else if (field === 'finishWork' && typeof value === 'object') {
+      updatedItem.finishWork = value;
+    } else if (field === 'lunch') {
+      updatedItem.lunch = value as string;
+    }
+    
+    // Пересчитываем время работы
+    const workTime = calculateSRSWorkTime(updatedItem);
+    console.log(`[SRSTable] Recalculated work time for item ${item.id}: ${workTime}`);
+    
+    // Обновляем локальное состояние вычисленного времени
+    setCalculatedWorkTimes(prev => ({
+      ...prev,
+      [item.id]: workTime
+    }));
+    
+    // Вызываем родительский обработчик
+    onItemChange(updatedItem, field, value);
+    // Также обновляем hours в родительском состоянии
+    onItemChange(updatedItem, 'workingHours', workTime);
+  }, [calculatedWorkTimes, onItemChange]);
+
+  // *** ДОБАВЛЕНО: Обработчик изменения времени обеда ***
+  const handleLunchTimeChange = useCallback((item: ISRSRecord, value: string): void => {
+    if (item.deleted) { return; }
+    
+    console.log(`[SRSTable] handleLunchTimeChange called for item ${item.id}, value: ${value}`);
+    
+    const updatedItem = { ...item, lunch: value };
+    const workTime = calculateSRSWorkTime(updatedItem);
+    
+    console.log(`[SRSTable] Recalculated work time after lunch change for item ${item.id}: ${workTime}`);
+    
+    // Обновляем локальное состояние вычисленного времени
+    setCalculatedWorkTimes(prev => ({
+      ...prev,
+      [item.id]: workTime
+    }));
+    
+    // Вызываем родительские обработчики
+    onLunchTimeChange(updatedItem, value);
+    onItemChange(updatedItem, 'workingHours', workTime);
+  }, [calculatedWorkTimes, onItemChange, onLunchTimeChange]);
 
   // Helper function to check if this is the first row with a new date
   const isFirstRowWithNewDate = (items: typeof props.items, index: number): boolean => {
@@ -110,7 +166,7 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
         return;
       }
       
-      // Используем вычисленное время, а не item.hours из API
+      // *** ИСПРАВЛЕНО: Используем вычисленное время, а не item.hours из API ***
       const workTime = getDisplayWorkTime(item);
       const [hoursStr, minutesStr] = workTime.split('.');
       
@@ -326,10 +382,10 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
                   rowPositionInDate={getRowPositionInDate(items, index)}
                   totalTimeForDate={calculateTotalHoursForDate(items, index)}
                   totalRowsInDate={countTotalRowsInDate(items, index)}
-                  displayWorkTime={getDisplayWorkTime(item)}
+                  displayWorkTime={getDisplayWorkTime(item)} // *** ПЕРЕДАЕМ ВЫЧИСЛЕННОЕ ВРЕМЯ ***
                   isTimesEqual={checkSRSStartEndTimeSame(item)}
-                  onItemChange={onItemChange}
-                  onLunchTimeChange={onLunchTimeChange}
+                  onItemChange={handleTimeChange} // *** ИСПОЛЬЗУЕМ НАШИ ОБРАБОТЧИКИ ***
+                  onLunchTimeChange={handleLunchTimeChange} // *** ИСПОЛЬЗУЕМ НАШИ ОБРАБОТЧИКИ ***
                   onContractNumberChange={onContractNumberChange}
                 />
               </React.Fragment>

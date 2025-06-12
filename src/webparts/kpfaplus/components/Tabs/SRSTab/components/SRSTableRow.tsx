@@ -1,7 +1,7 @@
 // src/webparts/kpfaplus/components/Tabs/SRSTab/components/SRSTableRow.tsx
 
 import * as React from 'react';
-import { useCallback } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { Checkbox, Dropdown, DefaultButton, IDropdownOption, TooltipHost, Text } from '@fluentui/react';
 import { ISRSTableRowProps, ISRSRecord } from '../utils/SRSTabInterfaces';
 
@@ -29,6 +29,28 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   // Extract handlers directly from props to avoid unused variable errors
   const lunchTimeChangeHandler = props.onLunchTimeChange;
   const contractNumberChangeHandler = props.onContractNumberChange;
+
+  // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Локальное состояние для актуальных значений ***
+  const [localStartWork, setLocalStartWork] = useState(item.startWork);
+  const [localFinishWork, setLocalFinishWork] = useState(item.finishWork);
+  const [localLunch, setLocalLunch] = useState(item.lunch);
+  const [localContract, setLocalContract] = useState(item.contract);
+
+  // Синхронизируем локальное состояние с props при изменении item
+  useEffect(() => {
+    console.log('[SRSTableRow] Syncing local state with item:', {
+      itemId: item.id,
+      startWork: item.startWork,
+      finishWork: item.finishWork,
+      lunch: item.lunch,
+      contract: item.contract
+    });
+    
+    setLocalStartWork(item.startWork);
+    setLocalFinishWork(item.finishWork);
+    setLocalLunch(item.lunch);
+    setLocalContract(item.contract);
+  }, [item.id, item.startWork, item.finishWork, item.lunch, item.contract]);
 
   // Styles for cells in Schedule table style
   const cellStyle: React.CSSProperties = {
@@ -107,7 +129,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     }
   };
 
-  // Event handlers
+  // *** ИСПРАВЛЕННЫЕ ОБРАБОТЧИКИ СОБЫТИЙ ДЛЯ ВРЕМЕНИ ***
   const handleReliefChange = useCallback((ev?: React.FormEvent<HTMLElement>, checked?: boolean): void => {
     if (checked !== undefined) {
       onItemChange(item, 'relief', checked);
@@ -116,37 +138,47 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
 
   const handleStartHourChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
     if (option) {
-      const newStartWork = { ...item.startWork, hours: option.key as string };
-      onItemChange(item, 'startWork', newStartWork);
+      console.log('[SRSTableRow] Start hour changing from', localStartWork.hours, 'to', option.key);
+      const newStartWork = { ...localStartWork, hours: option.key as string };
+      setLocalStartWork(newStartWork); // Обновляем локальное состояние немедленно
+      onItemChange(item, 'startWork', newStartWork); // Вызываем handleTimeChange из SRSTable
     }
-  }, [item, onItemChange]);
+  }, [item, onItemChange, localStartWork]);
 
   const handleStartMinuteChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
     if (option) {
-      const newStartWork = { ...item.startWork, minutes: option.key as string };
-      onItemChange(item, 'startWork', newStartWork);
+      console.log('[SRSTableRow] Start minute changing from', localStartWork.minutes, 'to', option.key);
+      const newStartWork = { ...localStartWork, minutes: option.key as string };
+      setLocalStartWork(newStartWork); // Обновляем локальное состояние немедленно
+      onItemChange(item, 'startWork', newStartWork); // Вызываем handleTimeChange из SRSTable
     }
-  }, [item, onItemChange]);
+  }, [item, onItemChange, localStartWork]);
 
   const handleFinishHourChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
     if (option) {
-      const newFinishWork = { ...item.finishWork, hours: option.key as string };
-      onItemChange(item, 'finishWork', newFinishWork);
+      console.log('[SRSTableRow] Finish hour changing from', localFinishWork.hours, 'to', option.key);
+      const newFinishWork = { ...localFinishWork, hours: option.key as string };
+      setLocalFinishWork(newFinishWork); // Обновляем локальное состояние немедленно
+      onItemChange(item, 'finishWork', newFinishWork); // Вызываем handleTimeChange из SRSTable
     }
-  }, [item, onItemChange]);
+  }, [item, onItemChange, localFinishWork]);
 
   const handleFinishMinuteChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
     if (option) {
-      const newFinishWork = { ...item.finishWork, minutes: option.key as string };
-      onItemChange(item, 'finishWork', newFinishWork);
+      console.log('[SRSTableRow] Finish minute changing from', localFinishWork.minutes, 'to', option.key);
+      const newFinishWork = { ...localFinishWork, minutes: option.key as string };
+      setLocalFinishWork(newFinishWork); // Обновляем локальное состояние немедленно
+      onItemChange(item, 'finishWork', newFinishWork); // Вызываем handleTimeChange из SRSTable
     }
-  }, [item, onItemChange]);
+  }, [item, onItemChange, localFinishWork]);
 
   const handleLunchChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
     if (option) {
-      lunchTimeChangeHandler(item, option.key as string);
+      console.log('[SRSTableRow] Lunch time changing from', localLunch, 'to', option.key);
+      setLocalLunch(option.key as string); // Обновляем локальное состояние немедленно
+      lunchTimeChangeHandler(item, option.key as string); // Вызываем handleLunchTimeChange из SRSTable
     }
-  }, [item, lunchTimeChangeHandler]);
+  }, [item, lunchTimeChangeHandler, localLunch]);
 
   const handleLeaveTypeChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
     if (option) {
@@ -160,9 +192,11 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
 
   const handleContractChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
     if (option) {
+      console.log('[SRSTableRow] Contract changing from', localContract, 'to', option.key);
+      setLocalContract(option.key as string); // Обновляем локальное состояние немедленно
       contractNumberChangeHandler(item, option.key as string);
     }
-  }, [item, contractNumberChangeHandler]);
+  }, [item, contractNumberChangeHandler, localContract]);
 
   const handleAddShift = useCallback((): void => {
     console.log('[SRSTableRow] Add shift clicked for date:', item.date.toLocaleDateString());
@@ -248,6 +282,16 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     }
   });
 
+  // Log current display values for debugging
+  console.log('[SRSTableRow] Rendering row for item', item.id, 'with display values:', {
+    displayWorkTime,
+    localStartWork,
+    localFinishWork,
+    localLunch,
+    localContract,
+    isTimesEqual
+  });
+
   return (
     <tr style={rowStyle}>
       {/* Date cell with special rendering based on position */}
@@ -292,11 +336,11 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
         />
       </td>
 
-      {/* Start Work cell */}
+      {/* Start Work cell - ИСПОЛЬЗУЕМ ЛОКАЛЬНЫЕ ЗНАЧЕНИЯ */}
       <td style={cellStyle}>
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px' }}>
           <Dropdown
-            selectedKey={item.startWork.hours}
+            selectedKey={localStartWork.hours}
             options={options.hours}
             onChange={handleStartHourChange}
             disabled={item.deleted}
@@ -304,7 +348,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
           />
           <span style={{ fontSize: '12px', color: '#666' }}>:</span>
           <Dropdown
-            selectedKey={item.startWork.minutes}
+            selectedKey={localStartWork.minutes}
             options={options.minutes}
             onChange={handleStartMinuteChange}
             disabled={item.deleted}
@@ -313,11 +357,11 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
         </div>
       </td>
 
-      {/* Finish Work cell */}
+      {/* Finish Work cell - ИСПОЛЬЗУЕМ ЛОКАЛЬНЫЕ ЗНАЧЕНИЯ */}
       <td style={cellStyle}>
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px' }}>
           <Dropdown
-            selectedKey={item.finishWork.hours}
+            selectedKey={localFinishWork.hours}
             options={options.hours}
             onChange={handleFinishHourChange}
             disabled={item.deleted}
@@ -325,7 +369,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
           />
           <span style={{ fontSize: '12px', color: '#666' }}>:</span>
           <Dropdown
-            selectedKey={item.finishWork.minutes}
+            selectedKey={localFinishWork.minutes}
             options={options.minutes}
             onChange={handleFinishMinuteChange}
             disabled={item.deleted}
@@ -334,10 +378,10 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
         </div>
       </td>
 
-      {/* Lunch cell */}
+      {/* Lunch cell - ИСПОЛЬЗУЕМ ЛОКАЛЬНЫЕ ЗНАЧЕНИЯ */}
       <td style={cellStyle}>
         <Dropdown
-          selectedKey={item.lunch}
+          selectedKey={localLunch}
           options={options.lunchTimes}
           onChange={handleLunchChange}
           disabled={item.deleted}
@@ -404,10 +448,10 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
         />
       </td>
 
-      {/* Contract cell */}
+      {/* Contract cell - ИСПОЛЬЗУЕМ ЛОКАЛЬНЫЕ ЗНАЧЕНИЯ */}
       <td style={cellStyle}>
         <Dropdown
-          selectedKey={item.contract}
+          selectedKey={localContract}
           options={options.contractNumbers}
           onChange={handleContractChange}
           disabled={item.deleted}
