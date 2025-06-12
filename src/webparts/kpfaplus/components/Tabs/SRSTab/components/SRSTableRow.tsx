@@ -2,33 +2,108 @@
 
 import * as React from 'react';
 import { useCallback } from 'react';
-import { Checkbox, Dropdown, DefaultButton, IDropdownOption } from '@fluentui/react';
-import { ISRSTableRowProps } from '../utils/SRSTabInterfaces';
+import { Checkbox, Dropdown, DefaultButton, IDropdownOption, TooltipHost, Text } from '@fluentui/react';
+import { ISRSTableRowProps, ISRSRecord } from '../utils/SRSTabInterfaces';
 
-export const SRSTableRow: React.FC<ISRSTableRowProps> = (props) => {
+export const SRSTableRow: React.FC<ISRSTableRowProps & {
+  rowPositionInDate: number;
+  totalTimeForDate: string; 
+  totalRowsInDate: number;
+  displayWorkTime: string;
+  isTimesEqual: boolean;
+  onLunchTimeChange: (item: ISRSRecord, value: string) => void;
+  onContractNumberChange: (item: ISRSRecord, value: string) => void;
+}> = (props) => {
   const {
     item,
     options,
     isEven,
+    rowPositionInDate,
+    totalTimeForDate,
+    totalRowsInDate,
+    displayWorkTime,
+    isTimesEqual,
     onItemChange
   } = props;
 
-  // ИЗМЕНЕНО: Стили ячеек в стиле Schedule таблицы
+  // Styles for cells in Schedule table style
   const cellStyle: React.CSSProperties = {
-    border: '1px solid #edebe9', // Мягкая граница как в Schedule
-    padding: '8px', // Увеличенный padding как в Schedule
+    border: '1px solid #edebe9', // Soft border like in Schedule
+    padding: '8px', // Increased padding like in Schedule
     textAlign: 'center',
     fontSize: '12px',
     verticalAlign: 'middle'
   };
 
-  // ИЗМЕНЕНО: Стиль строки с чередованием цветов как в Schedule
+  // Row style with alternating colors like in Schedule, plus error highlighting
   const rowStyle: React.CSSProperties = {
-    backgroundColor: item.deleted ? '#f5f5f5' : (isEven ? '#ffffff' : '#f9f9f9'),
+    backgroundColor: item.deleted ? '#f5f5f5' : (isTimesEqual ? '#ffeded' : (isEven ? '#ffffff' : '#f9f9f9')),
     opacity: item.deleted ? 0.6 : 1,
   };
 
-  // Обработчики изменений
+  // Format date for display
+  const formatDate = (date: Date): string => {
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}.${month}.${year}`;
+  };
+
+  // Get day of week like in Schedule
+  const dayOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][item.date.getDay()];
+
+  // Render date cell content based on row position within date group
+  const renderDateCell = (): JSX.Element => {
+    // If this is the first row of the date, display date and day of week
+    if (rowPositionInDate === 0) {
+      return (
+        <>
+          <div style={{ 
+            fontWeight: '600',
+            fontSize: '12px',
+            ...(item.deleted && { color: '#888', textDecoration: 'line-through' })
+          }}>
+            {formatDate(item.date)}
+          </div>
+          <div style={{ 
+            fontSize: '11px', 
+            color: '#666',
+            marginTop: '2px',
+            ...(item.deleted && { color: '#aaa', textDecoration: 'line-through' })
+          }}>
+            {dayOfWeek}
+            {item.deleted && <span style={{ color: '#d83b01', marginLeft: '5px', textDecoration: 'none' }}>(Deleted)</span>}
+          </div>
+        </>
+      );
+    }
+    // If this is the second row of the date and there are multiple rows, display total hours in blue
+    else if (rowPositionInDate === 1 && totalRowsInDate > 1) {
+      return (
+        <div style={{ 
+          fontWeight: 'bold', 
+          fontSize: '12px', 
+          color: '#0078d4', // Blue color like in Schedule
+          textAlign: 'center',
+          marginTop: '8px',
+          ...(item.deleted && { color: '#88a0bd', textDecoration: 'line-through' }) // Lighter blue for deleted
+        }}>
+          {totalTimeForDate}
+          {item.deleted && <span style={{ color: '#d83b01', marginLeft: '5px', textDecoration: 'none', fontSize: '10px' }}>(Deleted)</span>}
+        </div>
+      );
+    }
+    // For third and subsequent rows of the date, leave cell empty or show minimal info
+    else {
+      return (
+        <div>
+          {item.deleted && <span style={{ color: '#d83b01', fontSize: '10px', textDecoration: 'none' }}>(Deleted)</span>}
+        </div>
+      );
+    }
+  };
+
+  // Event handlers
   const handleReliefChange = useCallback((ev?: React.FormEvent<HTMLElement>, checked?: boolean): void => {
     if (checked !== undefined) {
       onItemChange(item, 'relief', checked);
@@ -89,22 +164,12 @@ export const SRSTableRow: React.FC<ISRSTableRowProps> = (props) => {
     console.log('[SRSTableRow] Add shift clicked for date:', item.date.toLocaleDateString());
   }, [item.date]);
 
-  // Форматирование даты
-  const formatDate = (date: Date): string => {
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const year = date.getFullYear();
-    return `${day}.${month}.${year}`;
-  };
-
-  // ДОБАВЛЕНО: Определяем день недели как в Schedule
-  const dayOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][item.date.getDay()];
-
-  // ИЗМЕНЕНО: Стили для dropdown в стиле Schedule
-  const getDropdownStyles = (): object => ({
+  // Dropdown styles in Schedule style with error highlighting
+  const getDropdownStyles = (isError = false): object => ({
     root: { 
       width: 60, 
       margin: '0 2px',
+      borderColor: isError ? '#a4262c' : undefined,
       ...(item.deleted && {
         backgroundColor: '#f5f5f5',
         color: '#888',
@@ -145,7 +210,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps> = (props) => {
 
   const getLeaveDropdownStyles = (): object => ({
     root: { 
-      width: 140, // Уменьшили ширину
+      width: 140,
       ...(item.deleted && {
         backgroundColor: '#f5f5f5',
         color: '#888',
@@ -181,33 +246,27 @@ export const SRSTableRow: React.FC<ISRSTableRowProps> = (props) => {
 
   return (
     <tr style={rowStyle}>
-      {/* ИЗМЕНЕНО: Ячейка с датой в стиле Schedule */}
+      {/* Date cell with special rendering based on position */}
       <td style={{ ...cellStyle, textAlign: 'left' }}>
-        <div style={{ 
-          fontWeight: '600',
-          fontSize: '12px',
-          ...(item.deleted && { color: '#888', textDecoration: 'line-through' })
-        }}>
-          {formatDate(item.date)}
-        </div>
-        <div style={{ 
-          fontSize: '11px', 
-          color: '#666',
-          marginTop: '2px',
-          ...(item.deleted && { color: '#aaa', textDecoration: 'line-through' })
-        }}>
-          {dayOfWeek}
-        </div>
+        {renderDateCell()}
       </td>
 
-      {/* Ячейка с рабочими часами */}
+      {/* Hours cell with calculated time and error highlighting */}
       <td style={{ 
         ...cellStyle, 
         fontWeight: 'bold',
-        color: item.hours === '0.00' ? '#666' : 'inherit',
+        color: isTimesEqual ? '#a4262c' : (displayWorkTime === '0.00' ? '#666' : 'inherit'),
         ...(item.deleted && { color: '#888', textDecoration: 'line-through' })
       }}>
-        {item.hours}
+        {isTimesEqual ? (
+          <TooltipHost content="Start and end times are the same. Please adjust the times.">
+            <Text style={{ color: '#a4262c', fontWeight: 'bold' }}>
+              {displayWorkTime}
+            </Text>
+          </TooltipHost>
+        ) : (
+          <span>{displayWorkTime}</span>
+        )}
         {item.deleted && (
           <div style={{ 
             fontSize: '10px', 
@@ -220,7 +279,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps> = (props) => {
         )}
       </td>
 
-      {/* Ячейка Relief */}
+      {/* Relief cell */}
       <td style={cellStyle}>
         <Checkbox
           checked={item.relief}
@@ -229,7 +288,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps> = (props) => {
         />
       </td>
 
-      {/* ИЗМЕНЕНО: Ячейки времени в стиле Schedule */}
+      {/* Start Work cell */}
       <td style={cellStyle}>
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px' }}>
           <Dropdown
@@ -237,7 +296,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps> = (props) => {
             options={options.hours}
             onChange={handleStartHourChange}
             disabled={item.deleted}
-            styles={getDropdownStyles()}
+            styles={getDropdownStyles(isTimesEqual)}
           />
           <span style={{ fontSize: '12px', color: '#666' }}>:</span>
           <Dropdown
@@ -245,11 +304,12 @@ export const SRSTableRow: React.FC<ISRSTableRowProps> = (props) => {
             options={options.minutes}
             onChange={handleStartMinuteChange}
             disabled={item.deleted}
-            styles={getDropdownStyles()}
+            styles={getDropdownStyles(isTimesEqual)}
           />
         </div>
       </td>
 
+      {/* Finish Work cell */}
       <td style={cellStyle}>
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px' }}>
           <Dropdown
@@ -257,7 +317,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps> = (props) => {
             options={options.hours}
             onChange={handleFinishHourChange}
             disabled={item.deleted}
-            styles={getDropdownStyles()}
+            styles={getDropdownStyles(isTimesEqual)}
           />
           <span style={{ fontSize: '12px', color: '#666' }}>:</span>
           <Dropdown
@@ -265,12 +325,12 @@ export const SRSTableRow: React.FC<ISRSTableRowProps> = (props) => {
             options={options.minutes}
             onChange={handleFinishMinuteChange}
             disabled={item.deleted}
-            styles={getDropdownStyles()}
+            styles={getDropdownStyles(isTimesEqual)}
           />
         </div>
       </td>
 
-      {/* Ячейка Lunch */}
+      {/* Lunch cell */}
       <td style={cellStyle}>
         <Dropdown
           selectedKey={item.lunch}
@@ -281,7 +341,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps> = (props) => {
         />
       </td>
 
-      {/* Ячейка Type of Leave */}
+      {/* Type of Leave cell */}
       <td style={cellStyle}>
         <Dropdown
           selectedKey={item.typeOfLeave}
@@ -292,7 +352,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps> = (props) => {
         />
       </td>
 
-      {/* Ячейка Time Leave */}
+      {/* Time Leave cell */}
       <td style={cellStyle}>
         <input
           type="text"
@@ -302,17 +362,17 @@ export const SRSTableRow: React.FC<ISRSTableRowProps> = (props) => {
           disabled={item.deleted}
           style={{
             width: '70px',
-            height: '28px', // Увеличена высота как в Schedule
+            height: '28px',
             border: '1px solid #d6d6d6',
             fontSize: '12px',
             textAlign: 'center',
-            borderRadius: '2px', // Добавлен радиус
+            borderRadius: '2px',
             backgroundColor: item.deleted ? '#f5f5f5' : 'white'
           }}
         />
       </td>
 
-      {/* ИЗМЕНЕНО: Кнопка +Shift в стиле Schedule */}
+      {/* +Shift button */}
       <td style={cellStyle}>
         <DefaultButton
           text="+Shift"
@@ -340,7 +400,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps> = (props) => {
         />
       </td>
 
-      {/* Ячейка Contract */}
+      {/* Contract cell */}
       <td style={cellStyle}>
         <Dropdown
           selectedKey={item.contract}
@@ -351,13 +411,13 @@ export const SRSTableRow: React.FC<ISRSTableRowProps> = (props) => {
         />
       </td>
 
-      {/* Ячейка Check (Status) */}
+      {/* Check (Status) cell */}
       <td style={cellStyle}>
         {item.status === 'positive' && <span style={{ color: 'green', fontSize: '16px' }}>👍</span>}
         {item.status === 'negative' && <span style={{ color: 'red', fontSize: '16px' }}>👎</span>}
       </td>
 
-      {/* Ячейка SRS */}
+      {/* SRS cell */}
       <td style={cellStyle}>
         {item.srs && (
           <span style={{

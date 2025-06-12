@@ -31,8 +31,8 @@ export const SRSFilterControls: React.FC<ISRSFilterControlsProps> = (props) => {
   });
 
   return (
-    <div style={{ marginBottom: '20px' }}>
-      {/* Строка с датапикерами и кнопкой Refresh */}
+    <div style={{ marginBottom: '15px' }}>
+      {/* Строка с датапикерами, кнопкой Refresh и Export All SRS */}
       <div style={{
         display: 'flex',
         alignItems: 'flex-end',
@@ -105,14 +105,35 @@ export const SRSFilterControls: React.FC<ISRSFilterControlsProps> = (props) => {
             }
           }}
         />
+
+        {/* Export All SRS Button - moved here */}
+        <DefaultButton
+          text="Export all SRS"
+          onClick={onExportAll}
+          disabled={isLoading}
+          styles={{
+            root: {
+              backgroundColor: '#0078d4',
+              color: 'white',
+              border: 'none',
+              minWidth: '120px',
+              height: '32px',
+              fontSize: '12px'
+            },
+            rootHovered: {
+              backgroundColor: '#106ebe',
+              color: 'white'
+            }
+          }}
+        />
       </div>
 
-      {/* Total Hours и кнопки управления */}
+      {/* Total Hours и кнопки Save */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: '15px'
+        marginBottom: '10px' // Reduced from 15px to 10px
       }}>
         {/* Total Hours */}
         <div style={{
@@ -123,88 +144,54 @@ export const SRSFilterControls: React.FC<ISRSFilterControlsProps> = (props) => {
           Total Hours: {totalHours}
         </div>
 
-        {/* Кнопки управления */}
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'flex-end',
-          gap: '8px'
-        }}>
-          {/* Export All SRS */}
-          <DefaultButton
-            text="Export all SRS"
-            onClick={onExportAll}
-            disabled={isLoading}
+        {/* Кнопки Save */}
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <PrimaryButton
+            text="💾 Save"
+            onClick={onSave}
+            disabled={isLoading || !hasChanges}
             styles={{
               root: {
-                backgroundColor: '#0078d4',
-                color: 'white',
+                backgroundColor: hasChanges ? '#0078d4' : '#f3f2f1',
+                color: hasChanges ? 'white' : '#a19f9d',
                 border: 'none',
-                minWidth: '120px',
+                minWidth: '80px',
                 height: '28px',
-                fontSize: '12px'
+                fontSize: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
               },
-              rootHovered: {
+              rootHovered: hasChanges ? {
                 backgroundColor: '#106ebe',
                 color: 'white'
-              }
+              } : undefined
             }}
           />
 
-          {/* Кнопки Save */}
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <PrimaryButton
-              text="💾 Save"
-              onClick={onSave}
-              disabled={isLoading || !hasChanges}
-              styles={{
-                root: {
-                  backgroundColor: hasChanges ? '#0078d4' : '#f3f2f1',
-                  color: hasChanges ? 'white' : '#a19f9d',
-                  border: 'none',
-                  minWidth: '80px',
-                  height: '28px',
-                  fontSize: '12px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                },
-                rootHovered: hasChanges ? {
-                  backgroundColor: '#106ebe',
-                  color: 'white'
-                } : undefined
-              }}
-            />
-
-            <PrimaryButton
-              text="All in Checked & Save"
-              onClick={onSaveChecked}
-              disabled={isLoading || !hasCheckedItems}
-              styles={{
-                root: {
-                  backgroundColor: hasCheckedItems ? '#0078d4' : '#f3f2f1',
-                  color: hasCheckedItems ? 'white' : '#a19f9d',
-                  border: 'none',
-                  minWidth: '140px',
-                  height: '28px',
-                  fontSize: '12px'
-                },
-                rootHovered: hasCheckedItems ? {
-                  backgroundColor: '#106ebe',
-                  color: 'white'
-                } : undefined
-              }}
-            />
-          </div>
+          <PrimaryButton
+            text="All in Checked & Save"
+            onClick={onSaveChecked}
+            disabled={isLoading || !hasCheckedItems}
+            styles={{
+              root: {
+                backgroundColor: hasCheckedItems ? '#0078d4' : '#f3f2f1',
+                color: hasCheckedItems ? 'white' : '#a19f9d',
+                border: 'none',
+                minWidth: '140px',
+                height: '28px',
+                fontSize: '12px'
+              },
+              rootHovered: hasCheckedItems ? {
+                backgroundColor: '#106ebe',
+                color: 'white'
+              } : undefined
+            }}
+          />
         </div>
       </div>
 
-      {/* Разделительная линия */}
-      <div style={{
-        height: '1px',
-        backgroundColor: '#e0e0e0',
-        margin: '10px 0'
-      }} />
+      {/* Removed the horizontal line - this line was deleted */}
     </div>
   );
 };
