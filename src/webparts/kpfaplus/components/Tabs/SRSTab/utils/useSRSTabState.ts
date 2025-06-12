@@ -3,11 +3,12 @@
 import { useState } from 'react';
 import { IStaffRecord } from '../../../../services/StaffRecordsService';
 import { ITypeOfLeave } from '../../../../services/TypeOfLeaveService';
+import { IHoliday } from '../../../../services/HolidaysService';
 import { SRSDateUtils } from './SRSDateUtils';
 
 /**
  * Интерфейс для состояния SRS Tab
- * ОБНОВЛЕНО: Добавлены поля для типов отпусков
+ * ОБНОВЛЕНО: Добавлены поля для типов отпусков и праздников
  */
 export interface ISRSTabState {
   // Основные даты периода
@@ -21,6 +22,10 @@ export interface ISRSTabState {
   // *** НОВОЕ: Типы отпусков ***
   typesOfLeave: ITypeOfLeave[];      // Справочник типов отпусков
   isLoadingTypesOfLeave: boolean;    // Состояние загрузки типов отпусков
+  
+  // *** НОВОЕ: Праздники ***
+  holidays: IHoliday[];              // Справочник праздников для диапазона дат
+  isLoadingHolidays: boolean;        // Состояние загрузки праздников
   
   // Состояния загрузки
   isLoading: boolean;                // Общее состояние загрузки
@@ -233,6 +238,10 @@ export const useSRSTabState = (): UseSRSTabStateReturn => {
     typesOfLeave: [],
     isLoadingTypesOfLeave: false,
     
+    // *** НОВОЕ: Праздники ***
+    holidays: [],
+    isLoadingHolidays: false,
+    
     // Состояния загрузки
     isLoading: false,
     isLoadingSRS: false,
@@ -251,11 +260,12 @@ export const useSRSTabState = (): UseSRSTabStateReturn => {
     isInitialized: false
   });
   
-  console.log('[useSRSTabState] State initialized with dates and types of leave support:', {
+  console.log('[useSRSTabState] State initialized with dates, types of leave, and holidays support:', {
     fromDate: state.fromDate.toISOString(),
     toDate: state.toDate.toISOString(),
     daysInRange: SRSDateUtils.calculateDaysInRange(state.fromDate, state.toDate),
-    typesOfLeaveSupport: true
+    typesOfLeaveSupport: true,
+    holidaysSupport: true
   });
   
   return {
@@ -327,6 +337,42 @@ export const SRSTabStateHelpers = {
     }));
     
     console.log('[SRSTabStateHelpers] setLoadingTypesOfLeave:', isLoading);
+  },
+
+  // *** НОВЫЕ HELPER ФУНКЦИИ ДЛЯ ПРАЗДНИКОВ ***
+
+  /**
+   * Обновляет праздники
+   */
+  updateHolidays: (
+    setState: React.Dispatch<React.SetStateAction<ISRSTabState>>,
+    holidays: IHoliday[]
+  ): void => {
+    setState(prevState => ({
+      ...prevState,
+      holidays: holidays,
+      isLoadingHolidays: false
+    }));
+    
+    console.log('[SRSTabStateHelpers] updateHolidays:', {
+      holidaysCount: holidays.length,
+      holidays: holidays.map(h => ({ title: h.title, date: new Date(h.date).toLocaleDateString() }))
+    });
+  },
+
+  /**
+   * Устанавливает состояние загрузки праздников
+   */
+  setLoadingHolidays: (
+    setState: React.Dispatch<React.SetStateAction<ISRSTabState>>,
+    isLoading: boolean
+  ): void => {
+    setState(prevState => ({
+      ...prevState,
+      isLoadingHolidays: isLoading
+    }));
+    
+    console.log('[SRSTabStateHelpers] setLoadingHolidays:', isLoading);
   },
   
   /**
@@ -476,7 +522,7 @@ export const SRSTabStateHelpers = {
   
   /**
    * Сбрасывает состояние к начальным значениям
-   * ОБНОВЛЕНО: Включает сброс типов отпусков
+   * ОБНОВЛЕНО: Включает сброс типов отпусков и праздников
    */
   resetState: (
     setState: React.Dispatch<React.SetStateAction<ISRSTabState>>
@@ -488,9 +534,12 @@ export const SRSTabStateHelpers = {
       toDate,
       srsRecords: [],
       totalHours: '0:00',
-      // *** НОВОЕ: Сброс типов отпусков ***
+      // *** НОВОЕ: Сброс типов отпuskov ***
       typesOfLeave: [],
       isLoadingTypesOfLeave: false,
+      // *** НОВОЕ: Сброс праздников ***
+      holidays: [],
+      isLoadingHolidays: false,
       isLoading: false,
       isLoadingSRS: false,
       error: undefined,
@@ -500,6 +549,6 @@ export const SRSTabStateHelpers = {
       isInitialized: false
     });
     
-    console.log('[SRSTabStateHelpers] State reset to initial values with types of leave support');
+    console.log('[SRSTabStateHelpers] State reset to initial values with types of leave and holidays support');
   }
 };
