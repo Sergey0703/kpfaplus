@@ -15,7 +15,7 @@ export interface ISRSTabState {
   
   // Данные SRS записей
   srsRecords: IStaffRecord[];        // Записи SRS (только с TypeOfLeave)
-  totalHours: string;                // Общее количество часов в формате "127.00"
+  totalHours: string;                // Общее количество часов в формате "127:00"
   
   // Состояния загрузки
   isLoading: boolean;                // Общее состояние загрузки
@@ -128,57 +128,84 @@ const getSavedDates = (): { fromDate: Date; toDate: Date } => {
 
 /**
  * Функция для рассчета общего количества часов из записей SRS
+ * *** ИСПРАВЛЕНО: Теперь форматирует в часы:минуты (HH:MM) ***
  * 
  * @param records Массив записей SRS
- * @returns Отформатированная строка с общим количеством часов
+ * @returns Отформатированная строка с общим количеством часов в формате "40:20"
  */
 const calculateTotalHours = (records: IStaffRecord[]): string => {
   try {
     if (!records || records.length === 0) {
-      return '0.00';
+      return '0:00';
     }
     
     let totalMinutes = 0;
     
     records.forEach((record, index) => {
       try {
-        // Извлекаем рабочее время из поля WorkTime (формат "7.50")
+        // Извлекаем рабочее время из поля WorkTime (формат "7.50" или "7:30")
         if (record.WorkTime) {
           const workTimeStr = record.WorkTime.toString();
-          const hours = parseFloat(workTimeStr);
           
-          if (!isNaN(hours)) {
-            totalMinutes += hours * 60; // Конвертируем часы в минуты
+          // *** ИСПРАВЛЕНО: Поддерживаем оба формата - точка и двоеточие ***
+          let hours = 0;
+          let minutes = 0;
+          
+          if (workTimeStr.includes(':')) {
+            // Формат "7:30"
+            const [hoursStr, minutesStr] = workTimeStr.split(':');
+            hours = parseInt(hoursStr, 10) || 0;
+            minutes = parseInt(minutesStr, 10) || 0;
+          } else if (workTimeStr.includes('.')) {
+            // Формат "7.50" (где .50 означает 50 минут)
+            const [hoursStr, minutesDecimalStr] = workTimeStr.split('.');
+            hours = parseInt(hoursStr, 10) || 0;
+            const minutesDecimal = parseInt(minutesDecimalStr, 10) || 0;
+            minutes = minutesDecimal; // Прямое преобразование, так как .50 = 50 минут
           } else {
-            console.warn(`[useSRSTabState] Invalid WorkTime for record ${index}: ${workTimeStr}`);
+            // Только часы
+            hours = parseInt(workTimeStr, 10) || 0;
+            minutes = 0;
           }
+          
+          // Конвертируем в общие минуты
+          const recordMinutes = (hours * 60) + minutes;
+          totalMinutes += recordMinutes;
+          
+          console.log(`[useSRSTabState] Record ${index}: ${workTimeStr} -> ${hours}h ${minutes}m = ${recordMinutes} total minutes`);
         }
         
         // Альтернативно, используем LeaveTime если WorkTime недоступно
         else if (record.LeaveTime && record.LeaveTime > 0) {
-          totalMinutes += record.LeaveTime * 60;
+          const leaveHours = record.LeaveTime;
+          const leaveMinutes = leaveHours * 60;
+          totalMinutes += leaveMinutes;
+          
+          console.log(`[useSRSTabState] Record ${index}: LeaveTime ${leaveHours}h = ${leaveMinutes} minutes`);
         }
       } catch (recordError) {
         console.error(`[useSRSTabState] Error processing record ${index}:`, recordError);
       }
     });
     
-    // Конвертируем обратно в часы и форматируем
-    const totalHours = totalMinutes / 60;
-    const formattedHours = totalHours.toFixed(2);
+    // *** ИСПРАВЛЕНО: Конвертируем в часы:минуты формат ***
+    const totalHours = Math.floor(totalMinutes / 60);
+    const remainingMinutes = totalMinutes % 60;
+    const formattedHours = `${totalHours}:${remainingMinutes.toString().padStart(2, '0')}`;
     
-    console.log('[useSRSTabState] calculateTotalHours:', {
+    console.log('[useSRSTabState] calculateTotalHours result:', {
       recordsCount: records.length,
       totalMinutes,
       totalHours,
-      formattedHours
+      remainingMinutes,
+      formattedResult: formattedHours
     });
     
     return formattedHours;
     
   } catch (error) {
     console.error('[useSRSTabState] Error calculating total hours:', error);
-    return '0.00';
+    return '0:00';
   }
 };
 
@@ -198,7 +225,7 @@ export const useSRSTabState = (): UseSRSTabStateReturn => {
     
     // Данные SRS
     srsRecords: [],
-    totalHours: '0.00',
+    totalHours: '0:00', // *** ИСПРАВЛЕНО: Инициализация в новом формате ***
     
     // Состояния загрузки
     isLoading: false,
@@ -238,6 +265,7 @@ export const SRSTabStateHelpers = {
   
   /**
    * Обновляет SRS записи и пересчитывает общее количество часов
+   * *** ИСПРАВЛЕНО: Теперь использует новый формат часы:минуты ***
    */
   updateSRSRecords: (
     setState: React.Dispatch<React.SetStateAction<ISRSTabState>>,
@@ -248,7 +276,7 @@ export const SRSTabStateHelpers = {
     setState(prevState => ({
       ...prevState,
       srsRecords: records,
-      totalHours: totalHours,
+      totalHours: totalHours, // *** Теперь в формате "40:20" ***
       isLoadingSRS: false,
       errorSRS: undefined
     }));
@@ -416,7 +444,7 @@ export const SRSTabStateHelpers = {
       fromDate,
       toDate,
       srsRecords: [],
-      totalHours: '0.00',
+      totalHours: '0:00', // *** ИСПРАВЛЕНО: Сброс в новом формате ***
       isLoading: false,
       isLoadingSRS: false,
       error: undefined,

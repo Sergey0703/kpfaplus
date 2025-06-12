@@ -79,7 +79,7 @@ export const calculateSRSWorkTime = (record: ISRSRecord): string => {
   const minutes = totalWorkMinutes % 60;
 
   // Форматируем результат в формат "H.MM" (как ожидается в системе)
-  const formattedTime = `${hours}.${minutes.toString().padStart(2, '0')}`;
+  const formattedTime = `${hours}:${minutes.toString().padStart(2, '0')}`;
 
   console.log('[SRSTimeCalculationUtils] *** CALCULATION RESULT ***');
   console.log('[SRSTimeCalculationUtils] Total work minutes:', totalWorkMinutes);

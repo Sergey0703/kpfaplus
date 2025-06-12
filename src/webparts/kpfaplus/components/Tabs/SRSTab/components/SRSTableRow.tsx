@@ -4,6 +4,7 @@ import * as React from 'react';
 import { useCallback, useState, useEffect } from 'react';
 import { Checkbox, Dropdown, DefaultButton, IDropdownOption, TooltipHost, Text } from '@fluentui/react';
 import { ISRSTableRowProps, ISRSRecord } from '../utils/SRSTabInterfaces';
+import { calculateSRSWorkTime } from '../utils/SRSTimeCalculationUtils';
 
 export const SRSTableRow: React.FC<ISRSTableRowProps & {
   rowPositionInDate: number;
@@ -172,13 +173,46 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     }
   }, [item, onItemChange, localFinishWork]);
 
+  // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: handleLunchChange использует актуальные локальные значения времени ***
   const handleLunchChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
     if (option) {
+      console.log('[SRSTableRow] *** LUNCH CHANGE WITH CURRENT LOCAL VALUES ***');
       console.log('[SRSTableRow] Lunch time changing from', localLunch, 'to', option.key);
-      setLocalLunch(option.key as string); // Обновляем локальное состояние немедленно
-      lunchTimeChangeHandler(item, option.key as string); // Вызываем handleLunchTimeChange из SRSTable
+      console.log('[SRSTableRow] Current local start work:', localStartWork);
+      console.log('[SRSTableRow] Current local finish work:', localFinishWork);
+      
+      // *** ИСПРАВЛЕНО: Создаем updatedItem с АКТУАЛЬНЫМИ локальными значениями времени ***
+      const updatedItemWithCurrentTimes: ISRSRecord = {
+        ...item,
+        startWork: localStartWork,    // *** ИСПОЛЬЗУЕМ АКТУАЛЬНЫЕ ЛОКАЛЬНЫЕ ЗНАЧЕНИЯ ***
+        finishWork: localFinishWork,  // *** ИСПОЛЬЗУЕМ АКТУАЛЬНЫЕ ЛОКАЛЬНЫЕ ЗНАЧЕНИЯ ***
+        lunch: option.key as string   // *** НОВОЕ ЗНАЧЕНИЕ ВРЕМЕНИ ОБЕДА ***
+      };
+      
+      console.log('[SRSTableRow] Updated item for lunch calculation:', {
+        startWork: updatedItemWithCurrentTimes.startWork,
+        finishWork: updatedItemWithCurrentTimes.finishWork,
+        lunch: updatedItemWithCurrentTimes.lunch
+      });
+      
+      // Пересчитываем время работы с актуальными значениями
+      const recalculatedWorkTime = calculateSRSWorkTime(updatedItemWithCurrentTimes);
+      
+      console.log('[SRSTableRow] *** RECALCULATED WORK TIME WITH CURRENT VALUES ***:', {
+        oldWorkTime: displayWorkTime,
+        newWorkTime: recalculatedWorkTime,
+        startTime: `${localStartWork.hours}:${localStartWork.minutes}`,
+        finishTime: `${localFinishWork.hours}:${localFinishWork.minutes}`,
+        lunchMinutes: option.key
+      });
+      
+      // Обновляем локальное состояние немедленно
+      setLocalLunch(option.key as string);
+      
+      // Вызываем родительский обработчик с пересчитанным временем
+      lunchTimeChangeHandler(updatedItemWithCurrentTimes, option.key as string);
     }
-  }, [item, lunchTimeChangeHandler, localLunch]);
+  }, [item, lunchTimeChangeHandler, localLunch, localStartWork, localFinishWork, displayWorkTime]);
 
   const handleLeaveTypeChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
     if (option) {
@@ -378,7 +412,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
         </div>
       </td>
 
-      {/* Lunch cell - ИСПОЛЬЗУЕМ ЛОКАЛЬНЫЕ ЗНАЧЕНИЯ */}
+      {/* Lunch cell - ИСПОЛЬЗУЕМ ЛОКАЛЬНЫЕ ЗНАЧЕНИЯ И ИСПРАВЛЕННЫЙ ОБРАБОТЧИК */}
       <td style={cellStyle}>
         <Dropdown
           selectedKey={localLunch}

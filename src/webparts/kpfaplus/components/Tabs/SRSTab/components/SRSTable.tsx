@@ -23,19 +23,42 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
   // *** КЛЮЧЕВОЕ ДОБАВЛЕНИЕ: State для вычисленного времени работы ***
   const [calculatedWorkTimes, setCalculatedWorkTimes] = useState<Record<string, string>>({});
 
+  // *** НОВОЕ: State для отслеживания актуальных значений времени каждой записи ***
+  const [currentItemValues, setCurrentItemValues] = useState<Record<string, {
+    startWork: { hours: string; minutes: string };
+    finishWork: { hours: string; minutes: string };
+    lunch: string;
+  }>>({});
+
   console.log('[SRSTable] Rendering with items count:', items.length);
 
-  // *** ДОБАВЛЕНО: Инициализация вычисленного времени при загрузке элементов ***
+  // *** ДОБАВЛЕНО: Инициализация вычисленного времени и актуальных значений при загрузке элементов ***
   useEffect(() => {
-    console.log('[SRSTable] Effect: items array changed. Calculating work times for all items.');
+    console.log('[SRSTable] Effect: items array changed. Calculating work times and initializing current values for all items.');
     const initialWorkTimes: Record<string, string> = {};
+    const initialCurrentValues: Record<string, {
+      startWork: { hours: string; minutes: string };
+      finishWork: { hours: string; minutes: string };
+      lunch: string;
+    }> = {};
+
     items.forEach(item => {
       // Вычисляем время сразу при загрузке, а не берем из item.hours
       const calculatedTime = calculateSRSWorkTime(item);
       initialWorkTimes[item.id] = calculatedTime;
+      
+      // Инициализируем актуальные значения времени
+      initialCurrentValues[item.id] = {
+        startWork: item.startWork,
+        finishWork: item.finishWork,
+        lunch: item.lunch
+      };
+      
       console.log(`[SRSTable] Calculated time for item ${item.id}: ${calculatedTime} (was: ${item.hours})`);
     });
+    
     setCalculatedWorkTimes(initialWorkTimes);
+    setCurrentItemValues(initialCurrentValues);
   }, [items]);
 
   // *** ДОБАВЛЕНО: Функция для получения отображаемого времени работы ***
@@ -46,7 +69,20 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
     return item.hours;
   }, [calculatedWorkTimes]);
 
-  // *** ИСПРАВЛЕНО: Обработчик изменения времени с проверкой на relief ***
+  // *** НОВАЯ ФУНКЦИЯ: Получение актуальных значений времени для записи ***
+  const getCurrentItemValues = useCallback((itemId: string): {
+    startWork: { hours: string; minutes: string };
+    finishWork: { hours: string; minutes: string };
+    lunch: string;
+  } => {
+    return currentItemValues[itemId] || {
+      startWork: { hours: '00', minutes: '00' },
+      finishWork: { hours: '00', minutes: '00' },
+      lunch: '0'
+    };
+  }, [currentItemValues]);
+
+  // *** ИСПРАВЛЕНО: Обработчик изменения времени с обновлением актуальных значений ***
   const handleTimeChange = useCallback((item: ISRSRecord, field: string, value: string | { hours: string; minutes: string }): void => {
     if (item.deleted) { return; }
     
@@ -70,17 +106,35 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
       return; // Выходим без пересчета времени для других полей
     }
     
-    // Создаем обновленный элемент только для временных полей
-    let updatedItem = { ...item };
+    // *** НОВОЕ: Получаем текущие актуальные значения для данной записи ***
+    const currentValues = getCurrentItemValues(item.id);
+    console.log(`[SRSTable] Current values for item ${item.id}:`, currentValues);
+    
+    // *** НОВОЕ: Обновляем актуальные значения с новым изменением ***
+    let updatedCurrentValues = { ...currentValues };
     if (field === 'startWork' && typeof value === 'object') {
-      updatedItem.startWork = value;
+      updatedCurrentValues.startWork = value;
     } else if (field === 'finishWork' && typeof value === 'object') {
-      updatedItem.finishWork = value;
+      updatedCurrentValues.finishWork = value;
     } else if (field === 'lunch') {
-      updatedItem.lunch = value as string;
+      updatedCurrentValues.lunch = value as string;
     }
     
-    console.log(`[SRSTable] Updated item before calculation:`, {
+    // *** НОВОЕ: Сохраняем обновленные актуальные значения ***
+    setCurrentItemValues(prev => ({
+      ...prev,
+      [item.id]: updatedCurrentValues
+    }));
+    
+    // Создаем обновленный элемент с актуальными значениями
+    const updatedItem: ISRSRecord = {
+      ...item,
+      startWork: updatedCurrentValues.startWork,
+      finishWork: updatedCurrentValues.finishWork,
+      lunch: updatedCurrentValues.lunch
+    };
+    
+    console.log(`[SRSTable] Updated item with current values before calculation:`, {
       startWork: updatedItem.startWork,
       finishWork: updatedItem.finishWork,
       lunch: updatedItem.lunch,
@@ -113,18 +167,47 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
     onItemChange(updatedItem, 'workingHours', workTime);
     
     console.log(`[SRSTable] *** TIME CHANGE COMPLETE ***`);
-  }, [calculatedWorkTimes, onItemChange]);
+  }, [calculatedWorkTimes, onItemChange, getCurrentItemValues]);
 
-  // *** ИСПРАВЛЕНО: Обработчик изменения времени обеда ***
+  // *** ИСПРАВЛЕНО: Обработчик изменения времени обеда с использованием актуальных значений ***
   const handleLunchTimeChange = useCallback((item: ISRSRecord, value: string): void => {
     if (item.deleted) { return; }
     
+    console.log(`[SRSTable] *** LUNCH TIME CHANGE WITH ACTUAL VALUES ***`);
     console.log(`[SRSTable] handleLunchTimeChange called for item ${item.id}, value: ${value}`);
     
-    const updatedItem = { ...item, lunch: value };
+    // *** НОВОЕ: Получаем актуальные значения времени ***
+    const currentValues = getCurrentItemValues(item.id);
+    console.log(`[SRSTable] Current values for lunch calculation:`, currentValues);
+    
+    // *** ИСПРАВЛЕНО: Создаем updatedItem с АКТУАЛЬНЫМИ значениями времени ***
+    const updatedItem: ISRSRecord = {
+      ...item,
+      startWork: currentValues.startWork,    // *** АКТУАЛЬНЫЕ ЗНАЧЕНИЯ ***
+      finishWork: currentValues.finishWork,  // *** АКТУАЛЬНЫЕ ЗНАЧЕНИЯ ***
+      lunch: value                          // *** НОВОЕ ЗНАЧЕНИЕ ОБЕДА ***
+    };
+    
+    // *** НОВОЕ: Обновляем актуальные значения с новым временем обеда ***
+    setCurrentItemValues(prev => ({
+      ...prev,
+      [item.id]: {
+        ...currentValues,
+        lunch: value
+      }
+    }));
+    
+    // Пересчитываем время работы с актуальными значениями
     const workTime = calculateSRSWorkTime(updatedItem);
     
-    console.log(`[SRSTable] Recalculated work time after lunch change for item ${item.id}: ${workTime}`);
+    console.log(`[SRSTable] *** LUNCH RECALCULATION RESULT ***:`, {
+      itemId: item.id,
+      actualStartTime: `${currentValues.startWork.hours}:${currentValues.startWork.minutes}`,
+      actualFinishTime: `${currentValues.finishWork.hours}:${currentValues.finishWork.minutes}`,
+      newLunchValue: value,
+      recalculatedTime: workTime,
+      previousTime: calculatedWorkTimes[item.id]
+    });
     
     // Обновляем локальное состояние вычисленного времени
     setCalculatedWorkTimes(prev => ({
@@ -135,7 +218,9 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
     // Вызываем родительские обработчики
     onLunchTimeChange(updatedItem, value);
     onItemChange(updatedItem, 'workingHours', workTime);
-  }, [calculatedWorkTimes, onItemChange, onLunchTimeChange]);
+    
+    console.log(`[SRSTable] *** LUNCH TIME CHANGE COMPLETE ***`);
+  }, [calculatedWorkTimes, onItemChange, onLunchTimeChange, getCurrentItemValues]);
 
   // Helper function to check if this is the first row with a new date
   const isFirstRowWithNewDate = (items: typeof props.items, index: number): boolean => {
@@ -420,7 +505,7 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
                   displayWorkTime={getDisplayWorkTime(item)} // *** ПЕРЕДАЕМ ВЫЧИСЛЕННОЕ ВРЕМЯ ***
                   isTimesEqual={checkSRSStartEndTimeSame(item)}
                   onItemChange={handleTimeChange} // *** ИСПОЛЬЗУЕМ НАШИ ОБРАБОТЧИКИ С ПРОВЕРКОЙ НА RELIEF ***
-                  onLunchTimeChange={handleLunchTimeChange} // *** ИСПОЛЬЗУЕМ НАШИ ОБРАБОТЧИКИ ***
+                  onLunchTimeChange={handleLunchTimeChange} // *** ИСПОЛЬЗУЕМ НАШИ ОБРАБОТЧИКИ С АКТУАЛЬНЫМИ ЗНАЧЕНИЯМИ ***
                   onContractNumberChange={onContractNumberChange}
                 />
               </React.Fragment>
