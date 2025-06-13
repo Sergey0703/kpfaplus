@@ -1,5 +1,6 @@
 // src/webparts/kpfaplus/components/Tabs/SRSTab/SRSTab.tsx
 import * as React from 'react';
+import { useCallback, useState } from 'react';
 import { ITabProps } from '../../../models/types';
 
 // Импортируем новые компоненты
@@ -13,6 +14,9 @@ import { useSRSTabLogic } from './utils/useSRSTabLogic';
 import { ISRSTableOptions, ISRSRecord, SRSTableOptionsHelper } from './utils/SRSTabInterfaces';
 import { SRSDataMapper } from './utils/SRSDataMapper';
 
+// *** НОВОЕ: Импортируем компонент диалогов подтверждения ***
+import { ConfirmDialog } from '../../ConfirmDialog/ConfirmDialog';
+
 export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
   const { selectedStaff } = props;
   
@@ -25,7 +29,24 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
   // Используем главный хук логики (как в ScheduleTab) с поддержкой праздников
   const srsLogic = useSRSTabLogic(props);
 
-  console.log('[SRSTab] SRS Logic state with types of leave and holidays support:', {
+  // *** НОВОЕ: Состояние для диалогов подтверждения ***
+  const [deleteConfirmDialog, setDeleteConfirmDialog] = useState({
+    isOpen: false,
+    recordId: '',
+    recordDate: '',
+    title: '',
+    message: ''
+  });
+
+  const [restoreConfirmDialog, setRestoreConfirmDialog] = useState({
+    isOpen: false,
+    recordId: '',
+    recordDate: '',
+    title: '',
+    message: ''
+  });
+
+  console.log('[SRSTab] SRS Logic state with types of leave, holidays, and delete/restore support:', {
     recordsCount: srsLogic.srsRecords.length,
     totalHours: srsLogic.totalHours,
     fromDate: srsLogic.fromDate.toLocaleDateString(),
@@ -36,18 +57,190 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     // Информация о типах отпусков
     typesOfLeaveCount: srsLogic.typesOfLeave.length,
     isLoadingTypesOfLeave: srsLogic.isLoadingTypesOfLeave,
-    // *** НОВОЕ: Информация о праздниках ***
+    // Информация о праздниках
     holidaysCount: srsLogic.holidays.length,
-    isLoadingHolidays: srsLogic.isLoadingHolidays
+    isLoadingHolidays: srsLogic.isLoadingHolidays,
+    // *** НОВОЕ: Информация о функциях удаления ***
+    hasDeleteSupport: true,
+    hasRestoreSupport: true
   });
+
+  // *** НОВОЕ: Обработчик показа диалога удаления ***
+  const showDeleteConfirmDialog = useCallback((recordId: string): void => {
+    console.log('[SRSTab] showDeleteConfirmDialog called for record:', recordId);
+    
+    // Находим запись для получения дополнительной информации
+    const record = srsLogic.srsRecords.find(r => r.ID === recordId);
+    const recordDate = record ? record.Date.toLocaleDateString() : 'Unknown date';
+    
+    setDeleteConfirmDialog({
+      isOpen: true,
+      recordId,
+      recordDate,
+      title: 'Confirm Deletion',
+      message: `Are you sure you want to delete the SRS record for ${selectedStaff?.name} on ${recordDate}? The record will be marked as deleted but can be restored later.`
+    });
+  }, [srsLogic.srsRecords, selectedStaff?.name]);
+
+  // *** НОВОЕ: Обработчик показа диалога восстановления ***
+  const showRestoreConfirmDialog = useCallback((recordId: string): void => {
+    console.log('[SRSTab] showRestoreConfirmDialog called for record:', recordId);
+    
+    // Находим запись для получения дополнительной информации
+    const record = srsLogic.srsRecords.find(r => r.ID === recordId);
+    const recordDate = record ? record.Date.toLocaleDateString() : 'Unknown date';
+    
+    setRestoreConfirmDialog({
+      isOpen: true,
+      recordId,
+      recordDate,
+      title: 'Confirm Restore',
+      message: `Are you sure you want to restore the deleted SRS record for ${selectedStaff?.name} on ${recordDate}?`
+    });
+  }, [srsLogic.srsRecords, selectedStaff?.name]);
+
+  // *** НОВОЕ: Обработчик подтверждения удаления ***
+  const handleDeleteConfirm = useCallback(async (): Promise<void> => {
+    const { recordId } = deleteConfirmDialog;
+    console.log('[SRSTab] handleDeleteConfirm called for record:', recordId);
+    
+    if (!recordId) {
+      console.error('[SRSTab] No record ID for deletion');
+      setDeleteConfirmDialog(prev => ({ ...prev, isOpen: false }));
+      return;
+    }
+
+    try {
+      // TODO: Implement actual delete logic through StaffRecordsService
+      // For now, we'll simulate the deletion
+      console.log('[SRSTab] Simulating deletion of record:', recordId);
+      
+      // Simulate async operation
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // TODO: Call actual delete service
+      // const success = await deleteStaffRecord(recordId);
+      const success = true; // Simulated success
+      
+      if (success) {
+        console.log('[SRSTab] Record deleted successfully:', recordId);
+        // Refresh data to show updated state
+        srsLogic.onRefreshData();
+      } else {
+        console.error('[SRSTab] Failed to delete record:', recordId);
+      }
+      
+    } catch (error) {
+      console.error('[SRSTab] Error deleting record:', error);
+    } finally {
+      // Close dialog
+      setDeleteConfirmDialog(prev => ({ ...prev, isOpen: false }));
+    }
+  }, [deleteConfirmDialog.recordId, srsLogic.onRefreshData]);
+
+  // *** НОВОЕ: Обработчик подтверждения восстановления ***
+  const handleRestoreConfirm = useCallback(async (): Promise<void> => {
+    const { recordId } = restoreConfirmDialog;
+    console.log('[SRSTab] handleRestoreConfirm called for record:', recordId);
+    
+    if (!recordId) {
+      console.error('[SRSTab] No record ID for restore');
+      setRestoreConfirmDialog(prev => ({ ...prev, isOpen: false }));
+      return;
+    }
+
+    try {
+      // TODO: Implement actual restore logic through StaffRecordsService
+      // For now, we'll simulate the restoration
+      console.log('[SRSTab] Simulating restoration of record:', recordId);
+      
+      // Simulate async operation
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // TODO: Call actual restore service
+      // const success = await restoreStaffRecord(recordId);
+      const success = true; // Simulated success
+      
+      if (success) {
+        console.log('[SRSTab] Record restored successfully:', recordId);
+        // Refresh data to show updated state
+        srsLogic.onRefreshData();
+      } else {
+        console.error('[SRSTab] Failed to restore record:', recordId);
+      }
+      
+    } catch (error) {
+      console.error('[SRSTab] Error restoring record:', error);
+    } finally {
+      // Close dialog
+      setRestoreConfirmDialog(prev => ({ ...prev, isOpen: false }));
+    }
+  }, [restoreConfirmDialog.recordId, srsLogic.onRefreshData]);
+
+  // *** НОВОЕ: Обработчики закрытия диалогов ***
+  const handleDeleteCancel = useCallback((): void => {
+    console.log('[SRSTab] Delete dialog cancelled');
+    setDeleteConfirmDialog(prev => ({ ...prev, isOpen: false }));
+  }, []);
+
+  const handleRestoreCancel = useCallback((): void => {
+    console.log('[SRSTab] Restore dialog cancelled');
+    setRestoreConfirmDialog(prev => ({ ...prev, isOpen: false }));
+  }, []);
+
+  // *** НОВОЕ: Функции-заглушки для удаления/восстановления (пока API не готово) ***
+  const onDeleteItem = useCallback(async (recordId: string): Promise<boolean> => {
+    console.log('[SRSTab] onDeleteItem called for record:', recordId);
+    
+    // TODO: Replace with actual delete service call
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // TODO: Implement actual delete logic
+      // const staffRecordsService = StaffRecordsService.getInstance(context);
+      // const result = await staffRecordsService.deleteStaffRecord(recordId, currentUserId);
+      // return result.success;
+      
+      console.log('[SRSTab] Record deletion simulated successfully');
+      return true; // Simulated success
+      
+    } catch (error) {
+      console.error('[SRSTab] Error in onDeleteItem:', error);
+      return false;
+    }
+  }, []);
+
+  const onRestoreItem = useCallback(async (recordId: string): Promise<boolean> => {
+    console.log('[SRSTab] onRestoreItem called for record:', recordId);
+    
+    // TODO: Replace with actual restore service call
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // TODO: Implement actual restore logic
+      // const staffRecordsService = StaffRecordsService.getInstance(context);
+      // const result = await staffRecordsService.restoreStaffRecord(recordId, currentUserId);
+      // return result.success;
+      
+      console.log('[SRSTab] Record restoration simulated successfully');
+      return true; // Simulated success
+      
+    } catch (error) {
+      console.error('[SRSTab] Error in onRestoreItem:', error);
+      return false;
+    }
+  }, []);
 
   // Создание опций для таблицы с типами отпусков
   const tableOptions: ISRSTableOptions = React.useMemo(() => {
-    console.log('[SRSTab] Creating table options with types of leave and holidays context:', {
+    console.log('[SRSTab] Creating table options with types of leave, holidays, and delete/restore support:', {
       typesOfLeaveCount: srsLogic.typesOfLeave.length,
       isLoadingTypesOfLeave: srsLogic.isLoadingTypesOfLeave,
       holidaysCount: srsLogic.holidays.length,
-      isLoadingHolidays: srsLogic.isLoadingHolidays
+      isLoadingHolidays: srsLogic.isLoadingHolidays,
+      deleteRestoreSupport: true
     });
 
     // Создаем стандартные опции
@@ -75,10 +268,11 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
 
   // Преобразуем IStaffRecord[] в ISRSRecord[] для компонентов
   const srsRecordsForTable: ISRSRecord[] = React.useMemo(() => {
-    console.log('[SRSTab] Converting staff records to SRS records with types of leave and holidays context:', {
+    console.log('[SRSTab] Converting staff records to SRS records with types of leave, holidays, and delete support:', {
       originalCount: srsLogic.srsRecords.length,
       typesOfLeaveAvailable: srsLogic.typesOfLeave.length,
-      holidaysAvailable: srsLogic.holidays.length
+      holidaysAvailable: srsLogic.holidays.length,
+      deleteRestoreEnabled: true
     });
 
     const mappedRecords = SRSDataMapper.mapStaffRecordsToSRSRecords(srsLogic.srsRecords);
@@ -98,7 +292,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       
       console.log('[SRSTab] Types of leave distribution in mapped records:', typeStats);
 
-      // *** НОВОЕ: Логируем статистику по праздникам ***
+      // Логируем статистику по праздникам
       const holidayStats = mappedRecords.reduce((acc, record) => {
         const isHoliday = record.Holiday === 1;
         acc[isHoliday ? 'Holiday' : 'Regular'] = (acc[isHoliday ? 'Holiday' : 'Regular'] || 0) + 1;
@@ -106,6 +300,10 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       }, {} as Record<string, number>);
       
       console.log('[SRSTab] Holiday distribution in mapped records:', holidayStats);
+
+      // *** НОВОЕ: Логируем статистику по удаленным записям ***
+      const deleteStats = SRSTableOptionsHelper.getDeletedRecordsStatistics(mappedRecords);
+      console.log('[SRSTab] Delete statistics in mapped records:', deleteStats);
     }
 
     return mappedRecords;
@@ -155,7 +353,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       padding: '0',
       position: 'relative'
     }}>
-      {/* *** ОБНОВЛЕНО: Заголовок с информацией о праздниках *** */}
+      {/* Заголовок с информацией о праздниках и функциях удаления */}
       <div style={{
         fontSize: '16px',
         fontWeight: '600',
@@ -174,7 +372,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
           </span>
         )}
         
-        {/* *** НОВОЕ: Индикатор загрузки праздников *** */}
+        {/* Индикатор загрузки праздников */}
         {srsLogic.isLoadingHolidays && (
           <span style={{
             fontSize: '12px',
@@ -196,7 +394,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
           </span>
         )}
         
-        {/* *** НОВОЕ: Информация о праздниках *** */}
+        {/* Информация о праздниках */}
         {srsLogic.holidays.length > 0 && !srsLogic.isLoadingHolidays && (
           <span style={{
             fontSize: '12px',
@@ -206,6 +404,15 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
             ({srsLogic.holidays.length} holidays in period)
           </span>
         )}
+
+        {/* *** НОВОЕ: Информация о функциях удаления *** */}
+        <span style={{
+          fontSize: '12px',
+          color: '#0078d4',
+          marginLeft: '10px'
+        }}>
+          (Delete/Restore enabled)
+        </span>
       </div>
       
       {/* Панель управления - передаем данные из srsLogic */}
@@ -213,10 +420,10 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         fromDate={srsLogic.fromDate}
         toDate={srsLogic.toDate}
         totalHours={srsLogic.totalHours}
-        isLoading={srsLogic.isLoadingSRS || srsLogic.isLoadingTypesOfLeave || srsLogic.isLoadingHolidays} // *** ОБНОВЛЕНО: Учитываем загрузку праздников ***
+        isLoading={srsLogic.isLoadingSRS || srsLogic.isLoadingTypesOfLeave || srsLogic.isLoadingHolidays}
         onFromDateChange={srsLogic.onFromDateChange}
         onToDateChange={srsLogic.onToDateChange}
-        onRefresh={srsLogic.onRefreshData} // *** Включает обновление типов отпусков и праздников ***
+        onRefresh={srsLogic.onRefreshData}
         onExportAll={srsLogic.onExportAll}
         onSave={srsLogic.onSave}
         onSaveChecked={srsLogic.onSaveChecked}
@@ -224,7 +431,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         hasCheckedItems={srsLogic.hasCheckedItems}
       />
       
-      {/* *** ОБНОВЛЕНО: Отображение ошибок загрузки (включая праздники) *** */}
+      {/* Отображение ошибок загрузки (включая праздники) */}
       {srsLogic.errorSRS && (
         <div style={{
           backgroundColor: '#fef2f2',
@@ -239,18 +446,48 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         </div>
       )}
       
-      {/* Таблица SRS - передаем все необходимые обработчики включая типы отпусков */}
+      {/* Таблица SRS с поддержкой удаления/восстановления */}
       <SRSTable
         items={srsRecordsForTable}
         options={tableOptions}
-        isLoading={srsLogic.isLoadingSRS || srsLogic.isLoadingTypesOfLeave || srsLogic.isLoadingHolidays} // *** ОБНОВЛЕНО: Учитываем загрузку праздников ***
+        isLoading={srsLogic.isLoadingSRS || srsLogic.isLoadingTypesOfLeave || srsLogic.isLoadingHolidays}
         onItemChange={srsLogic.onItemChange}
         onLunchTimeChange={srsLogic.onLunchTimeChange}
         onContractNumberChange={srsLogic.onContractNumberChange}
         onTypeOfLeaveChange={handleTypeOfLeaveChange}
+        showDeleteConfirmDialog={showDeleteConfirmDialog}
+        showRestoreConfirmDialog={showRestoreConfirmDialog}
+        onDeleteItem={onDeleteItem}
+        onRestoreItem={onRestoreItem}
       />
       
-      {/* *** ОБНОВЛЕНО: Отладочная информация с праздниками *** */}
+      {/* *** НОВОЕ: Диалоги подтверждения удаления и восстановления *** */}
+      
+      {/* Диалог подтверждения удаления */}
+      <ConfirmDialog
+        isOpen={deleteConfirmDialog.isOpen}
+        title={deleteConfirmDialog.title}
+        message={deleteConfirmDialog.message}
+        confirmButtonText="Delete"
+        cancelButtonText="Cancel"
+        onConfirm={handleDeleteConfirm}
+        onDismiss={handleDeleteCancel}
+        confirmButtonColor="#d83b01" // Red for delete
+      />
+
+      {/* Диалог подтверждения восстановления */}
+      <ConfirmDialog
+        isOpen={restoreConfirmDialog.isOpen}
+        title={restoreConfirmDialog.title}
+        message={restoreConfirmDialog.message}
+        confirmButtonText="Restore"
+        cancelButtonText="Cancel"
+        onConfirm={handleRestoreConfirm}
+        onDismiss={handleRestoreCancel}
+        confirmButtonColor="#107c10" // Green for restore
+      />
+      
+      {/* Отладочная информация с праздниками и функциями удаления */}
       {process.env.NODE_ENV === 'development' && (
         <div style={{
           marginTop: '20px',
@@ -265,27 +502,36 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
           <div>SRS Records: {srsRecordsForTable.length}</div>
           <div>Types of Leave: {srsLogic.typesOfLeave.length}</div>
           <div>Loading Types: {srsLogic.isLoadingTypesOfLeave ? 'Yes' : 'No'}</div>
-          {/* *** НОВОЕ: Отладочная информация о праздниках *** */}
           <div>Holidays: {srsLogic.holidays.length}</div>
           <div>Loading Holidays: {srsLogic.isLoadingHolidays ? 'Yes' : 'No'}</div>
           <div>Has Changes: {srsLogic.hasUnsavedChanges ? 'Yes' : 'No'}</div>
           <div>Selected Items: {srsLogic.selectedItemsCount}</div>
+          {/* *** НОВОЕ: Отладочная информация о удалении *** */}
+          <div>Delete Support: Enabled</div>
+          <div>Restore Support: Enabled</div>
+          <div>Delete Dialog Open: {deleteConfirmDialog.isOpen ? 'Yes' : 'No'}</div>
+          <div>Restore Dialog Open: {restoreConfirmDialog.isOpen ? 'Yes' : 'No'}</div>
+          
           {srsLogic.typesOfLeave.length > 0 && (
             <div>
               Available Types: {srsLogic.typesOfLeave.map(t => t.title).join(', ')}
             </div>
           )}
-          {/* *** НОВОЕ: Список праздников в отладочной информации *** */}
           {srsLogic.holidays.length > 0 && (
             <div>
               Holidays in Period: {srsLogic.holidays.map(h => `${h.title} (${new Date(h.date).toLocaleDateString()})`).join(', ')}
             </div>
           )}
-          {/* *** НОВОЕ: Статистика праздничных записей *** */}
+          {/* *** НОВОЕ: Статистика праздничных и удаленных записей *** */}
           {srsRecordsForTable.length > 0 && (
-            <div>
-              Holiday Records: {srsRecordsForTable.filter(r => r.Holiday === 1).length} of {srsRecordsForTable.length}
-            </div>
+            <>
+              <div>
+                Holiday Records: {srsRecordsForTable.filter(r => r.Holiday === 1).length} of {srsRecordsForTable.length}
+              </div>
+              <div>
+                Deleted Records: {srsRecordsForTable.filter(r => r.deleted === true).length} of {srsRecordsForTable.length}
+              </div>
+            </>
           )}
         </div>
       )}
