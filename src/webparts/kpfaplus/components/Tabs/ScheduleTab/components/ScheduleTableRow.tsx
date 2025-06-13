@@ -4,8 +4,6 @@ import {
   Dropdown, 
   IconButton, 
   PrimaryButton, 
-  Text, 
-  TooltipHost,
   IDropdownStyles
 } from '@fluentui/react';
 import styles from '../ScheduleTab.module.scss';
@@ -20,7 +18,7 @@ export interface IScheduleTableRowProps {
   totalRowsInDate: number; // Общее количество строк в дате (включая удаленные)
   options: IScheduleOptions;
   displayWorkTime: string;
-  isTimesEqual: boolean;
+  isTimesEqual: boolean; // Keep this prop to avoid breaking interface, but won't use it
   showDeleteConfirmDialog: (id: string) => void;
   showAddShiftConfirmDialog: (item: IScheduleItem) => void; // Changed to pass the entire item
   showRestoreConfirmDialog: (id: string) => void;
@@ -39,7 +37,7 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
     totalRowsInDate,
     options, 
     displayWorkTime, 
-    isTimesEqual,
+    // isTimesEqual, // Removed - no longer using this
     showDeleteConfirmDialog,
     showAddShiftConfirmDialog,
     showRestoreConfirmDialog,
@@ -73,9 +71,8 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
   if (isDeleted) {
     backgroundColor = '#f5f5f5';
     rowClassName = styles.deletedRow;
-  } else if (isTimesEqual) {
-    backgroundColor = '#ffeded';
   }
+  // Removed isTimesEqual condition completely
 
   // Стили для dropdown при удаленных записях
   const getDropdownStyles = (isError = false): Partial<IDropdownStyles> => ({
@@ -257,19 +254,12 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
         textAlign: 'center',
         fontWeight: 'bold',
         whiteSpace: 'nowrap',
-        color: isTimesEqual ? '#a4262c' : (displayWorkTime === '0.00' ? '#666' : 'inherit'),
+        color: displayWorkTime === '0.00' ? '#666' : 'inherit', // Removed isTimesEqual condition
         ...getHolidayCellStyle(true) // Применяем розовый фон для праздничных дней
       }}
       className={isDeleted ? styles.deletedText : ''}>
-        {isTimesEqual ? (
-          <TooltipHost content="Start and end times are the same. Please adjust the times.">
-            <Text style={{ color: '#a4262c', fontWeight: 'bold' }} className={isDeleted ? styles.deletedText : ''}>
-              {displayWorkTime}
-            </Text>
-          </TooltipHost>
-        ) : (
-          <span className={isDeleted ? styles.deletedText : ''}>{displayWorkTime}</span>
-        )}
+        {/* Removed isTimesEqual tooltip logic */}
+        <span className={isDeleted ? styles.deletedText : ''}>{displayWorkTime}</span>
         {isDeleted && (
           <div style={{ 
             fontSize: '10px', 
@@ -289,14 +279,14 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
             selectedKey={item.startHour}
             options={options.hours}
             onChange={(_, option): void => option && onItemChange(item, 'startHour', option.key as string)}
-            styles={getDropdownStyles(isTimesEqual)}
+            styles={getDropdownStyles()} // Removed isTimesEqual parameter
             disabled={isDeleted}
           />
           <Dropdown
             selectedKey={item.startMinute}
             options={options.minutes}
             onChange={(_, option): void => option && onItemChange(item, 'startMinute', option.key as string)}
-            styles={getDropdownStyles(isTimesEqual)}
+            styles={getDropdownStyles()} // Removed isTimesEqual parameter
             disabled={isDeleted}
           />
         </div>
@@ -309,14 +299,14 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
             selectedKey={item.finishHour}
             options={options.hours}
             onChange={(_, option): void => option && onItemChange(item, 'finishHour', option.key as string)}
-            styles={getDropdownStyles(isTimesEqual)}
+            styles={getDropdownStyles()} // Removed isTimesEqual parameter
             disabled={isDeleted}
           />
           <Dropdown
             selectedKey={item.finishMinute}
             options={options.minutes}
             onChange={(_, option): void => option && onItemChange(item, 'finishMinute', option.key as string)}
-            styles={getDropdownStyles(isTimesEqual)}
+            styles={getDropdownStyles()} // Removed isTimesEqual parameter
             disabled={isDeleted}
           />
         </div>

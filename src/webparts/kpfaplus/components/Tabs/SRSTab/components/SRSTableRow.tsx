@@ -98,17 +98,15 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
 
   // Стили строки с учетом праздников, ошибок и удаления
   const rowStyle: React.CSSProperties = {
-    backgroundColor: item.deleted 
-      ? '#f5f5f5' 
-      : isHoliday 
-        ? '#ffe6f0' // Розовый фон для всей строки праздника
-        : isTimesEqual 
-          ? '#ffeded' // Красноватый для ошибок времени
-          : isEven 
-            ? '#ffffff' 
-            : '#f9f9f9',
-    opacity: item.deleted ? 0.6 : 1,
-  };
+  backgroundColor: item.deleted 
+    ? '#f5f5f5' 
+    : isHoliday 
+      ? '#ffe6f0' // Pink for holidays
+      : isEven 
+        ? '#ffffff' 
+        : '#f9f9f9', // Remove the isTimesEqual condition completely
+  opacity: item.deleted ? 0.6 : 1,
+};
 
   // Форматирование даты для отображения
   const formatDate = (date: Date): string => {
