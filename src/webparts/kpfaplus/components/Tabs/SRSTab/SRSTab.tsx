@@ -20,13 +20,14 @@ import { ConfirmDialog } from '../../ConfirmDialog/ConfirmDialog';
 export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
   const { selectedStaff } = props;
   
-  console.log('[SRSTab] Rendering with props:', {
+  console.log('[SRSTab] Rendering with props and REAL delete/restore services:', {
     hasSelectedStaff: !!selectedStaff,
     selectedStaffId: selectedStaff?.id,
-    selectedStaffName: selectedStaff?.name
+    selectedStaffName: selectedStaff?.name,
+    realDeleteRestoreEnabled: true
   });
   
-  // Используем главный хук логики (как в ScheduleTab) с поддержкой праздников
+  // Используем главный хук логики с поддержкой праздников и РЕАЛЬНЫМИ сервисами
   const srsLogic = useSRSTabLogic(props);
 
   // *** НОВОЕ: Состояние для диалогов подтверждения ***
@@ -46,7 +47,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     message: ''
   });
 
-  console.log('[SRSTab] SRS Logic state with types of leave, holidays, and delete/restore support:', {
+  console.log('[SRSTab] SRS Logic state with types of leave, holidays, and REAL delete/restore support:', {
     recordsCount: srsLogic.srsRecords.length,
     totalHours: srsLogic.totalHours,
     fromDate: srsLogic.fromDate.toLocaleDateString(),
@@ -62,7 +63,8 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     isLoadingHolidays: srsLogic.isLoadingHolidays,
     // *** НОВОЕ: Информация о функциях удаления ***
     hasDeleteSupport: true,
-    hasRestoreSupport: true
+    hasRestoreSupport: true,
+    realDeleteRestoreIntegration: 'StaffRecordsService'
   });
 
   // *** НОВОЕ: Обработчик показа диалога удаления ***
@@ -78,7 +80,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       recordId,
       recordDate,
       title: 'Confirm Deletion',
-      message: `Are you sure you want to delete the SRS record for ${selectedStaff?.name} on ${recordDate}? The record will be marked as deleted but can be restored later.`
+      message: `Are you sure you want to delete the SRS record for ${selectedStaff?.name} on ${recordDate}? The record will be marked as deleted but can be restored later using the StaffRecordsService.`
     });
   }, [srsLogic.srsRecords, selectedStaff?.name]);
 
@@ -95,14 +97,15 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       recordId,
       recordDate,
       title: 'Confirm Restore',
-      message: `Are you sure you want to restore the deleted SRS record for ${selectedStaff?.name} on ${recordDate}?`
+      message: `Are you sure you want to restore the deleted SRS record for ${selectedStaff?.name} on ${recordDate}? This will call StaffRecordsService.restoreDeletedRecord.`
     });
   }, [srsLogic.srsRecords, selectedStaff?.name]);
 
   // *** НОВОЕ: Обработчик подтверждения удаления ***
   const handleDeleteConfirm = useCallback(async (): Promise<void> => {
     const { recordId } = deleteConfirmDialog;
-    console.log('[SRSTab] handleDeleteConfirm called for record:', recordId);
+    console.log('[SRSTab] handleDeleteConfirm called - delegating to REAL srsLogic.onDeleteRecord');
+    console.log('[SRSTab] Record ID to delete:', recordId);
     
     if (!recordId) {
       console.error('[SRSTab] No record ID for deletion');
@@ -111,37 +114,43 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     }
 
     try {
-      // TODO: Implement actual delete logic through StaffRecordsService
-      // For now, we'll simulate the deletion
-      console.log('[SRSTab] Simulating deletion of record:', recordId);
+      console.log('[SRSTab] Calling REAL srsLogic.onDeleteRecord (StaffRecordsService.markRecordAsDeleted)');
       
-      // Simulate async operation
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // TODO: Call actual delete service
-      // const success = await deleteStaffRecord(recordId);
-      const success = true; // Simulated success
+      // *** КЛЮЧЕВОЙ ВЫЗОВ: Используем РЕАЛЬНЫЙ обработчик из useSRSTabLogic ***
+      const success = await srsLogic.onDeleteRecord(recordId);
       
       if (success) {
-        console.log('[SRSTab] Record deleted successfully:', recordId);
-        // Refresh data to show updated state
-        srsLogic.onRefreshData();
+        console.log('[SRSTab] REAL deletion successful via StaffRecordsService.markRecordAsDeleted');
+        
+        // Показываем уведомление об успехе
+        console.log('[SRSTab] Record successfully marked as deleted on server');
+        
+        // Данные автоматически обновятся через refreshSRSData в useSRSTabLogic
+        
       } else {
-        console.error('[SRSTab] Failed to delete record:', recordId);
+        console.error('[SRSTab] REAL deletion failed - StaffRecordsService returned false');
+        
+        // Показываем ошибку пользователю (можно добавить toast notification)
+        alert('Failed to delete record. Please try again.');
       }
       
     } catch (error) {
-      console.error('[SRSTab] Error deleting record:', error);
+      console.error('[SRSTab] Error during REAL deletion operation:', error);
+      
+      // Показываем ошибку пользователю
+      alert(`Error deleting record: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
     } finally {
-      // Close dialog
+      // Закрываем диалог
       setDeleteConfirmDialog(prev => ({ ...prev, isOpen: false }));
     }
-  }, [deleteConfirmDialog.recordId, srsLogic.onRefreshData]);
+  }, [deleteConfirmDialog.recordId, srsLogic.onDeleteRecord]);
 
   // *** НОВОЕ: Обработчик подтверждения восстановления ***
   const handleRestoreConfirm = useCallback(async (): Promise<void> => {
     const { recordId } = restoreConfirmDialog;
-    console.log('[SRSTab] handleRestoreConfirm called for record:', recordId);
+    console.log('[SRSTab] handleRestoreConfirm called - delegating to REAL srsLogic.onRestoreRecord');
+    console.log('[SRSTab] Record ID to restore:', recordId);
     
     if (!recordId) {
       console.error('[SRSTab] No record ID for restore');
@@ -150,32 +159,37 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     }
 
     try {
-      // TODO: Implement actual restore logic through StaffRecordsService
-      // For now, we'll simulate the restoration
-      console.log('[SRSTab] Simulating restoration of record:', recordId);
+      console.log('[SRSTab] Calling REAL srsLogic.onRestoreRecord (StaffRecordsService.restoreDeletedRecord)');
       
-      // Simulate async operation
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // TODO: Call actual restore service
-      // const success = await restoreStaffRecord(recordId);
-      const success = true; // Simulated success
+      // *** КЛЮЧЕВОЙ ВЫЗОВ: Используем РЕАЛЬНЫЙ обработчик из useSRSTabLogic ***
+      const success = await srsLogic.onRestoreRecord(recordId);
       
       if (success) {
-        console.log('[SRSTab] Record restored successfully:', recordId);
-        // Refresh data to show updated state
-        srsLogic.onRefreshData();
+        console.log('[SRSTab] REAL restoration successful via StaffRecordsService.restoreDeletedRecord');
+        
+        // Показываем уведомление об успехе
+        console.log('[SRSTab] Record successfully restored on server');
+        
+        // Данные автоматически обновятся через refreshSRSData в useSRSTabLogic
+        
       } else {
-        console.error('[SRSTab] Failed to restore record:', recordId);
+        console.error('[SRSTab] REAL restoration failed - StaffRecordsService returned false');
+        
+        // Показываем ошибку пользователю (можно добавить toast notification)
+        alert('Failed to restore record. Please try again.');
       }
       
     } catch (error) {
-      console.error('[SRSTab] Error restoring record:', error);
+      console.error('[SRSTab] Error during REAL restoration operation:', error);
+      
+      // Показываем ошибку пользователю
+      alert(`Error restoring record: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
     } finally {
-      // Close dialog
+      // Закрываем диалог
       setRestoreConfirmDialog(prev => ({ ...prev, isOpen: false }));
     }
-  }, [restoreConfirmDialog.recordId, srsLogic.onRefreshData]);
+  }, [restoreConfirmDialog.recordId, srsLogic.onRestoreRecord]);
 
   // *** НОВОЕ: Обработчики закрытия диалогов ***
   const handleDeleteCancel = useCallback((): void => {
@@ -411,7 +425,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
           color: '#0078d4',
           marginLeft: '10px'
         }}>
-          (Delete/Restore enabled)
+          (Delete/Restore via StaffRecordsService)
         </span>
       </div>
       

@@ -9,11 +9,11 @@ import { useHolidays } from './useHolidays';
 import { SRSDateUtils } from './SRSDateUtils';
 import { ISRSRecord } from './SRSTabInterfaces';
 import { calculateSRSWorkTime } from './SRSTimeCalculationUtils';
-import { StaffRecordsService } from '../../../../services/StaffRecordsService';
+import { StaffRecordsService } from '../../../../services/StaffRecordsService'; // *** КЛЮЧЕВОЙ ИМПОРТ ***
 
 /**
  * Интерфейс для возвращаемых значений главного хука useSRSTabLogic
- * ОБНОВЛЕНО: Добавлены праздники и delete/restore функциональность (как в Schedule Tab)
+ * ОБНОВЛЕНО: Добавлены праздники и РЕАЛЬНЫЙ delete/restore функциональность
  */
 export interface UseSRSTabLogicReturn extends ISRSTabState {
   // Обработчики дат
@@ -41,7 +41,7 @@ export interface UseSRSTabLogicReturn extends ISRSTabState {
   onContractNumberChange: (item: ISRSRecord, value: string) => void;
   onTypeOfLeaveChange: (item: ISRSRecord, value: string) => void;
   
-  // *** ИСПРАВЛЕНО: Обработчики удаления/восстановления как в Schedule Tab ***
+  // *** РЕАЛЬНЫЕ ОБРАБОТЧИКИ: Удаление/восстановление через StaffRecordsService ***
   onDeleteRecord: (recordId: string) => Promise<boolean>;
   onRestoreRecord: (recordId: string) => Promise<boolean>;
   
@@ -62,19 +62,19 @@ export interface UseSRSTabLogicReturn extends ISRSTabState {
 
 /**
  * Главный оркестрирующий хук для SRS Tab
- * ОБНОВЛЕНО: Добавлена интеграция праздников и delete/restore функциональности
+ * ОБНОВЛЕНО: Интегрированы РЕАЛЬНЫЕ операции удаления/восстановления через StaffRecordsService
  */
 export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   const { selectedStaff, context, currentUserId, managingGroupId } = props;
 
-  console.log('[useSRSTabLogic] Orchestrator hook initialized with holidays, types of leave, and delete/restore support:', {
+  console.log('[useSRSTabLogic] Orchestrator hook initialized with REAL delete/restore services:', {
     hasSelectedStaff: !!selectedStaff,
     selectedStaffId: selectedStaff?.id,
     selectedStaffEmployeeId: selectedStaff?.employeeId,
     hasContext: !!context,
     currentUserId,
     managingGroupId,
-    deleteRestoreEnabled: true
+    realDeleteRestoreEnabled: true
   });
 
   // Инициализируем состояние SRS Tab
@@ -83,7 +83,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   // Локальное состояние для отслеживания изменений в таблице
   const [modifiedRecords, setModifiedRecords] = useState<Map<string, Partial<ISRSRecord>>>(new Map());
 
-  // *** НОВОЕ: Локальное состояние для операций удаления/восстановления ***
+  // *** РЕАЛЬНОЕ СОСТОЯНИЕ: Локальное состояние для операций удаления/восстановления ***
   const [deleteOperations, setDeleteOperations] = useState<Map<string, boolean>>(new Map()); // recordId -> isDeleting
   const [restoreOperations, setRestoreOperations] = useState<Map<string, boolean>>(new Map()); // recordId -> isRestoring
 
@@ -113,14 +113,15 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   });
 
   // ===============================================
-  // *** НОВОЕ: ОБРАБОТЧИКИ УДАЛЕНИЯ/ВОССТАНОВЛЕНИЯ ***
+  // *** РЕАЛЬНЫЕ ОБРАБОТЧИКИ: УДАЛЕНИЕ/ВОССТАНОВЛЕНИЕ ЧЕРЕЗ STAFFRECORDSSERVICE ***
   // ===============================================
 
   /**
-   * *** НОВАЯ ФУНКЦИЯ: Удаление записи SRS (как в Schedule Tab) ***
+   * *** РЕАЛЬНАЯ ФУНКЦИЯ: Удаление записи SRS через StaffRecordsService ***
+   * Использует метод markRecordAsDeleted из StaffRecordsService
    */
   const handleDeleteRecord = useCallback(async (recordId: string): Promise<boolean> => {
-    console.log('[useSRSTabLogic] *** DELETE RECORD OPERATION STARTED ***');
+    console.log('[useSRSTabLogic] *** REAL DELETE RECORD OPERATION STARTED ***');
     console.log('[useSRSTabLogic] Record ID to delete:', recordId);
     
     // Проверяем базовые требования
@@ -139,17 +140,19 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       // Отмечаем начало операции удаления
       setDeleteOperations(prev => new Map(prev.set(recordId, true)));
       
-      console.log('[useSRSTabLogic] Starting delete operation for record:', recordId);
+      console.log('[useSRSTabLogic] Starting REAL delete operation using StaffRecordsService...');
       
-      // Получаем экземпляр сервиса записей сотрудников
+      // *** КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Используем РЕАЛЬНЫЙ StaffRecordsService ***
       const staffRecordsService = StaffRecordsService.getInstance(context);
       
-      // *** ИСПРАВЛЕНО: Используем метод markRecordAsDeleted как в Schedule Tab ***
+      console.log('[useSRSTabLogic] Calling staffRecordsService.markRecordAsDeleted()...');
+      
+      // *** РЕАЛЬНЫЙ ВЫЗОВ: markRecordAsDeleted (soft delete) ***
       const success = await staffRecordsService.markRecordAsDeleted(recordId);
       
       if (success) {
-        console.log('[useSRSTabLogic] *** DELETE OPERATION SUCCESSFUL ***');
-        console.log('[useSRSTabLogic] Record marked as deleted:', recordId);
+        console.log('[useSRSTabLogic] *** REAL DELETE OPERATION SUCCESSFUL ***');
+        console.log('[useSRSTabLogic] Record marked as deleted on server:', recordId);
         
         // Удаляем запись из локальных изменений, если она там была
         setModifiedRecords(prev => {
@@ -158,20 +161,26 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
           return newMap;
         });
         
-        // Автоматически обновляем данные, чтобы показать изменения
+        // Автоматически обновляем данные, чтобы показать изменения с сервера
+        console.log('[useSRSTabLogic] Auto-refreshing data to reflect server changes...');
         setTimeout(() => {
-          console.log('[useSRSTabLogic] Auto-refreshing data after successful delete');
           void refreshSRSData();
-        }, 100);
+        }, 500); // Небольшая задержка для гарантии обновления на сервере
         
         return true;
       } else {
-        console.error('[useSRSTabLogic] Delete operation failed');
+        console.error('[useSRSTabLogic] REAL delete operation failed - server returned false');
         return false;
       }
       
     } catch (error) {
-      console.error('[useSRSTabLogic] Error during delete operation:', error);
+      console.error('[useSRSTabLogic] Error during REAL delete operation:', error);
+      
+      // Показываем ошибку пользователю через состояние
+      SRSTabStateHelpers.setErrorSRS(setState, 
+        `Failed to delete record: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+      
       return false;
       
     } finally {
@@ -182,13 +191,14 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
         return newMap;
       });
     }
-  }, [context, refreshSRSData, deleteOperations]);
+  }, [context, refreshSRSData, deleteOperations, setState]);
 
   /**
-   * *** НОВАЯ ФУНКЦИЯ: Восстановление записи SRS (как в Schedule Tab) ***
+   * *** РЕАЛЬНАЯ ФУНКЦИЯ: Восстановление записи SRS через StaffRecordsService ***
+   * Использует метод restoreDeletedRecord из StaffRecordsService
    */
   const handleRestoreRecord = useCallback(async (recordId: string): Promise<boolean> => {
-    console.log('[useSRSTabLogic] *** RESTORE RECORD OPERATION STARTED ***');
+    console.log('[useSRSTabLogic] *** REAL RESTORE RECORD OPERATION STARTED ***');
     console.log('[useSRSTabLogic] Record ID to restore:', recordId);
     
     // Проверяем базовые требования
@@ -207,32 +217,40 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       // Отмечаем начало операции восстановления
       setRestoreOperations(prev => new Map(prev.set(recordId, true)));
       
-      console.log('[useSRSTabLogic] Starting restore operation for record:', recordId);
+      console.log('[useSRSTabLogic] Starting REAL restore operation using StaffRecordsService...');
       
-      // Получаем экземпляр сервиса записей сотрудников
+      // *** КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Используем РЕАЛЬНЫЙ StaffRecordsService ***
       const staffRecordsService = StaffRecordsService.getInstance(context);
       
-      // *** ИСПРАВЛЕНО: Используем метод restoreDeletedRecord как в Schedule Tab ***
+      console.log('[useSRSTabLogic] Calling staffRecordsService.restoreDeletedRecord()...');
+      
+      // *** РЕАЛЬНЫЙ ВЫЗОВ: restoreDeletedRecord ***
       const success = await staffRecordsService.restoreDeletedRecord(recordId);
       
       if (success) {
-        console.log('[useSRSTabLogic] *** RESTORE OPERATION SUCCESSFUL ***');
-        console.log('[useSRSTabLogic] Record restored:', recordId);
+        console.log('[useSRSTabLogic] *** REAL RESTORE OPERATION SUCCESSFUL ***');
+        console.log('[useSRSTabLogic] Record restored on server:', recordId);
         
-        // Автоматически обновляем данные, чтобы показать изменения
+        // Автоматически обновляем данные, чтобы показать изменения с сервера
+        console.log('[useSRSTabLogic] Auto-refreshing data to reflect server changes...');
         setTimeout(() => {
-          console.log('[useSRSTabLogic] Auto-refreshing data after successful restore');
           void refreshSRSData();
-        }, 100);
+        }, 500); // Небольшая задержка для гарантии обновления на сервере
         
         return true;
       } else {
-        console.error('[useSRSTabLogic] Restore operation failed');
+        console.error('[useSRSTabLogic] REAL restore operation failed - server returned false');
         return false;
       }
       
     } catch (error) {
-      console.error('[useSRSTabLogic] Error during restore operation:', error);
+      console.error('[useSRSTabLogic] Error during REAL restore operation:', error);
+      
+      // Показываем ошибку пользователю через состояние
+      SRSTabStateHelpers.setErrorSRS(setState, 
+        `Failed to restore record: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+      
       return false;
       
     } finally {
@@ -243,7 +261,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
         return newMap;
       });
     }
-  }, [context, refreshSRSData, restoreOperations]);
+  }, [context, refreshSRSData, restoreOperations, setState]);
 
   // ===============================================
   // ОБРАБОТЧИКИ ИЗМЕНЕНИЯ ДАТ
@@ -503,16 +521,16 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
 
   /**
    * Обработчик принудительного обновления данных
-   * ОБНОВЛЕНО: Включает обновление типов отпусков и праздников
+   * ОБНОВЛЕНО: Включает очистку операций удаления/восстановления
    */
   const handleRefreshData = useCallback((): void => {
-    console.log('[useSRSTabLogic] Manual refresh requested (including types of leave, holidays, and clearing operations)');
+    console.log('[useSRSTabLogic] Manual refresh requested (including clearing REAL operations state)');
     
     // Очищаем локальные изменения при обновлении
     setModifiedRecords(new Map());
     SRSTabStateHelpers.setHasUnsavedChanges(setState, false);
     
-    // *** НОВОЕ: Очищаем состояния операций удаления/восстановления ***
+    // *** ОБНОВЛЕНО: Очищаем состояния РЕАЛЬНЫХ операций удаления/восстановления ***
     setDeleteOperations(new Map());
     setRestoreOperations(new Map());
     
@@ -688,7 +706,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   }, [state.selectedItems.size]);
 
   /**
-   * *** НОВОЕ: Проверяет, выполняются ли операции удаления/восстановления ***
+   * *** РЕАЛЬНОЕ СОСТОЯНИЕ: Проверяет, выполняются ли операции удаления/восстановления ***
    */
   const hasOngoingOperations = useMemo((): boolean => {
     return deleteOperations.size > 0 || restoreOperations.size > 0;
@@ -727,7 +745,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     onContractNumberChange: handleContractNumberChange,
     onTypeOfLeaveChange: handleTypeOfLeaveChange,
     
-    // *** ИСПРАВЛЕНО: Обработчики удаления/восстановления как в Schedule Tab ***
+    // *** РЕАЛЬНЫЕ ОБРАБОТЧИКИ: Удаление/восстановление через StaffRecordsService ***
     onDeleteRecord: handleDeleteRecord,
     onRestoreRecord: handleRestoreRecord,
     
@@ -755,8 +773,8 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     handleLunchTimeChange,
     handleContractNumberChange,
     handleTypeOfLeaveChange,
-    handleDeleteRecord, // *** НОВОЕ ***
-    handleRestoreRecord, // *** НОВОЕ ***
+    handleDeleteRecord, // *** РЕАЛЬНЫЙ ОБРАБОТЧИК ***
+    handleRestoreRecord, // *** РЕАЛЬНЫЙ ОБРАБОТЧИК ***
     hasCheckedItems,
     selectedItemsCount,
     loadSRSData,
@@ -765,7 +783,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     loadHolidays
   ]);
 
-  console.log('[useSRSTabLogic] Hook return object prepared with computed values, types of leave, holidays, and delete/restore support:', {
+  console.log('[useSRSTabLogic] Hook return object prepared with REAL delete/restore services:', {
     recordsCount: state.srsRecords.length,
     totalHours: state.totalHours,
     hasCheckedItems,
@@ -778,11 +796,11 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     isLoadingTypesOfLeave: state.isLoadingTypesOfLeave,
     holidaysCount: state.holidays.length,
     isLoadingHolidays: state.isLoadingHolidays,
-    // *** НОВОЕ: Информация об операциях удаления/восстановления ***
+    // *** РЕАЛЬНАЯ ИНФОРМАЦИЯ: Операции удаления/восстановления через StaffRecordsService ***
     deleteOperationsCount: deleteOperations.size,
     restoreOperationsCount: restoreOperations.size,
     hasOngoingOperations,
-    deleteRestoreSupport: 'Enabled'
+    realDeleteRestoreIntegration: 'StaffRecordsService.markRecordAsDeleted & restoreDeletedRecord'
   });
 
   return hookReturn;
