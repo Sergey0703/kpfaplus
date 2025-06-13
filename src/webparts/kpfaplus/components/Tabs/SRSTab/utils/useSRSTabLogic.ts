@@ -13,7 +13,7 @@ import { StaffRecordsService } from '../../../../services/StaffRecordsService'; 
 
 /**
  * Интерфейс для возвращаемых значений главного хука useSRSTabLogic
- * ОБНОВЛЕНО: Добавлены праздники и РЕАЛЬНЫЙ delete/restore функциональность
+ * ОБНОВЛЕНО: Добавлены праздники, showDeleted и РЕАЛЬНЫЙ delete/restore функциональность
  */
 export interface UseSRSTabLogicReturn extends ISRSTabState {
   // Обработчики дат
@@ -45,6 +45,9 @@ export interface UseSRSTabLogicReturn extends ISRSTabState {
   onDeleteRecord: (recordId: string) => Promise<boolean>;
   onRestoreRecord: (recordId: string) => Promise<boolean>;
   
+  // *** НОВОЕ: Обработчик переключения отображения удаленных записей ***
+  onToggleShowDeleted: (checked: boolean) => void;
+  
   // Вычисляемые значения
   hasCheckedItems: boolean;
   selectedItemsCount: number;
@@ -62,19 +65,20 @@ export interface UseSRSTabLogicReturn extends ISRSTabState {
 
 /**
  * Главный оркестрирующий хук для SRS Tab
- * ОБНОВЛЕНО: Интегрированы РЕАЛЬНЫЕ операции удаления/восстановления через StaffRecordsService
+ * ОБНОВЛЕНО: Интегрированы РЕАЛЬНЫЕ операции удаления/восстановления через StaffRecordsService и showDeleted
  */
 export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   const { selectedStaff, context, currentUserId, managingGroupId } = props;
 
-  console.log('[useSRSTabLogic] Orchestrator hook initialized with REAL delete/restore services:', {
+  console.log('[useSRSTabLogic] Orchestrator hook initialized with REAL delete/restore services and showDeleted support:', {
     hasSelectedStaff: !!selectedStaff,
     selectedStaffId: selectedStaff?.id,
     selectedStaffEmployeeId: selectedStaff?.employeeId,
     hasContext: !!context,
     currentUserId,
     managingGroupId,
-    realDeleteRestoreEnabled: true
+    realDeleteRestoreEnabled: true,
+    showDeletedSupport: true
   });
 
   // Инициализируем состояние SRS Tab
@@ -101,7 +105,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     setState
   });
 
-  // Инициализируем хук загрузки SRS данных
+  // Инициализируем хук загрузки SRS данных с поддержкой showDeleted
   const { loadSRSData, refreshSRSData, isDataValid } = useSRSData({
     context,
     selectedStaff,
@@ -109,6 +113,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     managingGroupId,
     fromDate: state.fromDate,
     toDate: state.toDate,
+    showDeleted: state.showDeleted, // *** НОВОЕ: Передаем флаг showDeleted ***
     setState
   });
 
@@ -346,6 +351,31 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   }, [state.fromDate, setState, loadHolidays]);
 
   // ===============================================
+  // *** НОВЫЙ ОБРАБОТЧИК: ПЕРЕКЛЮЧЕНИЕ ОТОБРАЖЕНИЯ УДАЛЕННЫХ ЗАПИСЕЙ ***
+  // ===============================================
+
+  /**
+   * *** НОВАЯ ФУНКЦИЯ: Обработчик переключения отображения удаленных записей ***
+   * Аналогично Schedule Tab
+   */
+  const handleToggleShowDeleted = useCallback((checked: boolean): void => {
+    console.log('[useSRSTabLogic] handleToggleShowDeleted called with:', checked);
+    console.log('[useSRSTabLogic] Previous showDeleted state:', state.showDeleted);
+    
+    // Обновляем состояние showDeleted
+    SRSTabStateHelpers.setShowDeleted(setState, checked);
+    
+    // Очищаем локальные изменения при изменении фильтра
+    setModifiedRecords(new Map());
+    SRSTabStateHelpers.setHasUnsavedChanges(setState, false);
+    
+    console.log('[useSRSTabLogic] showDeleted updated, data will be reloaded via useSRSData effect');
+    
+    // Данные будут автоматически перезагружены через эффект в useSRSData,
+    // который следит за изменением state.showDeleted
+  }, [state.showDeleted, setState]);
+
+  // ===============================================
   // ОБРАБОТЧИКИ ИЗМЕНЕНИЯ ЭЛЕМЕНТОВ ТАБЛИЦЫ
   // ===============================================
 
@@ -552,23 +582,26 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     console.log('[useSRSTabLogic] Current SRS records count:', state.srsRecords.length);
     console.log('[useSRSTabLogic] Types of leave available:', state.typesOfLeave.length);
     console.log('[useSRSTabLogic] Holidays available:', state.holidays.length);
+    console.log('[useSRSTabLogic] Show deleted enabled:', state.showDeleted); // *** НОВОЕ ***
     
     if (state.srsRecords.length === 0) {
       console.warn('[useSRSTabLogic] No SRS records to export');
       return;
     }
 
-    console.log('[useSRSTabLogic] Exporting SRS records with types of leave and holidays:', {
+    console.log('[useSRSTabLogic] Exporting SRS records with types of leave, holidays and delete status filter:', {
       recordsCount: state.srsRecords.length,
       totalHours: state.totalHours,
       dateRange: `${SRSDateUtils.formatDateForDisplay(state.fromDate)} - ${SRSDateUtils.formatDateForDisplay(state.toDate)}`,
       typesOfLeaveCount: state.typesOfLeave.length,
-      holidaysCount: state.holidays.length
+      holidaysCount: state.holidays.length,
+      showDeleted: state.showDeleted,
+      deletedRecordsCount: state.srsRecords.filter(r => r.Deleted === 1).length
     });
 
-    // TODO: Реализовать экспорт SRS данных с типами отпусков и праздниками
-    alert(`Export functionality will be implemented. Records to export: ${state.srsRecords.length}, Types of leave: ${state.typesOfLeave.length}, Holidays: ${state.holidays.length}`);
-  }, [state.srsRecords, state.totalHours, state.fromDate, state.toDate, state.typesOfLeave, state.holidays]);
+    // TODO: Реализовать экспорт SRS данных с типами отпусков, праздниками и учетом фильтра удаленных
+    alert(`Export functionality will be implemented. Records to export: ${state.srsRecords.length}, Types of leave: ${state.typesOfLeave.length}, Holidays: ${state.holidays.length}, Show deleted: ${state.showDeleted}`);
+  }, [state.srsRecords, state.totalHours, state.fromDate, state.toDate, state.typesOfLeave, state.holidays, state.showDeleted]);
 
   /**
    * Обработчик сохранения всех изменений
@@ -749,6 +782,9 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     onDeleteRecord: handleDeleteRecord,
     onRestoreRecord: handleRestoreRecord,
     
+    // *** НОВОЕ: Обработчик переключения отображения удаленных записей ***
+    onToggleShowDeleted: handleToggleShowDeleted,
+    
     // Вычисляемые значения
     hasCheckedItems,
     selectedItemsCount,
@@ -775,6 +811,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     handleTypeOfLeaveChange,
     handleDeleteRecord, // *** РЕАЛЬНЫЙ ОБРАБОТЧИК ***
     handleRestoreRecord, // *** РЕАЛЬНЫЙ ОБРАБОТЧИК ***
+    handleToggleShowDeleted, // *** НОВЫЙ ОБРАБОТЧИК ***
     hasCheckedItems,
     selectedItemsCount,
     loadSRSData,
@@ -783,7 +820,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     loadHolidays
   ]);
 
-  console.log('[useSRSTabLogic] Hook return object prepared with REAL delete/restore services:', {
+  console.log('[useSRSTabLogic] Hook return object prepared with REAL delete/restore services and showDeleted support:', {
     recordsCount: state.srsRecords.length,
     totalHours: state.totalHours,
     hasCheckedItems,
@@ -800,7 +837,10 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     deleteOperationsCount: deleteOperations.size,
     restoreOperationsCount: restoreOperations.size,
     hasOngoingOperations,
-    realDeleteRestoreIntegration: 'StaffRecordsService.markRecordAsDeleted & restoreDeletedRecord'
+    realDeleteRestoreIntegration: 'StaffRecordsService.markRecordAsDeleted & restoreDeletedRecord',
+    // *** НОВАЯ ИНФОРМАЦИЯ: Поддержка showDeleted ***
+    showDeleted: state.showDeleted,
+    showDeletedSupport: true
   });
 
   return hookReturn;

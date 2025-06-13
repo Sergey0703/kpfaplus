@@ -66,7 +66,7 @@ export interface ISRSFilterControlsProps {
 
 /**
  * Пропсы для компонента SRSTable
- * ОБНОВЛЕНО: Добавлены типы отпусков и delete/restore функционал
+ * ОБНОВЛЕНО: Добавлены типы отпусков, delete/restore функционал и showDeleted
  */
 export interface ISRSTableProps {
   items: ISRSRecord[];
@@ -82,6 +82,9 @@ export interface ISRSTableProps {
   showRestoreConfirmDialog?: (id: string) => void;
   onDeleteItem?: (id: string) => Promise<boolean>;
   onRestoreItem?: (id: string) => Promise<boolean>;
+  // *** НОВОЕ: Поддержка showDeleted ***
+  showDeleted?: boolean; // Флаг отображения удаленных записей
+  onToggleShowDeleted?: (checked: boolean) => void; // Обработчик переключения флага
 }
 
 /**
@@ -104,7 +107,7 @@ export interface ISRSTableRowProps {
 
 /**
  * Состояние SRS вкладки (для будущего использования)
- * ОБНОВЛЕНО: Добавлены типы отпусков
+ * ОБНОВЛЕНО: Добавлены типы отпусков и showDeleted
  */
 export interface ISRSTabState {
   fromDate: Date;
@@ -118,6 +121,8 @@ export interface ISRSTabState {
   // *** НОВОЕ: Типы отпусков ***
   typesOfLeave: Array<{ id: string; title: string; color?: string }>; // Упрощенный интерфейс типов отпусков
   isLoadingTypesOfLeave: boolean;
+  // *** НОВОЕ: Поддержка showDeleted ***
+  showDeleted: boolean; // Флаг отображения удаленных записей
 }
 
 /**
@@ -197,8 +202,34 @@ export interface ISRSDeleteRestoreParams {
 }
 
 /**
+ * *** НОВЫЕ ИНТЕРФЕЙСЫ ДЛЯ SHOWDELETED ФУНКЦИОНАЛА ***
+ */
+
+/**
+ * Статистика по удаленным записям
+ */
+export interface ISRSDeletedStatistics {
+  totalRecords: number;
+  activeRecords: number;
+  deletedRecords: number;
+  deletedPercentage: number;
+  showDeleted: boolean;
+}
+
+/**
+ * Параметры фильтрации записей
+ */
+export interface ISRSFilterParams {
+  fromDate: Date;
+  toDate: Date;
+  showDeleted: boolean;
+  staffId?: string;
+  typeOfLeave?: string;
+}
+
+/**
  * Расширенные пропсы для главного компонента SRS Tab
- * ОБНОВЛЕНО: Включает типы отпусков, праздники и delete/restore функционал
+ * ОБНОВЛЕНО: Включает типы отпусков, праздники, delete/restore функционал и showDeleted
  */
 export interface ISRSTabProps {
   // Основные пропсы
@@ -234,6 +265,9 @@ export interface ISRSTabProps {
   selectedItems: Set<string>;
   hasCheckedItems: boolean;
   
+  // *** НОВОЕ: Поддержка showDeleted ***
+  showDeleted: boolean; // Флаг отображения удаленных записей
+  
   // Обработчики
   onFromDateChange: (date: Date | undefined) => void;
   onToDateChange: (date: Date | undefined) => void;
@@ -252,6 +286,9 @@ export interface ISRSTabProps {
   // *** НОВОЕ: Обработчики delete/restore ***
   onDeleteRecord: (recordId: string) => Promise<ISRSDeleteResult>;
   onRestoreRecord: (recordId: string) => Promise<ISRSRestoreResult>;
+  
+  // *** НОВОЕ: Обработчик showDeleted ***
+  onToggleShowDeleted: (checked: boolean) => void;
 }
 
 /**
@@ -409,12 +446,7 @@ export class SRSTableOptionsHelper {
   /**
    * *** НОВОЕ: Получение статистики удаленных записей ***
    */
-  public static getDeletedRecordsStatistics(records: ISRSRecord[]): {
-    totalRecords: number;
-    activeRecords: number;
-    deletedRecords: number;
-    deletedPercentage: number;
-  } {
+  public static getDeletedRecordsStatistics(records: ISRSRecord[]): ISRSDeletedStatistics {
     const totalRecords = records.length;
     const deletedRecords = records.filter(r => r.deleted === true).length;
     const activeRecords = totalRecords - deletedRecords;
@@ -424,7 +456,58 @@ export class SRSTableOptionsHelper {
       totalRecords,
       activeRecords,
       deletedRecords,
-      deletedPercentage
+      deletedPercentage,
+      showDeleted: false // По умолчанию, будет установлено вызывающей стороной
     };
+  }
+
+  /**
+   * *** НОВОЕ: Фильтрация записей по статусу удаления ***
+   * Применяет клиентскую фильтрацию записей
+   */
+  public static filterRecordsByDeletedStatus(
+    records: ISRSRecord[], 
+    showDeleted: boolean
+  ): ISRSRecord[] {
+    if (showDeleted) {
+      // Показываем все записи
+      return records;
+    } else {
+      // Показываем только активные записи
+      return records.filter(record => record.deleted !== true);
+    }
+  }
+
+  /**
+   * *** НОВОЕ: Получение краткой статистики для UI ***
+   * Возвращает текст для отображения в интерфейсе
+   */
+  public static getRecordsDisplayText(
+    records: ISRSRecord[], 
+    showDeleted: boolean
+  ): {
+    mainText: string;
+    detailText: string;
+  } {
+    const stats = SRSTableOptionsHelper.getDeletedRecordsStatistics(records);
+    const visibleCount = showDeleted ? stats.totalRecords : stats.activeRecords;
+    
+    const mainText = `Showing ${visibleCount} of ${stats.totalRecords} records`;
+    
+    let detailText = '';
+    if (stats.deletedRecords > 0) {
+      detailText = `(${stats.activeRecords} active, ${stats.deletedRecords} deleted)`;
+    }
+    
+    return { mainText, detailText };
+  }
+
+  /**
+   * *** НОВОЕ: Проверка необходимости показа переключателя ***
+   * Определяет, нужно ли показывать переключатель "Show deleted"
+   */
+  public static shouldShowDeletedToggle(records: ISRSRecord[]): boolean {
+    const stats = SRSTableOptionsHelper.getDeletedRecordsStatistics(records);
+    return stats.deletedRecords > 0; // Показываем переключатель только если есть удаленные записи
   }
 }

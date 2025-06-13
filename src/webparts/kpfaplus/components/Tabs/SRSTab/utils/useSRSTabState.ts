@@ -8,7 +8,7 @@ import { SRSDateUtils } from './SRSDateUtils';
 
 /**
  * Интерфейс для состояния SRS Tab
- * ОБНОВЛЕНО: Добавлены поля для типов отпусков и праздников
+ * ОБНОВЛЕНО: Добавлены поля для типов отпусков, праздников и showDeleted
  */
 export interface ISRSTabState {
   // Основные даты периода
@@ -40,6 +40,9 @@ export interface ISRSTabState {
   
   // Выбранные элементы (для массовых операций)
   selectedItems: Set<string>;       // ID выбранных записей
+  
+  // *** НОВОЕ: Флаг отображения удаленных записей ***
+  showDeleted: boolean;              // Показывать ли удаленные записи (аналогично Schedule)
   
   // Дополнительные флаги
   isInitialized: boolean;           // Инициализирован ли компонент
@@ -218,7 +221,7 @@ const calculateTotalHours = (records: IStaffRecord[]): string => {
 
 /**
  * Custom hook для управления состоянием SRS Tab
- * ОБНОВЛЕНО: Добавлена инициализация типов отпусков и праздников
+ * ОБНОВЛЕНО: Добавлена инициализация типов отпусков, праздников и showDeleted
  */
 export const useSRSTabState = (): UseSRSTabStateReturn => {
   // Получаем сохраненные или дефолтные даты
@@ -256,16 +259,21 @@ export const useSRSTabState = (): UseSRSTabStateReturn => {
     // Выбранные элементы
     selectedItems: new Set<string>(),
     
+    // *** НОВОЕ: Флаг отображения удаленных записей ***
+    showDeleted: false, // По умолчанию удаленные записи не показываем (как в Schedule)
+    
     // Флаги
     isInitialized: false
   });
   
-  console.log('[useSRSTabState] State initialized with dates, types of leave, and holidays support:', {
+  console.log('[useSRSTabState] State initialized with dates, types of leave, holidays and showDeleted support:', {
     fromDate: state.fromDate.toISOString(),
     toDate: state.toDate.toISOString(),
     daysInRange: SRSDateUtils.calculateDaysInRange(state.fromDate, state.toDate),
     typesOfLeaveSupport: true,
-    holidaysSupport: true // *** НОВОЕ ***
+    holidaysSupport: true, // *** НОВОЕ ***
+    showDeletedSupport: true, // *** НОВОЕ ***
+    showDeleted: state.showDeleted
   });
   
   return {
@@ -276,7 +284,7 @@ export const useSRSTabState = (): UseSRSTabStateReturn => {
 
 /**
  * Вспомогательные функции для работы с состоянием SRS Tab
- * ОБНОВЛЕНО: Добавлены функции для работы с типами отпусков и праздниками
+ * ОБНОВЛЕНО: Добавлены функции для работы с типами отпусков, праздниками и showDeleted
  */
 export const SRSTabStateHelpers = {
   
@@ -420,6 +428,51 @@ export const SRSTabStateHelpers = {
     };
 
     console.log('[SRSTabStateHelpers] getHolidaysStatistics:', statistics);
+    return statistics;
+  },
+
+  // *** НОВЫЕ HELPER ФУНКЦИИ ДЛЯ SHOWDELETED ***
+
+  /**
+   * Устанавливает флаг отображения удаленных записей
+   */
+  setShowDeleted: (
+    setState: React.Dispatch<React.SetStateAction<ISRSTabState>>,
+    showDeleted: boolean
+  ): void => {
+    setState(prevState => ({
+      ...prevState,
+      showDeleted: showDeleted
+    }));
+    
+    console.log('[SRSTabStateHelpers] setShowDeleted:', showDeleted);
+  },
+
+  /**
+   * *** НОВАЯ ФУНКЦИЯ: Получение статистики удаленных записей ***
+   * Анализирует удаленные записи в текущем состоянии
+   */
+  getDeletedRecordsStatistics: (
+    state: ISRSTabState
+  ): {
+    totalRecords: number;
+    activeRecords: number;
+    deletedRecords: number;
+    deletedPercentage: number;
+  } => {
+    const totalRecords = state.srsRecords.length;
+    const deletedRecords = state.srsRecords.filter(record => record.Deleted === 1).length;
+    const activeRecords = totalRecords - deletedRecords;
+    const deletedPercentage = totalRecords > 0 ? Math.round((deletedRecords / totalRecords) * 100) : 0;
+
+    const statistics = {
+      totalRecords,
+      activeRecords,
+      deletedRecords,
+      deletedPercentage
+    };
+
+    console.log('[SRSTabStateHelpers] getDeletedRecordsStatistics:', statistics);
     return statistics;
   },
   
@@ -570,7 +623,7 @@ export const SRSTabStateHelpers = {
   
   /**
    * Сбрасывает состояние к начальным значениям
-   * ОБНОВЛЕНО: Включает сброс типов отпусков и праздников
+   * ОБНОВЛЕНО: Включает сброс типов отпусков, праздников и showDeleted
    */
   resetState: (
     setState: React.Dispatch<React.SetStateAction<ISRSTabState>>
@@ -594,9 +647,11 @@ export const SRSTabStateHelpers = {
       errorSRS: undefined,
       hasUnsavedChanges: false,
       selectedItems: new Set<string>(),
+      // *** НОВОЕ: Сброс showDeleted ***
+      showDeleted: false, // По умолчанию не показываем удаленные
       isInitialized: false
     });
     
-    console.log('[SRSTabStateHelpers] State reset to initial values with types of leave and holidays support');
+    console.log('[SRSTabStateHelpers] State reset to initial values with types of leave, holidays and showDeleted support');
   }
 };

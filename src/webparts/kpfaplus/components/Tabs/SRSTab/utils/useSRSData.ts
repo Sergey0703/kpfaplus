@@ -10,6 +10,7 @@ import { DateUtils } from '../../../CustomDatePicker/CustomDatePicker';
 
 /**
  * Интерфейс для параметров хука useSRSData
+ * ОБНОВЛЕНО: Добавлен параметр showDeleted
  */
 interface UseSRSDataProps {
   context?: WebPartContext;
@@ -18,6 +19,7 @@ interface UseSRSDataProps {
   managingGroupId?: string;
   fromDate: Date;
   toDate: Date;
+  showDeleted: boolean; // *** НОВОЕ: Флаг отображения удаленных записей ***
   setState: React.Dispatch<React.SetStateAction<ISRSTabState>>;
 }
 
@@ -32,7 +34,7 @@ interface UseSRSDataReturn {
 
 /**
  * Custom hook для загрузки и управления SRS данными
- * ИСПРАВЛЕНО: Теперь загружает ВСЕ записи (не только с TypeOfLeave)
+ * ИСПРАВЛЕНО: Теперь загружает ВСЕ записи (не только с TypeOfLeave) с поддержкой showDeleted
  */
 export const useSRSData = (props: UseSRSDataProps): UseSRSDataReturn => {
   const {
@@ -42,10 +44,11 @@ export const useSRSData = (props: UseSRSDataProps): UseSRSDataReturn => {
     managingGroupId,
     fromDate,
     toDate,
+    showDeleted, // *** НОВОЕ: Получаем флаг showDeleted ***
     setState
   } = props;
 
-  console.log('[useSRSData] Hook initialized with props:', {
+  console.log('[useSRSData] Hook initialized with props and showDeleted support:', {
     hasContext: !!context,
     hasSelectedStaff: !!selectedStaff,
     selectedStaffId: selectedStaff?.id,
@@ -54,7 +57,9 @@ export const useSRSData = (props: UseSRSDataProps): UseSRSDataReturn => {
     managingGroupId,
     fromDate: fromDate.toISOString(),
     toDate: toDate.toISOString(),
-    daysInRange: SRSDateUtils.calculateDaysInRange(fromDate, toDate)
+    daysInRange: SRSDateUtils.calculateDaysInRange(fromDate, toDate),
+    showDeleted: showDeleted, // *** НОВОЕ ***
+    showDeletedSupport: true
   });
 
   /**
@@ -89,9 +94,11 @@ export const useSRSData = (props: UseSRSDataProps): UseSRSDataReturn => {
    * ИСПРАВЛЕНО: Основная функция загрузки SRS данных
    * Теперь использует getStaffRecords() вместо getStaffRecordsForSRSReports()
    * чтобы получить ВСЕ записи, а не только с TypeOfLeave
+   * ОБНОВЛЕНО: Добавлена серверная фильтрация по showDeleted
    */
   const loadSRSData = useCallback(async (): Promise<void> => {
-    console.log('[useSRSData] loadSRSData called - LOADING ALL RECORDS (not just TypeOfLeave)');
+    console.log('[useSRSData] loadSRSData called - LOADING ALL RECORDS with showDeleted filter');
+    console.log('[useSRSData] showDeleted filter value:', showDeleted);
 
     // Проверяем валидность данных
     if (!isDataValid()) {
@@ -121,7 +128,7 @@ export const useSRSData = (props: UseSRSDataProps): UseSRSDataReturn => {
     try {
       // Устанавливаем состояние загрузки
       SRSTabStateHelpers.setLoadingSRS(setState, true);
-      console.log('[useSRSData] Starting SRS data load for ALL RECORDS...');
+      console.log('[useSRSData] Starting SRS data load for ALL RECORDS with showDeleted filter...');
 
       // Получаем экземпляр сервиса
       const staffRecordsService = StaffRecordsService.getInstance(context!);
@@ -130,7 +137,7 @@ export const useSRSData = (props: UseSRSDataProps): UseSRSDataReturn => {
       const normalizedFromDate = DateUtils.normalizeDateToUTCMidnight(fromDate);
       const normalizedToDate = DateUtils.normalizeDateToUTCMidnight(toDate);
       
-      console.log('[useSRSData] Loading ALL SRS data (including regular working days):', {
+      console.log('[useSRSData] Loading ALL SRS data with showDeleted filter:', {
         staffEmployeeId: selectedStaff.employeeId,
         staffName: selectedStaff.name,
         userSelectedFromDate: fromDate.toISOString(),
@@ -139,25 +146,69 @@ export const useSRSData = (props: UseSRSDataProps): UseSRSDataReturn => {
         normalizedToDate: normalizedToDate.toISOString(),
         dateRangeInDays: SRSDateUtils.calculateDaysInRange(normalizedFromDate, normalizedToDate),
         currentUserId,
-        managingGroupId
+        managingGroupId,
+        showDeleted: showDeleted, // *** НОВОЕ ***
+        serverSideFiltering: true
       });
 
-      // ИСПРАВЛЕНО: Используем getStaffRecords() с правильными параметрами
-      console.log('[useSRSData] ИСПРАВЛЕНО: Calling getStaffRecords with correct signature');
+      // *** ОБНОВЛЕНО: Используем getStaffRecordsWithFilter для серверной фильтрации ***
+      console.log('[useSRSData] *** USING SERVER-SIDE FILTERING BY DELETED STATUS ***');
+      console.log('[useSRSData] Calling getStaffRecordsWithFilter with showDeleted:', showDeleted);
 
-      // ИСПРАВЛЕНО: Загружаем ВСЕ данные используя правильный метод getStaffRecords
-      const allRecords = await staffRecordsService.getStaffRecords(
-        normalizedFromDate,
-        normalizedToDate,
-        currentUserId,
-        managingGroupId,
-        selectedStaff.employeeId
-        // НЕ передаем timeTableID - нам нужны все записи
-      );
+      // Проверяем, есть ли метод getStaffRecordsWithFilter в сервисе
+      let allRecords;
+      if (typeof staffRecordsService.getStaffRecordsWithFilter === 'function') {
+        console.log('[useSRSData] Using getStaffRecordsWithFilter for server-side deleted filtering');
+        
+        // *** НОВЫЙ МЕТОД: Серверная фильтрация по статусу удаления ***
+        allRecords = await staffRecordsService.getStaffRecordsWithFilter(
+          normalizedFromDate,
+          normalizedToDate,
+          currentUserId,
+          managingGroupId,
+          selectedStaff.employeeId,
+          undefined, // timeTableID - нам нужны все записи
+          showDeleted // *** КЛЮЧЕВОЙ ПАРАМЕТР: Флаг включения удаленных записей ***
+        );
+        
+        console.log('[useSRSData] *** SERVER-SIDE FILTERING APPLIED ***');
+        console.log('[useSRSData] Records received after server filtering:', {
+          recordsCount: allRecords.length,
+          showDeleted: showDeleted,
+          serverFilteredProperly: true
+        });
+        
+      } else {
+        console.warn('[useSRSData] getStaffRecordsWithFilter not available, using fallback with client-side filtering');
+        
+        // *** FALLBACK: Старый метод с клиентской фильтрацией ***
+        allRecords = await staffRecordsService.getStaffRecords(
+          normalizedFromDate,
+          normalizedToDate,
+          currentUserId,
+          managingGroupId,
+          selectedStaff.employeeId
+        );
+        
+        // *** КЛИЕНТСКАЯ ФИЛЬТРАЦИЯ по статусу удаления (fallback) ***
+        if (!showDeleted) {
+          const originalCount = allRecords.length;
+          allRecords = allRecords.filter((record: any) => record.Deleted !== 1);
+          console.log('[useSRSData] Client-side filtering applied:', {
+            originalCount,
+            filteredCount: allRecords.length,
+            removedDeletedCount: originalCount - allRecords.length
+          });
+        } else {
+          console.log('[useSRSData] Client-side: keeping all records including deleted ones');
+        }
+      }
 
-      console.log('[useSRSData] ALL SRS data loaded (including regular working days):', {
+      console.log('[useSRSData] ALL SRS data loaded with deletion filter applied:', {
         recordsCount: allRecords.length,
-        hasData: allRecords.length > 0
+        hasData: allRecords.length > 0,
+        showDeleted: showDeleted,
+        filteringMethod: typeof staffRecordsService.getStaffRecordsWithFilter === 'function' ? 'server-side' : 'client-side'
       });
 
       // Фильтруем записи в ТОЧНОМ диапазоне дат пользователя
@@ -171,52 +222,71 @@ export const useSRSData = (props: UseSRSDataProps): UseSRSDataReturn => {
         return recordInRange;
       });
 
-      console.log('[useSRSData] After EXACT date range filtering (ALL RECORDS):', {
+      console.log('[useSRSData] After EXACT date range filtering (with deletion status):', {
         originalCount: allRecords.length,
         filteredCount: filteredRecords.length,
-        userSelectedRange: `${normalizedFromDate.toLocaleDateString()} - ${normalizedToDate.toLocaleDateString()}`
-      });
-
-      // ИСПРАВЛЕНО: НЕ фильтруем по TypeOfLeave - показываем ВСЕ записи
-      console.log('[useSRSData] ИСПРАВЛЕНО: Showing ALL records (not filtering by TypeOfLeave):', {
-        allRecordsCount: filteredRecords.length
+        userSelectedRange: `${normalizedFromDate.toLocaleDateString()} - ${normalizedToDate.toLocaleDateString()}`,
+        showDeleted: showDeleted
       });
 
       // Логируем статистику по типам записей
       if (filteredRecords.length > 0) {
         const recordTypes = filteredRecords.reduce((acc: any, record: any) => {
           const hasTypeOfLeave = !!(record.TypeOfLeaveID && record.TypeOfLeaveID !== '' && record.TypeOfLeaveID !== '0');
-          const type = hasTypeOfLeave ? `Leave: ${record.TypeOfLeaveID}` : 'Regular Work';
+          const isDeleted = record.Deleted === 1;
+          
+          let type = 'Regular Work';
+          if (isDeleted) {
+            type = hasTypeOfLeave ? `Deleted Leave: ${record.TypeOfLeaveID}` : 'Deleted Work';
+          } else if (hasTypeOfLeave) {
+            type = `Leave: ${record.TypeOfLeaveID}`;
+          }
           
           acc[type] = (acc[type] || 0) + 1;
           return acc;
         }, {} as Record<string, number>);
 
-        console.log('[useSRSData] ALL records by type (including regular work):', recordTypes);
+        console.log('[useSRSData] ALL records by type and deletion status:', recordTypes);
+
+        // *** НОВОЕ: Подробная статистика удаленных записей ***
+        const deletedCount = filteredRecords.filter((record: any) => record.Deleted === 1).length;
+        const activeCount = filteredRecords.length - deletedCount;
+        
+        console.log('[useSRSData] *** DELETION STATUS STATISTICS ***:', {
+          totalRecords: filteredRecords.length,
+          activeRecords: activeCount,
+          deletedRecords: deletedCount,
+          showDeleted: showDeleted,
+          deletedPercentage: filteredRecords.length > 0 ? Math.round((deletedCount / filteredRecords.length) * 100) : 0
+        });
 
         // Логируем первые несколько записей для проверки
         filteredRecords.slice(0, 5).forEach((record: any, index: number) => {
           const hasTypeOfLeave = !!(record.TypeOfLeaveID && record.TypeOfLeaveID !== '' && record.TypeOfLeaveID !== '0');
-          console.log(`[useSRSData] Sample ALL record ${index + 1}:`, {
+          const isDeleted = record.Deleted === 1;
+          
+          console.log(`[useSRSData] Sample record ${index + 1}:`, {
             id: record.ID,
             date: record.Date.toLocaleDateString(),
             typeOfLeaveId: record.TypeOfLeaveID || 'No leave type',
             typeOfLeaveTitle: record.TypeOfLeave?.Title || 'Regular work day',
             leaveTime: record.LeaveTime,
             workTime: record.WorkTime,
-            isRegularWork: !hasTypeOfLeave
+            isRegularWork: !hasTypeOfLeave,
+            isDeleted: isDeleted, // *** НОВОЕ ***
+            status: isDeleted ? 'DELETED' : 'ACTIVE'
           });
         });
       }
 
-      // ИСПРАВЛЕНО: Обновляем состояние с ВСЕ записями (не только с TypeOfLeave)
+      // ИСПРАВЛЕНО: Обновляем состояние с ВСЕ записями (включая/исключая удаленные согласно фильтру)
       SRSTabStateHelpers.updateSRSRecords(setState, filteredRecords);
 
-      console.log('[useSRSData] ALL SRS data (including regular working days) successfully loaded and state updated');
+      console.log('[useSRSData] ALL SRS data with deletion filter successfully loaded and state updated');
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('[useSRSData] Critical error loading ALL SRS data:', error);
+      console.error('[useSRSData] Critical error loading ALL SRS data with deletion filter:', error);
       
       SRSTabStateHelpers.setErrorSRS(setState, `Failed to load SRS data: ${errorMessage}`);
       SRSTabStateHelpers.updateSRSRecords(setState, []);
@@ -229,6 +299,7 @@ export const useSRSData = (props: UseSRSDataProps): UseSRSDataReturn => {
     managingGroupId,
     fromDate,
     toDate,
+    showDeleted, // *** НОВАЯ ЗАВИСИМОСТЬ ***
     setState,
     isDataValid
   ]);
@@ -238,25 +309,28 @@ export const useSRSData = (props: UseSRSDataProps): UseSRSDataReturn => {
    * Алиас для loadSRSData с дополнительным логированием
    */
   const refreshSRSData = useCallback(async (): Promise<void> => {
-    console.log('[useSRSData] Manual refresh requested for ALL RECORDS');
+    console.log('[useSRSData] Manual refresh requested for ALL RECORDS with current showDeleted filter');
+    console.log('[useSRSData] Current showDeleted value:', showDeleted);
     await loadSRSData();
-  }, [loadSRSData]);
+  }, [loadSRSData, showDeleted]);
 
   /**
    * Effect для автоматической загрузки данных при изменении зависимостей
+   * ОБНОВЛЕНО: Добавлена зависимость от showDeleted
    */
   useEffect(() => {
-    console.log('[useSRSData] useEffect triggered - checking if ALL data load is needed');
+    console.log('[useSRSData] useEffect triggered - checking if ALL data load with deletion filter is needed');
     console.log('[useSRSData] Dependencies:', {
       hasContext: !!context,
       selectedStaffEmployeeId: selectedStaff?.employeeId,
       fromDate: fromDate.toISOString(),
       toDate: toDate.toISOString(),
+      showDeleted: showDeleted, // *** НОВОЕ ***
       isDataValidResult: isDataValid()
     });
 
     if (isDataValid()) {
-      console.log('[useSRSData] Data is valid, triggering load of ALL RECORDS');
+      console.log('[useSRSData] Data is valid, triggering load of ALL RECORDS with deletion filter');
       void loadSRSData();
     } else {
       console.log('[useSRSData] Data is invalid, clearing ALL SRS records');
@@ -267,6 +341,7 @@ export const useSRSData = (props: UseSRSDataProps): UseSRSDataReturn => {
     selectedStaff?.employeeId,
     fromDate,
     toDate,
+    showDeleted, // *** НОВАЯ ЗАВИСИМОСТЬ: При изменении showDeleted перезагружаем данные ***
     isDataValid,
     loadSRSData,
     setState

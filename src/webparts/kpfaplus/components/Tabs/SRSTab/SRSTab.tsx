@@ -20,14 +20,15 @@ import { ConfirmDialog } from '../../ConfirmDialog/ConfirmDialog';
 export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
   const { selectedStaff } = props;
   
-  console.log('[SRSTab] Rendering with props and REAL delete/restore services:', {
+  console.log('[SRSTab] Rendering with props and REAL delete/restore services + showDeleted support:', {
     hasSelectedStaff: !!selectedStaff,
     selectedStaffId: selectedStaff?.id,
     selectedStaffName: selectedStaff?.name,
-    realDeleteRestoreEnabled: true
+    realDeleteRestoreEnabled: true,
+    showDeletedSupport: true // *** НОВОЕ ***
   });
   
-  // Используем главный хук логики с поддержкой праздников и РЕАЛЬНЫМИ сервисами
+  // Используем главный хук логики с поддержкой праздников, РЕАЛЬНЫМИ сервисами и showDeleted
   const srsLogic = useSRSTabLogic(props);
 
   // *** НОВОЕ: Состояние для диалогов подтверждения ***
@@ -47,7 +48,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     message: ''
   });
 
-  console.log('[SRSTab] SRS Logic state with types of leave, holidays, and REAL delete/restore support:', {
+  console.log('[SRSTab] SRS Logic state with types of leave, holidays, showDeleted, and REAL delete/restore support:', {
     recordsCount: srsLogic.srsRecords.length,
     totalHours: srsLogic.totalHours,
     fromDate: srsLogic.fromDate.toLocaleDateString(),
@@ -64,7 +65,12 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     // *** НОВОЕ: Информация о функциях удаления ***
     hasDeleteSupport: true,
     hasRestoreSupport: true,
-    realDeleteRestoreIntegration: 'StaffRecordsService'
+    realDeleteRestoreIntegration: 'StaffRecordsService',
+    // *** НОВОЕ: Информация о showDeleted ***
+    showDeleted: srsLogic.showDeleted,
+    showDeletedSupport: true,
+    deletedRecordsCount: srsLogic.srsRecords.filter(r => r.Deleted === 1).length,
+    activeRecordsCount: srsLogic.srsRecords.filter(r => r.Deleted !== 1).length
   });
 
   // *** НОВОЕ: Обработчик показа диалога удаления ***
@@ -254,7 +260,8 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       isLoadingTypesOfLeave: srsLogic.isLoadingTypesOfLeave,
       holidaysCount: srsLogic.holidays.length,
       isLoadingHolidays: srsLogic.isLoadingHolidays,
-      deleteRestoreSupport: true
+      deleteRestoreSupport: true,
+      showDeletedSupport: true // *** НОВОЕ ***
     });
 
     // Создаем стандартные опции
@@ -282,18 +289,20 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
 
   // Преобразуем IStaffRecord[] в ISRSRecord[] для компонентов
   const srsRecordsForTable: ISRSRecord[] = React.useMemo(() => {
-    console.log('[SRSTab] Converting staff records to SRS records with types of leave, holidays, and delete support:', {
+    console.log('[SRSTab] Converting staff records to SRS records with types of leave, holidays, delete support, and showDeleted filter:', {
       originalCount: srsLogic.srsRecords.length,
       typesOfLeaveAvailable: srsLogic.typesOfLeave.length,
       holidaysAvailable: srsLogic.holidays.length,
-      deleteRestoreEnabled: true
+      deleteRestoreEnabled: true,
+      showDeleted: srsLogic.showDeleted // *** НОВОЕ ***
     });
 
     const mappedRecords = SRSDataMapper.mapStaffRecordsToSRSRecords(srsLogic.srsRecords);
     
     console.log('[SRSTab] Mapped SRS records for table:', {
       originalCount: srsLogic.srsRecords.length,
-      mappedCount: mappedRecords.length
+      mappedCount: mappedRecords.length,
+      showDeleted: srsLogic.showDeleted
     });
 
     // Логируем статистику по типам отпусков
@@ -318,10 +327,19 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       // *** НОВОЕ: Логируем статистику по удаленным записям ***
       const deleteStats = SRSTableOptionsHelper.getDeletedRecordsStatistics(mappedRecords);
       console.log('[SRSTab] Delete statistics in mapped records:', deleteStats);
+      
+      // *** НОВОЕ: Логируем информацию о фильтрации ***
+      console.log('[SRSTab] ShowDeleted filtering info:', {
+        showDeleted: srsLogic.showDeleted,
+        totalRecords: deleteStats.totalRecords,
+        activeRecords: deleteStats.activeRecords,
+        deletedRecords: deleteStats.deletedRecords,
+        serverFiltering: 'Records already filtered by server based on showDeleted flag'
+      });
     }
 
     return mappedRecords;
-  }, [srsLogic.srsRecords, srsLogic.typesOfLeave.length, srsLogic.holidays.length]);
+  }, [srsLogic.srsRecords, srsLogic.typesOfLeave.length, srsLogic.holidays.length, srsLogic.showDeleted]);
 
   // Обработчик изменения типа отпуска
   const handleTypeOfLeaveChange = React.useCallback((item: ISRSRecord, value: string) => {
@@ -367,7 +385,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       padding: '0',
       position: 'relative'
     }}>
-      {/* Заголовок с информацией о праздниках и функциях удаления */}
+      {/* Заголовок с информацией о праздниках, функциях удаления и showDeleted */}
       <div style={{
         fontSize: '16px',
         fontWeight: '600',
@@ -427,6 +445,15 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         }}>
           (Delete/Restore via StaffRecordsService)
         </span>
+
+        {/* *** НОВОЕ: Информация о showDeleted фильтре *** */}
+        <span style={{
+          fontSize: '12px',
+          color: srsLogic.showDeleted ? '#d83b01' : '#107c10',
+          marginLeft: '10px'
+        }}>
+          ({srsLogic.showDeleted ? 'Including deleted records' : 'Active records only'})
+        </span>
       </div>
       
       {/* Панель управления - передаем данные из srsLogic */}
@@ -460,7 +487,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         </div>
       )}
       
-      {/* Таблица SRS с поддержкой удаления/восстановления */}
+      {/* Таблица SRS с поддержкой удаления/восстановления и showDeleted */}
       <SRSTable
         items={srsRecordsForTable}
         options={tableOptions}
@@ -473,6 +500,9 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         showRestoreConfirmDialog={showRestoreConfirmDialog}
         onDeleteItem={onDeleteItem}
         onRestoreItem={onRestoreItem}
+        // *** НОВОЕ: Передаем пропсы для showDeleted ***
+        showDeleted={srsLogic.showDeleted}
+        onToggleShowDeleted={srsLogic.onToggleShowDeleted}
       />
       
       {/* *** НОВОЕ: Диалоги подтверждения удаления и восстановления *** */}
@@ -501,7 +531,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         confirmButtonColor="#107c10" // Green for restore
       />
       
-      {/* Отладочная информация с праздниками и функциями удаления */}
+      {/* Отладочная информация с праздниками, функциями удаления и showDeleted */}
       {process.env.NODE_ENV === 'development' && (
         <div style={{
           marginTop: '20px',
@@ -525,6 +555,9 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
           <div>Restore Support: Enabled</div>
           <div>Delete Dialog Open: {deleteConfirmDialog.isOpen ? 'Yes' : 'No'}</div>
           <div>Restore Dialog Open: {restoreConfirmDialog.isOpen ? 'Yes' : 'No'}</div>
+          {/* *** НОВОЕ: Отладочная информация о showDeleted *** */}
+          <div>Show Deleted: {srsLogic.showDeleted ? 'Yes' : 'No'}</div>
+          <div>Show Deleted Support: Enabled</div>
           
           {srsLogic.typesOfLeave.length > 0 && (
             <div>
@@ -544,6 +577,12 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
               </div>
               <div>
                 Deleted Records: {srsRecordsForTable.filter(r => r.deleted === true).length} of {srsRecordsForTable.length}
+              </div>
+              <div>
+                Active Records: {srsRecordsForTable.filter(r => r.deleted !== true).length} of {srsRecordsForTable.length}
+              </div>
+              <div>
+                Server Filtering: showDeleted={srsLogic.showDeleted ? 'true' : 'false'}
               </div>
             </>
           )}
