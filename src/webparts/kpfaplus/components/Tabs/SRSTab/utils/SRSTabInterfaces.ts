@@ -66,7 +66,7 @@ export interface ISRSFilterControlsProps {
 
 /**
  * Пропсы для компонента SRSTable
- * ОБНОВЛЕНО: Добавлены типы отпусков
+ * ОБНОВЛЕНО: Добавлены типы отпусков и delete/restore функционал
  */
 export interface ISRSTableProps {
   items: ISRSRecord[];
@@ -77,11 +77,16 @@ export interface ISRSTableProps {
   onContractNumberChange: (item: ISRSRecord, value: string) => void;
   // *** НОВОЕ: Обработчик изменения типа отпуска ***
   onTypeOfLeaveChange?: (item: ISRSRecord, value: string) => void;
+  // *** НОВОЕ: Обработчики удаления/восстановления ***
+  showDeleteConfirmDialog?: (id: string) => void;
+  showRestoreConfirmDialog?: (id: string) => void;
+  onDeleteItem?: (id: string) => Promise<boolean>;
+  onRestoreItem?: (id: string) => Promise<boolean>;
 }
 
 /**
  * Пропсы для компонента SRSTableRow
- * ОБНОВЛЕНО: Добавлены типы отпусков
+ * ОБНОВЛЕНО: Добавлены типы отпусков и delete/restore функционал
  */
 export interface ISRSTableRowProps {
   item: ISRSRecord;
@@ -90,6 +95,11 @@ export interface ISRSTableRowProps {
   onItemChange: (item: ISRSRecord, field: string, value: string | boolean | { hours: string; minutes: string }) => void;
   // *** НОВОЕ: Дополнительные обработчики ***
   onTypeOfLeaveChange?: (item: ISRSRecord, value: string) => void;
+  // *** НОВОЕ: Обработчики удаления/восстановления ***
+  showDeleteConfirmDialog?: (id: string) => void;
+  showRestoreConfirmDialog?: (id: string) => void;
+  onDeleteItem?: (id: string) => Promise<boolean>;
+  onRestoreItem?: (id: string) => Promise<boolean>;
 }
 
 /**
@@ -155,8 +165,40 @@ export interface ISRSTypeOfLeave {
 }
 
 /**
+ * *** НОВЫЕ ИНТЕРФЕЙСЫ ДЛЯ DELETE/RESTORE ФУНКЦИОНАЛА ***
+ */
+
+/**
+ * Результат операции удаления записи
+ */
+export interface ISRSDeleteResult {
+  success: boolean;
+  recordId: string;
+  error?: string;
+}
+
+/**
+ * Результат операции восстановления записи
+ */
+export interface ISRSRestoreResult {
+  success: boolean;
+  recordId: string;
+  error?: string;
+}
+
+/**
+ * Параметры для операций удаления/восстановления
+ */
+export interface ISRSDeleteRestoreParams {
+  recordId: string;
+  staffId: string;
+  currentUserId: string;
+  managingGroupId: string;
+}
+
+/**
  * Расширенные пропсы для главного компонента SRS Tab
- * ОБНОВЛЕНО: Включает типы отпусков и праздники
+ * ОБНОВЛЕНО: Включает типы отпусков, праздники и delete/restore функционал
  */
 export interface ISRSTabProps {
   // Основные пропсы
@@ -206,6 +248,10 @@ export interface ISRSTabProps {
   
   // *** НОВОЕ: Обработчики праздников ***
   loadHolidays: () => void;
+  
+  // *** НОВОЕ: Обработчики delete/restore ***
+  onDeleteRecord: (recordId: string) => Promise<ISRSDeleteResult>;
+  onRestoreRecord: (recordId: string) => Promise<ISRSRestoreResult>;
 }
 
 /**
@@ -220,7 +266,35 @@ export interface ISRSTableOptionsConfig {
 }
 
 /**
- * *** НОВОЕ: Утилиты для работы с типами отпусков в SRS ***
+ * *** НОВЫЕ ИНТЕРФЕЙСЫ ДЛЯ ДИАЛОГОВ ПОДТВЕРЖДЕНИЯ ***
+ */
+
+/**
+ * Пропсы для диалога подтверждения удаления
+ */
+export interface ISRSDeleteConfirmDialogProps {
+  isOpen: boolean;
+  recordId: string;
+  recordDate?: string;
+  staffName?: string;
+  onConfirm: (recordId: string) => void;
+  onCancel: () => void;
+}
+
+/**
+ * Пропсы для диалога подтверждения восстановления
+ */
+export interface ISRSRestoreConfirmDialogProps {
+  isOpen: boolean;
+  recordId: string;
+  recordDate?: string;
+  staffName?: string;
+  onConfirm: (recordId: string) => void;
+  onCancel: () => void;
+}
+
+/**
+ * *** ОБНОВЛЕННЫЕ: Утилиты для работы с типами отпусков в SRS ***
  */
 export class SRSTableOptionsHelper {
   /**
@@ -302,5 +376,55 @@ export class SRSTableOptionsHelper {
   public static getLeaveTypeColor(typesOfLeave: ISRSTypeOfLeave[], id: string): string | undefined {
     const leaveType = SRSTableOptionsHelper.findLeaveTypeById(typesOfLeave, id);
     return leaveType?.color;
+  }
+
+  /**
+   * *** НОВОЕ: Валидация записи перед удалением ***
+   * Проверяет можно ли удалить запись
+   */
+  public static canDeleteRecord(record: ISRSRecord): { canDelete: boolean; reason?: string } {
+    // Нельзя удалить уже удаленную запись
+    if (record.deleted) {
+      return { canDelete: false, reason: 'Record is already deleted' };
+    }
+
+    // Можно удалить любую активную запись
+    return { canDelete: true };
+  }
+
+  /**
+   * *** НОВОЕ: Валидация записи перед восстановлением ***
+   * Проверяет можно ли восстановить запись
+   */
+  public static canRestoreRecord(record: ISRSRecord): { canRestore: boolean; reason?: string } {
+    // Можно восстановить только удаленную запись
+    if (!record.deleted) {
+      return { canRestore: false, reason: 'Record is not deleted' };
+    }
+
+    // Можно восстановить любую удаленную запись
+    return { canRestore: true };
+  }
+
+  /**
+   * *** НОВОЕ: Получение статистики удаленных записей ***
+   */
+  public static getDeletedRecordsStatistics(records: ISRSRecord[]): {
+    totalRecords: number;
+    activeRecords: number;
+    deletedRecords: number;
+    deletedPercentage: number;
+  } {
+    const totalRecords = records.length;
+    const deletedRecords = records.filter(r => r.deleted === true).length;
+    const activeRecords = totalRecords - deletedRecords;
+    const deletedPercentage = totalRecords > 0 ? Math.round((deletedRecords / totalRecords) * 100) : 0;
+
+    return {
+      totalRecords,
+      activeRecords,
+      deletedRecords,
+      deletedPercentage
+    };
   }
 }

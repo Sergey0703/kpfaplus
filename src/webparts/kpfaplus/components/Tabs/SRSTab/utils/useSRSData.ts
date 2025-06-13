@@ -32,8 +32,7 @@ interface UseSRSDataReturn {
 
 /**
  * Custom hook для загрузки и управления SRS данными
- * Использует существующий StaffRecordsService.getStaffRecordsForSRSReports()
- * для получения записей с заполненным TypeOfLeave
+ * ИСПРАВЛЕНО: Теперь загружает ВСЕ записи (не только с TypeOfLeave)
  */
 export const useSRSData = (props: UseSRSDataProps): UseSRSDataReturn => {
   const {
@@ -87,11 +86,12 @@ export const useSRSData = (props: UseSRSDataProps): UseSRSDataReturn => {
   }, [context, selectedStaff?.employeeId, fromDate, toDate, currentUserId, managingGroupId]);
 
   /**
-   * Основная функция загрузки SRS данных
-   * Использует StaffRecordsService.getStaffRecordsForSRSReports()
+   * ИСПРАВЛЕНО: Основная функция загрузки SRS данных
+   * Теперь использует getStaffRecords() вместо getStaffRecordsForSRSReports()
+   * чтобы получить ВСЕ записи, а не только с TypeOfLeave
    */
   const loadSRSData = useCallback(async (): Promise<void> => {
-    console.log('[useSRSData] loadSRSData called');
+    console.log('[useSRSData] loadSRSData called - LOADING ALL RECORDS (not just TypeOfLeave)');
 
     // Проверяем валидность данных
     if (!isDataValid()) {
@@ -121,17 +121,16 @@ export const useSRSData = (props: UseSRSDataProps): UseSRSDataReturn => {
     try {
       // Устанавливаем состояние загрузки
       SRSTabStateHelpers.setLoadingSRS(setState, true);
-      console.log('[useSRSData] Starting SRS data load...');
+      console.log('[useSRSData] Starting SRS data load for ALL RECORDS...');
 
       // Получаем экземпляр сервиса
       const staffRecordsService = StaffRecordsService.getInstance(context!);
       
-      // ИСПРАВЛЕНО: Используем точные даты пользователя, а не расширяем их до границ недель
-      // Пользователь выбрал конкретный диапазон - используем его как есть
+      // Используем точные даты пользователя
       const normalizedFromDate = DateUtils.normalizeDateToUTCMidnight(fromDate);
       const normalizedToDate = DateUtils.normalizeDateToUTCMidnight(toDate);
       
-      console.log('[useSRSData] Loading SRS data with EXACT user-selected dates:', {
+      console.log('[useSRSData] Loading ALL SRS data (including regular working days):', {
         staffEmployeeId: selectedStaff.employeeId,
         staffName: selectedStaff.name,
         userSelectedFromDate: fromDate.toISOString(),
@@ -143,36 +142,26 @@ export const useSRSData = (props: UseSRSDataProps): UseSRSDataReturn => {
         managingGroupId
       });
 
-      // Подготавливаем параметры запроса для SRS Reports
-      const queryParams = {
-        startDate: normalizedFromDate,
-        endDate: normalizedToDate,
-        currentUserID: currentUserId, // Не используем fallback '0' - уже проверили выше
-        staffGroupID: managingGroupId, // Не используем fallback '0' - уже проверили выше
-        employeeID: selectedStaff.employeeId
-        // timeTableID не указываем, так как для SRS нам нужны все записи с TypeOfLeave
-      };
+      // ИСПРАВЛЕНО: Используем getStaffRecords() с правильными параметрами
+      console.log('[useSRSData] ИСПРАВЛЕНО: Calling getStaffRecords with correct signature');
 
-      console.log('[useSRSData] Calling getStaffRecordsForSRSReports with params:', queryParams);
+      // ИСПРАВЛЕНО: Загружаем ВСЕ данные используя правильный метод getStaffRecords
+      const allRecords = await staffRecordsService.getStaffRecords(
+        normalizedFromDate,
+        normalizedToDate,
+        currentUserId,
+        managingGroupId,
+        selectedStaff.employeeId
+        // НЕ передаем timeTableID - нам нужны все записи
+      );
 
-      // Загружаем SRS данные (записи с TypeOfLeave, исключая удаленные)
-      const result = await staffRecordsService.getStaffRecordsForSRSReports(queryParams);
-
-      console.log('[useSRSData] SRS data loaded:', {
-        recordsCount: result.records.length,
-        totalCount: result.totalCount,
-        hasError: !!result.error
+      console.log('[useSRSData] ALL SRS data loaded (including regular working days):', {
+        recordsCount: allRecords.length,
+        hasData: allRecords.length > 0
       });
 
-      if (result.error) {
-        console.error('[useSRSData] Error from SRS data service:', result.error);
-        SRSTabStateHelpers.setErrorSRS(setState, result.error);
-        SRSTabStateHelpers.updateSRSRecords(setState, []);
-        return;
-      }
-
-      // ИСПРАВЛЕНО: Фильтруем записи в ТОЧНОМ диапазоне дат пользователя
-      const filteredRecords = result.records.filter(record => {
+      // Фильтруем записи в ТОЧНОМ диапазоне дат пользователя
+      const filteredRecords = allRecords.filter((record: any) => {
         const recordInRange = SRSDateUtils.isDateInRange(record.Date, normalizedFromDate, normalizedToDate);
         
         if (!recordInRange) {
@@ -182,68 +171,52 @@ export const useSRSData = (props: UseSRSDataProps): UseSRSDataReturn => {
         return recordInRange;
       });
 
-      console.log('[useSRSData] After EXACT date range filtering:', {
-        originalCount: result.records.length,
+      console.log('[useSRSData] After EXACT date range filtering (ALL RECORDS):', {
+        originalCount: allRecords.length,
         filteredCount: filteredRecords.length,
         userSelectedRange: `${normalizedFromDate.toLocaleDateString()} - ${normalizedToDate.toLocaleDateString()}`
       });
 
-      // Дополнительная фильтрация: только записи с заполненным TypeOfLeave
-      const srsRecords = filteredRecords.filter(record => {
-        const hasTypeOfLeave = !!(record.TypeOfLeaveID && record.TypeOfLeaveID !== '' && record.TypeOfLeaveID !== '0');
-        const hasLeaveTime = record.LeaveTime && record.LeaveTime > 0;
-        
-        if (!hasTypeOfLeave) {
-          console.log(`[useSRSData] Record ${record.ID} has no TypeOfLeave, filtering out`);
-          return false;
-        }
-        
-        if (!hasLeaveTime) {
-          console.log(`[useSRSData] Record ${record.ID} has no LeaveTime, but keeping for SRS (TypeOfLeave: ${record.TypeOfLeaveID})`);
-        }
-        
-        return hasTypeOfLeave;
+      // ИСПРАВЛЕНО: НЕ фильтруем по TypeOfLeave - показываем ВСЕ записи
+      console.log('[useSRSData] ИСПРАВЛЕНО: Showing ALL records (not filtering by TypeOfLeave):', {
+        allRecordsCount: filteredRecords.length
       });
 
-      console.log('[useSRSData] Final SRS records after TypeOfLeave filtering:', {
-        beforeTypeFilter: filteredRecords.length,
-        finalSRSCount: srsRecords.length
-      });
-
-      // Логируем статистику по типам отпусков
-      if (srsRecords.length > 0) {
-        const typeStats = srsRecords.reduce((acc, record) => {
-          const typeId = record.TypeOfLeaveID || 'unknown';
-          const typeName = record.TypeOfLeave?.Title || `Type ${typeId}`;
-          const key = `${typeId} (${typeName})`;
+      // Логируем статистику по типам записей
+      if (filteredRecords.length > 0) {
+        const recordTypes = filteredRecords.reduce((acc: any, record: any) => {
+          const hasTypeOfLeave = !!(record.TypeOfLeaveID && record.TypeOfLeaveID !== '' && record.TypeOfLeaveID !== '0');
+          const type = hasTypeOfLeave ? `Leave: ${record.TypeOfLeaveID}` : 'Regular Work';
           
-          acc[key] = (acc[key] || 0) + 1;
+          acc[type] = (acc[type] || 0) + 1;
           return acc;
         }, {} as Record<string, number>);
 
-        console.log('[useSRSData] SRS records by type of leave:', typeStats);
+        console.log('[useSRSData] ALL records by type (including regular work):', recordTypes);
 
         // Логируем первые несколько записей для проверки
-        srsRecords.slice(0, 3).forEach((record, index) => {
-          console.log(`[useSRSData] Sample SRS record ${index + 1}:`, {
+        filteredRecords.slice(0, 5).forEach((record: any, index: number) => {
+          const hasTypeOfLeave = !!(record.TypeOfLeaveID && record.TypeOfLeaveID !== '' && record.TypeOfLeaveID !== '0');
+          console.log(`[useSRSData] Sample ALL record ${index + 1}:`, {
             id: record.ID,
             date: record.Date.toLocaleDateString(),
-            typeOfLeaveId: record.TypeOfLeaveID,
-            typeOfLeaveTitle: record.TypeOfLeave?.Title,
+            typeOfLeaveId: record.TypeOfLeaveID || 'No leave type',
+            typeOfLeaveTitle: record.TypeOfLeave?.Title || 'Regular work day',
             leaveTime: record.LeaveTime,
-            workTime: record.WorkTime
+            workTime: record.WorkTime,
+            isRegularWork: !hasTypeOfLeave
           });
         });
       }
 
-      // Обновляем состояние с полученными SRS записями
-      SRSTabStateHelpers.updateSRSRecords(setState, srsRecords);
+      // ИСПРАВЛЕНО: Обновляем состояние с ВСЕ записями (не только с TypeOfLeave)
+      SRSTabStateHelpers.updateSRSRecords(setState, filteredRecords);
 
-      console.log('[useSRSData] SRS data successfully loaded and state updated');
+      console.log('[useSRSData] ALL SRS data (including regular working days) successfully loaded and state updated');
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('[useSRSData] Critical error loading SRS data:', error);
+      console.error('[useSRSData] Critical error loading ALL SRS data:', error);
       
       SRSTabStateHelpers.setErrorSRS(setState, `Failed to load SRS data: ${errorMessage}`);
       SRSTabStateHelpers.updateSRSRecords(setState, []);
@@ -265,7 +238,7 @@ export const useSRSData = (props: UseSRSDataProps): UseSRSDataReturn => {
    * Алиас для loadSRSData с дополнительным логированием
    */
   const refreshSRSData = useCallback(async (): Promise<void> => {
-    console.log('[useSRSData] Manual refresh requested');
+    console.log('[useSRSData] Manual refresh requested for ALL RECORDS');
     await loadSRSData();
   }, [loadSRSData]);
 
@@ -273,7 +246,7 @@ export const useSRSData = (props: UseSRSDataProps): UseSRSDataReturn => {
    * Effect для автоматической загрузки данных при изменении зависимостей
    */
   useEffect(() => {
-    console.log('[useSRSData] useEffect triggered - checking if data load is needed');
+    console.log('[useSRSData] useEffect triggered - checking if ALL data load is needed');
     console.log('[useSRSData] Dependencies:', {
       hasContext: !!context,
       selectedStaffEmployeeId: selectedStaff?.employeeId,
@@ -283,10 +256,10 @@ export const useSRSData = (props: UseSRSDataProps): UseSRSDataReturn => {
     });
 
     if (isDataValid()) {
-      console.log('[useSRSData] Data is valid, triggering load');
+      console.log('[useSRSData] Data is valid, triggering load of ALL RECORDS');
       void loadSRSData();
     } else {
-      console.log('[useSRSData] Data is invalid, clearing SRS records');
+      console.log('[useSRSData] Data is invalid, clearing ALL SRS records');
       SRSTabStateHelpers.updateSRSRecords(setState, []);
     }
   }, [
@@ -306,7 +279,7 @@ export const useSRSData = (props: UseSRSDataProps): UseSRSDataReturn => {
     console.log('[useSRSData] Staff member changed, clearing state');
     
     if (!selectedStaff?.employeeId) {
-      console.log('[useSRSData] No staff selected, clearing SRS data');
+      console.log('[useSRSData] No staff selected, clearing ALL SRS data');
       SRSTabStateHelpers.updateSRSRecords(setState, []);
       SRSTabStateHelpers.setErrorSRS(setState, undefined);
     }

@@ -32,11 +32,11 @@ export class SRSDateUtils {
   }
 
   /**
-   * Получает конец недели после указанной даты (для toDate)
-   * Находит ближайшее воскресенье после указанной даты
+   * ИСПРАВЛЕНО: Получает дату ровно через 6 дней после указанной даты (полная неделя)
+   * Вместо поиска ближайшего воскресенья, добавляет ровно 6 дней
    * 
    * @param startDate Начальная дата
-   * @returns Дата окончания недели (воскресенье) в UTC полуночи
+   * @returns Дата через 6 дней в UTC полуночи
    */
   public static getWeekEndAfterDate(startDate: Date): Date {
     if (!startDate) {
@@ -47,23 +47,17 @@ export class SRSDateUtils {
     // Нормализуем входную дату к UTC полуночи
     const normalizedStartDate = DateUtils.normalizeDateToUTCMidnight(startDate);
     
-    // Получаем день недели (0 = воскресенье, 1 = понедельник, ..., 6 = суббота)
-    const dayOfWeek = normalizedStartDate.getUTCDay();
-    
-    // Рассчитываем количество дней до ближайшего воскресенья
-    // Если startDate уже воскресенье (0), берем следующее воскресенье (+7 дней)
-    const daysUntilSunday = dayOfWeek === 0 ? 7 : (7 - dayOfWeek);
-    
-    // Создаем дату конца недели
+    // ИСПРАВЛЕНО: Добавляем ровно 6 дней (полная неделя от startDate)
     const weekEnd = new Date(normalizedStartDate);
-    weekEnd.setUTCDate(weekEnd.getUTCDate() + daysUntilSunday);
+    weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
     
-    console.log('[SRSDateUtils] getWeekEndAfterDate:', {
+    console.log('[SRSDateUtils] getWeekEndAfterDate FIXED:', {
       startDate: startDate.toISOString(),
       normalizedStartDate: normalizedStartDate.toISOString(),
-      dayOfWeek: dayOfWeek,
-      daysUntilSunday: daysUntilSunday,
-      weekEnd: weekEnd.toISOString()
+      daysAdded: 6,
+      weekEnd: weekEnd.toISOString(),
+      startDateFormatted: normalizedStartDate.toLocaleDateString(),
+      weekEndFormatted: weekEnd.toLocaleDateString()
     });
     
     return weekEnd;
@@ -71,7 +65,7 @@ export class SRSDateUtils {
 
   /**
    * Рассчитывает полный недельный диапазон начиная с указанной даты
-   * Возвращает диапазон от startDate до конца той же недели
+   * Возвращает диапазон от startDate до startDate + 6 дней
    * 
    * @param startDate Начальная дата
    * @returns Объект с началом и концом недели
@@ -89,13 +83,16 @@ export class SRSDateUtils {
     // Нормализуем начальную дату
     const normalizedStart = DateUtils.normalizeDateToUTCMidnight(startDate);
     
-    // Получаем конец недели
+    // Получаем конец недели (startDate + 6 дней)
     const weekEnd = SRSDateUtils.getWeekEndAfterDate(normalizedStart);
     
-    console.log('[SRSDateUtils] calculateWeekRange:', {
+    console.log('[SRSDateUtils] calculateWeekRange FIXED:', {
       inputDate: startDate.toISOString(),
       start: normalizedStart.toISOString(),
-      end: weekEnd.toISOString()
+      end: weekEnd.toISOString(),
+      startFormatted: normalizedStart.toLocaleDateString(),
+      endFormatted: weekEnd.toLocaleDateString(),
+      daysSpan: 7 // Start date + 6 days = 7 days total
     });
     
     return {
@@ -105,18 +102,20 @@ export class SRSDateUtils {
   }
 
   /**
-   * Получает дату конца недели для текущего месяца (по умолчанию для toDate)
-   * Берет первый день месяца и находит конец его недели
+   * ИСПРАВЛЕНО: Получает дату конца недели для текущего месяца (по умолчанию для toDate)
+   * Берет первый день месяца и добавляет 6 дней
    * 
-   * @returns Конец недели первого дня текущего месяца
+   * @returns Первый день месяца + 6 дней
    */
   public static getDefaultToDate(): Date {
     const firstDayOfMonth = SRSDateUtils.getFirstDayOfCurrentMonth();
     const defaultToDate = SRSDateUtils.getWeekEndAfterDate(firstDayOfMonth);
     
-    console.log('[SRSDateUtils] getDefaultToDate:', {
+    console.log('[SRSDateUtils] getDefaultToDate FIXED:', {
       firstDayOfMonth: firstDayOfMonth.toISOString(),
-      defaultToDate: defaultToDate.toISOString()
+      defaultToDate: defaultToDate.toISOString(),
+      firstDayFormatted: firstDayOfMonth.toLocaleDateString(),
+      defaultToDateFormatted: defaultToDate.toLocaleDateString()
     });
     
     return defaultToDate;
@@ -145,7 +144,7 @@ export class SRSDateUtils {
       return true;
     }
     
-    // Проверяем, что разница не больше 2 недель (14 дней)
+    // ИСПРАВЛЕНО: Проверяем, что разница не больше 2 недель (14 дней)
     const diffInMs = normalizedTo.getTime() - normalizedFrom.getTime();
     const diffInDays = diffInMs / (1000 * 60 * 60 * 24);
     
@@ -154,6 +153,8 @@ export class SRSDateUtils {
     console.log('[SRSDateUtils] shouldUpdateToDate:', {
       fromDate: normalizedFrom.toISOString(),
       toDate: normalizedTo.toISOString(),
+      fromDateFormatted: normalizedFrom.toLocaleDateString(),
+      toDateFormatted: normalizedTo.toLocaleDateString(),
       diffInDays: diffInDays,
       needsUpdate: needsUpdate
     });

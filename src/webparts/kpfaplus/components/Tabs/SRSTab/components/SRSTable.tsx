@@ -19,7 +19,12 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
     onLunchTimeChange,
     onContractNumberChange,
     // *** НОВОЕ: Обработчик типов отпусков ***
-    onTypeOfLeaveChange
+    onTypeOfLeaveChange,
+    // *** НОВОЕ: Обработчики удаления/восстановления ***
+    showDeleteConfirmDialog,
+    showRestoreConfirmDialog,
+    onDeleteItem,
+    onRestoreItem
   } = props;
 
   // *** КЛЮЧЕВОЕ ДОБАВЛЕНИЕ: State для вычисленного времени работы ***
@@ -32,10 +37,12 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
     lunch: string;
   }>>({});
 
-  console.log('[SRSTable] Rendering with items count and types of leave support:', {
+  console.log('[SRSTable] Rendering with items count, types of leave support, and delete/restore functionality:', {
     itemsCount: items.length,
     hasTypeOfLeaveHandler: !!onTypeOfLeaveChange,
-    optionsLeaveTypesCount: options.leaveTypes?.length || 0
+    optionsLeaveTypesCount: options.leaveTypes?.length || 0,
+    hasDeleteHandler: !!showDeleteConfirmDialog,
+    hasRestoreHandler: !!showRestoreConfirmDialog
   });
 
   // *** ДОБАВЛЕНО: Инициализация вычисленного времени и актуальных значений при загрузке элементов ***
@@ -269,6 +276,7 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
     console.log(`[SRSTable] Contract number change for item ${item.id}: ${item.contract} -> ${value}`);
     onContractNumberChange(item, value);
   }, [onContractNumberChange]);
+
   // Helper function to check if this is the first row with a new date
   const isFirstRowWithNewDate = (items: typeof props.items, index: number): boolean => {
     if (index === 0) return true; // First row always starts a new date
@@ -404,6 +412,8 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
           <col style={{ width: '60px' }} />  {/* Contract */}
           <col style={{ width: '50px' }} />  {/* Check */}
           <col style={{ width: '50px' }} />  {/* SRS */}
+          {/* *** НОВОЕ: Добавлена колонка для удаления/восстановления *** */}
+          <col style={{ width: '80px' }} />  {/* Delete/Restore + ID */}
         </colgroup>
 
         <thead>
@@ -504,6 +514,15 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
               fontSize: '12px',
               border: '1px solid #edebe9'
             }}>SRS</th>
+            {/* *** НОВОЕ: Заголовок для колонки удаления *** */}
+            <th style={{ 
+              backgroundColor: '#f3f3f3',
+              padding: '8px',
+              textAlign: 'center',
+              fontWeight: '600',
+              fontSize: '12px',
+              border: '1px solid #edebe9'
+            }}>Actions</th>
           </tr>
         </thead>
 
@@ -511,7 +530,7 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
           {items.length === 0 ? (
             <tr>
               <td 
-                colSpan={12} 
+                colSpan={13} // *** ОБНОВЛЕНО: Увеличено с 12 до 13 колонок ***
                 style={{
                   textAlign: 'center',
                   padding: '40px',
@@ -539,7 +558,7 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
                 {/* Add blue line before rows with new date */}
                 {isFirstRowWithNewDate(items, index) && (
                   <tr style={{ height: '1px', padding: 0 }}>
-                    <td colSpan={12} style={{ 
+                    <td colSpan={13} style={{ // *** ОБНОВЛЕНО: Увеличено с 12 до 13 колонок ***
                       backgroundColor: '#0078d4', 
                       height: '1px',
                       padding: 0,
@@ -563,6 +582,11 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
                   onContractNumberChange={handleContractNumberChange}
                   // *** НОВОЕ: Передаем обработчик типов отпусков ***
                   onTypeOfLeaveChange={handleTypeOfLeaveChange}
+                  // *** НОВОЕ: Передаем обработчики удаления/восстановления ***
+                  showDeleteConfirmDialog={showDeleteConfirmDialog}
+                  showRestoreConfirmDialog={showRestoreConfirmDialog}
+                  onDeleteItem={onDeleteItem}
+                  onRestoreItem={onRestoreItem}
                 />
               </React.Fragment>
             ))
