@@ -60,7 +60,10 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
 
   // *** НОВОЕ: Определяем является ли запись праздничной ***
   const isHoliday = item.Holiday === 1;
-  
+  if (item.id === '34825') {
+    console.log(`[SRSTableRow] Record 34825 Holiday value:`, item.Holiday);
+    console.log(`[SRSTableRow] Record 34825 isHoliday calculated:`, isHoliday);
+  }
   console.log(`[SRSTableRow] Rendering row for item ${item.id}:`, {
     date: item.date.toLocaleDateString(),
     isHoliday: isHoliday,
