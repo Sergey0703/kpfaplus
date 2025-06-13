@@ -4,6 +4,7 @@ import { IDropdownOption } from '@fluentui/react';
 
 /**
  * Основной интерфейс для записи SRS
+ * ОБНОВЛЕНО: Добавлено поле Holiday для поддержки праздников
  */
 export interface ISRSRecord {
   id: string;
@@ -29,6 +30,8 @@ export interface ISRSRecord {
   srs: boolean; // Отметка SRS
   checked: boolean; // Для массовых операций
   deleted?: boolean; // Для удаленных записей
+  // *** НОВОЕ: Поле для поддержки праздников ***
+  Holiday?: number; // Признак праздника: 1 = праздник, 0 = рабочий день (как в StaffRecords)
 }
 
 /**
@@ -153,7 +156,7 @@ export interface ISRSTypeOfLeave {
 
 /**
  * Расширенные пропсы для главного компонента SRS Tab
- * Включает типы отпусков
+ * ОБНОВЛЕНО: Включает типы отпусков и праздники
  */
 export interface ISRSTabProps {
   // Основные пропсы
@@ -168,9 +171,13 @@ export interface ISRSTabProps {
   srsRecords: ISRSRecord[];
   totalHours: string;
   
-  // *** НОВОЕ: Типы отпусков ***
+  // Типы отпусков
   typesOfLeave: ISRSTypeOfLeave[];
   isLoadingTypesOfLeave: boolean;
+  
+  // *** НОВОЕ: Праздники ***
+  holidays: Array<{ id: string; title: string; date: Date }>; // Упрощенный интерфейс праздников
+  isLoadingHolidays: boolean;
   
   // Состояния загрузки
   isLoading: boolean;
@@ -195,8 +202,10 @@ export interface ISRSTabProps {
   onItemChange: (item: ISRSRecord, field: string, value: string | boolean | { hours: string; minutes: string }) => void;
   onLunchTimeChange: (item: ISRSRecord, value: string) => void;
   onContractNumberChange: (item: ISRSRecord, value: string) => void;
-  // *** НОВОЕ: Обработчик типов отпусков ***
   onTypeOfLeaveChange: (item: ISRSRecord, value: string) => void;
+  
+  // *** НОВОЕ: Обработчики праздников ***
+  loadHolidays: () => void;
 }
 
 /**

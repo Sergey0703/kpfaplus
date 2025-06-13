@@ -14,7 +14,6 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   isTimesEqual: boolean;
   onLunchTimeChange: (item: ISRSRecord, value: string) => void;
   onContractNumberChange: (item: ISRSRecord, value: string) => void;
-  // *** НОВОЕ: Обработчик типов отпусков ***
   onTypeOfLeaveChange?: (item: ISRSRecord, value: string) => void;
 }> = (props) => {
   const {
@@ -27,7 +26,6 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     displayWorkTime,
     isTimesEqual,
     onItemChange,
-    // *** НОВОЕ: Извлекаем обработчик типов отпусков ***
     onTypeOfLeaveChange
   } = props;
 
@@ -35,12 +33,11 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   const lunchTimeChangeHandler = props.onLunchTimeChange;
   const contractNumberChangeHandler = props.onContractNumberChange;
 
-  // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Локальное состояние для актуальных значений ***
+  // Локальное состояние для актуальных значений
   const [localStartWork, setLocalStartWork] = useState(item.startWork);
   const [localFinishWork, setLocalFinishWork] = useState(item.finishWork);
   const [localLunch, setLocalLunch] = useState(item.lunch);
   const [localContract, setLocalContract] = useState(item.contract);
-  // *** НОВОЕ: Локальное состояние для типа отпуска ***
   const [localTypeOfLeave, setLocalTypeOfLeave] = useState(item.typeOfLeave);
 
   // Синхронизируем локальное состояние с props при изменении item
@@ -51,33 +48,66 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
       finishWork: item.finishWork,
       lunch: item.lunch,
       contract: item.contract,
-      typeOfLeave: item.typeOfLeave // *** НОВОЕ ***
+      typeOfLeave: item.typeOfLeave
     });
     
     setLocalStartWork(item.startWork);
     setLocalFinishWork(item.finishWork);
     setLocalLunch(item.lunch);
     setLocalContract(item.contract);
-    // *** НОВОЕ: Синхронизация типа отпуска ***
     setLocalTypeOfLeave(item.typeOfLeave);
   }, [item.id, item.startWork, item.finishWork, item.lunch, item.contract, item.typeOfLeave]);
 
-  // Styles for cells in Schedule table style
-  const cellStyle: React.CSSProperties = {
-    border: '1px solid #edebe9', // Soft border like in Schedule
-    padding: '8px', // Increased padding like in Schedule
-    textAlign: 'center',
-    fontSize: '12px',
-    verticalAlign: 'middle'
+  // *** НОВОЕ: Определяем является ли запись праздничной ***
+  const isHoliday = item.Holiday === 1;
+  
+  console.log(`[SRSTableRow] Rendering row for item ${item.id}:`, {
+    date: item.date.toLocaleDateString(),
+    isHoliday: isHoliday,
+    holidayValue: item.Holiday,
+    displayWorkTime: displayWorkTime,
+    isTimesEqual: isTimesEqual,
+    deleted: item.deleted
+  });
+
+  // *** НОВОЕ: Функция для получения стилей праздничных ячеек ***
+  const getHolidayCellStyle = (): React.CSSProperties => {
+    if (!isHoliday) {
+      return {};
+    }
+    
+    return {
+      backgroundColor: '#ffe6f0', // Розовый фон для праздников (как в Schedule)
+      borderColor: '#ff69b4',     // Розовая граница
+    };
   };
 
-  // Row style with alternating colors like in Schedule, plus error highlighting
+  // Базовые стили для ячеек (как в Schedule table style)
+  const cellStyle: React.CSSProperties = {
+    border: '1px solid #edebe9',
+    padding: '8px',
+    textAlign: 'center',
+    fontSize: '12px',
+    verticalAlign: 'middle',
+    // *** НОВОЕ: Добавляем стили праздника ***
+    ...getHolidayCellStyle()
+  };
+
+  // Стили строки с учетом праздников, ошибок и удаления
   const rowStyle: React.CSSProperties = {
-    backgroundColor: item.deleted ? '#f5f5f5' : (isTimesEqual ? '#ffeded' : (isEven ? '#ffffff' : '#f9f9f9')),
+    backgroundColor: item.deleted 
+      ? '#f5f5f5' 
+      : isHoliday 
+        ? '#ffe6f0' // Розовый фон для всей строки праздника
+        : isTimesEqual 
+          ? '#ffeded' // Красноватый для ошибок времени
+          : isEven 
+            ? '#ffffff' 
+            : '#f9f9f9',
     opacity: item.deleted ? 0.6 : 1,
   };
 
-  // Format date for display
+  // Форматирование даты для отображения
   const formatDate = (date: Date): string => {
     const day = date.getDate().toString().padStart(2, '0');
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -85,51 +115,60 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     return `${day}.${month}.${year}`;
   };
 
-  // Get day of week like in Schedule
+  // Получение дня недели
   const dayOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][item.date.getDay()];
 
-  // Render date cell content based on row position within date group
+  // *** ОБНОВЛЕНО: Рендер ячейки даты с учетом праздников ***
   const renderDateCell = (): JSX.Element => {
-    // If this is the first row of the date, display date and day of week
     if (rowPositionInDate === 0) {
       return (
         <>
           <div style={{ 
             fontWeight: '600',
             fontSize: '12px',
-            ...(item.deleted && { color: '#888', textDecoration: 'line-through' })
+            color: isHoliday ? '#d83b01' : (item.deleted ? '#888' : 'inherit'), // *** НОВОЕ: Красный цвет для праздников ***
+            ...(item.deleted && { textDecoration: 'line-through' })
           }}>
             {formatDate(item.date)}
           </div>
           <div style={{ 
             fontSize: '11px', 
-            color: '#666',
+            color: isHoliday ? '#d83b01' : '#666', // *** НОВОЕ: Красный цвет для праздников ***
             marginTop: '2px',
             ...(item.deleted && { color: '#aaa', textDecoration: 'line-through' })
           }}>
             {dayOfWeek}
+            {/* *** НОВОЕ: Отображение "Holiday" для праздников *** */}
+            {isHoliday && !item.deleted && (
+              <div style={{ 
+                color: '#d83b01', 
+                fontWeight: '600',
+                fontSize: '10px',
+                marginTop: '2px'
+              }}>
+                Holiday
+              </div>
+            )}
             {item.deleted && <span style={{ color: '#d83b01', marginLeft: '5px', textDecoration: 'none' }}>(Deleted)</span>}
           </div>
         </>
       );
     }
-    // If this is the second row of the date and there are multiple rows, display total hours in blue
     else if (rowPositionInDate === 1 && totalRowsInDate > 1) {
       return (
         <div style={{ 
           fontWeight: 'bold', 
           fontSize: '12px', 
-          color: '#0078d4', // Blue color like in Schedule
+          color: isHoliday ? '#ff69b4' : '#0078d4', // *** НОВОЕ: Розовый для праздников ***
           textAlign: 'center',
           marginTop: '8px',
-          ...(item.deleted && { color: '#88a0bd', textDecoration: 'line-through' }) // Lighter blue for deleted
+          ...(item.deleted && { color: '#88a0bd', textDecoration: 'line-through' })
         }}>
           {totalTimeForDate}
           {item.deleted && <span style={{ color: '#d83b01', marginLeft: '5px', textDecoration: 'none', fontSize: '10px' }}>(Deleted)</span>}
         </div>
       );
     }
-    // For third and subsequent rows of the date, leave cell empty or show minimal info
     else {
       return (
         <div>
@@ -139,7 +178,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     }
   };
 
-  // *** ИСПРАВЛЕННЫЕ ОБРАБОТЧИКИ СОБЫТИЙ ДЛЯ ВРЕМЕНИ ***
+  // Обработчики событий (без изменений)
   const handleReliefChange = useCallback((ev?: React.FormEvent<HTMLElement>, checked?: boolean): void => {
     if (checked !== undefined) {
       onItemChange(item, 'relief', checked);
@@ -150,8 +189,8 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     if (option) {
       console.log('[SRSTableRow] Start hour changing from', localStartWork.hours, 'to', option.key);
       const newStartWork = { ...localStartWork, hours: option.key as string };
-      setLocalStartWork(newStartWork); // Обновляем локальное состояние немедленно
-      onItemChange(item, 'startWork', newStartWork); // Вызываем handleTimeChange из SRSTable
+      setLocalStartWork(newStartWork);
+      onItemChange(item, 'startWork', newStartWork);
     }
   }, [item, onItemChange, localStartWork]);
 
@@ -159,8 +198,8 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     if (option) {
       console.log('[SRSTableRow] Start minute changing from', localStartWork.minutes, 'to', option.key);
       const newStartWork = { ...localStartWork, minutes: option.key as string };
-      setLocalStartWork(newStartWork); // Обновляем локальное состояние немедленно
-      onItemChange(item, 'startWork', newStartWork); // Вызываем handleTimeChange из SRSTable
+      setLocalStartWork(newStartWork);
+      onItemChange(item, 'startWork', newStartWork);
     }
   }, [item, onItemChange, localStartWork]);
 
@@ -168,8 +207,8 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     if (option) {
       console.log('[SRSTableRow] Finish hour changing from', localFinishWork.hours, 'to', option.key);
       const newFinishWork = { ...localFinishWork, hours: option.key as string };
-      setLocalFinishWork(newFinishWork); // Обновляем локальное состояние немедленно
-      onItemChange(item, 'finishWork', newFinishWork); // Вызываем handleTimeChange из SRSTable
+      setLocalFinishWork(newFinishWork);
+      onItemChange(item, 'finishWork', newFinishWork);
     }
   }, [item, onItemChange, localFinishWork]);
 
@@ -177,12 +216,11 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     if (option) {
       console.log('[SRSTableRow] Finish minute changing from', localFinishWork.minutes, 'to', option.key);
       const newFinishWork = { ...localFinishWork, minutes: option.key as string };
-      setLocalFinishWork(newFinishWork); // Обновляем локальное состояние немедленно
-      onItemChange(item, 'finishWork', newFinishWork); // Вызываем handleTimeChange из SRSTable
+      setLocalFinishWork(newFinishWork);
+      onItemChange(item, 'finishWork', newFinishWork);
     }
   }, [item, onItemChange, localFinishWork]);
 
-  // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: handleLunchChange использует актуальные локальные значения времени ***
   const handleLunchChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
     if (option) {
       console.log('[SRSTableRow] *** LUNCH CHANGE WITH CURRENT LOCAL VALUES ***');
@@ -190,12 +228,11 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
       console.log('[SRSTableRow] Current local start work:', localStartWork);
       console.log('[SRSTableRow] Current local finish work:', localFinishWork);
       
-      // *** ИСПРАВЛЕНО: Создаем updatedItem с АКТУАЛЬНЫМИ локальными значениями времени ***
       const updatedItemWithCurrentTimes: ISRSRecord = {
         ...item,
-        startWork: localStartWork,    // *** ИСПОЛЬЗУЕМ АКТУАЛЬНЫЕ ЛОКАЛЬНЫЕ ЗНАЧЕНИЯ ***
-        finishWork: localFinishWork,  // *** ИСПОЛЬЗУЕМ АКТУАЛЬНЫЕ ЛОКАЛЬНЫЕ ЗНАЧЕНИЯ ***
-        lunch: option.key as string   // *** НОВОЕ ЗНАЧЕНИЕ ВРЕМЕНИ ОБЕДА ***
+        startWork: localStartWork,
+        finishWork: localFinishWork,
+        lunch: option.key as string
       };
       
       console.log('[SRSTableRow] Updated item for lunch calculation:', {
@@ -204,7 +241,6 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
         lunch: updatedItemWithCurrentTimes.lunch
       });
       
-      // Пересчитываем время работы с актуальными значениями
       const recalculatedWorkTime = calculateSRSWorkTime(updatedItemWithCurrentTimes);
       
       console.log('[SRSTableRow] *** RECALCULATED WORK TIME WITH CURRENT VALUES ***:', {
@@ -215,21 +251,16 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
         lunchMinutes: option.key
       });
       
-      // Обновляем локальное состояние немедленно
       setLocalLunch(option.key as string);
-      
-      // Вызываем родительский обработчик с пересчитанным временем
       lunchTimeChangeHandler(updatedItemWithCurrentTimes, option.key as string);
     }
   }, [item, lunchTimeChangeHandler, localLunch, localStartWork, localFinishWork, displayWorkTime]);
 
-  // *** НОВЫЙ ОБРАБОТЧИК: Изменение типа отпуска ***
   const handleTypeOfLeaveChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
     if (option) {
       console.log('[SRSTableRow] *** TYPE OF LEAVE CHANGE ***');
       console.log('[SRSTableRow] Type of leave changing from', localTypeOfLeave, 'to', option.key);
       
-      // Находим информацию о выбранном типе отпуска
       const selectedType = options.leaveTypes.find(leaveType => leaveType.key === option.key);
       if (selectedType) {
         console.log('[SRSTableRow] Selected type details:', {
@@ -239,13 +270,10 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
         });
       }
       
-      // Обновляем локальное состояние немедленно
       setLocalTypeOfLeave(option.key as string);
       
-      // *** ВАЖНО: Типы отпусков НЕ влияют на время работы ***
       console.log('[SRSTableRow] Type of leave change does NOT affect work time calculation');
       
-      // Вызываем специальный обработчик для типов отпусков
       if (onTypeOfLeaveChange) {
         console.log('[SRSTableRow] Calling onTypeOfLeaveChange handler');
         onTypeOfLeaveChange(item, option.key as string);
@@ -261,7 +289,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   const handleContractChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
     if (option) {
       console.log('[SRSTableRow] Contract changing from', localContract, 'to', option.key);
-      setLocalContract(option.key as string); // Обновляем локальное состояние немедленно
+      setLocalContract(option.key as string);
       contractNumberChangeHandler(item, option.key as string);
     }
   }, [item, contractNumberChangeHandler, localContract]);
@@ -270,12 +298,14 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     console.log('[SRSTableRow] Add shift clicked for date:', item.date.toLocaleDateString());
   }, [item.date]);
 
-  // Dropdown styles in Schedule style with error highlighting
+  // *** ОБНОВЛЕНО: Стили dropdown с учетом праздников ***
   const getDropdownStyles = (isError = false): object => ({
     root: { 
       width: 60, 
       margin: '0 2px',
       borderColor: isError ? '#a4262c' : undefined,
+      // *** НОВОЕ: Розовый фон для праздников ***
+      backgroundColor: isHoliday ? '#ffe6f0' : undefined,
       ...(item.deleted && {
         backgroundColor: '#f5f5f5',
         color: '#888',
@@ -284,12 +314,16 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     },
     title: {
       fontSize: '12px',
+      // *** НОВОЕ: Цвет текста для праздников ***
+      color: isHoliday ? '#d83b01' : undefined,
       ...(item.deleted && {
         color: '#888',
         textDecoration: 'line-through'
       })
     },
     caretDown: {
+      // *** НОВОЕ: Цвет стрелки для праздников ***
+      color: isHoliday ? '#d83b01' : undefined,
       ...(item.deleted && {
         color: '#aaa'
       })
@@ -299,6 +333,8 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   const getLunchDropdownStyles = (): object => ({
     root: { 
       width: 80,
+      // *** НОВОЕ: Розовый фон для праздников ***
+      backgroundColor: isHoliday ? '#ffe6f0' : undefined,
       ...(item.deleted && {
         backgroundColor: '#f5f5f5',
         color: '#888',
@@ -307,6 +343,8 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     },
     title: {
       fontSize: '12px',
+      // *** НОВОЕ: Цвет текста для праздников ***
+      color: isHoliday ? '#d83b01' : undefined,
       ...(item.deleted && {
         color: '#888',
         textDecoration: 'line-through'
@@ -314,10 +352,11 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     }
   });
 
-  // *** НОВЫЕ СТИЛИ: Для dropdown типов отпусков ***
   const getLeaveDropdownStyles = (): object => ({
     root: { 
       width: 140,
+      // *** НОВОЕ: Розовый фон для праздников ***
+      backgroundColor: isHoliday ? '#ffe6f0' : undefined,
       ...(item.deleted && {
         backgroundColor: '#f5f5f5',
         color: '#888',
@@ -326,6 +365,8 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     },
     title: {
       fontSize: '12px',
+      // *** НОВОЕ: Цвет текста для праздников ***
+      color: isHoliday ? '#d83b01' : undefined,
       ...(item.deleted && {
         color: '#888',
         textDecoration: 'line-through'
@@ -336,6 +377,8 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   const getContractDropdownStyles = (): object => ({
     root: { 
       width: 50,
+      // *** НОВОЕ: Розовый фон для праздников ***
+      backgroundColor: isHoliday ? '#ffe6f0' : undefined,
       ...(item.deleted && {
         backgroundColor: '#f5f5f5',
         color: '#888',
@@ -344,6 +387,8 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     },
     title: {
       fontSize: '12px',
+      // *** НОВОЕ: Цвет текста для праздников ***
+      color: isHoliday ? '#d83b01' : undefined,
       ...(item.deleted && {
         color: '#888',
         textDecoration: 'line-through'
@@ -351,29 +396,34 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     }
   });
 
-  // Log current display values for debugging
+  // Логирование текущих отображаемых значений для отладки
   console.log('[SRSTableRow] Rendering row for item', item.id, 'with display values:', {
     displayWorkTime,
     localStartWork,
     localFinishWork,
     localLunch,
     localContract,
-    localTypeOfLeave, // *** НОВОЕ ***
-    isTimesEqual
+    localTypeOfLeave,
+    isTimesEqual,
+    isHoliday // *** НОВОЕ ***
   });
 
   return (
     <tr style={rowStyle}>
-      {/* Date cell with special rendering based on position */}
+      {/* *** ОБНОВЛЕНО: Ячейка даты с поддержкой праздников *** */}
       <td style={{ ...cellStyle, textAlign: 'left' }}>
         {renderDateCell()}
       </td>
 
-      {/* Hours cell with calculated time and error highlighting */}
+      {/* *** ОБНОВЛЕНО: Ячейка часов с выделением праздников *** */}
       <td style={{ 
         ...cellStyle, 
         fontWeight: 'bold',
-        color: isTimesEqual ? '#a4262c' : (displayWorkTime === '0.00' ? '#666' : 'inherit'),
+        color: isTimesEqual 
+          ? '#a4262c' 
+          : isHoliday 
+            ? '#d83b01' // *** НОВОЕ: Красный цвет для праздников ***
+            : (displayWorkTime === '0.00' ? '#666' : 'inherit'),
         ...(item.deleted && { color: '#888', textDecoration: 'line-through' })
       }}>
         {isTimesEqual ? (
@@ -384,6 +434,17 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
           </TooltipHost>
         ) : (
           <span>{displayWorkTime}</span>
+        )}
+        {/* *** НОВОЕ: Индикатор праздника *** */}
+        {isHoliday && !item.deleted && (
+          <div style={{ 
+            fontSize: '10px', 
+            color: '#d83b01', 
+            marginTop: '2px',
+            fontWeight: 'normal'
+          }}>
+            Holiday
+          </div>
         )}
         {item.deleted && (
           <div style={{ 
@@ -406,7 +467,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
         />
       </td>
 
-      {/* Start Work cell - ИСПОЛЬЗУЕМ ЛОКАЛЬНЫЕ ЗНАЧЕНИЯ */}
+      {/* Start Work cell */}
       <td style={cellStyle}>
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px' }}>
           <Dropdown
@@ -416,7 +477,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
             disabled={item.deleted}
             styles={getDropdownStyles(isTimesEqual)}
           />
-          <span style={{ fontSize: '12px', color: '#666' }}>:</span>
+          <span style={{ fontSize: '12px', color: isHoliday ? '#d83b01' : '#666' }}>:</span>
           <Dropdown
             selectedKey={localStartWork.minutes}
             options={options.minutes}
@@ -427,7 +488,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
         </div>
       </td>
 
-      {/* Finish Work cell - ИСПОЛЬЗУЕМ ЛОКАЛЬНЫЕ ЗНАЧЕНИЯ */}
+      {/* Finish Work cell */}
       <td style={cellStyle}>
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '4px' }}>
           <Dropdown
@@ -437,7 +498,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
             disabled={item.deleted}
             styles={getDropdownStyles(isTimesEqual)}
           />
-          <span style={{ fontSize: '12px', color: '#666' }}>:</span>
+          <span style={{ fontSize: '12px', color: isHoliday ? '#d83b01' : '#666' }}>:</span>
           <Dropdown
             selectedKey={localFinishWork.minutes}
             options={options.minutes}
@@ -448,7 +509,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
         </div>
       </td>
 
-      {/* Lunch cell - ИСПОЛЬЗУЕМ ЛОКАЛЬНЫЕ ЗНАЧЕНИЯ И ИСПРАВЛЕННЫЙ ОБРАБОТЧИК */}
+      {/* Lunch cell */}
       <td style={cellStyle}>
         <Dropdown
           selectedKey={localLunch}
@@ -459,7 +520,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
         />
       </td>
 
-      {/* *** НОВАЯ ЯЧЕЙКА: Type of Leave - ИСПОЛЬЗУЕМ ЛОКАЛЬНЫЕ ЗНАЧЕНИЯ *** */}
+      {/* Type of Leave cell */}
       <td style={cellStyle}>
         <Dropdown
           selectedKey={localTypeOfLeave}
@@ -486,7 +547,9 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
             fontSize: '12px',
             textAlign: 'center',
             borderRadius: '2px',
-            backgroundColor: item.deleted ? '#f5f5f5' : 'white'
+            // *** НОВОЕ: Стили для праздников ***
+            backgroundColor: isHoliday ? '#ffe6f0' : (item.deleted ? '#f5f5f5' : 'white'),
+            color: isHoliday ? '#d83b01' : undefined
           }}
         />
       </td>
@@ -499,7 +562,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
           disabled={item.deleted}
           styles={{ 
             root: { 
-              backgroundColor: '#107c10',
+              backgroundColor: isHoliday ? '#ff69b4' : '#107c10', // *** НОВОЕ: Розовый для праздников ***
               color: 'white',
               border: 'none',
               minWidth: '60px',
@@ -513,13 +576,13 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
               })
             },
             rootHovered: !item.deleted ? {
-              backgroundColor: '#0b5a0b'
+              backgroundColor: isHoliday ? '#ff1493' : '#0b5a0b' // *** НОВОЕ: Hover для праздников ***
             } : undefined
           }}
         />
       </td>
 
-      {/* Contract cell - ИСПОЛЬЗУЕМ ЛОКАЛЬНЫЕ ЗНАЧЕНИЯ */}
+      {/* Contract cell */}
       <td style={cellStyle}>
         <Dropdown
           selectedKey={localContract}
@@ -540,7 +603,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
       <td style={cellStyle}>
         {item.srs && (
           <span style={{
-            color: '#0078d4',
+            color: isHoliday ? '#ff69b4' : '#0078d4', // *** НОВОЕ: Розовый для праздников ***
             fontWeight: '600',
             fontSize: '12px'
           }}>

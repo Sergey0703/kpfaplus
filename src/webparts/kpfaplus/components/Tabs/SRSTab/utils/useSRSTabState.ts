@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { IStaffRecord } from '../../../../services/StaffRecordsService';
 import { ITypeOfLeave } from '../../../../services/TypeOfLeaveService';
-import { IHoliday } from '../../../../services/HolidaysService';
+import { IHoliday } from '../../../../services/HolidaysService'; // *** НОВЫЙ ИМПОРТ ***
 import { SRSDateUtils } from './SRSDateUtils';
 
 /**
@@ -19,7 +19,7 @@ export interface ISRSTabState {
   srsRecords: IStaffRecord[];        // Записи SRS (только с TypeOfLeave)
   totalHours: string;                // Общее количество часов в формате "127:00"
   
-  // *** НОВОЕ: Типы отпусков ***
+  // Типы отпусков
   typesOfLeave: ITypeOfLeave[];      // Справочник типов отпусков
   isLoadingTypesOfLeave: boolean;    // Состояние загрузки типов отпусков
   
@@ -218,7 +218,7 @@ const calculateTotalHours = (records: IStaffRecord[]): string => {
 
 /**
  * Custom hook для управления состоянием SRS Tab
- * ОБНОВЛЕНО: Добавлена инициализация типов отпусков
+ * ОБНОВЛЕНО: Добавлена инициализация типов отпусков и праздников
  */
 export const useSRSTabState = (): UseSRSTabStateReturn => {
   // Получаем сохраненные или дефолтные даты
@@ -234,7 +234,7 @@ export const useSRSTabState = (): UseSRSTabStateReturn => {
     srsRecords: [],
     totalHours: '0:00',
     
-    // *** НОВОЕ: Типы отпусков ***
+    // Типы отпусков
     typesOfLeave: [],
     isLoadingTypesOfLeave: false,
     
@@ -265,7 +265,7 @@ export const useSRSTabState = (): UseSRSTabStateReturn => {
     toDate: state.toDate.toISOString(),
     daysInRange: SRSDateUtils.calculateDaysInRange(state.fromDate, state.toDate),
     typesOfLeaveSupport: true,
-    holidaysSupport: true
+    holidaysSupport: true // *** НОВОЕ ***
   });
   
   return {
@@ -276,7 +276,7 @@ export const useSRSTabState = (): UseSRSTabStateReturn => {
 
 /**
  * Вспомогательные функции для работы с состоянием SRS Tab
- * ОБНОВЛЕНО: Добавлены функции для работы с типами отпусков
+ * ОБНОВЛЕНО: Добавлены функции для работы с типами отпусков и праздниками
  */
 export const SRSTabStateHelpers = {
   
@@ -303,7 +303,7 @@ export const SRSTabStateHelpers = {
     });
   },
 
-  // *** НОВЫЕ HELPER ФУНКЦИИ ДЛЯ ТИПОВ ОТПУСКОВ ***
+  // *** HELPER ФУНКЦИИ ДЛЯ ТИПОВ ОТПУСКОВ ***
 
   /**
    * Обновляет типы отпусков
@@ -373,6 +373,54 @@ export const SRSTabStateHelpers = {
     }));
     
     console.log('[SRSTabStateHelpers] setLoadingHolidays:', isLoading);
+  },
+
+  /**
+   * *** НОВАЯ ФУНКЦИЯ: Получение статистики праздников ***
+   * Анализирует праздники в текущем состоянии
+   */
+  getHolidaysStatistics: (
+    state: ISRSTabState
+  ): {
+    totalHolidays: number;
+    holidaysInPeriod: number;
+    holidayRecords: number;
+    holidayWorkingHours: string;
+  } => {
+    const holidaysInPeriod = state.holidays.filter(holiday => {
+      const holidayDate = new Date(holiday.date);
+      return holidayDate >= state.fromDate && holidayDate <= state.toDate;
+    }).length;
+
+    const holidayRecords = state.srsRecords.filter(record => record.Holiday === 1).length;
+
+    // Подсчитываем часы по праздничным записям
+    let holidayMinutes = 0;
+    state.srsRecords.forEach(record => {
+      if (record.Holiday === 1 && record.WorkTime) {
+        const workTimeStr = record.WorkTime.toString();
+        if (workTimeStr.includes(':')) {
+          const [hoursStr, minutesStr] = workTimeStr.split(':');
+          const hours = parseInt(hoursStr, 10) || 0;
+          const minutes = parseInt(minutesStr, 10) || 0;
+          holidayMinutes += (hours * 60) + minutes;
+        }
+      }
+    });
+
+    const holidayHours = Math.floor(holidayMinutes / 60);
+    const remainingMinutes = holidayMinutes % 60;
+    const holidayWorkingHours = `${holidayHours}:${remainingMinutes.toString().padStart(2, '0')}`;
+
+    const statistics = {
+      totalHolidays: state.holidays.length,
+      holidaysInPeriod,
+      holidayRecords,
+      holidayWorkingHours
+    };
+
+    console.log('[SRSTabStateHelpers] getHolidaysStatistics:', statistics);
+    return statistics;
   },
   
   /**
@@ -534,7 +582,7 @@ export const SRSTabStateHelpers = {
       toDate,
       srsRecords: [],
       totalHours: '0:00',
-      // *** НОВОЕ: Сброс типов отпuskov ***
+      // Сброс типов отпусков
       typesOfLeave: [],
       isLoadingTypesOfLeave: false,
       // *** НОВОЕ: Сброс праздников ***

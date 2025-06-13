@@ -19,6 +19,7 @@ interface UseHolidaysReturn {
 /**
  * Custom hook для загрузки праздников в SRS Tab
  * Адаптирован из Schedule Tab для работы с SRS состоянием и диапазоном дат
+ * КЛЮЧЕВОЕ ОТЛИЧИЕ: Использует fromDate-toDate вместо месяца/года
  */
 export const useHolidays = (props: UseHolidaysProps): UseHolidaysReturn => {
   const { context, fromDate, toDate, setState } = props;
@@ -29,7 +30,7 @@ export const useHolidays = (props: UseHolidaysProps): UseHolidaysReturn => {
     hasContext: !!context
   });
 
-  // Helper функции для обновления состояния
+  // Helper функции для обновления состояния SRS
   const setHolidays = useCallback((holidays: IHoliday[]) => {
     console.log('[SRS useHolidays] Setting holidays:', holidays.length);
     setState(prevState => ({ ...prevState, holidays }));
@@ -72,7 +73,7 @@ export const useHolidays = (props: UseHolidaysProps): UseHolidaysReturn => {
       
       const holidaysService = HolidaysService.getInstance(context);
       
-      // *** ОТЛИЧИЕ: Загружаем праздники для диапазона дат, а не для месяца ***
+      // *** КЛЮЧЕВОЕ ОТЛИЧИЕ: Загружаем праздники для диапазона дат, а не для месяца ***
       // Определяем все месяцы в диапазоне для загрузки
       const monthsToLoad = getMonthsInDateRange(fromDate, toDate);
       
@@ -95,7 +96,7 @@ export const useHolidays = (props: UseHolidaysProps): UseHolidaysReturn => {
         }
       }
       
-      // *** ФИЛЬТРАЦИЯ: Оставляем только праздники в точном диапазоне дат ***
+      // *** КЛЮЧЕВАЯ ФИЛЬТРАЦИЯ: Оставляем только праздники в точном диапазоне дат ***
       const filteredHolidays = allHolidays.filter(holiday => {
         const holidayDate = new Date(holiday.date);
         const isInRange = holidayDate >= fromDate && holidayDate <= toDate;
@@ -163,6 +164,7 @@ export const useHolidays = (props: UseHolidaysProps): UseHolidaysReturn => {
 /**
  * *** ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ: Получение месяцев в диапазоне дат ***
  * Возвращает список месяцев/годов, которые нужно загрузить для покрытия диапазона
+ * АДАПТИРОВАНО для SRS: может охватывать несколько месяцев
  */
 function getMonthsInDateRange(fromDate: Date, toDate: Date): Array<{ month: number; year: number }> {
   const months: Array<{ month: number; year: number }> = [];
@@ -171,7 +173,7 @@ function getMonthsInDateRange(fromDate: Date, toDate: Date): Array<{ month: numb
   const startDate = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1);
   const endDate = new Date(toDate.getFullYear(), toDate.getMonth(), 1);
   
-  console.log('[getMonthsInDateRange] Calculating months for range:', {
+  console.log('[getMonthsInDateRange] Calculating months for SRS range:', {
     originalFrom: fromDate.toISOString(),
     originalTo: toDate.toISOString(),
     normalizedStart: startDate.toISOString(),
@@ -185,13 +187,13 @@ function getMonthsInDateRange(fromDate: Date, toDate: Date): Array<{ month: numb
     const year = currentDate.getFullYear();
     
     months.push({ month, year });
-    console.log(`[getMonthsInDateRange] Added month: ${month}/${year}`);
+    console.log(`[getMonthsInDateRange] Added month for SRS: ${month}/${year}`);
     
     // Переходим к следующему месяцу
     currentDate.setMonth(currentDate.getMonth() + 1);
   }
   
-  console.log(`[getMonthsInDateRange] Total months to load: ${months.length}`);
+  console.log(`[getMonthsInDateRange] Total months to load for SRS: ${months.length}`);
   return months;
 }
 
@@ -227,4 +229,104 @@ export function getHolidayInfo(date: Date, holidays: IHoliday[]): IHoliday | und
   });
   
   return holiday;
+}
+
+/**
+ * *** НОВАЯ ФУНКЦИЯ: Получение статистики праздников для SRS периода ***
+ * Анализирует распределение праздников в выбранном диапазоне
+ */
+export function getHolidaysStatistics(
+  holidays: IHoliday[], 
+  fromDate: Date, 
+  toDate: Date
+): {
+  totalHolidays: number;
+  holidaysInRange: number;
+  holidaysByMonth: Record<string, number>;
+  holidaysList: Array<{ title: string; date: string; dayOfWeek: string }>;
+} {
+  console.log('[getHolidaysStatistics] Analyzing holidays for SRS period:', {
+    totalHolidays: holidays.length,
+    fromDate: fromDate.toLocaleDateString(),
+    toDate: toDate.toLocaleDateString()
+  });
+
+  const holidaysInRange = holidays.filter(holiday => {
+    const holidayDate = new Date(holiday.date);
+    return holidayDate >= fromDate && holidayDate <= toDate;
+  });
+
+  const holidaysByMonth = holidaysInRange.reduce((acc, holiday) => {
+    const holidayDate = new Date(holiday.date);
+    const monthKey = `${holidayDate.getFullYear()}-${(holidayDate.getMonth() + 1).toString().padStart(2, '0')}`;
+    acc[monthKey] = (acc[monthKey] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const holidaysList = holidaysInRange.map(holiday => {
+    const holidayDate = new Date(holiday.date);
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    
+    return {
+      title: holiday.title,
+      date: holidayDate.toLocaleDateString(),
+      dayOfWeek: dayNames[holidayDate.getDay()]
+    };
+  });
+
+  const statistics = {
+    totalHolidays: holidays.length,
+    holidaysInRange: holidaysInRange.length,
+    holidaysByMonth,
+    holidaysList
+  };
+
+  console.log('[getHolidaysStatistics] SRS holidays statistics:', statistics);
+  return statistics;
+}
+
+/**
+ * *** НОВАЯ ФУНКЦИЯ: Проверка пересечения праздников с рабочими днями ***
+ * Определяет какие праздники выпадают на рабочие дни в SRS записях
+ */
+export function checkHolidayWorkdayOverlap(
+  holidays: IHoliday[],
+  workDates: Date[]
+): Array<{
+  holiday: IHoliday;
+  workDate: Date;
+  isWeekend: boolean;
+}> {
+  const overlaps: Array<{
+    holiday: IHoliday;
+    workDate: Date;
+    isWeekend: boolean;
+  }> = [];
+
+  holidays.forEach(holiday => {
+    const holidayDate = new Date(holiday.date);
+    
+    // Ищем совпадения с рабочими днями
+    const matchingWorkDate = workDates.find(workDate => {
+      const workDateNormalized = new Date(workDate);
+      workDateNormalized.setHours(0, 0, 0, 0);
+      holidayDate.setHours(0, 0, 0, 0);
+      return workDateNormalized.getTime() === holidayDate.getTime();
+    });
+
+    if (matchingWorkDate) {
+      const isWeekend = holidayDate.getDay() === 0 || holidayDate.getDay() === 6; // Sunday = 0, Saturday = 6
+      
+      overlaps.push({
+        holiday,
+        workDate: matchingWorkDate,
+        isWeekend
+      });
+
+      console.log(`[checkHolidayWorkdayOverlap] Found overlap: ${holiday.title} on ${holidayDate.toLocaleDateString()} (${isWeekend ? 'Weekend' : 'Weekday'})`);
+    }
+  });
+
+  console.log(`[checkHolidayWorkdayOverlap] Found ${overlaps.length} holiday-workday overlaps`);
+  return overlaps;
 }

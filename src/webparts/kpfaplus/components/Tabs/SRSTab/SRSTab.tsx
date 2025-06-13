@@ -22,10 +22,10 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     selectedStaffName: selectedStaff?.name
   });
   
-  // Используем главный хук логики (как в ScheduleTab)
+  // Используем главный хук логики (как в ScheduleTab) с поддержкой праздников
   const srsLogic = useSRSTabLogic(props);
 
-  console.log('[SRSTab] SRS Logic state with types of leave support:', {
+  console.log('[SRSTab] SRS Logic state with types of leave and holidays support:', {
     recordsCount: srsLogic.srsRecords.length,
     totalHours: srsLogic.totalHours,
     fromDate: srsLogic.fromDate.toLocaleDateString(),
@@ -33,22 +33,27 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     isLoading: srsLogic.isLoadingSRS,
     hasError: !!srsLogic.errorSRS,
     isDataValid: srsLogic.isDataValid,
-    // *** НОВОЕ: Информация о типах отпусков ***
+    // Информация о типах отпусков
     typesOfLeaveCount: srsLogic.typesOfLeave.length,
-    isLoadingTypesOfLeave: srsLogic.isLoadingTypesOfLeave
+    isLoadingTypesOfLeave: srsLogic.isLoadingTypesOfLeave,
+    // *** НОВОЕ: Информация о праздниках ***
+    holidaysCount: srsLogic.holidays.length,
+    isLoadingHolidays: srsLogic.isLoadingHolidays
   });
 
-  // *** ОБНОВЛЕНО: Создание опций для таблицы с типами отпусков ***
+  // Создание опций для таблицы с типами отпусков
   const tableOptions: ISRSTableOptions = React.useMemo(() => {
-    console.log('[SRSTab] Creating table options with types of leave:', {
+    console.log('[SRSTab] Creating table options with types of leave and holidays context:', {
       typesOfLeaveCount: srsLogic.typesOfLeave.length,
-      isLoadingTypesOfLeave: srsLogic.isLoadingTypesOfLeave
+      isLoadingTypesOfLeave: srsLogic.isLoadingTypesOfLeave,
+      holidaysCount: srsLogic.holidays.length,
+      isLoadingHolidays: srsLogic.isLoadingHolidays
     });
 
     // Создаем стандартные опции
     const standardOptions = SRSTableOptionsHelper.createStandardOptions();
     
-    // *** НОВОЕ: Создаем опции для типов отпусков ***
+    // Создаем опции для типов отпусков
     const typesOfLeaveForOptions = srsLogic.typesOfLeave.map(type => ({
       id: type.id,
       title: type.title,
@@ -66,13 +71,14 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       ...standardOptions,
       leaveTypes: leaveTypesOptions
     };
-  }, [srsLogic.typesOfLeave, srsLogic.isLoadingTypesOfLeave]);
+  }, [srsLogic.typesOfLeave, srsLogic.isLoadingTypesOfLeave, srsLogic.holidays.length, srsLogic.isLoadingHolidays]);
 
   // Преобразуем IStaffRecord[] в ISRSRecord[] для компонентов
   const srsRecordsForTable: ISRSRecord[] = React.useMemo(() => {
-    console.log('[SRSTab] Converting staff records to SRS records with types of leave context:', {
+    console.log('[SRSTab] Converting staff records to SRS records with types of leave and holidays context:', {
       originalCount: srsLogic.srsRecords.length,
-      typesOfLeaveAvailable: srsLogic.typesOfLeave.length
+      typesOfLeaveAvailable: srsLogic.typesOfLeave.length,
+      holidaysAvailable: srsLogic.holidays.length
     });
 
     const mappedRecords = SRSDataMapper.mapStaffRecordsToSRSRecords(srsLogic.srsRecords);
@@ -82,7 +88,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       mappedCount: mappedRecords.length
     });
 
-    // *** НОВОЕ: Логируем статистику по типам отпусков ***
+    // Логируем статистику по типам отпусков
     if (mappedRecords.length > 0) {
       const typeStats = mappedRecords.reduce((acc, record) => {
         const typeKey = record.typeOfLeave || 'No Type';
@@ -91,12 +97,21 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       }, {} as Record<string, number>);
       
       console.log('[SRSTab] Types of leave distribution in mapped records:', typeStats);
+
+      // *** НОВОЕ: Логируем статистику по праздникам ***
+      const holidayStats = mappedRecords.reduce((acc, record) => {
+        const isHoliday = record.Holiday === 1;
+        acc[isHoliday ? 'Holiday' : 'Regular'] = (acc[isHoliday ? 'Holiday' : 'Regular'] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      console.log('[SRSTab] Holiday distribution in mapped records:', holidayStats);
     }
 
     return mappedRecords;
-  }, [srsLogic.srsRecords, srsLogic.typesOfLeave.length]);
+  }, [srsLogic.srsRecords, srsLogic.typesOfLeave.length, srsLogic.holidays.length]);
 
-  // *** НОВЫЙ ОБРАБОТЧИК: Изменение типа отпуска ***
+  // Обработчик изменения типа отпуска
   const handleTypeOfLeaveChange = React.useCallback((item: ISRSRecord, value: string) => {
     console.log('[SRSTab] Type of leave change requested:', {
       itemId: item.id,
@@ -140,14 +155,15 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       padding: '0',
       position: 'relative'
     }}>
-      {/* Заголовок - только SRS for [имя] */}
+      {/* *** ОБНОВЛЕНО: Заголовок с информацией о праздниках *** */}
       <div style={{
         fontSize: '16px',
         fontWeight: '600',
         marginBottom: '20px'
       }}>
         SRS for {selectedStaff.name}
-        {/* *** НОВОЕ: Отображение статуса загрузки типов отпусков *** */}
+        
+        {/* Индикатор загрузки типов отпусков */}
         {srsLogic.isLoadingTypesOfLeave && (
           <span style={{
             fontSize: '12px',
@@ -157,13 +173,37 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
             (Loading types of leave...)
           </span>
         )}
-        {srsLogic.typesOfLeave.length > 0 && (
+        
+        {/* *** НОВОЕ: Индикатор загрузки праздников *** */}
+        {srsLogic.isLoadingHolidays && (
+          <span style={{
+            fontSize: '12px',
+            color: '#666',
+            marginLeft: '10px'
+          }}>
+            (Loading holidays...)
+          </span>
+        )}
+        
+        {/* Информация о доступных данных */}
+        {srsLogic.typesOfLeave.length > 0 && !srsLogic.isLoadingTypesOfLeave && (
           <span style={{
             fontSize: '12px',
             color: '#107c10',
             marginLeft: '10px'
           }}>
             ({srsLogic.typesOfLeave.length} types of leave available)
+          </span>
+        )}
+        
+        {/* *** НОВОЕ: Информация о праздниках *** */}
+        {srsLogic.holidays.length > 0 && !srsLogic.isLoadingHolidays && (
+          <span style={{
+            fontSize: '12px',
+            color: '#ff69b4',
+            marginLeft: '10px'
+          }}>
+            ({srsLogic.holidays.length} holidays in period)
           </span>
         )}
       </div>
@@ -173,10 +213,10 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         fromDate={srsLogic.fromDate}
         toDate={srsLogic.toDate}
         totalHours={srsLogic.totalHours}
-        isLoading={srsLogic.isLoadingSRS || srsLogic.isLoadingTypesOfLeave} // *** ОБНОВЛЕНО: Учитываем загрузку типов отпусков ***
+        isLoading={srsLogic.isLoadingSRS || srsLogic.isLoadingTypesOfLeave || srsLogic.isLoadingHolidays} // *** ОБНОВЛЕНО: Учитываем загрузку праздников ***
         onFromDateChange={srsLogic.onFromDateChange}
         onToDateChange={srsLogic.onToDateChange}
-        onRefresh={srsLogic.onRefreshData} // *** Теперь включает обновление типов отпусков ***
+        onRefresh={srsLogic.onRefreshData} // *** Включает обновление типов отпусков и праздников ***
         onExportAll={srsLogic.onExportAll}
         onSave={srsLogic.onSave}
         onSaveChecked={srsLogic.onSaveChecked}
@@ -184,7 +224,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         hasCheckedItems={srsLogic.hasCheckedItems}
       />
       
-      {/* *** НОВОЕ: Отображение ошибок загрузки типов отпусков *** */}
+      {/* *** ОБНОВЛЕНО: Отображение ошибок загрузки (включая праздники) *** */}
       {srsLogic.errorSRS && (
         <div style={{
           backgroundColor: '#fef2f2',
@@ -202,16 +242,15 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       {/* Таблица SRS - передаем все необходимые обработчики включая типы отпусков */}
       <SRSTable
         items={srsRecordsForTable}
-        options={tableOptions} // *** ОБНОВЛЕНО: Включает типы отпусков ***
-        isLoading={srsLogic.isLoadingSRS || srsLogic.isLoadingTypesOfLeave} // *** ОБНОВЛЕНО: Учитываем загрузку типов отпусков ***
+        options={tableOptions}
+        isLoading={srsLogic.isLoadingSRS || srsLogic.isLoadingTypesOfLeave || srsLogic.isLoadingHolidays} // *** ОБНОВЛЕНО: Учитываем загрузку праздников ***
         onItemChange={srsLogic.onItemChange}
         onLunchTimeChange={srsLogic.onLunchTimeChange}
         onContractNumberChange={srsLogic.onContractNumberChange}
-        // *** НОВОЕ: Передаем обработчик типов отпусков ***
         onTypeOfLeaveChange={handleTypeOfLeaveChange}
       />
       
-      {/* *** НОВОЕ: Отладочная информация (только в режиме разработки) *** */}
+      {/* *** ОБНОВЛЕНО: Отладочная информация с праздниками *** */}
       {process.env.NODE_ENV === 'development' && (
         <div style={{
           marginTop: '20px',
@@ -226,11 +265,26 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
           <div>SRS Records: {srsRecordsForTable.length}</div>
           <div>Types of Leave: {srsLogic.typesOfLeave.length}</div>
           <div>Loading Types: {srsLogic.isLoadingTypesOfLeave ? 'Yes' : 'No'}</div>
+          {/* *** НОВОЕ: Отладочная информация о праздниках *** */}
+          <div>Holidays: {srsLogic.holidays.length}</div>
+          <div>Loading Holidays: {srsLogic.isLoadingHolidays ? 'Yes' : 'No'}</div>
           <div>Has Changes: {srsLogic.hasUnsavedChanges ? 'Yes' : 'No'}</div>
           <div>Selected Items: {srsLogic.selectedItemsCount}</div>
           {srsLogic.typesOfLeave.length > 0 && (
             <div>
               Available Types: {srsLogic.typesOfLeave.map(t => t.title).join(', ')}
+            </div>
+          )}
+          {/* *** НОВОЕ: Список праздников в отладочной информации *** */}
+          {srsLogic.holidays.length > 0 && (
+            <div>
+              Holidays in Period: {srsLogic.holidays.map(h => `${h.title} (${new Date(h.date).toLocaleDateString()})`).join(', ')}
+            </div>
+          )}
+          {/* *** НОВОЕ: Статистика праздничных записей *** */}
+          {srsRecordsForTable.length > 0 && (
+            <div>
+              Holiday Records: {srsRecordsForTable.filter(r => r.Holiday === 1).length} of {srsRecordsForTable.length}
             </div>
           )}
         </div>
