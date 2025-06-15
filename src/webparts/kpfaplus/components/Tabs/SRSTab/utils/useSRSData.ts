@@ -238,7 +238,7 @@ export const useSRSData = (props: UseSRSDataProps): UseSRSDataReturn => {
      }
 
      // Фильтруем записи в ТОЧНОМ диапазоне дат пользователя
-     const filteredRecords = allRecords.filter((record: any) => {
+     const filteredRecords = allRecords.filter((record: IStaffRecord) => {
        const recordInRange = SRSDateUtils.isDateInRange(record.Date, normalizedFromDate, normalizedToDate);
        
        if (!recordInRange) {
@@ -257,7 +257,8 @@ export const useSRSData = (props: UseSRSDataProps): UseSRSDataReturn => {
 
      // Логируем статистику по типам записей
      if (filteredRecords.length > 0) {
-       const recordTypes = filteredRecords.reduce((acc: any, record: any) => {
+       // *** ИСПРАВЛЕНО: Убрана any типизация ***
+       const recordTypes = filteredRecords.reduce((acc: Record<string, number>, record: IStaffRecord) => {
          const hasTypeOfLeave = !!(record.TypeOfLeaveID && record.TypeOfLeaveID !== '' && record.TypeOfLeaveID !== '0');
          const isDeleted = record.Deleted === 1;
          
@@ -275,7 +276,7 @@ export const useSRSData = (props: UseSRSDataProps): UseSRSDataReturn => {
        console.log('[useSRSData] Records by type and deletion status:', recordTypes);
 
        // *** ПОДРОБНАЯ СТАТИСТИКА УДАЛЕННЫХ ЗАПИСЕЙ ***
-       const deletedCount = filteredRecords.filter((record: any) => record.Deleted === 1).length;
+       const deletedCount = filteredRecords.filter((record: IStaffRecord) => record.Deleted === 1).length;
        const activeCount = filteredRecords.length - deletedCount;
        
        console.log('[useSRSData] *** DELETION STATUS STATISTICS ***:', {
@@ -287,7 +288,7 @@ export const useSRSData = (props: UseSRSDataProps): UseSRSDataReturn => {
        });
 
        // Логируем первые несколько записей для проверки
-       filteredRecords.slice(0, 5).forEach((record: any, index: number) => {
+       filteredRecords.slice(0, 5).forEach((record: IStaffRecord, index: number) => {
          const hasTypeOfLeave = !!(record.TypeOfLeaveID && record.TypeOfLeaveID !== '' && record.TypeOfLeaveID !== '0');
          const isDeleted = record.Deleted === 1;
          
@@ -295,7 +296,8 @@ export const useSRSData = (props: UseSRSDataProps): UseSRSDataReturn => {
            id: record.ID,
            date: record.Date.toLocaleDateString(),
            typeOfLeaveId: record.TypeOfLeaveID || 'No leave type',
-           typeOfLeaveTitle: record.TypeOfLeave?.Title || 'Regular work day',
+           // *** ИСПРАВЛЕНО: Убрана any типизация с безопасным доступом ***
+           typeOfLeaveTitle: (record.TypeOfLeave as { Title?: string } | undefined)?.Title || 'Regular work day',
            leaveTime: record.LeaveTime,
            workTime: record.WorkTime,
            isRegularWork: !hasTypeOfLeave,
