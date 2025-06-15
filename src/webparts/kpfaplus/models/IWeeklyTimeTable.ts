@@ -32,7 +32,8 @@ export interface IWeeklyTimeTableRawItem {
     Contract?: number;
     TimeForLunch?: number;
     
-    // DateTime поля (существующие)
+    // СТАРЫЕ DateTime поля (закомментированы - больше не используются)
+    /*
     MondeyStartWork?: string; // С опечаткой как в коде
     MondayEndWork?: string;
     TuesdayStartWork?: string;
@@ -49,8 +50,9 @@ export interface IWeeklyTimeTableRawItem {
     SundayEndWork?: string;
     StartLunch?: string;
     EndLunch?: string;
+    */
     
-    // --- НОВЫЕ ЧИСЛОВЫЕ ПОЛЯ ДЛЯ ЧАСОВ И МИНУТ ---
+    // --- НОВЫЕ ЧИСЛОВЫЕ ПОЛЯ ДЛЯ ЧАСОВ И МИНУТ (ТЕПЕРЬ ОСНОВНЫЕ) ---
     // Monday
     MondayStartWorkHours?: number;
     MondayStartWorkMinutes?: number;
@@ -93,7 +95,6 @@ export interface IWeeklyTimeTableRawItem {
     SundayEndWorkHours?: number;
     SundayEndWorkMinutes?: number;
     
-    // Lunch поля обеда удалены - числовые поля для обеда не нужны
     // --- КОНЕЦ НОВЫХ ПОЛЕЙ ---
     
     [key: string]: unknown;
@@ -118,7 +119,8 @@ export interface IWeeklyTimeTableItem {
   };
   fields?: Record<string, unknown>; // Поддержка существующей структуры
   
-  // Поля для времени начала и окончания
+  // СТАРЫЕ поля для времени начала и окончания (закомментированы)
+  /*
   mondayStartWork?: string;
   mondayEndWork?: string;
   tuesdayStartWork?: string;
@@ -133,6 +135,7 @@ export interface IWeeklyTimeTableItem {
   saturdayEndWork?: string;
   sundayStartWork?: string;
   sundayEndWork?: string;
+  */
   
   // Дополнительные поля
   timeForLunch?: number;
@@ -167,6 +170,32 @@ export interface IFormattedWeeklyTimeRow {
 
 // Утилиты для работы с недельным расписанием
 export class WeeklyTimeTableUtils {
+  
+  // НОВЫЙ МЕТОД: Извлечение часов и минут из числовых полей
+  private static extractTimeFromNumericFields(
+    hoursValue: unknown, 
+    minutesValue: unknown
+  ): IDayHours {
+    // Преобразуем в числа с валидацией
+    const hours = typeof hoursValue === 'number' ? hoursValue : 
+                 typeof hoursValue === 'string' ? parseInt(hoursValue) : 0;
+    const minutes = typeof minutesValue === 'number' ? minutesValue :
+                   typeof minutesValue === 'string' ? parseInt(minutesValue) : 0;
+    
+    // Валидация значений
+    const validHours = Math.max(0, Math.min(23, isNaN(hours) ? 0 : hours));
+    const validMinutes = Math.max(0, Math.min(59, isNaN(minutes) ? 0 : minutes));
+    
+    const hoursStr = validHours.toString().padStart(2, '0');
+    const minutesStr = validMinutes.toString().padStart(2, '0');
+    
+    console.log(`[WeeklyTimeTableUtils] Numeric fields: hours=${hoursValue}, minutes=${minutesValue} → ${hoursStr}:${minutesStr}`);
+    
+    return { hours: hoursStr, minutes: minutesStr };
+  }
+
+  // СТАРЫЙ МЕТОД - ЗАКОММЕНТИРОВАН
+  /*
   // Вспомогательный метод для извлечения часов и минут из даты
   private static extractTimeFromDate(dateString: string | undefined): IDayHours {
   if (!dateString) {
@@ -193,6 +222,7 @@ export class WeeklyTimeTableUtils {
   
   return { hours: hoursStr, minutes: minutesStr };
 }
+  */
   
   // Вспомогательный метод для безопасного получения строки из unknown
   private static safeString(value: unknown): string | undefined {
@@ -248,7 +278,8 @@ export class WeeklyTimeTableUtils {
   
     console.log("Sample WeeklyTimeTable item structure:", JSON.stringify(items[0] || {}, null, 2));
     console.log(`Using DayOfStartWeek = ${dayOfStartWeek}, week starts with: ${this.getDayOrder(dayOfStartWeek)[0]}`);
-  
+    console.log("ОБНОВЛЕНО: Используем числовые поля для времени вместо DateTime полей");
+
     // Создаем массив для результатов
     const formattedRows: IFormattedWeeklyTimeRow[] = [];
     
@@ -271,23 +302,65 @@ export class WeeklyTimeTableUtils {
         rowName += ` Shift ${shiftNumber}`;
       }
       
-      // Извлекаем часы и минуты для начала работы каждого дня
-      const mondayStart = this.extractTimeFromDate(this.safeString(fields.MondeyStartWork)); // Обратите внимание на опечатку
-      const tuesdayStart = this.extractTimeFromDate(this.safeString(fields.TuesdayStartWork));
-      const wednesdayStart = this.extractTimeFromDate(this.safeString(fields.WednesdayStartWork));
-      const thursdayStart = this.extractTimeFromDate(this.safeString(fields.ThursdayStartWork));
-      const fridayStart = this.extractTimeFromDate(this.safeString(fields.FridayStartWork));
-      const saturdayStart = this.extractTimeFromDate(this.safeString(fields.SaturdayStartWork));
-      const sundayStart = this.extractTimeFromDate(this.safeString(fields.SundayStartWork));
+      // НОВЫЙ ПОДХОД: Извлекаем часы и минуты для начала работы каждого дня из числовых полей
+      const mondayStart = this.extractTimeFromNumericFields(
+        fields.MondayStartWorkHours, 
+        fields.MondayStartWorkMinutes
+      );
+      const tuesdayStart = this.extractTimeFromNumericFields(
+        fields.TuesdayStartWorkHours, 
+        fields.TuesdayStartWorkMinutes
+      );
+      const wednesdayStart = this.extractTimeFromNumericFields(
+        fields.WednesdayStartWorkHours, 
+        fields.WednesdayStartWorkMinutes
+      );
+      const thursdayStart = this.extractTimeFromNumericFields(
+        fields.ThursdayStartWorkHours, 
+        fields.ThursdayStartWorkMinutes
+      );
+      const fridayStart = this.extractTimeFromNumericFields(
+        fields.FridayStartWorkHours, 
+        fields.FridayStartWorkMinutes
+      );
+      const saturdayStart = this.extractTimeFromNumericFields(
+        fields.SaturdayStartWorkHours, 
+        fields.SaturdayStartWorkMinutes
+      );
+      const sundayStart = this.extractTimeFromNumericFields(
+        fields.SundayStartWorkHours, 
+        fields.SundayStartWorkMinutes
+      );
       
-      // Извлекаем часы и минуты для окончания работы каждого дня
-      const mondayEnd = this.extractTimeFromDate(this.safeString(fields.MondayEndWork));
-      const tuesdayEnd = this.extractTimeFromDate(this.safeString(fields.TuesdayEndWork));
-      const wednesdayEnd = this.extractTimeFromDate(this.safeString(fields.WednesdayEndWork));
-      const thursdayEnd = this.extractTimeFromDate(this.safeString(fields.ThursdayEndWork));
-      const fridayEnd = this.extractTimeFromDate(this.safeString(fields.FridayEndWork));
-      const saturdayEnd = this.extractTimeFromDate(this.safeString(fields.SaturdayEndWork));
-      const sundayEnd = this.extractTimeFromDate(this.safeString(fields.SundayEndWork));
+      // НОВЫЙ ПОДХОД: Извлекаем часы и минуты для окончания работы каждого дня из числовых полей
+      const mondayEnd = this.extractTimeFromNumericFields(
+        fields.MondayEndWorkHours, 
+        fields.MondayEndWorkMinutes
+      );
+      const tuesdayEnd = this.extractTimeFromNumericFields(
+        fields.TuesdayEndWorkHours, 
+        fields.TuesdayEndWorkMinutes
+      );
+      const wednesdayEnd = this.extractTimeFromNumericFields(
+        fields.WednesdayEndWorkHours, 
+        fields.WednesdayEndWorkMinutes
+      );
+      const thursdayEnd = this.extractTimeFromNumericFields(
+        fields.ThursdayEndWorkHours, 
+        fields.ThursdayEndWorkMinutes
+      );
+      const fridayEnd = this.extractTimeFromNumericFields(
+        fields.FridayEndWorkHours, 
+        fields.FridayEndWorkMinutes
+      );
+      const saturdayEnd = this.extractTimeFromNumericFields(
+        fields.SaturdayEndWorkHours, 
+        fields.SaturdayEndWorkMinutes
+      );
+      const sundayEnd = this.extractTimeFromNumericFields(
+        fields.SundayEndWorkHours, 
+        fields.SundayEndWorkMinutes
+      );
       
       // Создаем объект строки с извлеченными значениями для всех дней
       const row: IFormattedWeeklyTimeRow = {
@@ -382,9 +455,11 @@ export class WeeklyTimeTableUtils {
     
     // Добавим дополнительные логи для проверки преобразованных данных
     if (formattedRows.length > 0) {
-      console.log(`Example of first formatted row (id=${formattedRows[0].id}):`);
+      console.log(`Example of first formatted row (id=${formattedRows[0].id}) with numeric time fields:`);
       console.log(`- lunch: ${formattedRows[0].lunch}`);
       console.log(`- totalHours: ${formattedRows[0].totalHours}`);
+      console.log(`- monday start: ${formattedRows[0].monday.start.hours}:${formattedRows[0].monday.start.minutes}`);
+      console.log(`- monday end: ${formattedRows[0].monday.end.hours}:${formattedRows[0].monday.end.minutes}`);
     }
     
     return formattedRows;

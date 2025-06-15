@@ -8,7 +8,7 @@ import {
   updateDisplayedTotalHours
 } from './WeeklyTimeTableLogic';
 import { WeeklyTimeTableUtils, IDayHoursComplete } from '../../../models/IWeeklyTimeTable';
-import { DateUtils } from '../../CustomDatePicker/CustomDatePicker';
+// import { DateUtils } from '../../CustomDatePicker/CustomDatePicker'; // ЗАКОММЕНТИРОВАНО - больше не нужен для числовых полей
 
 /**
  * Хук для получения опций для выпадающего списка часов
@@ -68,6 +68,7 @@ export const useLunchOptions = (): IDropdownOption[] => {
 
 /**
  * ИСПРАВЛЕННАЯ функция обработки изменения времени - теперь принимает ID строки
+ * ОБНОВЛЕНО: Убрана зависимость от DateUtils, упрощена логика для числовых полей
  * @param timeTableData Текущие данные таблицы
  * @param setTimeTableData Функция для обновления данных таблицы
  * @param changedRows Множество измененных строк
@@ -117,6 +118,34 @@ export const useTimeChangeHandler = (
       return;
     }
     
+    // ОБНОВЛЕНО: Простая валидация числовых значений времени
+    const numericValue = parseInt(value, 10);
+    if (field === 'hours' && (isNaN(numericValue) || numericValue < 0 || numericValue > 23)) {
+      setStatusMessage({
+        type: MessageBarType.error,
+        message: 'Hours must be between 0 and 23'
+      });
+      
+      setTimeout(() => {
+        setStatusMessage(undefined);
+      }, 3000);
+      
+      return;
+    }
+    
+    if (field === 'minutes' && (isNaN(numericValue) || numericValue < 0 || numericValue > 59)) {
+      setStatusMessage({
+        type: MessageBarType.error,
+        message: 'Minutes must be between 0 and 59'
+      });
+      
+      setTimeout(() => {
+        setStatusMessage(undefined);
+      }, 3000);
+      
+      return;
+    }
+    
     const [dayName, timeType] = dayKey.split('-');
     const newData = [...timeTableData];
     const rowDay = dayName.toLowerCase() as keyof IExtendedWeeklyTimeRow;
@@ -129,10 +158,10 @@ export const useTimeChangeHandler = (
       if (dayData) {
         const timeToUpdate = timeType === 'end' ? 'end' : 'start';
         
-        // Создаем обновленные данные времени
+        // ОБНОВЛЕНО: Простое обновление числового значения времени
         const updatedTimeData = {
           ...dayData[timeToUpdate],
-          [field]: value
+          [field]: value.padStart(2, '0') // Убеждаемся что значение в формате "00"
         };
         
         // Применяем изменение
@@ -159,7 +188,7 @@ export const useTimeChangeHandler = (
           }
         });
         
-        // Пересчитываем общее время работы
+        // Пересчитываем общее время работы (эта функция работает с числовыми полями)
         const totalHours = WeeklyTimeTableUtils.calculateTotalWorkHours(
           {
             monday: normalizedDayData.monday,
@@ -208,6 +237,7 @@ export const useTimeChangeHandler = (
 
 /**
  * ИСПРАВЛЕННАЯ функция для обработки изменения времени обеда - теперь принимает ID строки
+ * ОБНОВЛЕНО: Упрощена валидация для числовых значений
  * @param timeTableData Текущие данные таблицы
  * @param setTimeTableData Функция для обновления данных таблицы
  * @param changedRows Множество измененных строк
@@ -259,7 +289,7 @@ export const useLunchChangeHandler = (
       return;
     }
     
-    // Валидация времени обеда
+    // ОБНОВЛЕНО: Упрощенная валидация времени обеда для числовых значений
     const lunchMinutes = parseInt(value, 10);
     if (isNaN(lunchMinutes) || lunchMinutes < 0 || lunchMinutes > 120) {
       setStatusMessage({
@@ -319,6 +349,7 @@ export const useLunchChangeHandler = (
 
 /**
  * ИСПРАВЛЕННАЯ функция для обработки изменения контракта - теперь принимает ID строки
+ * ОБНОВЛЕНО: Упрощена валидация для числовых значений
  * @param timeTableData Текущие данные таблицы
  * @param setTimeTableData Функция для обновления данных таблицы
  * @param changedRows Множество измененных строк
@@ -370,7 +401,7 @@ export const useContractChangeHandler = (
       return;
     }
     
-    // Валидация значения контракта
+    // ОБНОВЛЕНО: Упрощенная валидация значения контракта для числовых значений
     const contractNumber = parseInt(value, 10);
     if (isNaN(contractNumber) || contractNumber < 1 || contractNumber > 10) {
       setStatusMessage({
@@ -420,10 +451,36 @@ export const useUpdateTotalHours = (
 };
 
 /**
+ * НОВАЯ ФУНКЦИЯ: Получение информации о текущем времени (статическая версия без DateUtils)
+ * Упрощенная версия для отладки без зависимости от DateUtils
+ * @returns Объект с информацией о текущем времени
+ */
+export const getCurrentTimeInfoSimple = (): {
+  currentDate: Date;
+  timeZone: string;
+  utcOffset: number;
+  localHours: number;
+  localMinutes: number;
+} => {
+  const currentDate = new Date();
+  
+  return {
+    currentDate,
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    utcOffset: currentDate.getTimezoneOffset(),
+    localHours: currentDate.getHours(),
+    localMinutes: currentDate.getMinutes()
+  };
+};
+
+// СТАРАЯ ФУНКЦИЯ ЗАКОММЕНТИРОВАНА - ИСПОЛЬЗОВАЛА DateUtils
+/*
+/**
  * Получение информации о текущем времени/дате (статическая версия)
  * Полезна для отладки проблем с временными зонами
  * @returns Объект с информацией о текущем времени
  */
+/*
 export const getCurrentTimeInfo = (): {
   currentDate: Date;
   normalizedDate: Date;
@@ -440,3 +497,4 @@ export const getCurrentTimeInfo = (): {
     utcOffset: currentDate.getTimezoneOffset()
   };
 };
+*/

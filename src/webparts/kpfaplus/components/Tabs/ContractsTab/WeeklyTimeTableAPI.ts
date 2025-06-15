@@ -3,9 +3,9 @@ import { WebPartContext } from '@microsoft/sp-webpart-base';
 import { MessageBarType } from '@fluentui/react';
 import { IDayHours,WeeklyTimeTableUtils } from '../../../models/IWeeklyTimeTable';
 import { IWeeklyTimeTableUpdateItem, WeeklyTimeTableService } from '../../../services/WeeklyTimeTableService';
-import { IExtendedWeeklyTimeRow, updateDisplayedTotalHours, analyzeWeeklyTableData, checkCanAddNewWeek, normalizeWeeklyTimeRowDates } from './WeeklyTimeTableLogic';
+import { IExtendedWeeklyTimeRow, updateDisplayedTotalHours, analyzeWeeklyTableData, checkCanAddNewWeek /*, normalizeWeeklyTimeRowDates*/ } from './WeeklyTimeTableLogic';
 import { StatusMessageType } from './actions/WeeklyTimeTableTypes';
-import { DateUtils } from '../../CustomDatePicker/CustomDatePicker';
+// import { DateUtils } from '../../CustomDatePicker/CustomDatePicker'; // ЗАКОММЕНТИРОВАНО - больше не нужен для числовых полей
 
 export interface ISaveParams {
   context: WebPartContext;
@@ -34,9 +34,42 @@ export interface IWeeklyTimeTableRawItem {
       IdOfTemplate?: string | number;
       idOfTemplate?: string | number;
       IdOfTemplateLookupId?: string | number;
-      // ДОБАВЛЕНО: Поля с датами/временем для нормализации
+      
+      // НОВЫЕ ЧИСЛОВЫЕ ПОЛЯ для времени
+      MondayStartWorkHours?: number;
+      MondayStartWorkMinutes?: number;
+      MondayEndWorkHours?: number;
+      MondayEndWorkMinutes?: number;
+      TuesdayStartWorkHours?: number;
+      TuesdayStartWorkMinutes?: number;
+      TuesdayEndWorkHours?: number;
+      TuesdayEndWorkMinutes?: number;
+      WednesdayStartWorkHours?: number;
+      WednesdayStartWorkMinutes?: number;
+      WednesdayEndWorkHours?: number;
+      WednesdayEndWorkMinutes?: number;
+      ThursdayStartWorkHours?: number;
+      ThursdayStartWorkMinutes?: number;
+      ThursdayEndWorkHours?: number;
+      ThursdayEndWorkMinutes?: number;
+      FridayStartWorkHours?: number;
+      FridayStartWorkMinutes?: number;
+      FridayEndWorkHours?: number;
+      FridayEndWorkMinutes?: number;
+      SaturdayStartWorkHours?: number;
+      SaturdayStartWorkMinutes?: number;
+      SaturdayEndWorkHours?: number;
+      SaturdayEndWorkMinutes?: number;
+      SundayStartWorkHours?: number;
+      SundayStartWorkMinutes?: number;
+      SundayEndWorkHours?: number;
+      SundayEndWorkMinutes?: number;
+      
+      // СТАРЫЕ DateTime поля (закомментированы)
+      /*
       Created?: string;
       Modified?: string;
+      */
       [key: string]: unknown;
     };
     [key: string]: unknown;
@@ -609,7 +642,7 @@ export const deleteRestoreShift = async (params: IDeleteRestoreParams): Promise<
 
 /**
  * Загружает данные недельного расписания для контракта
- * ОБНОВЛЕНО: Добавлена нормализация дат через DateUtils
+ * ОБНОВЛЕНО: Удалена нормализация дат через DateUtils, так как теперь используются числовые поля
  * @param context Контекст веб-части
  * @param contractId ID контракта
  * @param setIsLoading Функция для установки состояния загрузки
@@ -639,7 +672,7 @@ export const loadWeeklyTimeTableData = async (
     setIsLoading(true);
     
     try {
-      console.log(`Loading weekly time table data for contract ${contractId}...`);
+      console.log(`Loading weekly time table data for contract ${contractId} with numeric time fields...`);
       
       // Создаем сервис для работы с данными
       const service = new WeeklyTimeTableService(context);
@@ -649,8 +682,8 @@ export const loadWeeklyTimeTableData = async (
       
       console.log(`Retrieved ${items.length} items for contract ${contractId}`);
       
-      // ОБНОВЛЕНО: Функция для преобразования данных с нормализацией дат
-      const formatDataWithDateNormalization = (): IExtendedWeeklyTimeRow[] => {
+      // ОБНОВЛЕНО: Функция для преобразования данных БЕЗ нормализации дат
+      const formatDataWithNumericFields = (): IExtendedWeeklyTimeRow[] => {
         // Безопасно приводим items к нужному типу
         const typedItems = items as unknown as IWeeklyTimeTableRawItem[];
         
@@ -660,12 +693,12 @@ export const loadWeeklyTimeTableData = async (
         // Создаем кастомную функцию форматирования
         const customFormatter = function(items: IWeeklyTimeTableRawItem[], dayStart?: number): IExtendedWeeklyTimeRow[] {
           // Логируем параметры для отладки
-          console.log(`Custom formatWeeklyTimeTableData called with dayOfStartWeek = ${dayStart}`);
+          console.log(`Custom formatWeeklyTimeTableData called with dayOfStartWeek = ${dayStart}, using NUMERIC time fields`);
           
           // Вызываем оригинальный метод с безопасным приведением типов
           const result = origMethod.call(this, items);
           
-          // ОБНОВЛЕНО: После получения результата, добавляем поля и нормализуем даты
+          // ОБНОВЛЕНО: После получения результата, добавляем поля БЕЗ нормализации дат
           for (let i = 0; i < result.length; i++) {
             const formattedRow = result[i];
             const originalRow = items.find(item => {
@@ -726,36 +759,13 @@ export const loadWeeklyTimeTableData = async (
                 formattedRow.idOfTemplate = templateValue;
               }
               
-              // ДОБАВЛЕНО: Нормализация полей с датами через DateUtils
-              if (fields.Created && typeof fields.Created === 'string') {
-                try {
-                  const createdDate = new Date(fields.Created);
-                  if (!isNaN(createdDate.getTime())) {
-                    const normalizedCreated = DateUtils.normalizeDateToUTCMidnight(createdDate);
-                    (formattedRow as Record<string, unknown>).createdDate = normalizedCreated;
-                    console.log(`[LoadData] Normalized Created: ${fields.Created} → ${normalizedCreated.toISOString()}`);
-                  }
-                } catch (dateError) {
-                  console.warn(`[LoadData] Error parsing Created date: ${fields.Created}`, dateError);
-                }
-              }
-              
-              if (fields.Modified && typeof fields.Modified === 'string') {
-                try {
-                  const modifiedDate = new Date(fields.Modified);
-                  if (!isNaN(modifiedDate.getTime())) {
-                    const normalizedModified = DateUtils.normalizeDateToUTCMidnight(modifiedDate);
-                    (formattedRow as Record<string, unknown>).modifiedDate = normalizedModified;
-                    console.log(`[LoadData] Normalized Modified: ${fields.Modified} → ${normalizedModified.toISOString()}`);
-                  }
-                } catch (dateError) {
-                  console.warn(`[LoadData] Error parsing Modified date: ${fields.Modified}`, dateError);
-                }
-              }
+              // УДАЛЕНО: Нормализация полей с датами через DateUtils больше не нужна
+              // так как мы теперь работаем с числовыми полями времени
+              console.log(`[LoadData] Processing row ID=${formattedRow.id} with numeric time fields (no date normalization needed)`);
             }
             
-            // ДОБАВЛЕНО: Применяем дополнительную нормализацию дат через специальную функцию
-            result[i] = normalizeWeeklyTimeRowDates(formattedRow);
+            // УДАЛЕНО: Применение дополнительной нормализации дат через normalizeWeeklyTimeRowDates
+            // result[i] = normalizeWeeklyTimeRowDates(formattedRow);
           }
           
           return result;
@@ -773,8 +783,8 @@ export const loadWeeklyTimeTableData = async (
         return formattedData;
       };
       
-      // Форматируем данные с нормализацией дат
-      const formattedData = formatDataWithDateNormalization();
+      // Форматируем данные с числовыми полями времени
+      const formattedData = formatDataWithNumericFields();
       
       // Обновляем общее время для шаблонов
       const dataWithTotalHours = updateDisplayedTotalHours(formattedData as IExtendedWeeklyTimeRow[]);
@@ -788,7 +798,7 @@ export const loadWeeklyTimeTableData = async (
       // Сбрасываем статусное сообщение
       setStatusMessage(undefined);
       
-      console.log(`Successfully loaded and formatted ${dataWithTotalHours.length} rows for contract ${contractId} with DateUtils normalization`);
+      console.log(`Successfully loaded and formatted ${dataWithTotalHours.length} rows for contract ${contractId} using numeric time fields`);
     } catch (error) {
       console.error(`Error loading weekly time table data: ${error}`);
       
@@ -808,7 +818,7 @@ export const loadWeeklyTimeTableData = async (
 
 /**
  * ОБНОВЛЕНО: Инициализирует компонент недельного расписания с существующими данными
- * Добавлена нормализация дат через DateUtils при инициализации
+ * Удалена нормализация дат через DateUtils при инициализации (теперь используются числовые поля)
  * @param weeklyTimeData Данные из props компонента
  * @param dataInitializedRef Ссылка для отслеживания инициализации данных
  * @param setTimeTableData Функция для установки данных таблицы
@@ -824,22 +834,22 @@ export const initializeWithExistingData = (
   ): void => {
     // Если есть данные из props, используем их
     if (weeklyTimeData && weeklyTimeData.length > 0) {
-      console.log(`Processing ${weeklyTimeData.length} weekly time table entries from props`);
+      console.log(`Processing ${weeklyTimeData.length} weekly time table entries from props with numeric time fields`);
       
-      // ОБНОВЛЕНО: Используем ту же логику форматирования с нормализацией дат
-      const formatDataWithDateNormalization = (): IExtendedWeeklyTimeRow[] => {
+      // ОБНОВЛЕНО: Используем ту же логику форматирования БЕЗ нормализации дат
+      const formatDataWithNumericFields = (): IExtendedWeeklyTimeRow[] => {
         // Временно заменяем метод formatWeeklyTimeTableData для поддержки dayOfStartWeek
         const origMethod = WeeklyTimeTableUtils.formatWeeklyTimeTableData;
         
         // Создаем кастомную функцию форматирования
         const customFormatter = function(items: IWeeklyTimeTableRawItem[], dayStart?: number): IExtendedWeeklyTimeRow[] {
           // Логируем параметры для отладки
-          console.log(`Custom formatWeeklyTimeTableData called with dayOfStartWeek = ${dayStart}`);
+          console.log(`Custom formatWeeklyTimeTableData called with dayOfStartWeek = ${dayStart}, using NUMERIC time fields from props`);
           
           // Вызываем оригинальный метод с аргументами того же типа
           const result = origMethod.call(this, items);
           
-          // ОБНОВЛЕНО: Обогащаем данные дополнительными полями и нормализуем даты
+          // ОБНОВЛЕНО: Обогащаем данные дополнительными полями БЕЗ нормализации дат
           for (let i = 0; i < result.length; i++) {
             const formattedRow = result[i];
             const originalRow = items.find(item => {
@@ -900,36 +910,12 @@ export const initializeWithExistingData = (
                 formattedRow.idOfTemplate = templateValue;
               }
               
-              // ДОБАВЛЕНО: Нормализация полей с датами при инициализации
-              if (fields.Created && typeof fields.Created === 'string') {
-                try {
-                  const createdDate = new Date(fields.Created);
-                  if (!isNaN(createdDate.getTime())) {
-                    const normalizedCreated = DateUtils.normalizeDateToUTCMidnight(createdDate);
-                    (formattedRow as Record<string, unknown>).createdDate = normalizedCreated;
-                    console.log(`[InitData] Normalized Created: ${fields.Created} → ${normalizedCreated.toISOString()}`);
-                  }
-                } catch (dateError) {
-                  console.warn(`[InitData] Error parsing Created date: ${fields.Created}`, dateError);
-                }
-              }
-              
-              if (fields.Modified && typeof fields.Modified === 'string') {
-                try {
-                  const modifiedDate = new Date(fields.Modified);
-                  if (!isNaN(modifiedDate.getTime())) {
-                    const normalizedModified = DateUtils.normalizeDateToUTCMidnight(modifiedDate);
-                    (formattedRow as Record<string, unknown>).modifiedDate = normalizedModified;
-                    console.log(`[InitData] Normalized Modified: ${fields.Modified} → ${normalizedModified.toISOString()}`);
-                  }
-                } catch (dateError) {
-                  console.warn(`[InitData] Error parsing Modified date: ${fields.Modified}`, dateError);
-                }
-              }
+              // УДАЛЕНО: Нормализация полей с датами при инициализации больше не нужна
+              console.log(`[InitData] Processing row ID=${formattedRow.id} with numeric time fields (no date normalization needed)`);
             }
             
-            // ДОБАВЛЕНО: Применяем дополнительную нормализацию дат
-            result[i] = normalizeWeeklyTimeRowDates(formattedRow);
+            // УДАЛЕНО: Применение дополнительной нормализации дат
+            // result[i] = normalizeWeeklyTimeRowDates(formattedRow);
           }
           
           return result;
@@ -947,8 +933,8 @@ export const initializeWithExistingData = (
         return formattedData;
       };
       
-      // Форматируем данные с нормализацией дат
-      const formattedData = formatDataWithDateNormalization();
+      // Форматируем данные с числовыми полями времени
+      const formattedData = formatDataWithNumericFields();
       
       // Обновляем общее время для шаблонов
       const dataWithTotalHours = updateDisplayedTotalHours(formattedData as IExtendedWeeklyTimeRow[]);
@@ -962,7 +948,7 @@ export const initializeWithExistingData = (
       // Сбрасываем список измененных строк при получении новых данных
       setChangedRows(new Set());
       
-      console.log(`Successfully initialized with ${dataWithTotalHours.length} rows from props with DateUtils normalization`);
+      console.log(`Successfully initialized with ${dataWithTotalHours.length} rows from props using numeric time fields`);
     } else {
       console.log("No weekly time data provided, showing empty table");
       setTimeTableData([]);

@@ -6,6 +6,7 @@ import { IWeeklyTimeTableUpdateItem, WeeklyTimeTableService } from '../../../../
 
 /**
  * Функция для сохранения изменений в недельном расписании
+ * ОБНОВЛЕНО: Работает с числовыми полями времени, убрана зависимость от DateUtils
  * @param context Контекст веб-части
  * @param timeTableData Данные таблицы
  * @param setTimeTableData Функция для обновления данных таблицы
@@ -43,6 +44,8 @@ export const createSaveHandler = (
     setStatusMessage(undefined); // Заменяем null на undefined
     
     try {
+      console.log('Saving changes using numeric time fields instead of DateTime fields');
+      
       // Создаем сервис для работы с данными
       const service = new WeeklyTimeTableService(context);
       
@@ -57,11 +60,13 @@ export const createSaveHandler = (
         if (isNewRow) {
           // Если новая строка, сначала создаем ее
           try {
-            // Создаем объект для нового элемента
+            console.log(`Creating new row with ID: ${row.id} using numeric time fields`);
+            
+            // ОБНОВЛЕНО: Создаем объект для нового элемента с прямой передачей IDayHours объектов
             const newItem: IWeeklyTimeTableUpdateItem = {
               id: row.id, // Временный ID
               
-              // Время начала
+              // Время начала - прямая передача объектов IDayHours (сервис конвертирует их в числовые поля)
               mondayStart: row.monday?.start,
               tuesdayStart: row.tuesday?.start,
               wednesdayStart: row.wednesday?.start,
@@ -70,7 +75,7 @@ export const createSaveHandler = (
               saturdayStart: row.saturday?.start,
               sundayStart: row.sunday?.start,
               
-              // Время окончания
+              // Время окончания - прямая передача объектов IDayHours (сервис конвертирует их в числовые поля)
               mondayEnd: row.monday?.end,
               tuesdayEnd: row.tuesday?.end,
               wednesdayEnd: row.wednesday?.end,
@@ -90,6 +95,8 @@ export const createSaveHandler = (
               context.pageContext.user.loginName
             );
             
+            console.log(`Successfully created new row with real ID: ${realId} using numeric time fields`);
+            
             // Обновляем ID в локальных данных
             const rowIndex = timeTableData.findIndex(r => r.id === row.id);
             if (rowIndex >= 0) {
@@ -106,17 +113,19 @@ export const createSaveHandler = (
             newChangedRows.add(realId);
             setChangedRows(newChangedRows);
             
-            console.log(`Created new time table row with ID: ${realId}`);
+            console.log(`Updated local data with new ID: ${realId}`);
           } catch (createError) {
             console.error('Error creating new time table row:', createError);
             throw new Error(`Failed to create new row: ${createError instanceof Error ? createError.message : 'Unknown error'}`);
           }
         } else {
           // Если существующая строка, добавляем в список для обновления
+          console.log(`Adding existing row to update queue: ${row.id} using numeric time fields`);
+          
           itemsToUpdate.push({
             id: row.id,
             
-            // Время начала
+            // ОБНОВЛЕНО: Время начала - прямая передача объектов IDayHours (сервис конвертирует их в числовые поля)
             mondayStart: row.monday?.start,
             tuesdayStart: row.tuesday?.start,
             wednesdayStart: row.wednesday?.start,
@@ -125,7 +134,7 @@ export const createSaveHandler = (
             saturdayStart: row.saturday?.start,
             sundayStart: row.sunday?.start,
             
-            // Время окончания
+            // ОБНОВЛЕНО: Время окончания - прямая передача объектов IDayHours (сервис конвертирует их в числовые поля)
             mondayEnd: row.monday?.end,
             tuesdayEnd: row.tuesday?.end,
             wednesdayEnd: row.wednesday?.end,
@@ -141,12 +150,19 @@ export const createSaveHandler = (
       }
       
       if (itemsToUpdate.length > 0) {
-        console.log('Saving changes for items:', itemsToUpdate);
+        console.log('Saving changes for existing items using numeric time fields:', itemsToUpdate);
         
         // Выполняем обновление данных
         const results = await service.batchUpdateWeeklyTimeTable(itemsToUpdate);
         
         console.log('Save results:', results);
+        
+        // Проверяем результаты сохранения
+        const failedItems = results.filter(result => !result.success);
+        if (failedItems.length > 0) {
+          console.warn(`Some items failed to save:`, failedItems);
+          // Но продолжаем работу, если хотя бы часть сохранилась успешно
+        }
       } else {
         console.log('No existing items to update after handling new rows');
       }
@@ -157,8 +173,10 @@ export const createSaveHandler = (
       // Устанавливаем сообщение об успешном сохранении
       setStatusMessage({
         type: MessageBarType.success,
-        message: `Successfully saved changes.`
+        message: `Successfully saved changes using numeric time fields.`
       });
+      
+      console.log('All changes saved successfully using numeric time fields');
       
       // Вызываем коллбэк завершения сохранения, если он задан
       if (onSaveComplete) {

@@ -3,7 +3,7 @@ import { WebPartContext } from '@microsoft/sp-webpart-base';
 import { IDayHours } from '../models/IWeeklyTimeTable';
 import { RemoteSiteService } from './RemoteSiteService';
 import { IRemoteListItemResponse } from '../services';
-import { DateUtils } from "../components/CustomDatePicker/CustomDatePicker";
+// import { DateUtils } from "../components/CustomDatePicker/CustomDatePicker"; // ЗАКОММЕНТИРОВАНО - больше не используется
 
 export interface IWeeklyTimeTableUpdateItem {
   id: string;
@@ -62,20 +62,50 @@ export interface ICreateWeeklyTimeTableData {
   NumberOfShift: number;
   IdOfTemplateLookupId?: number;
   CreatorLookupId?: number;
-  MondeyStartWork?: string;
-  MondayEndWork?: string;
-  TuesdayStartWork?: string;
-  TuesdayEndWork?: string;
-  WednesdayStartWork?: string;
-  WednesdayEndWork?: string;
-  ThursdayStartWork?: string;
-  ThursdayEndWork?: string;
-  FridayStartWork?: string;
-  FridayEndWork?: string;
-  SaturdayStartWork?: string;
-  SaturdayEndWork?: string;
-  SundayStartWork?: string;
-  SundayEndWork?: string;
+  
+  // НОВЫЕ ЧИСЛОВЫЕ ПОЛЯ для часов и минут
+  // Monday
+  MondayStartWorkHours?: number;
+  MondayStartWorkMinutes?: number;
+  MondayEndWorkHours?: number;
+  MondayEndWorkMinutes?: number;
+  
+  // Tuesday
+  TuesdayStartWorkHours?: number;
+  TuesdayStartWorkMinutes?: number;
+  TuesdayEndWorkHours?: number;
+  TuesdayEndWorkMinutes?: number;
+  
+  // Wednesday
+  WednesdayStartWorkHours?: number;
+  WednesdayStartWorkMinutes?: number;
+  WednesdayEndWorkHours?: number;
+  WednesdayEndWorkMinutes?: number;
+  
+  // Thursday
+  ThursdayStartWorkHours?: number;
+  ThursdayStartWorkMinutes?: number;
+  ThursdayEndWorkHours?: number;
+  ThursdayEndWorkMinutes?: number;
+  
+  // Friday
+  FridayStartWorkHours?: number;
+  FridayStartWorkMinutes?: number;
+  FridayEndWorkHours?: number;
+  FridayEndWorkMinutes?: number;
+  
+  // Saturday
+  SaturdayStartWorkHours?: number;
+  SaturdayStartWorkMinutes?: number;
+  SaturdayEndWorkHours?: number;
+  SaturdayEndWorkMinutes?: number;
+  
+  // Sunday
+  SundayStartWorkHours?: number;
+  SundayStartWorkMinutes?: number;
+  SundayEndWorkHours?: number;
+  SundayEndWorkMinutes?: number;
+  
   TimeForLunch?: number;
   Contract?: number;
   Deleted?: number;
@@ -84,7 +114,7 @@ export interface ICreateWeeklyTimeTableData {
 
 /**
  * Сервис для работы с данными недельного расписания
- * ОБНОВЛЕНО: Добавлена интеграция с DateUtils для правильной обработки времени
+ * ОБНОВЛЕНО: Добавлена поддержка числовых полей для часов и минут
  */
 export class WeeklyTimeTableService {
   private remoteSiteService: RemoteSiteService;
@@ -102,7 +132,7 @@ export class WeeklyTimeTableService {
       this.listName = listName;
     }
     
-    console.log("WeeklyTimeTableService инициализирован с поддержкой DateUtils");
+    console.log("WeeklyTimeTableService инициализирован с поддержкой числовых полей для времени");
   }
 
 /**
@@ -166,57 +196,179 @@ public async getWeeklyTimeTableByContractId(contractId: string): Promise<IRemote
   }
 }
 
+  /**
+   * НОВЫЙ МЕТОД: Преобразование IDayHours в числовые поля для SharePoint
+   * @param time Объект с часами и минутами
+   * @param dayPrefix Префикс дня (например, "Monday", "Tuesday")
+   * @param timeType Тип времени ("Start" или "End")
+   * @returns Объект с числовыми полями часов и минут
+   */
+  private formatTimeFieldsForSharePoint(
+    time: IDayHours,
+    dayPrefix: string,
+    timeType: 'Start' | 'End'
+  ): { hoursField: string; minutesField: string; hoursValue: number; minutesValue: number } {
+    try {
+      const hours = parseInt(time.hours.toString());
+      const minutes = parseInt(time.minutes.toString());
+      
+      // Валидация
+      if (isNaN(hours) || hours < 0 || hours > 23) {
+        throw new Error(`Invalid hours value: ${time.hours}`);
+      }
+      
+      if (isNaN(minutes) || minutes < 0 || minutes > 59) {
+        throw new Error(`Invalid minutes value: ${time.minutes}`);
+      }
+      
+      const hoursField = `${dayPrefix}${timeType}WorkHours`;
+      const minutesField = `${dayPrefix}${timeType}WorkMinutes`;
+      
+      return {
+        hoursField,
+        minutesField,
+        hoursValue: hours,
+        minutesValue: minutes
+      };
+    } catch (error) {
+      console.error(`Error formatting time fields for SharePoint: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * НОВЫЙ МЕТОД: Парсинг числовых полей времени из SharePoint обратно в IDayHours
+   * @param fields Поля из SharePoint
+   * @param dayPrefix Префикс дня (например, "Monday", "Tuesday")
+   * @param timeType Тип времени ("Start" или "End")
+   * @returns Объект IDayHours или undefined если поля не найдены
+   */
+  private parseTimeFieldsFromSharePoint(
+    fields: Record<string, unknown>,
+    dayPrefix: string,
+    timeType: 'Start' | 'End'
+  ): IDayHours | undefined {
+    try {
+      const hoursField = `${dayPrefix}${timeType}WorkHours`;
+      const minutesField = `${dayPrefix}${timeType}WorkMinutes`;
+      
+      const hoursValue = fields[hoursField];
+      const minutesValue = fields[minutesField];
+      
+      // Если оба поля отсутствуют, возвращаем undefined
+      if (hoursValue === undefined && minutesValue === undefined) {
+        return undefined;
+      }
+      
+      // Преобразуем в числа с валидацией
+      const hours = typeof hoursValue === 'number' ? hoursValue : 
+                   typeof hoursValue === 'string' ? parseInt(hoursValue) : 0;
+      const minutes = typeof minutesValue === 'number' ? minutesValue :
+                     typeof minutesValue === 'string' ? parseInt(minutesValue) : 0;
+      
+      // Валидация значений
+      const validHours = Math.max(0, Math.min(23, isNaN(hours) ? 0 : hours));
+      const validMinutes = Math.max(0, Math.min(59, isNaN(minutes) ? 0 : minutes));
+      
+      return {
+        hours: validHours.toString().padStart(2, '0'),
+        minutes: validMinutes.toString().padStart(2, '0')
+      };
+    } catch (error) {
+      console.error(`Error parsing time fields from SharePoint: ${error}`);
+      return { hours: '00', minutes: '00' };
+    }
+  }
+
   public async updateWeeklyTimeTableItem(item: IWeeklyTimeTableUpdateItem): Promise<boolean> {
     try {
       // Формируем объект с полями для обновления - напрямую, без вложенного объекта fields
       const updateData: Record<string, unknown> = {};
       
-      // ОБНОВЛЕНО: Используем DateUtils для нормализации времени
-      // Обратите внимание, что в SharePoint для понедельника есть опечатка: MondeyStartWork
+      // НОВЫЙ ПОДХОД: Используем числовые поля для времени начала работы
       if (item.mondayStart) {
-        updateData.MondeyStartWork = this.formatTimeForSharePoint(item.mondayStart);
-      }
-      if (item.tuesdayStart) {
-        updateData.TuesdayStartWork = this.formatTimeForSharePoint(item.tuesdayStart);
-      }
-      if (item.wednesdayStart) {
-        updateData.WednesdayStartWork = this.formatTimeForSharePoint(item.wednesdayStart);
-      }
-      if (item.thursdayStart) {
-        updateData.ThursdayStartWork = this.formatTimeForSharePoint(item.thursdayStart);
-      }
-      if (item.fridayStart) {
-        updateData.FridayStartWork = this.formatTimeForSharePoint(item.fridayStart);
-      }
-      if (item.saturdayStart) {
-        updateData.SaturdayStartWork = this.formatTimeForSharePoint(item.saturdayStart);
-      }
-      if (item.sundayStart) {
-        updateData.SundayStartWork = this.formatTimeForSharePoint(item.sundayStart);
+        const timeFields = this.formatTimeFieldsForSharePoint(item.mondayStart, 'Monday', 'Start');
+        updateData[timeFields.hoursField] = timeFields.hoursValue;
+        updateData[timeFields.minutesField] = timeFields.minutesValue;
       }
       
-      // Обновляем поля времени окончания работы для каждого дня
-      // Обратите внимание на MondayEndWork (без опечатки)
+      if (item.tuesdayStart) {
+        const timeFields = this.formatTimeFieldsForSharePoint(item.tuesdayStart, 'Tuesday', 'Start');
+        updateData[timeFields.hoursField] = timeFields.hoursValue;
+        updateData[timeFields.minutesField] = timeFields.minutesValue;
+      }
+      
+      if (item.wednesdayStart) {
+        const timeFields = this.formatTimeFieldsForSharePoint(item.wednesdayStart, 'Wednesday', 'Start');
+        updateData[timeFields.hoursField] = timeFields.hoursValue;
+        updateData[timeFields.minutesField] = timeFields.minutesValue;
+      }
+      
+      if (item.thursdayStart) {
+        const timeFields = this.formatTimeFieldsForSharePoint(item.thursdayStart, 'Thursday', 'Start');
+        updateData[timeFields.hoursField] = timeFields.hoursValue;
+        updateData[timeFields.minutesField] = timeFields.minutesValue;
+      }
+      
+      if (item.fridayStart) {
+        const timeFields = this.formatTimeFieldsForSharePoint(item.fridayStart, 'Friday', 'Start');
+        updateData[timeFields.hoursField] = timeFields.hoursValue;
+        updateData[timeFields.minutesField] = timeFields.minutesValue;
+      }
+      
+      if (item.saturdayStart) {
+        const timeFields = this.formatTimeFieldsForSharePoint(item.saturdayStart, 'Saturday', 'Start');
+        updateData[timeFields.hoursField] = timeFields.hoursValue;
+        updateData[timeFields.minutesField] = timeFields.minutesValue;
+      }
+      
+      if (item.sundayStart) {
+        const timeFields = this.formatTimeFieldsForSharePoint(item.sundayStart, 'Sunday', 'Start');
+        updateData[timeFields.hoursField] = timeFields.hoursValue;
+        updateData[timeFields.minutesField] = timeFields.minutesValue;
+      }
+      
+      // НОВЫЙ ПОДХОД: Используем числовые поля для времени окончания работы
       if (item.mondayEnd) {
-        updateData.MondayEndWork = this.formatTimeForSharePoint(item.mondayEnd);
+        const timeFields = this.formatTimeFieldsForSharePoint(item.mondayEnd, 'Monday', 'End');
+        updateData[timeFields.hoursField] = timeFields.hoursValue;
+        updateData[timeFields.minutesField] = timeFields.minutesValue;
       }
+      
       if (item.tuesdayEnd) {
-        updateData.TuesdayEndWork = this.formatTimeForSharePoint(item.tuesdayEnd);
+        const timeFields = this.formatTimeFieldsForSharePoint(item.tuesdayEnd, 'Tuesday', 'End');
+        updateData[timeFields.hoursField] = timeFields.hoursValue;
+        updateData[timeFields.minutesField] = timeFields.minutesValue;
       }
+      
       if (item.wednesdayEnd) {
-        updateData.WednesdayEndWork = this.formatTimeForSharePoint(item.wednesdayEnd);
+        const timeFields = this.formatTimeFieldsForSharePoint(item.wednesdayEnd, 'Wednesday', 'End');
+        updateData[timeFields.hoursField] = timeFields.hoursValue;
+        updateData[timeFields.minutesField] = timeFields.minutesValue;
       }
+      
       if (item.thursdayEnd) {
-        updateData.ThursdayEndWork = this.formatTimeForSharePoint(item.thursdayEnd);
+        const timeFields = this.formatTimeFieldsForSharePoint(item.thursdayEnd, 'Thursday', 'End');
+        updateData[timeFields.hoursField] = timeFields.hoursValue;
+        updateData[timeFields.minutesField] = timeFields.minutesValue;
       }
+      
       if (item.fridayEnd) {
-        updateData.FridayEndWork = this.formatTimeForSharePoint(item.fridayEnd);
+        const timeFields = this.formatTimeFieldsForSharePoint(item.fridayEnd, 'Friday', 'End');
+        updateData[timeFields.hoursField] = timeFields.hoursValue;
+        updateData[timeFields.minutesField] = timeFields.minutesValue;
       }
+      
       if (item.saturdayEnd) {
-        updateData.SaturdayEndWork = this.formatTimeForSharePoint(item.saturdayEnd);
+        const timeFields = this.formatTimeFieldsForSharePoint(item.saturdayEnd, 'Saturday', 'End');
+        updateData[timeFields.hoursField] = timeFields.hoursValue;
+        updateData[timeFields.minutesField] = timeFields.minutesValue;
       }
+      
       if (item.sundayEnd) {
-        updateData.SundayEndWork = this.formatTimeForSharePoint(item.sundayEnd);
+        const timeFields = this.formatTimeFieldsForSharePoint(item.sundayEnd, 'Sunday', 'End');
+        updateData[timeFields.hoursField] = timeFields.hoursValue;
+        updateData[timeFields.minutesField] = timeFields.minutesValue;
       }
       
       // Обновляем время обеда
@@ -230,7 +382,7 @@ public async getWeeklyTimeTableByContractId(contractId: string): Promise<IRemote
         updateData.Contract = parseInt(item.contractNumber);
       }
       
-      console.log('Updating item with data:', updateData);
+      console.log('Updating item with numeric time fields data:', updateData);
       
       // Используем updateListItem из RemoteSiteService
       // Преобразуем строковый ID в число перед передачей
@@ -245,12 +397,15 @@ public async getWeeklyTimeTableByContractId(contractId: string): Promise<IRemote
     }
   }
   
+  // СТАРЫЕ МЕТОДЫ - ЗАКОММЕНТИРОВАНЫ, НО ОСТАВЛЕНЫ ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ
+  /*
   /**
-   * ОБНОВЛЕНО: Форматирование времени для сохранения в SharePoint с использованием DateUtils
+   * СТАРЫЙ МЕТОД: Форматирование времени для сохранения в SharePoint с использованием DateUtils
    * Сохраняет базовую дату 2025-01-01, но нормализует время через DateUtils
    * @param time Объект с часами и минутами
    * @returns Строка даты в формате ISO для SharePoint
    */
+  /*
   private formatTimeForSharePoint(time: IDayHours): string {
     try {
       // Базовая дата (СОХРАНЯЕМ как требуется - 1 января 2025 года)
@@ -277,13 +432,16 @@ public async getWeeklyTimeTableByContractId(contractId: string): Promise<IRemote
       return `${baseDate}T${String(time.hours).padStart(2, '0')}:${String(time.minutes).padStart(2, '0')}:00Z`;
     }
   }
+  */
 
+  /*
   /**
-   * НОВЫЙ МЕТОД: Парсинг времени из SharePoint с использованием DateUtils
+   * СТАРЫЙ МЕТОД: Парсинг времени из SharePoint с использованием DateUtils
    * Обрабатывает строки времени из SharePoint и возвращает нормализованные объекты IDayHours
    * @param timeString Строка времени из SharePoint в ISO формате
    * @returns Объект IDayHours с часами и минутами
    */
+  /*
   private parseTimeFromSharePoint(timeString: string | undefined): IDayHours | undefined {
     if (!timeString) {
       return undefined;
@@ -316,6 +474,8 @@ public async getWeeklyTimeTableByContractId(contractId: string): Promise<IRemote
       return undefined;
     }
   }
+  */
+
   /**
    * Массовое обновление элементов недельного расписания
    * @param items Массив данных для обновления
@@ -353,7 +513,7 @@ results.push({
 
 /**
  * Создание нового элемента недельного расписания
- * ОБНОВЛЕНО: Добавлена нормализация времени через DateUtils
+ * ОБНОВЛЕНО: Использует числовые поля для часов и минут
  * @param item Данные для создания
  * @param contractId ID контракта
  * @param currentUserId ID текущего пользователя из списка Staff
@@ -433,62 +593,90 @@ public async createWeeklyTimeTableItem(
       console.warn(`No creator ID provided for weekly time table item`);
     }
     
-    // ОБНОВЛЕНО: Добавляем поля времени начала работы для каждого дня с DateUtils
+    // НОВЫЙ ПОДХОД: Добавляем числовые поля времени начала работы для каждого дня
     if (item.mondayStart) {
-      createData.MondeyStartWork = this.formatTimeForSharePoint(item.mondayStart);
+      const timeFields = this.formatTimeFieldsForSharePoint(item.mondayStart, 'Monday', 'Start');
+      createData[timeFields.hoursField] = timeFields.hoursValue;
+      createData[timeFields.minutesField] = timeFields.minutesValue;
     }
     
     if (item.tuesdayStart) {
-      createData.TuesdayStartWork = this.formatTimeForSharePoint(item.tuesdayStart);
+      const timeFields = this.formatTimeFieldsForSharePoint(item.tuesdayStart, 'Tuesday', 'Start');
+      createData[timeFields.hoursField] = timeFields.hoursValue;
+      createData[timeFields.minutesField] = timeFields.minutesValue;
     }
     
     if (item.wednesdayStart) {
-      createData.WednesdayStartWork = this.formatTimeForSharePoint(item.wednesdayStart);
+      const timeFields = this.formatTimeFieldsForSharePoint(item.wednesdayStart, 'Wednesday', 'Start');
+      createData[timeFields.hoursField] = timeFields.hoursValue;
+      createData[timeFields.minutesField] = timeFields.minutesValue;
     }
     
     if (item.thursdayStart) {
-      createData.ThursdayStartWork = this.formatTimeForSharePoint(item.thursdayStart);
+      const timeFields = this.formatTimeFieldsForSharePoint(item.thursdayStart, 'Thursday', 'Start');
+      createData[timeFields.hoursField] = timeFields.hoursValue;
+      createData[timeFields.minutesField] = timeFields.minutesValue;
     }
     
     if (item.fridayStart) {
-      createData.FridayStartWork = this.formatTimeForSharePoint(item.fridayStart);
+      const timeFields = this.formatTimeFieldsForSharePoint(item.fridayStart, 'Friday', 'Start');
+      createData[timeFields.hoursField] = timeFields.hoursValue;
+      createData[timeFields.minutesField] = timeFields.minutesValue;
     }
     
     if (item.saturdayStart) {
-      createData.SaturdayStartWork = this.formatTimeForSharePoint(item.saturdayStart);
+      const timeFields = this.formatTimeFieldsForSharePoint(item.saturdayStart, 'Saturday', 'Start');
+      createData[timeFields.hoursField] = timeFields.hoursValue;
+      createData[timeFields.minutesField] = timeFields.minutesValue;
     }
     
     if (item.sundayStart) {
-      createData.SundayStartWork = this.formatTimeForSharePoint(item.sundayStart);
+      const timeFields = this.formatTimeFieldsForSharePoint(item.sundayStart, 'Sunday', 'Start');
+      createData[timeFields.hoursField] = timeFields.hoursValue;
+      createData[timeFields.minutesField] = timeFields.minutesValue;
     }
     
-    // ОБНОВЛЕНО: Добавляем поля времени окончания работы для каждого дня с DateUtils
+    // НОВЫЙ ПОДХОД: Добавляем числовые поля времени окончания работы для каждого дня
     if (item.mondayEnd) {
-      createData.MondayEndWork = this.formatTimeForSharePoint(item.mondayEnd);
+      const timeFields = this.formatTimeFieldsForSharePoint(item.mondayEnd, 'Monday', 'End');
+      createData[timeFields.hoursField] = timeFields.hoursValue;
+      createData[timeFields.minutesField] = timeFields.minutesValue;
     }
     
     if (item.tuesdayEnd) {
-      createData.TuesdayEndWork = this.formatTimeForSharePoint(item.tuesdayEnd);
+      const timeFields = this.formatTimeFieldsForSharePoint(item.tuesdayEnd, 'Tuesday', 'End');
+      createData[timeFields.hoursField] = timeFields.hoursValue;
+      createData[timeFields.minutesField] = timeFields.minutesValue;
     }
     
     if (item.wednesdayEnd) {
-      createData.WednesdayEndWork = this.formatTimeForSharePoint(item.wednesdayEnd);
+      const timeFields = this.formatTimeFieldsForSharePoint(item.wednesdayEnd, 'Wednesday', 'End');
+      createData[timeFields.hoursField] = timeFields.hoursValue;
+      createData[timeFields.minutesField] = timeFields.minutesValue;
     }
     
     if (item.thursdayEnd) {
-      createData.ThursdayEndWork = this.formatTimeForSharePoint(item.thursdayEnd);
+      const timeFields = this.formatTimeFieldsForSharePoint(item.thursdayEnd, 'Thursday', 'End');
+      createData[timeFields.hoursField] = timeFields.hoursValue;
+      createData[timeFields.minutesField] = timeFields.minutesValue;
     }
     
     if (item.fridayEnd) {
-      createData.FridayEndWork = this.formatTimeForSharePoint(item.fridayEnd);
+      const timeFields = this.formatTimeFieldsForSharePoint(item.fridayEnd, 'Friday', 'End');
+      createData[timeFields.hoursField] = timeFields.hoursValue;
+      createData[timeFields.minutesField] = timeFields.minutesValue;
     }
     
     if (item.saturdayEnd) {
-      createData.SaturdayEndWork = this.formatTimeForSharePoint(item.saturdayEnd);
+      const timeFields = this.formatTimeFieldsForSharePoint(item.saturdayEnd, 'Saturday', 'End');
+      createData[timeFields.hoursField] = timeFields.hoursValue;
+      createData[timeFields.minutesField] = timeFields.minutesValue;
     }
     
     if (item.sundayEnd) {
-      createData.SundayEndWork = this.formatTimeForSharePoint(item.sundayEnd);
+      const timeFields = this.formatTimeFieldsForSharePoint(item.sundayEnd, 'Sunday', 'End');
+      createData[timeFields.hoursField] = timeFields.hoursValue;
+      createData[timeFields.minutesField] = timeFields.minutesValue;
     }
     
     // Добавляем время обеда
@@ -528,7 +716,7 @@ public async createWeeklyTimeTableItem(
     }
     
     // Логируем данные для создания
-    console.log(`Creating weekly time table item with data:`, JSON.stringify(createData, null, 2));
+    console.log(`Creating weekly time table item with numeric time fields:`, JSON.stringify(createData, null, 2));
     
     // Используем метод из RemoteSiteService для создания элемента
     try {
@@ -612,8 +800,8 @@ public async restoreWeeklyTimeTableItem(itemId: string): Promise<boolean> {
 }
 
   /**
-   * НОВЫЙ МЕТОД: Получение и парсинг элемента недельного расписания с нормализацией времени
-   * Возвращает элемент с правильно обработанными полями времени через DateUtils
+   * НОВЫЙ МЕТОД: Получение и парсинг элемента недельного расписания с числовыми полями времени
+   * Возвращает элемент с правильно обработанными полями времени из числовых полей
    * @param itemId ID элемента для получения
    * @returns Элемент с нормализованными полями времени или undefined
    */
@@ -649,32 +837,32 @@ public async restoreWeeklyTimeTableItem(itemId: string): Promise<boolean> {
         Deleted: rawItem.fields?.Deleted as number
       };
       
-      // ОБНОВЛЕНО: Добавляем нормализованные поля времени через parseTimeFromSharePoint
+      // НОВЫЙ ПОДХОД: Добавляем нормализованные поля времени через parseTimeFieldsFromSharePoint
       if (rawItem.fields) {
-        // Времена начала работы
-        item.mondayStart = this.parseTimeFromSharePoint(rawItem.fields.MondeyStartWork as string);
-        item.tuesdayStart = this.parseTimeFromSharePoint(rawItem.fields.TuesdayStartWork as string);
-        item.wednesdayStart = this.parseTimeFromSharePoint(rawItem.fields.WednesdayStartWork as string);
-        item.thursdayStart = this.parseTimeFromSharePoint(rawItem.fields.ThursdayStartWork as string);
-        item.fridayStart = this.parseTimeFromSharePoint(rawItem.fields.FridayStartWork as string);
-        item.saturdayStart = this.parseTimeFromSharePoint(rawItem.fields.SaturdayStartWork as string);
-        item.sundayStart = this.parseTimeFromSharePoint(rawItem.fields.SundayStartWork as string);
+        // Времена начала работы - используем числовые поля
+        item.mondayStart = this.parseTimeFieldsFromSharePoint(rawItem.fields, 'Monday', 'Start');
+        item.tuesdayStart = this.parseTimeFieldsFromSharePoint(rawItem.fields, 'Tuesday', 'Start');
+        item.wednesdayStart = this.parseTimeFieldsFromSharePoint(rawItem.fields, 'Wednesday', 'Start');
+        item.thursdayStart = this.parseTimeFieldsFromSharePoint(rawItem.fields, 'Thursday', 'Start');
+        item.fridayStart = this.parseTimeFieldsFromSharePoint(rawItem.fields, 'Friday', 'Start');
+        item.saturdayStart = this.parseTimeFieldsFromSharePoint(rawItem.fields, 'Saturday', 'Start');
+        item.sundayStart = this.parseTimeFieldsFromSharePoint(rawItem.fields, 'Sunday', 'Start');
         
-        // Времена окончания работы
-        item.mondayEnd = this.parseTimeFromSharePoint(rawItem.fields.MondayEndWork as string);
-        item.tuesdayEnd = this.parseTimeFromSharePoint(rawItem.fields.TuesdayEndWork as string);
-        item.wednesdayEnd = this.parseTimeFromSharePoint(rawItem.fields.WednesdayEndWork as string);
-        item.thursdayEnd = this.parseTimeFromSharePoint(rawItem.fields.ThursdayEndWork as string);
-        item.fridayEnd = this.parseTimeFromSharePoint(rawItem.fields.FridayEndWork as string);
-        item.saturdayEnd = this.parseTimeFromSharePoint(rawItem.fields.SaturdayEndWork as string);
-        item.sundayEnd = this.parseTimeFromSharePoint(rawItem.fields.SundayEndWork as string);
+        // Времена окончания работы - используем числовые поля
+        item.mondayEnd = this.parseTimeFieldsFromSharePoint(rawItem.fields, 'Monday', 'End');
+        item.tuesdayEnd = this.parseTimeFieldsFromSharePoint(rawItem.fields, 'Tuesday', 'End');
+        item.wednesdayEnd = this.parseTimeFieldsFromSharePoint(rawItem.fields, 'Wednesday', 'End');
+        item.thursdayEnd = this.parseTimeFieldsFromSharePoint(rawItem.fields, 'Thursday', 'End');
+        item.fridayEnd = this.parseTimeFieldsFromSharePoint(rawItem.fields, 'Friday', 'End');
+        item.saturdayEnd = this.parseTimeFieldsFromSharePoint(rawItem.fields, 'Saturday', 'End');
+        item.sundayEnd = this.parseTimeFieldsFromSharePoint(rawItem.fields, 'Sunday', 'End');
         
         // Другие поля
         item.lunchMinutes = rawItem.fields.TimeForLunch as number;
         item.contractNumber = rawItem.fields.Contract as number;
       }
       
-      console.log(`Successfully retrieved and parsed weekly time table item ID: ${itemId}`);
+      console.log(`Successfully retrieved and parsed weekly time table item ID: ${itemId} using numeric time fields`);
       return item;
     } catch (err) {
       console.error('Error getting weekly time table item:', err);

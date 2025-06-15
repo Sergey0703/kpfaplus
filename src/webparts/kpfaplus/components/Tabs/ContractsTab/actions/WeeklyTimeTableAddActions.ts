@@ -8,6 +8,7 @@ import { DialogType, StatusMessageType } from './WeeklyTimeTableTypes';
 
 /**
  * Функция для обработки добавления новой смены с явным указанием строки
+ * ОБНОВЛЕНО: Работает с числовыми полями времени, убрана зависимость от DateUtils
  */
 export const createAddShiftHandler = (
   timeTableData: IExtendedWeeklyTimeRow[],
@@ -52,7 +53,7 @@ export const createAddShiftHandler = (
               const newItem: IWeeklyTimeTableUpdateItem = {
                 id: row.id, // Временный ID
                 
-                // Время начала
+                // Время начала - прямая передача объектов IDayHours
                 mondayStart: row.monday?.start,
                 tuesdayStart: row.tuesday?.start,
                 wednesdayStart: row.wednesday?.start,
@@ -61,7 +62,7 @@ export const createAddShiftHandler = (
                 saturdayStart: row.saturday?.start,
                 sundayStart: row.sunday?.start,
                 
-                // Время окончания
+                // Время окончания - прямая передача объектов IDayHours
                 mondayEnd: row.monday?.end,
                 tuesdayEnd: row.tuesday?.end,
                 wednesdayEnd: row.wednesday?.end,
@@ -89,7 +90,7 @@ export const createAddShiftHandler = (
             itemsToUpdate.push({
               id: row.id,
               
-              // Время начала
+              // Время начала - прямая передача объектов IDayHours
               mondayStart: row.monday?.start,
               tuesdayStart: row.tuesday?.start,
               wednesdayStart: row.wednesday?.start,
@@ -98,7 +99,7 @@ export const createAddShiftHandler = (
               saturdayStart: row.saturday?.start,
               sundayStart: row.sunday?.start,
               
-              // Время окончания
+              // Время окончания - прямая передача объектов IDayHours
               mondayEnd: row.monday?.end,
               tuesdayEnd: row.tuesday?.end,
               wednesdayEnd: row.wednesday?.end,
@@ -114,7 +115,7 @@ export const createAddShiftHandler = (
         }
         
         if (itemsToUpdate.length > 0) {
-          console.log('Automatically saving changes for items before adding new shift:', itemsToUpdate);
+          console.log('Automatically saving changes for items before adding new shift (using numeric time fields):', itemsToUpdate);
           
           // Выполняем обновление данных
           await service.batchUpdateWeeklyTimeTable(itemsToUpdate);
@@ -315,7 +316,7 @@ export const createAddShiftHandler = (
     
     // Функция для продолжения процесса добавления новой смены
     function proceedWithAddingNewShift(currentWeekNumber: number, maxShiftNumberInCurrentWeek: number): void {
-      console.log(`[proceedWithAddingNewShift] Proceeding with adding new shift for week ${currentWeekNumber}`);
+      console.log(`[proceedWithAddingNewShift] Proceeding with adding new shift for week ${currentWeekNumber} using numeric time fields`);
       
       // Следующий номер смены = максимальный + 1
       const nextShiftNumber = maxShiftNumberInCurrentWeek + 1;
@@ -336,6 +337,7 @@ export const createAddShiftHandler = (
 /**
  * Функция для выполнения добавления новой смены через диалоговое окно
  * Вызывается после проверки возможности добавления новой смены
+ * ОБНОВЛЕНО: Работает с числовыми полями времени
  */
 export const executeAddNewShift = (
   context: WebPartContext,
@@ -356,18 +358,18 @@ export const executeAddNewShift = (
   setIsSaving(true);
   setStatusMessage({
     type: MessageBarType.info,
-    message: `Creating new shift ${shiftNumber} for week ${weekNumber}...`
+    message: `Creating new shift ${shiftNumber} for week ${weekNumber} with numeric time fields...`
   });
 
   try {
-    // Создаем объекты для пустого времени начала и окончания
+    // ОБНОВЛЕНО: Создаем объекты для пустого времени начала и окончания (числовые значения)
     const emptyTime: IDayHours = { hours: '00', minutes: '00' };
     
     // Создаем объект нового элемента для отправки на сервер
     const newItemData: IWeeklyTimeTableUpdateItem = {
       id: 'new', // Временный ID, будет заменен сервером
       
-      // Время начала для каждого дня
+      // Время начала для каждого дня - простые числовые значения
       mondayStart: emptyTime,
       tuesdayStart: emptyTime,
       wednesdayStart: emptyTime,
@@ -376,7 +378,7 @@ export const executeAddNewShift = (
       saturdayStart: emptyTime,
       sundayStart: emptyTime,
       
-      // Время окончания для каждого дня
+      // Время окончания для каждого дня - простые числовые значения
       mondayEnd: emptyTime,
       tuesdayEnd: emptyTime,
       wednesdayEnd: emptyTime,
@@ -405,7 +407,7 @@ export const executeAddNewShift = (
           shiftNumber   // Номер смены для новой смены
         );
         
-        console.log(`Created new shift ${shiftNumber} for week ${weekNumber} with ID: ${realId}`);
+        console.log(`Created new shift ${shiftNumber} for week ${weekNumber} with ID: ${realId} using numeric time fields`);
         
         // Вызываем функцию для триггера перезагрузки данных, если она передана
         if (onRefresh) {
@@ -430,7 +432,7 @@ export const executeAddNewShift = (
         // Показываем сообщение об успешном создании
         setStatusMessage({
           type: MessageBarType.success,
-          message: `New shift ${shiftNumber} for week ${weekNumber} has been successfully created.`
+          message: `New shift ${shiftNumber} for week ${weekNumber} has been successfully created with numeric time fields.`
         });
         
         // Вызываем коллбэк завершения сохранения, если он задан
@@ -478,6 +480,7 @@ export const executeAddNewShift = (
 
 /**
  * Функция для выполнения добавления новой недели после подтверждения
+ * ОБНОВЛЕНО: Работает с числовыми полями времени
  */
 export const executeAddNewWeek = (
   context: WebPartContext,
@@ -497,18 +500,18 @@ export const executeAddNewWeek = (
   setIsSaving(true);
   setStatusMessage({
     type: MessageBarType.info,
-    message: `Creating new week ${weekNumberToAdd}...`
+    message: `Creating new week ${weekNumberToAdd} with numeric time fields...`
   });
 
   try {
-    // Создаем объекты для пустого времени начала и окончания
+    // ОБНОВЛЕНО: Создаем объекты для пустого времени начала и окончания (числовые значения)
     const emptyTime: IDayHours = { hours: '00', minutes: '00' };
     
     // Создаем объект нового элемента для отправки на сервер
     const newItemData: IWeeklyTimeTableUpdateItem = {
       id: 'new', // Временный ID, будет заменен сервером
       
-      // Время начала для каждого дня
+      // Время начала для каждого дня - простые числовые значения
       mondayStart: emptyTime,
       tuesdayStart: emptyTime,
       wednesdayStart: emptyTime,
@@ -517,7 +520,7 @@ export const executeAddNewWeek = (
       saturdayStart: emptyTime,
       sundayStart: emptyTime,
       
-      // Время окончания для каждого дня
+      // Время окончания для каждого дня - простые числовые значения
       mondayEnd: emptyTime,
       tuesdayEnd: emptyTime,
       wednesdayEnd: emptyTime,
@@ -537,7 +540,7 @@ export const executeAddNewWeek = (
     // Асинхронная функция для сохранения
     const saveNewWeek = async (): Promise<void> => {
       try {
-        // Вызываем метод создания и получаем реальный ID
+        // Вызываем метод создания новой недели
         const realId = await service.createWeeklyTimeTableItem(
           newItemData, 
           contractId || '', 
@@ -546,7 +549,7 @@ export const executeAddNewWeek = (
           1 // NumberOfShift = 1 для новой недели
         );
         
-        console.log(`Created new week ${weekNumberToAdd} with ID: ${realId}`);
+        console.log(`Created new week ${weekNumberToAdd} with ID: ${realId} using numeric time fields`);
         
         // Вызываем функцию для триггера перезагрузки данных, если она передана
         if (onRefresh) {
@@ -571,10 +574,10 @@ export const executeAddNewWeek = (
         // Показываем сообщение об успешном создании
         setStatusMessage({
           type: MessageBarType.success,
-          message: `New week ${weekNumberToAdd} has been successfully created.`
+          message: `New week ${weekNumberToAdd} has been successfully created with numeric time fields.`
         });
         
-        // Вызываем коллбэк завершения сохранения, если он задан
+        // Вызываем коллбэк завершения операции, если он задан
         if (onSaveComplete) {
           onSaveComplete(true);
         }
@@ -587,7 +590,7 @@ export const executeAddNewWeek = (
           message: `Failed to create new week: ${error instanceof Error ? error.message : 'Unknown error'}`
         });
         
-        // Вызываем коллбэк завершения сохранения с ошибкой, если он задан
+        // Вызываем коллбэк завершения операции с ошибкой, если он задан
         if (onSaveComplete) {
           onSaveComplete(false);
         }
