@@ -267,7 +267,6 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       });
     }
   }, [context, refreshSRSData, restoreOperations, setState]);
-
   // ===============================================
   // ОБРАБОТЧИКИ ИЗМЕНЕНИЯ ДАТ
   // ===============================================
@@ -385,6 +384,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   /**
    * Обработчик изменения элементов таблицы
    * ОБНОВЛЕНО: Добавлена обработка типов отпусков
+   * ИСПРАВЛЕНО: Убран any тип для field присвоения
    */
   const handleItemChange = useCallback((item: ISRSRecord, field: string, value: string | boolean | { hours: string; minutes: string }): void => {
     console.log('[useSRSTabLogic] *** HANDLE ITEM CHANGE WITH TYPES OF LEAVE SUPPORT ***');
@@ -419,8 +419,9 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       updatedItem.timeLeave = value as string;
       console.log('[useSRSTabLogic] Updated timeLeave:', value);
     } else {
-      // Для других полей используем прямое присвоение с проверкой типа
-      (updatedItem as Record<string, any>)[field] = value;
+      // ИСПРАВЛЕНО: Безопасное присвоение значения полю без any типа через unknown
+      const typedItem = updatedItem as unknown as Record<string, unknown>;
+      typedItem[field] = value;
       console.log('[useSRSTabLogic] Updated field', field, 'with value:', value);
     }
     
@@ -445,8 +446,8 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       const newModified = new Map(prev);
       const existingModifications = newModified.get(item.id) || {};
       
-      // Объединяем существующие изменения с новыми
-      const newModifications: Record<string, any> = { ...existingModifications };
+      // ИСПРАВЛЕНО: Объединяем существующие изменения с новыми без any типа
+      const newModifications: Record<string, unknown> = { ...existingModifications };
       
       if (field === 'startWork') {
         newModifications.startWork = updatedItem.startWork;
