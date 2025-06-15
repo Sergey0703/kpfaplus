@@ -14,8 +14,10 @@ export interface IListMigrationConfig {
 // Date field configuration for each list
 export interface IDateFieldConfig {
   fieldName: string;
-  fieldType: 'mainDate' | 'timeField'; // mainDate = normalize to UTC midnight, timeField = preserve time
+  fieldType: 'mainDate' | 'timeField' | 'timeToHoursMinutes'; // ДОБАВЛЕН НОВЫЙ ТИП
   description: string;
+  targetHoursField?: string; // НОВОЕ ПОЛЕ для целевого поля часов
+  targetMinutesField?: string; // НОВОЕ ПОЛЕ для целевого поля минут
 }
 
 // Migration status for individual lists
@@ -129,7 +131,122 @@ export class DateMigrationService {
         { fieldName: 'StartDate', fieldType: 'mainDate', description: 'Schedule start date' },
         { fieldName: 'FinishDate', fieldType: 'mainDate', description: 'Schedule finish date' }
       ]
+    },
+    // --- НОВАЯ КОНФИГУРАЦИЯ ДЛЯ МИГРАЦИИ ЧАСОВ И МИНУТ ---
+    {
+      listName: 'WeeklyTimeTablesHoursMinutes',
+      displayName: 'Weekly Time Tables - Extract Hours & Minutes',
+      estimatedCount: 1000,
+      dateFields: [
+        // Monday
+        { 
+          fieldName: 'MondeyStartWork', // С опечаткой как в SharePoint
+          fieldType: 'timeToHoursMinutes', 
+          description: 'Monday start time → Hours & Minutes',
+          targetHoursField: 'MondayStartWorkHours',
+          targetMinutesField: 'MondayStartWorkMinutes'
+        },
+        { 
+          fieldName: 'MondayEndWork', 
+          fieldType: 'timeToHoursMinutes', 
+          description: 'Monday end time → Hours & Minutes',
+          targetHoursField: 'MondayEndWorkHours',
+          targetMinutesField: 'MondayEndWorkMinutes'
+        },
+        // Tuesday
+        { 
+          fieldName: 'TuesdayStartWork', 
+          fieldType: 'timeToHoursMinutes', 
+          description: 'Tuesday start time → Hours & Minutes',
+          targetHoursField: 'TuesdayStartWorkHours',
+          targetMinutesField: 'TuesdayStartWorkMinutes'
+        },
+        { 
+          fieldName: 'TuesdayEndWork', 
+          fieldType: 'timeToHoursMinutes', 
+          description: 'Tuesday end time → Hours & Minutes',
+          targetHoursField: 'TuesdayEndWorkHours',
+          targetMinutesField: 'TuesdayEndWorkMinutes'
+        },
+        // Wednesday
+        { 
+          fieldName: 'WednesdayStartWork', 
+          fieldType: 'timeToHoursMinutes', 
+          description: 'Wednesday start time → Hours & Minutes',
+          targetHoursField: 'WednesdayStartWorkHours',
+          targetMinutesField: 'WednesdayStartWorkMinutes'
+        },
+        { 
+          fieldName: 'WednesdayEndWork', 
+          fieldType: 'timeToHoursMinutes', 
+          description: 'Wednesday end time → Hours & Minutes',
+          targetHoursField: 'WednesdayEndWorkHours',
+          targetMinutesField: 'WednesdayEndWorkMinutes'
+        },
+        // Thursday
+        { 
+          fieldName: 'ThursdayStartWork', 
+          fieldType: 'timeToHoursMinutes', 
+          description: 'Thursday start time → Hours & Minutes',
+          targetHoursField: 'ThursdayStartWorkHours',
+          targetMinutesField: 'ThursdayStartWorkMinutes'
+        },
+        { 
+          fieldName: 'ThursdayEndWork', 
+          fieldType: 'timeToHoursMinutes', 
+          description: 'Thursday end time → Hours & Minutes',
+          targetHoursField: 'ThursdayEndWorkHours',
+          targetMinutesField: 'ThursdayEndWorkMinutes'
+        },
+        // Friday
+        { 
+          fieldName: 'FridayStartWork', 
+          fieldType: 'timeToHoursMinutes', 
+          description: 'Friday start time → Hours & Minutes',
+          targetHoursField: 'FridayStartWorkHours',
+          targetMinutesField: 'FridayStartWorkMinutes'
+        },
+        { 
+          fieldName: 'FridayEndWork', 
+          fieldType: 'timeToHoursMinutes', 
+          description: 'Friday end time → Hours & Minutes',
+          targetHoursField: 'FridayEndWorkHours',
+          targetMinutesField: 'FridayEndWorkMinutes'
+        },
+        // Saturday
+        { 
+          fieldName: 'SaturdayStartWork', 
+          fieldType: 'timeToHoursMinutes', 
+          description: 'Saturday start time → Hours & Minutes',
+          targetHoursField: 'SaturdayStartWorkHours',
+          targetMinutesField: 'SaturdayStartWorkMinutes'
+        },
+        { 
+          fieldName: 'SaturdayEndWork', 
+          fieldType: 'timeToHoursMinutes', 
+          description: 'Saturday end time → Hours & Minutes',
+          targetHoursField: 'SaturdayEndWorkHours',
+          targetMinutesField: 'SaturdayEndWorkMinutes'
+        },
+        // Sunday
+        { 
+          fieldName: 'SundayStartWork', 
+          fieldType: 'timeToHoursMinutes', 
+          description: 'Sunday start time → Hours & Minutes',
+          targetHoursField: 'SundayStartWorkHours',
+          targetMinutesField: 'SundayStartWorkMinutes'
+        },
+        { 
+          fieldName: 'SundayEndWork', 
+          fieldType: 'timeToHoursMinutes', 
+          description: 'Sunday end time → Hours & Minutes',
+          targetHoursField: 'SundayEndWorkHours',
+          targetMinutesField: 'SundayEndWorkMinutes'
+        },
+        // Lunch fields удалены - числовые поля для обеда не существуют в SharePoint
+      ]
     }
+    // --- КОНЕЦ НОВОЙ КОНФИГУРАЦИИ ---
   ];
 
   private constructor(context: WebPartContext) {
@@ -163,15 +280,18 @@ export class DateMigrationService {
         throw new Error(`Unknown list: ${listName}`);
       }
 
+      // Для новой миграции Hours/Minutes используем фактический список WeeklyTimeTables
+      const actualListName = listName === 'WeeklyTimeTablesHoursMinutes' ? 'WeeklyTimeTables' : listName;
+
       // Get all items from the list (no filter - we want ALL records)
       const items = await this._remoteSiteService.getListItems(
-        listName,
+        actualListName,
         true, // expandFields
         undefined, // no filter - get everything
         undefined // no sorting - avoid field name issues
       );
 
-      this.logInfo(`Retrieved ${items.length} records from ${listName} for analysis`);
+      this.logInfo(`Retrieved ${items.length} records from ${actualListName} for analysis`);
 
       // Generate preview for first 5 records that need updates
       const previewRecords: IMigrationPreviewRecord[] = [];
@@ -226,6 +346,9 @@ export class DateMigrationService {
         throw new Error(`Unknown list: ${listName}`);
       }
 
+      // Для новой миграции Hours/Minutes используем фактический список WeeklyTimeTables
+      const actualListName = listName === 'WeeklyTimeTablesHoursMinutes' ? 'WeeklyTimeTables' : listName;
+
       // Initial state
       const state: IListMigrationState = {
         listName,
@@ -238,7 +361,7 @@ export class DateMigrationService {
 
       // Get all items
       const items = await this._remoteSiteService.getListItems(
-        listName,
+        actualListName,
         true,
         undefined,
         undefined // no sorting - avoid field name issues
@@ -247,7 +370,7 @@ export class DateMigrationService {
       state.totalRecords = items.length;
       onProgress?.(state);
 
-      this.logInfo(`Retrieved ${items.length} records from ${listName} for migration`);
+      this.logInfo(`Retrieved ${items.length} records from ${actualListName} for migration`);
 
       // Process in batches
       const errors: string[] = [];
@@ -261,7 +384,7 @@ export class DateMigrationService {
         this.logInfo(`Processing batch ${batchNumber}: records ${i + 1}-${Math.min(i + this._batchSize, items.length)}`);
 
         try {
-          const batchResult = await this.processBatch(batch, config);
+          const batchResult = await this.processBatch(batch, config, actualListName);
           successCount += batchResult.successCount;
           totalProcessed += batchResult.recordsInBatch;
           
@@ -335,7 +458,8 @@ export class DateMigrationService {
    */
   private async processBatch(
     items: IRemoteListItemResponse[], 
-    config: IListMigrationConfig
+    config: IListMigrationConfig,
+    actualListName: string
   ): Promise<IBatchUpdateResult> {
     const batchResult: IBatchUpdateResult = {
       batchNumber: 0,
@@ -351,7 +475,7 @@ export class DateMigrationService {
         
         if (Object.keys(updateData).length > 0) {
           const success = await this._remoteSiteService.updateListItem(
-            config.listName,
+            actualListName, // Используем фактическое имя списка
             parseInt(item.id),
             updateData
           );
@@ -398,12 +522,28 @@ export class DateMigrationService {
         originalDates[dateField.fieldName] = fieldValue;
         
         try {
-          const converted = this.convertDateField(fieldValue, dateField.fieldType);
-          convertedDates[dateField.fieldName] = converted;
-          
-          // Check if conversion would change the value
-          if (converted !== fieldValue) {
-            needsUpdate = true;
+          if (dateField.fieldType === 'timeToHoursMinutes') {
+            // НОВАЯ ЛОГИКА: Для полей hours/minutes показываем извлеченные значения
+            const extracted = this.extractHoursMinutesFromDate(fieldValue);
+            convertedDates[dateField.targetHoursField || dateField.fieldName + '_Hours'] = extracted.hours.toString();
+            convertedDates[dateField.targetMinutesField || dateField.fieldName + '_Minutes'] = extracted.minutes.toString();
+            
+            // Проверяем, нужно ли обновлять поля
+            const currentHours = fields[dateField.targetHoursField || ''];
+            const currentMinutes = fields[dateField.targetMinutesField || ''];
+            
+            if (currentHours !== extracted.hours || currentMinutes !== extracted.minutes) {
+              needsUpdate = true;
+            }
+          } else {
+            // Существующая логика для других типов полей
+            const converted = this.convertDateField(fieldValue, dateField.fieldType);
+            convertedDates[dateField.fieldName] = converted;
+            
+            // Check if conversion would change the value
+            if (converted !== fieldValue) {
+              needsUpdate = true;
+            }
           }
         } catch (error) {
           convertedDates[dateField.fieldName] = `Error: ${error}`;
@@ -435,8 +575,23 @@ export class DateMigrationService {
       
       if (fieldValue && typeof fieldValue === 'string') {
         try {
-          const converted = this.convertDateField(fieldValue, dateField.fieldType);
-          updateData[dateField.fieldName] = converted;
+          if (dateField.fieldType === 'timeToHoursMinutes') {
+            // НОВАЯ ЛОГИКА: Извлекаем часы и минуты и записываем в целевые поля
+            const extracted = this.extractHoursMinutesFromDate(fieldValue);
+            
+            if (dateField.targetHoursField) {
+              updateData[dateField.targetHoursField] = extracted.hours;
+            }
+            if (dateField.targetMinutesField) {
+              updateData[dateField.targetMinutesField] = extracted.minutes;
+            }
+            
+            this.logInfo(`Extracted from ${dateField.fieldName}: ${extracted.hours}h ${extracted.minutes}m`);
+          } else {
+            // Существующая логика для других типов полей
+            const converted = this.convertDateField(fieldValue, dateField.fieldType);
+            updateData[dateField.fieldName] = converted;
+          }
         } catch (error) {
           this.logError(`Error converting ${dateField.fieldName} for item ${item.id}: ${error}`);
         }
@@ -444,6 +599,28 @@ export class DateMigrationService {
     }
 
     return updateData;
+  }
+
+  /**
+   * НОВЫЙ МЕТОД: Извлекает часы и минуты из DateTime поля
+   */
+  private extractHoursMinutesFromDate(dateValue: string): { hours: number; minutes: number } {
+    try {
+      const date = new Date(dateValue);
+      
+      if (isNaN(date.getTime())) {
+        throw new Error(`Invalid date format: ${dateValue}`);
+      }
+
+      // Извлекаем часы и минуты из UTC времени
+      const hours = date.getUTCHours();
+      const minutes = date.getUTCMinutes();
+      
+      return { hours, minutes };
+      
+    } catch (error) {
+      throw new Error(`Hours/Minutes extraction failed for '${dateValue}': ${error}`);
+    }
   }
 
   /**

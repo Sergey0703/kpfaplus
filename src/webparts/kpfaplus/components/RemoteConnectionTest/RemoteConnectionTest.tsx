@@ -352,12 +352,33 @@ export const RemoteConnectionTest: React.FC<IRemoteConnectionTestProps> = (props
     }
   };
 
+  // --- НОВАЯ ФУНКЦИЯ: Получение типа миграции для отображения ---
+  const getMigrationType = (listName: string): string => {
+    if (listName === 'WeeklyTimeTablesHoursMinutes') {
+      return 'Hours & Minutes Extraction';
+    } else if (listName === 'WeeklyTimeTables') {
+      return 'UTC Timezone Conversion';
+    }
+    return 'UTC Timezone Conversion';
+  };
+
+  // --- НОВАЯ ФУНКЦИЯ: Получение описания миграции ---
+  const getMigrationDescription = (listName: string): string => {
+    if (listName === 'WeeklyTimeTablesHoursMinutes') {
+      return 'Extracts hours and minutes from DateTime fields into separate numeric fields (e.g., MondayStartWork → MondayStartWorkHours + MondayStartWorkMinutes)';
+    } else if (listName === 'WeeklyTimeTables') {
+      return 'Converts date fields from Ireland timezone to UTC format for consistent data handling';
+    }
+    return 'Converts date fields from Ireland timezone to UTC format for consistent data handling';
+  };
+
   // Initial connection test
   useEffect(() => {
     testConnection()
       .then(() => console.log('Initial connection test completed'))
       .catch(error => console.error('Error during initial connection test:', error));
   }, []);
+  
   // Get effective user for display
   const effectiveUser = getEffectiveUser();
   
@@ -531,8 +552,8 @@ Click &quot;Stop Acting As&quot; to return to your original user account.
 
         <div style={{ marginBottom: '20px' }}>
           <MessageBar messageBarType={MessageBarType.info}>
-            <strong>Ireland Timezone Migration:</strong> This tool converts date fields from Ireland timezone to UTC format 
-            for consistent data handling. Select individual lists to analyze and migrate.
+            <strong>Available Migration Types:</strong> Choose from UTC timezone conversion or Hours/Minutes extraction. 
+            Each migration serves a different purpose and can be run independently.
           </MessageBar>
         </div>
 
@@ -549,7 +570,7 @@ Click &quot;Stop Acting As&quot; to return to your original user account.
                   border: '1px solid #edebe9', 
                   borderRadius: '4px', 
                   padding: '15px',
-                  backgroundColor: '#faf9f8'
+                  backgroundColor: config.listName === 'WeeklyTimeTablesHoursMinutes' ? '#f8f9fa' : '#faf9f8' // ВЫДЕЛЯЕМ НОВУЮ МИГРАЦИЮ
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
@@ -559,6 +580,10 @@ Click &quot;Stop Acting As&quot; to return to your original user account.
                       <Text variant="mediumPlus" style={{ fontWeight: '600' }}>
                         {config.displayName}
                       </Text>
+                      {/* НОВОЕ: Показываем тип миграции */}
+                      <div style={{ fontSize: '11px', color: '#0078d4', fontWeight: '600', marginTop: '2px' }}>
+                        {getMigrationType(config.listName)}
+                      </div>
                       <div style={{ fontSize: '12px', color: '#605e5c' }}>
                         {getStatusText(state)}
                       </div>
@@ -617,6 +642,11 @@ Click &quot;Stop Acting As&quot; to return to your original user account.
                   </div>
                 </div>
 
+                {/* НОВОЕ: Описание миграции */}
+                <div style={{ marginBottom: '10px', fontSize: '12px', color: '#605e5c', fontStyle: 'italic' }}>
+                  {getMigrationDescription(config.listName)}
+                </div>
+
                 {/* Progress indicator for migrating status */}
                 {state.status === 'migrating' && (
                   <div style={{ marginBottom: '10px' }}>
@@ -635,7 +665,16 @@ Click &quot;Stop Acting As&quot; to return to your original user account.
                     <div style={{ marginTop: '5px' }}>
                       {config.dateFields.map(field => (
                         <div key={field.fieldName} style={{ marginLeft: '10px' }}>
-                          • {field.fieldName} ({field.fieldType}) - {field.description}
+                          {/* ОБНОВЛЕНО: Показываем целевые поля для Hours/Minutes миграций */}
+                          {field.fieldType === 'timeToHoursMinutes' ? (
+                            <span>
+                              • {field.fieldName} → {field.targetHoursField} + {field.targetMinutesField} - {field.description}
+                            </span>
+                          ) : (
+                            <span>
+                              • {field.fieldName} ({field.fieldType}) - {field.description}
+                            </span>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -744,6 +783,26 @@ Click &quot;Stop Acting As&quot; to return to your original user account.
                 </div>
               </div>
 
+              {/* Migration Type Information */}
+              <div>
+                <Text variant="large" style={{ fontWeight: '600', marginBottom: '10px', display: 'block' }}>
+                  Migration Type
+                </Text>
+                <div style={{ 
+                  padding: '10px', 
+                  backgroundColor: selectedResultList === 'WeeklyTimeTablesHoursMinutes' ? '#e6f3ff' : '#f0f8e6',
+                  borderRadius: '4px',
+                  border: selectedResultList === 'WeeklyTimeTablesHoursMinutes' ? '1px solid #0078d4' : '1px solid #107c10'
+                }}>
+                  <div style={{ fontWeight: '600', marginBottom: '5px' }}>
+                    {getMigrationType(selectedResultList)}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#605e5c' }}>
+                    {getMigrationDescription(selectedResultList)}
+                  </div>
+                </div>
+              </div>
+
               {/* Error Details */}
               {migrationResults[selectedResultList].errors.length > 0 && (
                 <div>
@@ -795,6 +854,17 @@ Click &quot;Stop Acting As&quot; to return to your original user account.
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* Special Notice for Hours/Minutes Migration */}
+              {selectedResultList === 'WeeklyTimeTablesHoursMinutes' && (
+                <div>
+                  <MessageBar messageBarType={MessageBarType.info}>
+                    <strong>Hours &amp; Minutes Migration:</strong> This migration extracts time values from DateTime fields 
+                    and stores them as separate numeric fields. For example, a time of &quot;2025-01-01T09:30:00Z&quot; becomes 
+                    Hours=9 and Minutes=30. This allows for easier time calculations and display formatting.
+                  </MessageBar>
                 </div>
               )}
             </Stack>

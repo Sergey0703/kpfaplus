@@ -31,6 +31,8 @@ export interface IWeeklyTimeTableRawItem {
     Title?: string;
     Contract?: number;
     TimeForLunch?: number;
+    
+    // DateTime поля (существующие)
     MondeyStartWork?: string; // С опечаткой как в коде
     MondayEndWork?: string;
     TuesdayStartWork?: string;
@@ -45,6 +47,55 @@ export interface IWeeklyTimeTableRawItem {
     SaturdayEndWork?: string;
     SundayStartWork?: string;
     SundayEndWork?: string;
+    StartLunch?: string;
+    EndLunch?: string;
+    
+    // --- НОВЫЕ ЧИСЛОВЫЕ ПОЛЯ ДЛЯ ЧАСОВ И МИНУТ ---
+    // Monday
+    MondayStartWorkHours?: number;
+    MondayStartWorkMinutes?: number;
+    MondayEndWorkHours?: number;
+    MondayEndWorkMinutes?: number;
+    
+    // Tuesday
+    TuesdayStartWorkHours?: number;
+    TuesdayStartWorkMinutes?: number;
+    TuesdayEndWorkHours?: number;
+    TuesdayEndWorkMinutes?: number;
+    
+    // Wednesday
+    WednesdayStartWorkHours?: number;
+    WednesdayStartWorkMinutes?: number;
+    WednesdayEndWorkHours?: number;
+    WednesdayEndWorkMinutes?: number;
+    
+    // Thursday
+    ThursdayStartWorkHours?: number;
+    ThursdayStartWorkMinutes?: number;
+    ThursdayEndWorkHours?: number;
+    ThursdayEndWorkMinutes?: number;
+    
+    // Friday
+    FridayStartWorkHours?: number;
+    FridayStartWorkMinutes?: number;
+    FridayEndWorkHours?: number;
+    FridayEndWorkMinutes?: number;
+    
+    // Saturday
+    SaturdayStartWorkHours?: number;
+    SaturdayStartWorkMinutes?: number;
+    SaturdayEndWorkHours?: number;
+    SaturdayEndWorkMinutes?: number;
+    
+    // Sunday
+    SundayStartWorkHours?: number;
+    SundayStartWorkMinutes?: number;
+    SundayEndWorkHours?: number;
+    SundayEndWorkMinutes?: number;
+    
+    // Lunch поля обеда удалены - числовые поля для обеда не нужны
+    // --- КОНЕЦ НОВЫХ ПОЛЕЙ ---
+    
     [key: string]: unknown;
   };
   [key: string]: unknown;
