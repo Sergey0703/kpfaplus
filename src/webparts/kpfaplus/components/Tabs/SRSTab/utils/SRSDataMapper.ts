@@ -7,6 +7,7 @@ import { ISRSRecord } from './SRSTabInterfaces';
  * Утилита для преобразования IStaffRecord в ISRSRecord
  * ОБНОВЛЕНО: Исправлена обработка типов отпусков и добавлено маппинг поля Holiday
  * ДОБАВЛЕНО: Детальное логирование для отладки Holiday поля
+ * ИСПРАВЛЕНО: Убраны any типы и исправлена нотация доступа к свойствам
  */
 export class SRSDataMapper {
 
@@ -113,6 +114,7 @@ export class SRSDataMapper {
   /**
    * *** ОБНОВЛЕНО: Извлечение поля Holiday из StaffRecord с детальным логированием ***
    * Обрабатывает различные форматы поля Holiday в данных из SharePoint
+   * ИСПРАВЛЕНО: Убраны any типы и исправлена нотация доступа к свойствам
    */
   private static extractHolidayValue(record: IStaffRecord): number {
     console.log(`[SRSDataMapper] *** DETAILED HOLIDAY EXTRACTION FOR RECORD ${record.ID} ***`);
@@ -125,16 +127,17 @@ export class SRSDataMapper {
       console.log(`[SRSDataMapper] *** SPECIAL DEBUG FOR RECORD 34825 ***`);
       console.log(`[SRSDataMapper] Full record object:`, JSON.stringify(record, null, 2));
       console.log(`[SRSDataMapper] record.Holiday direct access:`, record.Holiday);
-      console.log(`[SRSDataMapper] record['Holiday'] bracket access:`, (record as any)['Holiday']);
+      // ИСПРАВЛЕНО: Убран any тип и исправлена нотация доступа
+      console.log(`[SRSDataMapper] record.Holiday bracket access:`, record.Holiday);
       
       // Проверяем все возможные варианты написания Holiday
-      const recordAny = record as any;
+      const recordTyped = record as unknown as Record<string, unknown>;
       console.log(`[SRSDataMapper] Checking all holiday variations:`);
-      console.log(`  Holiday:`, recordAny.Holiday);
-      console.log(`  holiday:`, recordAny.holiday);
-      console.log(`  IsHoliday:`, recordAny.IsHoliday);
-      console.log(`  isHoliday:`, recordAny.isHoliday);
-      console.log(`  HOLIDAY:`, recordAny.HOLIDAY);
+      console.log(`  Holiday:`, recordTyped.Holiday);
+      console.log(`  holiday:`, recordTyped.holiday);
+      console.log(`  IsHoliday:`, recordTyped.IsHoliday);
+      console.log(`  isHoliday:`, recordTyped.isHoliday);
+      console.log(`  HOLIDAY:`, recordTyped.HOLIDAY);
     }
     
     let holidayValue = 0; // По умолчанию - не праздник
@@ -183,12 +186,13 @@ export class SRSDataMapper {
     }
     
     // *** ВАРИАНТ 4: Проверяем другие возможные поля ***
-    const recordAny = record as any;
+    // ИСПРАВЛЕНО: Правильное приведение типов через unknown
+    const recordTyped = record as unknown as Record<string, unknown>;
     
     // Проверяем поле holiday (lowercase)
-    if ('holiday' in recordAny && recordAny.holiday !== undefined) {
-      if (typeof recordAny.holiday === 'number') {
-        holidayValue = recordAny.holiday;
+    if ('holiday' in recordTyped && recordTyped.holiday !== undefined) {
+      if (typeof recordTyped.holiday === 'number') {
+        holidayValue = recordTyped.holiday;
         console.log(`[SRSDataMapper] Found holiday (lowercase, number): ${holidayValue}`);
         
         // *** СПЕЦИАЛЬНАЯ ПРОВЕРКА ДЛЯ 34825 ***
@@ -198,27 +202,27 @@ export class SRSDataMapper {
         
         return holidayValue;
       }
-      if (typeof recordAny.holiday === 'string') {
-        const parsed = parseInt(recordAny.holiday, 10);
+      if (typeof recordTyped.holiday === 'string') {
+        const parsed = parseInt(recordTyped.holiday, 10);
         if (!isNaN(parsed)) {
           holidayValue = parsed;
-          console.log(`[SRSDataMapper] Found holiday (lowercase, string): "${recordAny.holiday}" -> ${holidayValue}`);
+          console.log(`[SRSDataMapper] Found holiday (lowercase, string): "${recordTyped.holiday}" -> ${holidayValue}`);
           
           // *** СПЕЦИАЛЬНАЯ ПРОВЕРКА ДЛЯ 34825 ***
           if (record.ID === '34825') {
-            console.log(`[SRSDataMapper] *** RECORD 34825: holiday (lowercase) as string "${recordAny.holiday}" -> ${holidayValue} ***`);
+            console.log(`[SRSDataMapper] *** RECORD 34825: holiday (lowercase) as string "${recordTyped.holiday}" -> ${holidayValue} ***`);
           }
           
           return holidayValue;
         }
       }
-      if (typeof recordAny.holiday === 'boolean') {
-        holidayValue = recordAny.holiday ? 1 : 0;
-        console.log(`[SRSDataMapper] Found holiday (lowercase, boolean): ${recordAny.holiday} -> ${holidayValue}`);
+      if (typeof recordTyped.holiday === 'boolean') {
+        holidayValue = recordTyped.holiday ? 1 : 0;
+        console.log(`[SRSDataMapper] Found holiday (lowercase, boolean): ${recordTyped.holiday} -> ${holidayValue}`);
         
         // *** СПЕЦИАЛЬНАЯ ПРОВЕРКА ДЛЯ 34825 ***
         if (record.ID === '34825') {
-          console.log(`[SRSDataMapper] *** RECORD 34825: holiday (lowercase) as boolean ${recordAny.holiday} -> ${holidayValue} ***`);
+          console.log(`[SRSDataMapper] *** RECORD 34825: holiday (lowercase) as boolean ${recordTyped.holiday} -> ${holidayValue} ***`);
         }
         
         return holidayValue;
@@ -226,20 +230,20 @@ export class SRSDataMapper {
     }
     
     // *** ВАРИАНТ 5: Проверяем поле IsHoliday ***
-    if ('IsHoliday' in recordAny && recordAny.IsHoliday !== undefined) {
-      if (typeof recordAny.IsHoliday === 'boolean') {
-        holidayValue = recordAny.IsHoliday ? 1 : 0;
-        console.log(`[SRSDataMapper] Found IsHoliday (boolean): ${recordAny.IsHoliday} -> ${holidayValue}`);
+    if ('IsHoliday' in recordTyped && recordTyped.IsHoliday !== undefined) {
+      if (typeof recordTyped.IsHoliday === 'boolean') {
+        holidayValue = recordTyped.IsHoliday ? 1 : 0;
+        console.log(`[SRSDataMapper] Found IsHoliday (boolean): ${recordTyped.IsHoliday} -> ${holidayValue}`);
         
         // *** СПЕЦИАЛЬНАЯ ПРОВЕРКА ДЛЯ 34825 ***
         if (record.ID === '34825') {
-          console.log(`[SRSDataMapper] *** RECORD 34825: IsHoliday as boolean ${recordAny.IsHoliday} -> ${holidayValue} ***`);
+          console.log(`[SRSDataMapper] *** RECORD 34825: IsHoliday as boolean ${recordTyped.IsHoliday} -> ${holidayValue} ***`);
         }
         
         return holidayValue;
       }
-      if (typeof recordAny.IsHoliday === 'number') {
-        holidayValue = recordAny.IsHoliday;
+      if (typeof recordTyped.IsHoliday === 'number') {
+        holidayValue = recordTyped.IsHoliday;
         console.log(`[SRSDataMapper] Found IsHoliday (number): ${holidayValue}`);
         
         // *** СПЕЦИАЛЬНАЯ ПРОВЕРКА ДЛЯ 34825 ***
@@ -269,6 +273,7 @@ export class SRSDataMapper {
   /**
    * Улучшенный метод извлечения TypeOfLeaveID из StaffRecord
    * Проверяет все возможные источники типа отпуска
+   * ИСПРАВЛЕНО: Убран any тип
    */
   private static extractTypeOfLeaveID(record: IStaffRecord): string {
     console.log(`[SRSDataMapper] *** EXTRACTING TYPE OF LEAVE ID ***`);
@@ -286,7 +291,8 @@ export class SRSDataMapper {
     // *** ВАРИАНТ 2: Объект TypeOfLeave с полем Id ***
     if (record.TypeOfLeave && typeof record.TypeOfLeave === 'object') {
       // Проверяем разные возможные поля в объекте
-      const typeOfLeaveObj = record.TypeOfLeave as any;
+      // ИСПРАВЛЕНО: Правильное приведение типов через unknown
+      const typeOfLeaveObj = record.TypeOfLeave as unknown as Record<string, unknown>;
       
       // Поле Id (наиболее вероятное)
       if (typeOfLeaveObj.Id && typeOfLeaveObj.Id !== '' && typeOfLeaveObj.Id !== '0') {
@@ -320,18 +326,19 @@ export class SRSDataMapper {
     }
     
     // *** ВАРИАНТ 4: Попытка извлечь из других полей ***
-    const recordAny = record as any;
+    // ИСПРАВЛЕНО: Правильное приведение типов через unknown
+    const recordTyped = record as unknown as Record<string, unknown>;
     
     // Проверяем поле typeOfLeaveId (camelCase)
-    if (recordAny.typeOfLeaveId && recordAny.typeOfLeaveId !== '' && recordAny.typeOfLeaveId !== '0') {
-      typeOfLeaveValue = String(recordAny.typeOfLeaveId);
+    if (recordTyped.typeOfLeaveId && recordTyped.typeOfLeaveId !== '' && recordTyped.typeOfLeaveId !== '0') {
+      typeOfLeaveValue = String(recordTyped.typeOfLeaveId);
       console.log(`[SRSDataMapper] Found typeOfLeaveId (camelCase): "${typeOfLeaveValue}"`);
       return typeOfLeaveValue;
     }
     
     // Проверяем поле LeaveTypeID (альтернативное имя)
-    if (recordAny.LeaveTypeID && recordAny.LeaveTypeID !== '' && recordAny.LeaveTypeID !== '0') {
-      typeOfLeaveValue = String(recordAny.LeaveTypeID);
+    if (recordTyped.LeaveTypeID && recordTyped.LeaveTypeID !== '' && recordTyped.LeaveTypeID !== '0') {
+      typeOfLeaveValue = String(recordTyped.LeaveTypeID);
       console.log(`[SRSDataMapper] Found LeaveTypeID: "${typeOfLeaveValue}"`);
       return typeOfLeaveValue;
     }
