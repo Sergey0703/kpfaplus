@@ -750,19 +750,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
           }}>
             {item.id}
           </div>
-          
-          {/* *** ОТЛАДОЧНАЯ ИНФОРМАЦИЯ: Показываем состояние интеграции в dev режиме *** */}
-          {process.env.NODE_ENV === 'development' && (
-            <div style={{
-              fontSize: '8px',
-              color: '#0078d4',
-              textAlign: 'center',
-              marginTop: '2px',
-              lineHeight: '1'
-            }}>
-              {showDeleteConfirmDialog && showRestoreConfirmDialog ? 'REAL' : 'MOCK'}
-            </div>
-          )}
+                    
         </div>
       </td>
     </tr>

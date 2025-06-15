@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useState, useCallback, useEffect } from 'react';
-import { Spinner, SpinnerSize, Checkbox, Text } from '@fluentui/react';
+import { Spinner, SpinnerSize, Toggle, Text } from '@fluentui/react';
 import { ISRSTableProps, ISRSRecord } from '../utils/SRSTabInterfaces';
 import { SRSTableRow } from './SRSTableRow';
 import { 
@@ -289,7 +289,7 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
   }, [onContractNumberChange]);
 
   // *** ИСПРАВЛЕНО: Обработчик переключения отображения удаленных записей ***
-  const handleToggleShowDeleted = useCallback((ev?: React.FormEvent<HTMLElement>, checked?: boolean): void => {
+  const handleToggleShowDeleted = useCallback((ev?: React.MouseEvent<HTMLElement>, checked?: boolean): void => {
     console.log('[SRSTable] *** HANDLE TOGGLE SHOW DELETED ***');
     console.log('[SRSTable] Show deleted toggle changed:', checked);
     console.log('[SRSTable] onToggleShowDeleted handler available:', !!onToggleShowDeleted);
@@ -443,16 +443,18 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
         borderBottom: '1px solid #edebe9',
         marginBottom: '10px'
       }}>
-        {/* *** ИСПРАВЛЕНО: Переключатель Show deleted - ЕДИНСТВЕННОЕ МЕСТО *** */}
+        {/* *** ИСПРАВЛЕНО: Переключатель Show deleted - Toggle вместо Checkbox *** */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Checkbox
+          <Toggle
             label="Show deleted"
             checked={showDeleted}
             onChange={handleToggleShowDeleted}
             disabled={isLoading}
+            onText="On"
+            offText="Off"
             styles={{
               root: { marginRight: '10px' },
-              text: { fontSize: '14px', fontWeight: '600' }
+              label: { fontSize: '14px', fontWeight: '600' }
             }}
           />
           
