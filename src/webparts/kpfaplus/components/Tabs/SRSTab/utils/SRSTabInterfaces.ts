@@ -85,6 +85,7 @@ export interface ISRSTableProps {
   // *** ИСПРАВЛЕНО: Добавлены пропсы для showDeleted ***
   showDeleted: boolean; // Флаг отображения удаленных записей
   onToggleShowDeleted: (checked: boolean) => void; // Обработчик переключения флага
+  
 }
 
 /**

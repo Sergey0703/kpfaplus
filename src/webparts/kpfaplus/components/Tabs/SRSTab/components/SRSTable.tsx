@@ -138,67 +138,89 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
     });
   }, []);
 
-  // *** УПРОЩЕННЫЙ ОБРАБОТЧИК: Подтверждение добавления смены ***
-  const handleAddShiftConfirm = useCallback((): void => {
-    const { item } = addShiftConfirmDialog;
-    console.log('[SRSTable] *** HANDLE SIMPLIFIED ADD SHIFT CONFIRM ***');
-    console.log('[SRSTable] Item for shift creation:', item?.id);
+  // *** ИСПРАВЛЕННЫЙ ОБРАБОТЧИК: Подтверждение добавления смены с реальным вызовом onAddShift ***
+const handleAddShiftConfirm = useCallback(async (): Promise<void> => {
+  const { item } = addShiftConfirmDialog;
+  console.log('[SRSTable] *** HANDLE REAL ADD SHIFT CONFIRM ***');
+  console.log('[SRSTable] Item for shift creation:', item?.id);
 
-    if (!item) {
-      console.error('[SRSTable] No item selected for shift creation');
-      setAddShiftConfirmDialog(prev => ({ ...prev, isOpen: false, item: null }));
-      return;
-    }
+  if (!item) {
+    console.error('[SRSTable] No item selected for shift creation');
+    setAddShiftConfirmDialog(prev => ({ ...prev, isOpen: false, item: null }));
+    return;
+  }
 
-    try {
-      console.log('[SRSTable] Preparing shift data for creation...');
+  // *** ПРОВЕРЯЕМ НАЛИЧИЕ onAddShift ПРОПСА ***
+  if (!onAddShift) {
+    console.error('[SRSTable] onAddShift handler not available - cannot create shift');
+    alert('Add Shift functionality is not available. Please check component configuration.');
+    setAddShiftConfirmDialog(prev => ({ ...prev, isOpen: false, item: null }));
+    return;
+  }
 
-      // *** СОЗДАЕМ ДАННЫЕ ДЛЯ НОВОЙ СМЕНЫ С ВРЕМЕНЕМ 00:00 ***
-      const shiftData: INewSRSShiftData = {
-        date: new Date(item.date), // Та же дата
-        timeForLunch: item.lunch,  // Используем время обеда из текущей записи
-        contract: item.contract,   // Тот же контракт
-        contractNumber: item.contract, // Используем contract как contractNumber
-        typeOfLeave: item.typeOfLeave, // Тот же тип отпуска (если есть)
-        Holiday: item.Holiday      // Тот же статус праздника
-      };
+  try {
+    console.log('[SRSTable] Preparing shift data for REAL creation...');
 
-      console.log('[SRSTable] Shift data prepared:', {
-        date: shiftData.date.toISOString(),
-        dateLocal: shiftData.date.toLocaleDateString(),
-        timeForLunch: shiftData.timeForLunch,
-        contract: shiftData.contract,
-        contractNumber: shiftData.contractNumber,
-        typeOfLeave: shiftData.typeOfLeave || 'none',
-        Holiday: shiftData.Holiday
-      });
+    // *** СОЗДАЕМ ДАННЫЕ ДЛЯ НОВОЙ СМЕНЫ С ВРЕМЕНЕМ 00:00 ***
+    const shiftData: INewSRSShiftData = {
+      date: new Date(item.date), // Та же дата
+      timeForLunch: item.lunch,  // Используем время обеда из текущей записи
+      contract: item.contract,   // Тот же контракт
+      contractNumber: item.contract, // Используем contract как contractNumber
+      typeOfLeave: item.typeOfLeave, // Тот же тип отпуска (если есть)
+      Holiday: item.Holiday      // Тот же статус праздника
+    };
 
-      // *** ВАЖНО: Здесь должен быть вызов onAddShift из пропсов ***
-      console.log('[SRSTable] TODO: Call onAddShift handler from props');
-      console.log('[SRSTable] onAddShift will be passed from useSRSTabLogic in next implementation step');
+    console.log('[SRSTable] Shift data prepared for REAL service call:', {
+      date: shiftData.date.toISOString(),
+      dateLocal: shiftData.date.toLocaleDateString(),
+      timeForLunch: shiftData.timeForLunch,
+      contract: shiftData.contract,
+      contractNumber: shiftData.contractNumber,
+      typeOfLeave: shiftData.typeOfLeave || 'none',
+      Holiday: shiftData.Holiday
+    });
+
+    // *** РЕАЛЬНЫЙ ВЫЗОВ: onAddShift из пропсов ***
+    console.log('[SRSTable] *** CALLING REAL onAddShift HANDLER ***');
+    console.log('[SRSTable] This will trigger StaffRecordsService.createStaffRecord via useSRSTabLogic');
+    
+    const success = await onAddShift(shiftData.date, shiftData);
+    
+    if (success) {
+      console.log('[SRSTable] *** ADD SHIFT OPERATION SUCCESSFUL ***');
+      console.log('[SRSTable] New shift created successfully, data will be auto-refreshed');
       
-      // Временно показываем alert для демонстрации
-      alert(`Add Shift functionality activated!\n\nDate: ${shiftData.date.toLocaleDateString()}\nTime: 00:00-00:00\nLunch: ${shiftData.timeForLunch} min\nContract: ${shiftData.contract}`);
-
-      // Закрываем диалог
-      setAddShiftConfirmDialog(prev => ({ ...prev, isOpen: false, item: null }));
-
-    } catch (error) {
-      console.error('[SRSTable] Error during add shift confirm:', error);
+      // Показываем уведомление об успехе (опционально)
+      // alert(`Shift added successfully on ${shiftData.date.toLocaleDateString()}!`);
+      
+    } else {
+      console.error('[SRSTable] *** ADD SHIFT OPERATION FAILED ***');
+      console.error('[SRSTable] onAddShift returned false - shift creation failed');
       
       // Показываем ошибку пользователю
-      alert(`Error preparing shift data: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      
-      // Закрываем диалог
-      setAddShiftConfirmDialog(prev => ({ ...prev, isOpen: false, item: null }));
+      alert(`Failed to add shift on ${shiftData.date.toLocaleDateString()}. Please try again.`);
     }
-  }, [addShiftConfirmDialog.item]);
 
-  // *** НОВЫЙ ОБРАБОТЧИК: Отмена добавления смены ***
-  const handleAddShiftCancel = useCallback((): void => {
-    console.log('[SRSTable] Add shift dialog cancelled');
+    // Закрываем диалог в любом случае
     setAddShiftConfirmDialog(prev => ({ ...prev, isOpen: false, item: null }));
-  }, []);
+
+  } catch (error) {
+    console.error('[SRSTable] Error during REAL add shift operation:', error);
+    
+    // Показываем ошибку пользователю
+    alert(`Error adding shift: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    
+    // Закрываем диалог
+    setAddShiftConfirmDialog(prev => ({ ...prev, isOpen: false, item: null }));
+  }
+}, [addShiftConfirmDialog.item, onAddShift]);
+
+// *** ОБРАБОТЧИК: Отмена добавления смены (без изменений) ***
+const handleAddShiftCancel = useCallback((): void => {
+  console.log('[SRSTable] Add shift dialog cancelled');
+  setAddShiftConfirmDialog(prev => ({ ...prev, isOpen: false, item: null }));
+}, []);
 
   // *** ИСПРАВЛЕНО: Обработчик изменения времени с обновлением актуальных значений ***
   const handleTimeChange = useCallback((item: ISRSRecord, field: string, value: string | { hours: string; minutes: string }): void => {

@@ -9,11 +9,21 @@ import { useHolidays } from './useHolidays';
 import { SRSDateUtils } from './SRSDateUtils';
 import { ISRSRecord } from './SRSTabInterfaces';
 import { calculateSRSWorkTime } from './SRSTimeCalculationUtils';
-import { StaffRecordsService } from '../../../../services/StaffRecordsService'; // *** КЛЮЧЕВОЙ ИМПОРТ ***
+import { StaffRecordsService, IStaffRecord } from '../../../../services/StaffRecordsService'; // *** КЛЮЧЕВОЙ ИМПОРТ ***
+
+// *** НОВЫЙ ИМПОРТ: Интерфейс данных для новой смены ***
+export interface INewSRSShiftData {
+  date: Date;
+  timeForLunch: string;
+  contract: string;
+  contractNumber?: string;
+  typeOfLeave?: string;
+  Holiday?: number;
+}
 
 /**
  * Интерфейс для возвращаемых значений главного хука useSRSTabLogic
- * ОБНОВЛЕНО: Добавлены праздники, showDeleted и РЕАЛЬНЫЙ delete/restore функциональность
+ * ОБНОВЛЕНО: Добавлены праздники, showDeleted, РЕАЛЬНЫЙ delete/restore функциональность И onAddShift
  */
 export interface UseSRSTabLogicReturn extends ISRSTabState {
   // Обработчики дат
@@ -45,6 +55,9 @@ export interface UseSRSTabLogicReturn extends ISRSTabState {
   onDeleteRecord: (recordId: string) => Promise<boolean>;
   onRestoreRecord: (recordId: string) => Promise<boolean>;
   
+  // *** НОВЫЙ ОБРАБОТЧИК: Добавление смены через StaffRecordsService ***
+  onAddShift: (date: Date, shiftData?: INewSRSShiftData) => Promise<boolean>;
+  
   // *** ИСПРАВЛЕНО: Обработчик переключения отображения удаленных записей ***
   onToggleShowDeleted: (checked: boolean) => void;
   
@@ -65,12 +78,12 @@ export interface UseSRSTabLogicReturn extends ISRSTabState {
 
 /**
  * Главный оркестрирующий хук для SRS Tab
- * ИСПРАВЛЕНО: Добавлен handleToggleShowDeleted обработчик и правильная передача showDeleted
+ * ОБНОВЛЕНО: Добавлен handleAddShift обработчик с интеграцией StaffRecordsService
  */
 export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   const { selectedStaff, context, currentUserId, managingGroupId } = props;
 
-  console.log('[useSRSTabLogic] Orchestrator hook initialized with REAL delete/restore services and showDeleted support:', {
+  console.log('[useSRSTabLogic] Orchestrator hook initialized with REAL delete/restore/ADD SHIFT services and showDeleted support:', {
     hasSelectedStaff: !!selectedStaff,
     selectedStaffId: selectedStaff?.id,
     selectedStaffEmployeeId: selectedStaff?.employeeId,
@@ -78,6 +91,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     currentUserId,
     managingGroupId,
     realDeleteRestoreEnabled: true,
+    realAddShiftEnabled: true, // *** НОВОЕ ***
     showDeletedSupport: true
   });
 
@@ -90,6 +104,9 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   // *** РЕАЛЬНОЕ СОСТОЯНИЕ: Локальное состояние для операций удаления/восстановления ***
   const [deleteOperations, setDeleteOperations] = useState<Map<string, boolean>>(new Map()); // recordId -> isDeleting
   const [restoreOperations, setRestoreOperations] = useState<Map<string, boolean>>(new Map()); // recordId -> isRestoring
+
+  // *** НОВОЕ СОСТОЯНИЕ: Локальное состояние для операций добавления смены ***
+  const [addShiftOperations, setAddShiftOperations] = useState<Map<string, boolean>>(new Map()); // dateKey -> isAdding
 
   // Инициализируем хук загрузки типов отпусков
   const { loadTypesOfLeave } = useTypesOfLeave({
@@ -116,6 +133,153 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     showDeleted: state.showDeleted, // *** ИСПРАВЛЕНО: Передаем showDeleted из состояния ***
     setState
   });
+
+  // ===============================================
+  // *** НОВАЯ ФУНКЦИЯ: ДОБАВЛЕНИЕ СМЕНЫ ЧЕРЕЗ STAFFRECORDSSERVICE ***
+  // ===============================================
+
+  /**
+   * *** РЕАЛЬНАЯ ФУНКЦИЯ: Добавление смены SRS через StaffRecordsService ***
+   * Использует метод createStaffRecord из StaffRecordsService
+   */
+  const handleAddShift = useCallback(async (date: Date, shiftData?: INewSRSShiftData): Promise<boolean> => {
+    console.log('[useSRSTabLogic] *** REAL ADD SHIFT OPERATION STARTED ***');
+    console.log('[useSRSTabLogic] Date for new shift:', date.toLocaleDateString());
+    console.log('[useSRSTabLogic] Shift data:', shiftData);
+    
+    // Проверяем базовые требования
+    if (!context) {
+      console.error('[useSRSTabLogic] Context is not available for add shift operation');
+      return false;
+    }
+
+    if (!selectedStaff?.employeeId) {
+      console.error('[useSRSTabLogic] Selected staff employeeId is not available for add shift operation');
+      return false;
+    }
+
+    if (!currentUserId || currentUserId === '0') {
+      console.error('[useSRSTabLogic] Current user ID is not available for add shift operation');
+      return false;
+    }
+
+    if (!managingGroupId || managingGroupId === '0') {
+      console.error('[useSRSTabLogic] Managing group ID is not available for add shift operation');
+      return false;
+    }
+
+    // Создаем ключ операции на основе даты
+    const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    // Проверяем, не выполняется ли уже операция добавления для этой даты
+    if (addShiftOperations.get(dateKey)) {
+      console.warn('[useSRSTabLogic] Add shift operation already in progress for this date');
+      return false;
+    }
+
+    try {
+      // Отмечаем начало операции добавления смены
+      setAddShiftOperations(prev => new Map(prev.set(dateKey, true)));
+      
+      console.log('[useSRSTabLogic] Starting REAL add shift operation using StaffRecordsService...');
+      
+      // *** КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Используем РЕАЛЬНЫЙ StaffRecordsService ***
+      const staffRecordsService = StaffRecordsService.getInstance(context);
+      
+      // *** ПОДГОТОВКА ДАННЫХ: Создаем объект для новой записи Staff Record ПО ПАТТЕРНУ SCHEDULE ***
+      console.log('[useSRSTabLogic] Preparing new SRS record data using Schedule pattern...');
+      
+      // Подготавливаем дату как в Schedule
+      const newDate = new Date(date);
+      newDate.setHours(0, 0, 0, 0);
+
+      // *** SRS ОСОБЕННОСТЬ: Время по умолчанию 00:00-00:00 ***
+      const shiftDate1 = new Date(newDate);
+      shiftDate1.setHours(0, 0, 0, 0); // 00:00
+
+      const shiftDate2 = new Date(newDate);
+      shiftDate2.setHours(0, 0, 0, 0); // 00:00
+
+      // *** ОСОБЕННОСТИ SRS: Используем данные из shiftData или значения по умолчанию ***
+      const timeForLunch = shiftData?.timeForLunch ? parseInt(shiftData.timeForLunch, 10) : 30; // 30 минут по умолчанию
+      const contract = shiftData?.contract ? parseInt(shiftData.contract, 10) : 1; // Контракт 1 по умолчанию
+      
+      // *** ОСОБЕННОСТИ SRS: Обработка типов отпусков ***
+      const typeOfLeaveID = shiftData?.typeOfLeave && shiftData.typeOfLeave !== '' ? shiftData.typeOfLeave : '';
+      
+      // *** ОСОБЕННОСТИ SRS: Обработка праздников ***
+      const holidayFlag = shiftData?.Holiday || 0;
+
+      // *** СТРУКТУРА ДАННЫХ ПО ПАТТЕРНУ SCHEDULE ***
+      const createData: Partial<IStaffRecord> = {
+        Date: newDate,
+        ShiftDate1: shiftDate1,
+        ShiftDate2: shiftDate2,
+        TimeForLunch: timeForLunch,
+        Contract: contract,
+        WeeklyTimeTableID: undefined, // В SRS нет selectedContractId
+        TypeOfLeaveID: typeOfLeaveID,
+        Title: typeOfLeaveID ? `Leave on ${date.toLocaleDateString()}` : `SRS Shift on ${date.toLocaleDateString()}`,
+        Holiday: holidayFlag
+      };
+
+      // *** ПАРАМЕТРЫ ПО ПАТТЕРНУ SCHEDULE ***
+      const employeeId = selectedStaff.employeeId;
+      const currentUserID = currentUserId;
+      const staffGroupID = managingGroupId;
+
+      console.log('[useSRSTabLogic] Creating new SRS shift with data (Schedule pattern):', JSON.stringify(createData, null, 2));
+      console.log('[useSRSTabLogic] Using reference IDs:', {
+        currentUserID,
+        staffGroupID,
+        employeeId
+      });
+      
+      console.log('[useSRSTabLogic] Calling staffRecordsService.createStaffRecord()...');
+      
+      // *** РЕАЛЬНЫЙ ВЫЗОВ ПО ПАТТЕРНУ SCHEDULE: createStaffRecord возвращает string (ID) ***
+      const newRecordId = await staffRecordsService.createStaffRecord(
+        createData, 
+        currentUserID, 
+        staffGroupID, 
+        employeeId
+      );
+      
+      if (newRecordId && typeof newRecordId === 'string') {
+        console.log('[useSRSTabLogic] *** REAL ADD SHIFT OPERATION SUCCESSFUL ***');
+        console.log('[useSRSTabLogic] New SRS record created with ID:', newRecordId);
+        
+        // Автоматически обновляем данные, чтобы показать новую запись
+        console.log('[useSRSTabLogic] Auto-refreshing data to show new shift...');
+        setTimeout(() => {
+          void refreshSRSData();
+        }, 500); // Небольшая задержка для гарантии создания на сервере
+        
+        return true;
+      } else {
+        console.error('[useSRSTabLogic] REAL add shift operation failed - server returned invalid result');
+        return false;
+      }
+      
+    } catch (error) {
+      console.error('[useSRSTabLogic] Error during REAL add shift operation:', error);
+      
+      // Показываем ошибку пользователю через состояние
+      SRSTabStateHelpers.setErrorSRS(setState, 
+        `Failed to add new shift: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+      
+      return false;
+      
+    } finally {
+      // Убираем отметку об операции добавления смены
+      setAddShiftOperations(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(dateKey);
+        return newMap;
+      });
+    }
+  }, [context, selectedStaff?.employeeId, currentUserId, managingGroupId, refreshSRSData, addShiftOperations, setState]);
 
   // ===============================================
   // *** РЕАЛЬНЫЕ ОБРАБОТЧИКИ: УДАЛЕНИЕ/ВОССТАНОВЛЕНИЕ ЧЕРЕЗ STAFFRECORDSSERVICE ***
@@ -267,6 +431,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       });
     }
   }, [context, refreshSRSData, restoreOperations, setState]);
+
   // ===============================================
   // ОБРАБОТЧИКИ ИЗМЕНЕНИЯ ДАТ
   // ===============================================
@@ -307,6 +472,9 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     setModifiedRecords(new Map());
     SRSTabStateHelpers.setHasUnsavedChanges(setState, false);
 
+    // *** ОЧИЩАЕМ СОСТОЯНИЕ ОПЕРАЦИЙ ДОБАВЛЕНИЯ СМЕНЫ ПРИ СМЕНЕ ДАТ ***
+    setAddShiftOperations(new Map());
+
     // Обновляем праздники при изменении дат
     console.log('[useSRSTabLogic] Triggering holidays reload due to fromDate change');
     loadHolidays();
@@ -343,6 +511,9 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     // Очищаем локальные изменения при смене дат
     setModifiedRecords(new Map());
     SRSTabStateHelpers.setHasUnsavedChanges(setState, false);
+
+    // *** ОЧИЩАЕМ СОСТОЯНИЕ ОПЕРАЦИЙ ДОБАВЛЕНИЯ СМЕНЫ ПРИ СМЕНЕ ДАТ ***
+    setAddShiftOperations(new Map());
 
     // Обновляем праздники при изменении дат
     console.log('[useSRSTabLogic] Triggering holidays reload due to toDate change');
@@ -555,7 +726,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
 
   /**
    * Обработчик принудительного обновления данных
-   * ОБНОВЛЕНО: Включает очистку операций удаления/восстановления
+   * ОБНОВЛЕНО: Включает очистку операций удаления/восстановления И добавления смены
    */
   const handleRefreshData = useCallback((): void => {
     console.log('[useSRSTabLogic] Manual refresh requested (including clearing REAL operations state)');
@@ -564,9 +735,10 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     setModifiedRecords(new Map());
     SRSTabStateHelpers.setHasUnsavedChanges(setState, false);
     
-    // *** ОБНОВЛЕНО: Очищаем состояния РЕАЛЬНЫХ операций удаления/восстановления ***
+    // *** ОБНОВЛЕНО: Очищаем состояния РЕАЛЬНЫХ операций удаления/восстановления И добавления смены ***
     setDeleteOperations(new Map());
     setRestoreOperations(new Map());
+    setAddShiftOperations(new Map()); // *** НОВОЕ ***
     
     // Обновляем SRS данные
     void refreshSRSData();
@@ -743,14 +915,14 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   }, [state.selectedItems.size]);
 
   /**
-   * *** РЕАЛЬНОЕ СОСТОЯНИЕ: Проверяет, выполняются ли операции удаления/восстановления ***
+   * *** РЕАЛЬНОЕ СОСТОЯНИЕ: Проверяет, выполняются ли операции удаления/восстановления И добавления смены ***
    */
   const hasOngoingOperations = useMemo((): boolean => {
-    return deleteOperations.size > 0 || restoreOperations.size > 0;
-  }, [deleteOperations.size, restoreOperations.size]);
+    return deleteOperations.size > 0 || restoreOperations.size > 0 || addShiftOperations.size > 0; // *** НОВОЕ ***
+  }, [deleteOperations.size, restoreOperations.size, addShiftOperations.size]);
 
   // ===============================================
-  // *** ИСПРАВЛЕНО: ВОЗВРАЩАЕМЫЙ ОБЪЕКТ С onToggleShowDeleted ***
+  // *** ОБНОВЛЕНО: ВОЗВРАЩАЕМЫЙ ОБЪЕКТ С onAddShift ***
   // ===============================================
 
   const hookReturn: UseSRSTabLogicReturn = useMemo(() => ({
@@ -786,6 +958,9 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     onDeleteRecord: handleDeleteRecord,
     onRestoreRecord: handleRestoreRecord,
     
+    // *** НОВЫЙ ОБРАБОТЧИК: Добавление смены через StaffRecordsService ***
+    onAddShift: handleAddShift,
+    
     // *** ИСПРАВЛЕНО: Обработчик переключения отображения удаленных записей ***
     onToggleShowDeleted: handleToggleShowDeleted,
     
@@ -815,6 +990,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     handleTypeOfLeaveChange,
     handleDeleteRecord, // *** РЕАЛЬНЫЙ ОБРАБОТЧИК ***
     handleRestoreRecord, // *** РЕАЛЬНЫЙ ОБРАБОТЧИК ***
+    handleAddShift, // *** НОВЫЙ РЕАЛЬНЫЙ ОБРАБОТЧИК ***
     handleToggleShowDeleted, // *** ИСПРАВЛЕНО: ДОБАВЛЕН В ЗАВИСИМОСТИ ***
     hasCheckedItems,
     selectedItemsCount,
@@ -824,7 +1000,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     loadHolidays
   ]);
 
-  console.log('[useSRSTabLogic] Hook return object prepared with REAL delete/restore services and showDeleted support:', {
+  console.log('[useSRSTabLogic] Hook return object prepared with REAL delete/restore/ADD SHIFT services and showDeleted support:', {
     recordsCount: state.srsRecords.length,
     totalHours: state.totalHours,
     hasCheckedItems,
@@ -842,10 +1018,14 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     restoreOperationsCount: restoreOperations.size,
     hasOngoingOperations,
     realDeleteRestoreIntegration: 'StaffRecordsService.markRecordAsDeleted & restoreDeletedRecord',
+    // *** НОВАЯ ИНФОРМАЦИЯ: Операции добавления смены через StaffRecordsService ***
+    addShiftOperationsCount: addShiftOperations.size,
+    realAddShiftIntegration: 'StaffRecordsService.createStaffRecord',
     // *** ИСПРАВЛЕНО: Информация о поддержке showDeleted ***
     showDeleted: state.showDeleted,
     showDeletedSupport: true,
-    hasToggleShowDeletedHandler: !!handleToggleShowDeleted
+    hasToggleShowDeletedHandler: !!handleToggleShowDeleted,
+    hasAddShiftHandler: !!handleAddShift
   });
 
   return hookReturn;
