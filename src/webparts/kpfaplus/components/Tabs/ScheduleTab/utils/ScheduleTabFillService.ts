@@ -90,12 +90,6 @@ export const fillScheduleFromTemplate = async (
       0, 
       23, 59, 59, 999
     )); 
-  /*  const endOfMonth = new Date(Date.UTC(
-  selectedDate.getUTCFullYear(), 
-  selectedDate.getUTCMonth(), 
-  selectedDate.getUTCDate(), 
-  23, 59, 59, 999
-)); */
 
     console.log(`[ScheduleTabFillService] *** UTC MONTH BOUNDARIES FOR FILL OPERATION ***`);
     console.log(`[ScheduleTabFillService] Start of month (UTC): ${startOfMonth.toISOString()}`);
@@ -200,20 +194,24 @@ export const fillScheduleFromTemplate = async (
     const weeklyTimeService = new WeeklyTimeTableService(context);
     const weeklyTimeItems = await weeklyTimeService.getWeeklyTimeTableByContractId(selectedContractId);
     
-    // *** ДОБАВЛЕН DEBUG ЛОГ №1: RAW DATA FROM SERVICE ***
+    // *** DEBUG ЛОГ №1: RAW DATA FROM SERVICE ***
     console.log(`[DEBUG] *** RAW WEEKLY TIME ITEMS FROM SERVICE ***`);
     console.log(`[DEBUG] Total items received: ${weeklyTimeItems?.length || 0}`);
     if (weeklyTimeItems && weeklyTimeItems.length > 0) {
       console.log(`[DEBUG] First raw item structure:`, JSON.stringify(weeklyTimeItems[0], null, 2));
       
-      // Проверяем поля времени в первом элементе
+      // *** ОБНОВЛЕНО: Проверяем ЧИСЛОВЫЕ поля времени в сырых данных ***
       const firstItem = weeklyTimeItems[0];
       const fields = firstItem.fields || firstItem;
-      console.log(`[DEBUG] *** TIME FIELDS IN RAW DATA ***`);
-      console.log(`[DEBUG] MondayStartWork: "${fields.MondeyStartWork || fields.MondayStartWork}"`);
-      console.log(`[DEBUG] MondayEndWork: "${fields.MondayEndWork}"`);
-      console.log(`[DEBUG] TuesdayStartWork: "${fields.TuesdayStartWork}"`);
-      console.log(`[DEBUG] TuesdayEndWork: "${fields.TuesdayEndWork}"`);
+      console.log(`[DEBUG] *** NUMERIC TIME FIELDS IN RAW DATA ***`);
+      console.log(`[DEBUG] MondayStartWorkHours: ${fields.MondayStartWorkHours}`);
+      console.log(`[DEBUG] MondayStartWorkMinutes: ${fields.MondayStartWorkMinutes}`);
+      console.log(`[DEBUG] MondayEndWorkHours: ${fields.MondayEndWorkHours}`);
+      console.log(`[DEBUG] MondayEndWorkMinutes: ${fields.MondayEndWorkMinutes}`);
+      console.log(`[DEBUG] TuesdayStartWorkHours: ${fields.TuesdayStartWorkHours}`);
+      console.log(`[DEBUG] TuesdayStartWorkMinutes: ${fields.TuesdayStartWorkMinutes}`);
+      console.log(`[DEBUG] TuesdayEndWorkHours: ${fields.TuesdayEndWorkHours}`);
+      console.log(`[DEBUG] TuesdayEndWorkMinutes: ${fields.TuesdayEndWorkMinutes}`);
     }
     
     if (!weeklyTimeItems || weeklyTimeItems.length === 0) {
@@ -246,15 +244,15 @@ export const fillScheduleFromTemplate = async (
     // Форматируем и фильтруем шаблоны
     const formattedTemplates = WeeklyTimeTableUtils.formatWeeklyTimeTableData(activeWeeklyTimeItems, dayOfStartWeek);
     
-    // *** ДОБАВЛЕН DEBUG ЛОГ №2: FORMATTED TEMPLATES ***
+    // *** DEBUG ЛОГ №2: FORMATTED TEMPLATES FROM WeeklyTimeTableUtils ***
     console.log(`[DEBUG] *** FORMATTED TEMPLATES FROM WeeklyTimeTableUtils ***`);
     console.log(`[DEBUG] Total formatted templates: ${formattedTemplates?.length || 0}`);
     if (formattedTemplates && formattedTemplates.length > 0) {
       console.log(`[DEBUG] First formatted template:`, JSON.stringify(formattedTemplates[0], null, 2));
       
-      // Проверяем структуру времени в отформатированном шаблоне
+      // *** ОБНОВЛЕНО: Проверяем структуру времени в отформатированном шаблоне с числовыми полями ***
       const firstTemplate = formattedTemplates[0];
-      console.log(`[DEBUG] *** TIME STRUCTURE IN FORMATTED TEMPLATE ***`);
+      console.log(`[DEBUG] *** TIME STRUCTURE IN FORMATTED TEMPLATE (FROM NUMERIC FIELDS) ***`);
       console.log(`[DEBUG] Monday start:`, firstTemplate.monday.start);
       console.log(`[DEBUG] Monday end:`, firstTemplate.monday.end);
       console.log(`[DEBUG] Tuesday start:`, firstTemplate.tuesday.start);
@@ -363,12 +361,6 @@ export const checkExistingRecordsStatus = async (
       0, 
       23, 59, 59, 999
     ));
- /*   const endOfMonth = new Date(Date.UTC(
-  selectedDate.getUTCFullYear(), 
-  selectedDate.getUTCMonth(), 
-  selectedDate.getUTCDate(), 
-  23, 59, 59, 999
-)); */
     
     const contractStartDate = selectedContract.startDate;
     const contractFinishDate = selectedContract.finishDate;
@@ -426,12 +418,13 @@ export const checkExistingRecordsStatus = async (
 
 /**
  * Генерирует записи расписания на основе подготовленных данных
+ * *** ОБНОВЛЕНО: Работает с числовыми полями времени из шаблонов ***
  */
 async function generateScheduleRecords(
   daysData: Map<string, IDayData>,
   selectedContract: IContract,
   selectedContractId: string,
-  remoteSiteService: RemoteSiteService  // ← ДОБАВЛЕН ПАРАМЕТР
+  remoteSiteService: RemoteSiteService
 ): Promise<Partial<IStaffRecord>[]> {
   const generatedRecords: Partial<IStaffRecord>[] = [];
   
@@ -462,17 +455,26 @@ async function generateScheduleRecords(
           continue;
         }
         
-        // *** ИСПРАВЛЕНИЕ: Используем await для асинхронного создания времени ***
+        // *** ОБНОВЛЕНО: Обработка времени из числовых полей ***
         console.log(`[DEBUG] *** PROCESSING TEMPLATE TIME FOR ${dayData.date.toLocaleDateString()} ***`);
-        console.log(`[DEBUG] Template ${templateIndex} start time object:`, template.start);
-        console.log(`[DEBUG] Template ${templateIndex} end time object:`, template.end);
+        console.log(`[DEBUG] Template ${templateIndex} start time object (from numeric fields):`, template.start);
+        console.log(`[DEBUG] Template ${templateIndex} end time object (from numeric fields):`, template.end);
         console.log(`[DEBUG] Base date for shift creation: ${dayData.date.toISOString()}`);
         
-        // ИСПРАВЛЕНО: Правильный порядок параметров и await
+        // *** ВАЖНОЕ ИЗМЕНЕНИЕ: Валидация структуры времени из числовых полей ***
+        if (!template.start.hours || !template.start.minutes || !template.end.hours || !template.end.minutes) {
+          console.warn(`[ScheduleTabFillService] Invalid time structure in template ${templateIndex}:`, {
+            start: template.start,
+            end: template.end
+          });
+          continue;
+        }
+        
+        // *** ОБНОВЛЕНО: createDateWithTime теперь работает с числовыми полями времени ***
         const shiftDate1 = await createDateWithTime(dayData.date, remoteSiteService, template.start);
         const shiftDate2 = await createDateWithTime(dayData.date, remoteSiteService, template.end);
         
-        console.log(`[DEBUG] *** CREATED SHIFT TIMES ***`);
+        console.log(`[DEBUG] *** CREATED SHIFT TIMES FROM NUMERIC FIELDS ***`);
         console.log(`[DEBUG] ShiftDate1 (start): ${shiftDate1.toISOString()}`);
         console.log(`[DEBUG] ShiftDate2 (end): ${shiftDate2.toISOString()}`);
         console.log(`[DEBUG] Local time representation - Start: ${shiftDate1.toLocaleString()}`);
@@ -481,8 +483,8 @@ async function generateScheduleRecords(
         const recordData: Partial<IStaffRecord> = {
           Title: `Template=${selectedContractId} Week=${dayData.appliedWeekNumber} Shift=${template.NumberOfShift || template.shiftNumber || 1}`,
           Date: dayData.date,
-          ShiftDate1: shiftDate1,  // ← Теперь это Date, не Promise<Date>
-          ShiftDate2: shiftDate2,  // ← Теперь это Date, не Promise<Date>
+          ShiftDate1: shiftDate1,
+          ShiftDate2: shiftDate2,
           TimeForLunch: parseInt(template.lunch || '30', 10),
           Contract: parseInt(template.total || '1', 10),
           Holiday: dayData.isHoliday ? 1 : 0,
@@ -501,8 +503,8 @@ async function generateScheduleRecords(
         // Детальные логи только для 1 октября
         if (dayData.date.getUTCDate() === 1 && dayData.date.getUTCMonth() === 9 && dayData.date.getUTCFullYear() === 2024) {
           console.log(`[ScheduleTabFillService] *** OCTOBER 1st TEMPLATE ${templateIndex + 1} ***`);
-          console.log(`[ScheduleTabFillService] Template start time: ${template.start?.hours}:${template.start?.minutes}`);
-          console.log(`[ScheduleTabFillService] Template end time: ${template.end?.hours}:${template.end?.minutes}`);
+          console.log(`[ScheduleTabFillService] Template start time (from numeric): ${template.start?.hours}:${template.start?.minutes}`);
+          console.log(`[ScheduleTabFillService] Template end time (from numeric): ${template.end?.hours}:${template.end?.minutes}`);
           console.log(`[ScheduleTabFillService] Template week: ${template.NumberOfWeek}, shift: ${template.NumberOfShift}`);
           console.log(`[ScheduleTabFillService] Generated ShiftDate1: ${shiftDate1.toISOString()}`);
           console.log(`[ScheduleTabFillService] Generated ShiftDate2: ${shiftDate2.toISOString()}`);

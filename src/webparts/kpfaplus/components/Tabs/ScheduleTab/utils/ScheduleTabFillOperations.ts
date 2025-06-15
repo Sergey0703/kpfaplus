@@ -38,6 +38,7 @@ export interface IFillOperationHandlers {
 
 /**
  * Интерфейс для шаблона расписания
+ * ОБНОВЛЕНО: Использует числовые поля времени
  */
 interface IScheduleTemplate {
   NumberOfWeek?: number;
@@ -45,8 +46,8 @@ interface IScheduleTemplate {
   NumberOfShift?: number;
   shiftNumber?: number;
   dayOfWeek?: number;
-  start?: IDayHours;
-  end?: IDayHours;
+  start?: IDayHours; // Время из числовых полей
+  end?: IDayHours;   // Время из числовых полей
   lunch?: string;
   total?: string;
   deleted?: number;
@@ -88,9 +89,10 @@ function getAppliedWeekNumber(calculatedWeekNumber: number, numberOfWeekTemplate
 }
 
 /**
- * ИСПРАВЛЕНО: Helper function to create Date object with specified time using UTC
+ * Helper function to create Date object with specified time from numeric fields
+ * ОБНОВЛЕНО: Работает с IDayHours из числовых полей (без timezone adjustment)
  * @param baseDate Base date
- * @param time Object with hours and minutes (может быть undefined)
+ * @param time Object with hours and minutes as strings from numeric fields (может быть undefined)
  * @returns Date object with set time in UTC
  */
 function createDateWithTime(baseDate: Date, time?: IDayHours): Date {
@@ -103,23 +105,52 @@ function createDateWithTime(baseDate: Date, time?: IDayHours): Date {
     return result;
   }
   
+  // *** ОБНОВЛЕНО: Обработка времени из числовых полей ***
+  console.log(`[ScheduleTabFillOperations] *** PROCESSING TIME FROM NUMERIC FIELDS ***`);
+  console.log(`[ScheduleTabFillOperations] Input time from numeric fields: hours="${time.hours}", minutes="${time.minutes}"`);
+  
+  // Проверяем, что поля времени не пустые
+  if (!time.hours || !time.minutes) {
+    console.warn(`[ScheduleTabFillOperations] Missing time components: hours="${time.hours}", minutes="${time.minutes}"`);
+    result.setUTCHours(0, 0, 0, 0);
+    console.warn(`[ScheduleTabFillOperations] Set to UTC midnight: ${result.toISOString()}`);
+    return result;
+  }
+
   try {
-    // Get hours and minutes
-    const hours = parseInt(time.hours || '0', 10);
-    const minutes = parseInt(time.minutes || '0', 10);
+    // *** ОБНОВЛЕНО: Парсинг числовых значений из строковых полей ***
+    const hours = parseInt(time.hours, 10);
+    const minutes = parseInt(time.minutes, 10);
     
     if (isNaN(hours) || isNaN(minutes)) {
-      // If parsing failed, set 00:00 UTC
+      console.warn(`[ScheduleTabFillOperations] Invalid numeric time format: hours="${time.hours}" (parsed: ${hours}), minutes="${time.minutes}" (parsed: ${minutes})`);
       result.setUTCHours(0, 0, 0, 0);
-      console.log(`[ScheduleTabFillOperations] createDateWithTime: Invalid time format (${time.hours}:${time.minutes}), set to UTC midnight: ${result.toISOString()}`);
-    } else {
-      // ИСПРАВЛЕНО: Set specified time using UTC instead of local time
-      result.setUTCHours(hours, minutes, 0, 0);
-      console.log(`[ScheduleTabFillOperations] createDateWithTime: Set UTC time ${hours}:${minutes} on base date ${baseDate.toISOString()} → result: ${result.toISOString()}`);
+      console.warn(`[ScheduleTabFillOperations] Set to UTC midnight: ${result.toISOString()}`);
+      return result;
     }
+
+    // Валидация диапазонов
+    if (hours < 0 || hours > 23) {
+      console.warn(`[ScheduleTabFillOperations] Hours out of range: ${hours} (should be 0-23)`);
+      result.setUTCHours(0, 0, 0, 0);
+      console.warn(`[ScheduleTabFillOperations] Set to UTC midnight: ${result.toISOString()}`);
+      return result;
+    }
+
+    if (minutes < 0 || minutes > 59) {
+      console.warn(`[ScheduleTabFillOperations] Minutes out of range: ${minutes} (should be 0-59)`);
+      result.setUTCHours(0, 0, 0, 0);
+      console.warn(`[ScheduleTabFillOperations] Set to UTC midnight: ${result.toISOString()}`);
+      return result;
+    }
+
+    // *** ОБНОВЛЕНО: Устанавливаем время напрямую из числовых полей в UTC ***
+    result.setUTCHours(hours, minutes, 0, 0);
+    console.log(`[ScheduleTabFillOperations] createDateWithTime: Set UTC time from numeric fields ${hours}:${minutes} on base date ${baseDate.toISOString()} → result: ${result.toISOString()}`);
+    
   } catch (error) {
-    console.error(`[ScheduleTabFillOperations] Error parsing time:`, error);
-    // In case of error, set 00:00 UTC
+    console.error(`[ScheduleTabFillOperations] Error parsing time from numeric fields:`, error);
+    // В случае ошибки, устанавливаем 00:00 UTC
     result.setUTCHours(0, 0, 0, 0);
     console.log(`[ScheduleTabFillOperations] createDateWithTime: Error parsing time, set to UTC midnight: ${result.toISOString()}`);
   }
@@ -129,6 +160,7 @@ function createDateWithTime(baseDate: Date, time?: IDayHours): Date {
 
 /**
  * Main function for filling schedule based on templates
+ * ОБНОВЛЕНО: Работает с числовыми полями времени из шаблонов
  * @param params Parameters for the operation
  * @param handlers Handlers and callbacks for the operation
  */
@@ -240,8 +272,9 @@ export const fillScheduleFromTemplate = async (
       }
       
       console.log(`[ScheduleTabFillOperations] Retrieved ${weeklyTimeItems.length} weekly time templates`);
+      console.log(`[ScheduleTabFillOperations] ОБНОВЛЕНО: Шаблоны содержат числовые поля времени`);
       
-      // Format raw data for use
+      // Format raw data for use - now using numeric time fields
       const formattedTemplates = WeeklyTimeTableUtils.formatWeeklyTimeTableData(weeklyTimeItems, dayOfStartWeek);
       
       if (!formattedTemplates || formattedTemplates.length === 0) {
@@ -253,7 +286,7 @@ export const fillScheduleFromTemplate = async (
         return;
       }
       
-      console.log(`[ScheduleTabFillOperations] Formatted ${formattedTemplates.length} templates`);
+      console.log(`[ScheduleTabFillOperations] Formatted ${formattedTemplates.length} templates from numeric time fields`);
       
       // Filter deleted templates
       const activeTemplates = formattedTemplates.filter(template => 
@@ -285,13 +318,24 @@ export const fillScheduleFromTemplate = async (
           // Проверяем и приводим к типу IDayHoursComplete
           const dayInfo = template[day];
           
-          // Добавляем дополнительные проверки для свойств объекта dayInfo
+          // *** ОБНОВЛЕНО: Проверяем структуру времени из числовых полей ***
           if (dayInfo && 
               typeof dayInfo === 'object' && 
               'start' in dayInfo && 
               'end' in dayInfo && 
               dayInfo.start && 
               dayInfo.end) {
+            
+            // *** ДОПОЛНИТЕЛЬНАЯ ВАЛИДАЦИЯ: Проверяем, что поля времени заполнены ***
+            const startTime = dayInfo.start as IDayHours;
+            const endTime = dayInfo.end as IDayHours;
+            
+            if (!startTime.hours || !startTime.minutes || !endTime.hours || !endTime.minutes) {
+              console.log(`[ScheduleTabFillOperations] Skipping ${day} for template: incomplete time data from numeric fields`);
+              console.log(`[ScheduleTabFillOperations] Start: hours="${startTime.hours}", minutes="${startTime.minutes}"`);
+              console.log(`[ScheduleTabFillOperations] End: hours="${endTime.hours}", minutes="${endTime.minutes}"`);
+              continue;
+            }
             
             const key = `${weekNumber}-${i + 1}`; // Формат "номер_недели-номер_дня"
             
@@ -302,10 +346,12 @@ export const fillScheduleFromTemplate = async (
             templatesByWeekAndDay.get(key)?.push({
               ...template,
               dayOfWeek: i + 1, // 1 = Monday, ..., 7 = Sunday
-              start: dayInfo.start as IDayHours,
-              end: dayInfo.end as IDayHours,
+              start: startTime,
+              end: endTime,
               lunch: template.lunch || '30'
             });
+            
+            console.log(`[ScheduleTabFillOperations] Added template for key ${key} (${day}) from numeric fields: ${startTime.hours}:${startTime.minutes} - ${endTime.hours}:${endTime.minutes}`);
           }
         }
       });
@@ -387,7 +433,7 @@ export const fillScheduleFromTemplate = async (
       daysData.forEach((dayData, dateKey) => {
         // Если для этого дня есть шаблоны, создаем записи
         if (dayData.templates.length > 0) {
-          console.log(`[ScheduleTabFillOperations] День ${dayData.date.toLocaleDateString()}: найдено ${dayData.templates.length} шаблонов`);
+          console.log(`[ScheduleTabFillOperations] День ${dayData.date.toLocaleDateString()}: найдено ${dayData.templates.length} шаблонов с числовыми полями времени`);
           
           // Для каждого шаблона создаем запись расписания
           dayData.templates.forEach(template => {
@@ -397,16 +443,16 @@ export const fillScheduleFromTemplate = async (
               return; // Пропускаем этот шаблон
             }
             
-            // ИСПРАВЛЕНО: Преобразуем время начала и конца в объекты Date с использованием UTC
-            console.log(`[ScheduleTabFillOperations] *** CREATING SHIFT TIMES WITH UTC ***`);
-            console.log(`[ScheduleTabFillOperations] Template start time from WeeklyTimeTables: ${template.start.hours}:${template.start.minutes}`);
-            console.log(`[ScheduleTabFillOperations] Template end time from WeeklyTimeTables: ${template.end.hours}:${template.end.minutes}`);
+            // *** ОБНОВЛЕНО: Преобразуем время начала и конца в объекты Date из числовых полей ***
+            console.log(`[ScheduleTabFillOperations] *** CREATING SHIFT TIMES FROM NUMERIC FIELDS ***`);
+            console.log(`[ScheduleTabFillOperations] Template start time from numeric fields: ${template.start.hours}:${template.start.minutes}`);
+            console.log(`[ScheduleTabFillOperations] Template end time from numeric fields: ${template.end.hours}:${template.end.minutes}`);
             console.log(`[ScheduleTabFillOperations] Base date: ${dayData.date.toISOString()}`);
             
             const shiftDate1 = createDateWithTime(dayData.date, template.start);
             const shiftDate2 = createDateWithTime(dayData.date, template.end);
             
-            console.log(`[ScheduleTabFillOperations] *** CREATED SHIFT TIMES (UTC) ***`);
+            console.log(`[ScheduleTabFillOperations] *** CREATED SHIFT TIMES FROM NUMERIC FIELDS ***`);
             console.log(`[ScheduleTabFillOperations] ShiftDate1 (start): ${shiftDate1.toISOString()}`);
             console.log(`[ScheduleTabFillOperations] ShiftDate2 (end): ${shiftDate2.toISOString()}`);
             
@@ -439,7 +485,7 @@ export const fillScheduleFromTemplate = async (
               console.log(`[ScheduleTabFillOperations] ВНИМАНИЕ: День ${dayData.date.toLocaleDateString()} отмечен как отпуск, но информация о типе отпуска отсутствует!`);
             }
             
-            console.log(`[ScheduleTabFillOperations] Подготовлена запись для ${dayData.date.toLocaleDateString()}:
+            console.log(`[ScheduleTabFillOperations] Подготовлена запись для ${dayData.date.toLocaleDateString()} из числовых полей:
               - Начало смены: ${recordData.ShiftDate1?.toLocaleTimeString() || 'не указано'} (UTC: ${recordData.ShiftDate1?.toISOString() || 'не указано'})
               - Конец смены: ${recordData.ShiftDate2?.toLocaleTimeString() || 'не указано'} (UTC: ${recordData.ShiftDate2?.toISOString() || 'не указано'})
               - Время на обед: ${recordData.TimeForLunch} мин.
@@ -454,7 +500,7 @@ export const fillScheduleFromTemplate = async (
         }
       });
       
-      console.log(`[ScheduleTabFillOperations] Сгенерировано ${generatedRecords.length} записей`);
+      console.log(`[ScheduleTabFillOperations] Сгенерировано ${generatedRecords.length} записей из числовых полей времени`);
       
       // If no records generated, show error
       if (generatedRecords.length === 0) {
@@ -493,7 +539,7 @@ export const fillScheduleFromTemplate = async (
       // Save records sequentially
       for (const record of generatedRecords) {
         try {
-          console.log(`[ScheduleTabFillOperations] Создание записи для ${record.Date?.toLocaleDateString()}:
+          console.log(`[ScheduleTabFillOperations] Создание записи для ${record.Date?.toLocaleDateString()} из числовых полей:
             - TypeOfLeaveID: ${record.TypeOfLeaveID || 'не установлен'} (тип: ${typeof record.TypeOfLeaveID})
             - Holiday: ${record.Holiday}
             - Contract: ${record.Contract}
@@ -530,7 +576,7 @@ export const fillScheduleFromTemplate = async (
       // Show result message
       if (successCount === generatedRecords.length) {
         setOperationMessage({
-          text: `Successfully generated ${successCount} schedule records from template`,
+          text: `Successfully generated ${successCount} schedule records from template with numeric time fields`,
           type: MessageBarType.success
         });
       } else if (successCount > 0) {

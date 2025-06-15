@@ -13,8 +13,9 @@ import {
  IExistingRecordCheck,
  IRecordsProcessingStatus
 } from './ScheduleTabFillInterfaces';
-import { SharePointTimeZoneUtils } from '../../../../utils/SharePointTimeZoneUtils';
+// import { SharePointTimeZoneUtils } from '../../../../utils/SharePointTimeZoneUtils'; // Закомментировано - больше не используется для числовых полей времени
 import { RemoteSiteService } from '../../../../services/RemoteSiteService';
+
 /**
 * Анализирует статус обработки существующих записей
 */
@@ -115,12 +116,12 @@ export function getAppliedWeekNumber(calculatedWeekNumber: number, numberOfWeekT
 }
 
 /**
-* Helper function to create Date object with specified time
-* ОБНОВЛЕНО: Использует динамическую корректировку часового пояса SharePoint
+* Helper function to create Date object with specified time from numeric fields
+* ОБНОВЛЕНО: Работает с числовыми полями часов и минут из IDayHours
 * 
 * @param baseDate Base date
-* @param time Object with hours and minutes (может быть undefined)
 * @param remoteSiteService Сервис для получения информации о часовом поясе (ОБЯЗАТЕЛЬНЫЙ)
+* @param time Object with hours and minutes as strings from numeric fields (может быть undefined)
 * @returns Date object with set time in UTC с корректировкой часового пояса
 */
 export async function createDateWithTime(
@@ -135,31 +136,55 @@ export async function createDateWithTime(
     console.log(`[ScheduleTabFillHelpers] No time provided, set to UTC midnight: ${result.toISOString()}`);
     return result;
   }
+
+  // *** ОБНОВЛЕНО: Обработка времени из числовых полей ***
+  console.log(`[ScheduleTabFillHelpers] *** PROCESSING TIME FROM NUMERIC FIELDS ***`);
+  console.log(`[ScheduleTabFillHelpers] Input time from numeric fields: hours="${time.hours}", minutes="${time.minutes}"`);
   
-  const hours = parseInt(time.hours || '0', 10);
-  const minutes = parseInt(time.minutes || '0', 10);
-  
-  if (isNaN(hours) || isNaN(minutes)) {
-    console.warn(`[ScheduleTabFillHelpers] Invalid time components: hours="${time.hours}", minutes="${time.minutes}"`);
+  // Проверяем, что поля времени не пустые
+  if (!time.hours || !time.minutes) {
+    console.warn(`[ScheduleTabFillHelpers] Missing time components: hours="${time.hours}", minutes="${time.minutes}"`);
     result.setUTCHours(0, 0, 0, 0);
     console.warn(`[ScheduleTabFillHelpers] Set to UTC midnight: ${result.toISOString()}`);
     return result;
   }
+
+  // *** ОБНОВЛЕНО: Парсинг числовых значений из строковых полей ***
+  const hours = parseInt(time.hours, 10);
+  const minutes = parseInt(time.minutes, 10);
   
-  console.log(`[ScheduleTabFillHelpers] *** TIMEZONE ADJUSTMENT ***`);
-  console.log(`[ScheduleTabFillHelpers] Input time from template: ${hours}:${minutes}`);
+  if (isNaN(hours) || isNaN(minutes)) {
+    console.warn(`[ScheduleTabFillHelpers] Invalid numeric time components: hours="${time.hours}" (parsed: ${hours}), minutes="${time.minutes}" (parsed: ${minutes})`);
+    result.setUTCHours(0, 0, 0, 0);
+    console.warn(`[ScheduleTabFillHelpers] Set to UTC midnight: ${result.toISOString()}`);
+    return result;
+  }
+
+  // Валидация диапазонов
+  if (hours < 0 || hours > 23) {
+    console.warn(`[ScheduleTabFillHelpers] Hours out of range: ${hours} (should be 0-23)`);
+    result.setUTCHours(0, 0, 0, 0);
+    console.warn(`[ScheduleTabFillHelpers] Set to UTC midnight: ${result.toISOString()}`);
+    return result;
+  }
+
+  if (minutes < 0 || minutes > 59) {
+    console.warn(`[ScheduleTabFillHelpers] Minutes out of range: ${minutes} (should be 0-59)`);
+    result.setUTCHours(0, 0, 0, 0);
+    console.warn(`[ScheduleTabFillHelpers] Set to UTC midnight: ${result.toISOString()}`);
+    return result;
+  }
+
+  console.log(`[ScheduleTabFillHelpers] *** DIRECT TIME SETTING FROM NUMERIC FIELDS ***`);
+  console.log(`[ScheduleTabFillHelpers] Input time from numeric fields: ${hours}:${minutes}`);
+  console.log(`[ScheduleTabFillHelpers] Setting time directly without timezone adjustment (numeric fields already contain correct local time)`);
   
-  const adjustedTime = await SharePointTimeZoneUtils.adjustTimeForSharePointTimeZone(
-    hours, 
-    minutes, 
-    remoteSiteService, 
-    baseDate
-  );
+  // *** УБИРАЕМ КОРРЕКТИРОВКУ ЧАСОВОГО ПОЯСА ДЛЯ ЧИСЛОВЫХ ПОЛЕЙ ***
+  // Числовые поля уже содержат правильное локальное время
+  result.setUTCHours(hours, minutes, 0, 0);
   
-  result.setUTCHours(adjustedTime.hours, adjustedTime.minutes, 0, 0);
-  
-  console.log(`[ScheduleTabFillHelpers] *** ADJUSTMENT COMPLETED ***`);
-  console.log(`[ScheduleTabFillHelpers] ${hours}:${minutes} → ${adjustedTime.hours}:${adjustedTime.minutes} UTC`);
+  console.log(`[ScheduleTabFillHelpers] *** TIME SET DIRECTLY ***`);
+  console.log(`[ScheduleTabFillHelpers] Numeric fields ${hours}:${minutes} → ${hours}:${minutes} UTC (no adjustment)`);
   console.log(`[ScheduleTabFillHelpers] Final result: ${result.toISOString()}`);
   
   return result;
@@ -228,11 +253,13 @@ export function createLeavePeriods(leaves: ILeaveDay[]): ILeavePeriod[] {
 
 /**
 * Группирует шаблоны по номеру недели и дню недели
+* ОБНОВЛЕНО: Работает с числовыми полями времени в шаблонах
 */
 export function groupTemplatesByWeekAndDay(activeTemplates: IScheduleTemplate[], dayOfStartWeek: number): TemplateCache {
  const templatesByWeekAndDay = new Map<string, IScheduleTemplate[]>();
  
  console.log(`[ScheduleTabFillHelpers] Grouping ${activeTemplates.length} templates by week and day, dayOfStartWeek=${dayOfStartWeek}`);
+ console.log(`[ScheduleTabFillHelpers] ОБНОВЛЕНО: Шаблоны содержат время из числовых полей`);
  
  activeTemplates.forEach((template, templateIndex) => {
    const weekNumber = template.NumberOfWeek || template.numberOfWeek || 1;
@@ -245,12 +272,24 @@ export function groupTemplatesByWeekAndDay(activeTemplates: IScheduleTemplate[],
      const day = days[i];
      const dayInfo = template[day];
      
+     // *** ОБНОВЛЕНО: Проверяем структуру времени из числовых полей ***
      if (dayInfo && 
          typeof dayInfo === 'object' && 
          'start' in dayInfo && 
          'end' in dayInfo && 
          dayInfo.start && 
          dayInfo.end) {
+       
+       // *** ДОПОЛНИТЕЛЬНАЯ ВАЛИДАЦИЯ: Проверяем, что поля времени заполнены ***
+       const startTime = dayInfo.start as IDayHours;
+       const endTime = dayInfo.end as IDayHours;
+       
+       if (!startTime.hours || !startTime.minutes || !endTime.hours || !endTime.minutes) {
+         console.log(`[ScheduleTabFillHelpers] Skipping ${day} for template ${templateIndex}: incomplete time data from numeric fields`);
+         console.log(`[ScheduleTabFillHelpers] Start: hours="${startTime.hours}", minutes="${startTime.minutes}"`);
+         console.log(`[ScheduleTabFillHelpers] End: hours="${endTime.hours}", minutes="${endTime.minutes}"`);
+         continue;
+       }
        
        const key = `${weekNumber}-${i + 1}`;
        
@@ -261,25 +300,25 @@ export function groupTemplatesByWeekAndDay(activeTemplates: IScheduleTemplate[],
        const processedTemplate: IScheduleTemplate = {
          ...template,
          dayOfWeek: i + 1,
-         start: dayInfo.start as IDayHours,
-         end: dayInfo.end as IDayHours,
+         start: startTime,
+         end: endTime,
          lunch: template.lunch || '30'
        };
        
        templatesByWeekAndDay.get(key)?.push(processedTemplate);
        
-       // Логируем добавление шаблона
-       console.log(`[ScheduleTabFillHelpers] Added template for key ${key} (${day}): ${(dayInfo.start as IDayHours).hours}:${(dayInfo.start as IDayHours).minutes} - ${(dayInfo.end as IDayHours).hours}:${(dayInfo.end as IDayHours).minutes}`);
+       // *** ОБНОВЛЕНО: Логируем время из числовых полей ***
+       console.log(`[ScheduleTabFillHelpers] Added template for key ${key} (${day}) from numeric fields: ${startTime.hours}:${startTime.minutes} - ${endTime.hours}:${endTime.minutes}`);
      } else {
        // Логируем пропущенные дни
        if (templateIndex === 0) { // Логируем только для первого шаблона, чтобы не засорять логи
-         console.log(`[ScheduleTabFillHelpers] Skipping ${day} for template ${templateIndex}: no valid time data`);
+         console.log(`[ScheduleTabFillHelpers] Skipping ${day} for template ${templateIndex}: no valid time data from numeric fields`);
        }
      }
    }
  });
  
- console.log(`[ScheduleTabFillHelpers] Сгруппированы шаблоны: ${templatesByWeekAndDay.size} комбинаций`);
+ console.log(`[ScheduleTabFillHelpers] Сгруппированы шаблоны с числовыми полями времени: ${templatesByWeekAndDay.size} комбинаций`);
  
  // Логируем сводку по группировке
  templatesByWeekAndDay.forEach((templates, key) => {
@@ -303,6 +342,7 @@ export function prepareDaysData(
 ): Map<string, IDayData> {
  console.log(`[ScheduleTabFillHelpers] *** PREPARING DAYS DATA WITH UTC DATE CREATION ***`);
  console.log(`[ScheduleTabFillHelpers] Period: ${firstDay.toISOString()} - ${lastDay.toISOString()}`);
+ console.log(`[ScheduleTabFillHelpers] Templates contain time from numeric fields`);
  
  const dayCount = Math.ceil((lastDay.getTime() - firstDay.getTime()) / (1000 * 60 * 60 * 24)) + 1;
  const daysData = new Map<string, IDayData>();
@@ -374,6 +414,7 @@ export function prepareDaysData(
      console.log(`[ScheduleTabFillHelpers] Is leave: ${isLeave}`);
      console.log(`[ScheduleTabFillHelpers] Templates count: ${templatesForDay.length}`);
      console.log(`[ScheduleTabFillHelpers] Template lookup key: ${key}`);
+     console.log(`[ScheduleTabFillHelpers] Templates contain time from numeric fields`);
    }
    
    // Логируем информацию о дне (только для первых нескольких дней и важных случаев)
@@ -391,13 +432,14 @@ export function prepareDaysData(
      
      if (templatesForDay.length > 0) {
        templatesForDay.forEach((template, tIndex) => {
-         console.log(`[ScheduleTabFillHelpers]   Template ${tIndex + 1}: ${template.start?.hours}:${template.start?.minutes} - ${template.end?.hours}:${template.end?.minutes}, lunch: ${template.lunch}min`);
+         // *** ОБНОВЛЕНО: Логируем время из числовых полей ***
+         console.log(`[ScheduleTabFillHelpers]   Template ${tIndex + 1} (from numeric): ${template.start?.hours}:${template.start?.minutes} - ${template.end?.hours}:${template.end?.minutes}, lunch: ${template.lunch}min`);
        });
      }
    }
  }
  
- console.log(`[ScheduleTabFillHelpers] Подготовлены данные для ${daysData.size} дней`);
+ console.log(`[ScheduleTabFillHelpers] Подготовлены данные для ${daysData.size} дней с временем из числовых полей`);
  
  // Статистика по подготовленным данным
  let holidaysCount = 0;
@@ -463,6 +505,7 @@ export const createFillConfirmationDialog = (
 
 /**
 * Валидирует данные шаблона перед использованием
+* ОБНОВЛЕНО: Проверяет время из числовых полей
 */
 export function validateTemplate(template: IScheduleTemplate): boolean {
  // Проверяем наличие обязательных полей
@@ -471,40 +514,46 @@ export function validateTemplate(template: IScheduleTemplate): boolean {
    return false;
  }
  
- // Проверяем корректность времени
+ // *** ОБНОВЛЕНО: Проверяем корректность времени из числовых полей ***
  const startHours = parseInt(template.start.hours || '0', 10);
  const startMinutes = parseInt(template.start.minutes || '0', 10);
  const endHours = parseInt(template.end.hours || '0', 10);
  const endMinutes = parseInt(template.end.minutes || '0', 10);
  
  if (isNaN(startHours) || isNaN(startMinutes) || isNaN(endHours) || isNaN(endMinutes)) {
-   console.warn(`[ScheduleTabFillHelpers] Template validation failed: invalid time format`);
+   console.warn(`[ScheduleTabFillHelpers] Template validation failed: invalid time format from numeric fields`);
+   console.warn(`[ScheduleTabFillHelpers] Start: ${template.start.hours}:${template.start.minutes}, End: ${template.end.hours}:${template.end.minutes}`);
    return false;
  }
  
  if (startHours < 0 || startHours > 23 || endHours < 0 || endHours > 23) {
-   console.warn(`[ScheduleTabFillHelpers] Template validation failed: hours out of range`);
+   console.warn(`[ScheduleTabFillHelpers] Template validation failed: hours out of range (numeric fields)`);
+   console.warn(`[ScheduleTabFillHelpers] Start hours: ${startHours}, End hours: ${endHours}`);
    return false;
  }
  
  if (startMinutes < 0 || startMinutes > 59 || endMinutes < 0 || endMinutes > 59) {
-   console.warn(`[ScheduleTabFillHelpers] Template validation failed: minutes out of range`);
+   console.warn(`[ScheduleTabFillHelpers] Template validation failed: minutes out of range (numeric fields)`);
+   console.warn(`[ScheduleTabFillHelpers] Start minutes: ${startMinutes}, End minutes: ${endMinutes}`);
    return false;
  }
  
+ console.log(`[ScheduleTabFillHelpers] Template validation passed for numeric fields: ${startHours}:${startMinutes} - ${endHours}:${endMinutes}`);
  return true;
 }
 
 /**
 * Форматирует время в читаемый вид для логирования
+* ОБНОВЛЕНО: Работает с временем из числовых полей
 */
 export function formatTimeForLogging(time?: IDayHours): string {
- if (!time) {
+ if (!time || !time.hours || !time.minutes) {
    return '00:00';
  }
  
- const hours = (time.hours || '0').padStart(2, '0');
- const minutes = (time.minutes || '0').padStart(2, '0');
+ // *** ОБНОВЛЕНО: Форматируем время из числовых полей ***
+ const hours = time.hours.toString().padStart(2, '0');
+ const minutes = time.minutes.toString().padStart(2, '0');
  return `${hours}:${minutes}`;
 }
 
