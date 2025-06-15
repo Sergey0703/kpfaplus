@@ -9,6 +9,7 @@ import { DialogType, StatusMessageType } from './WeeklyTimeTableTypes';
 /**
  * Функция для обработки добавления новой смены с явным указанием строки
  * ОБНОВЛЕНО: Работает с числовыми полями времени, убрана зависимость от DateUtils
+ * ИСПРАВЛЕНО: Использует ТОЛЬКО поля NumberOfWeek и NumberOfShift
  */
 export const createAddShiftHandler = (
   timeTableData: IExtendedWeeklyTimeRow[],
@@ -159,17 +160,12 @@ export const createAddShiftHandler = (
     // Получаем выбранную строку, если функция предоставлена
     const selectedRow = getSelectedRow ? getSelectedRow() : null;
     
+    // Функция для проверки удаленных смен в текущей неделе
     checkDeletedShiftsInWeek(selectedRow);
     
-    // Функция для извлечения номера недели из названия строки
-    function extractWeekNumber(name: string): number {
-      const match = name?.match(/Week\s+(\d+)/i);
-      return match ? parseInt(match[1], 10) : 1;
-    }
-    
-    // Функция для проверки удаленных смен в текущей неделе
+    // ИСПРАВЛЕННАЯ функция для проверки удаленных смен в текущей неделе
+    // Использует ТОЛЬКО поля NumberOfWeek и NumberOfShift
     function checkDeletedShiftsInWeek(selectedRow: IExtendedWeeklyTimeRow | null | undefined): void {
-      // Добавим дополнительную проверку на undefined
       // Добавим подробное логирование для отладки
       console.log('[checkDeletedShiftsInWeek] Called with selectedRow:', selectedRow ? 
         `ID=${selectedRow.id}, NumberOfWeek=${selectedRow.NumberOfWeek}` : 'null/undefined');
@@ -189,9 +185,15 @@ export const createAddShiftHandler = (
       // и получения всех номеров недель в таблице
       const weekNumbersMap = new Map<number, IExtendedWeeklyTimeRow[]>();
       
-      // Группируем все строки по номеру недели
+      // ИСПРАВЛЕНО: Группируем все строки по номеру недели используя ТОЛЬКО NumberOfWeek
       timeTableData.forEach(row => {
-        const weekNumber = row.NumberOfWeek || extractWeekNumber(row.name);
+        const weekNumber = row.NumberOfWeek;
+        
+        if (weekNumber === undefined) {
+          console.warn(`[checkDeletedShiftsInWeek] Row ${row.id} missing NumberOfWeek field, skipping`);
+          return;
+        }
+        
         if (!weekNumbersMap.has(weekNumber)) {
           weekNumbersMap.set(weekNumber, []);
         }
@@ -206,26 +208,20 @@ export const createAddShiftHandler = (
         console.log(`[checkDeletedShiftsInWeek] Week ${weekNum}: ${rows.length} rows`);
       });
       
-      // Определяем номер текущей недели
-      // Если есть selectedRow, берем номер недели из неё
-      // В противном случае используем номер недели из первой строки (старое поведение)
+      // ИСПРАВЛЕНО: Определяем номер текущей недели используя ТОЛЬКО NumberOfWeek
       let currentWeekNumber: number;
       
       if (selectedRow && selectedRow.NumberOfWeek !== undefined) {
         currentWeekNumber = selectedRow.NumberOfWeek;
         console.log(`[checkDeletedShiftsInWeek] Using NumberOfWeek=${currentWeekNumber} from selected row (ID=${selectedRow.id})`);
-      } else if (selectedRow && selectedRow.name) {
-        // Если нет NumberOfWeek, но есть имя - пробуем извлечь из имени
-        currentWeekNumber = extractWeekNumber(selectedRow.name);
-        console.log(`[checkDeletedShiftsInWeek] Using week number ${currentWeekNumber} extracted from selected row name: "${selectedRow.name}"`);
       } else {
-        // Используем первую строку данных (старое поведение)
+        // Используем первую строку данных (старое поведение) но только NumberOfWeek
         const firstRow = timeTableData.length > 0 ? timeTableData[0] : null;
-        if (!firstRow) {
-          console.error('[checkDeletedShiftsInWeek] No row data available for checking deleted shifts');
+        if (!firstRow || firstRow.NumberOfWeek === undefined) {
+          console.error('[checkDeletedShiftsInWeek] No valid row data available for checking deleted shifts');
           return;
         }
-        currentWeekNumber = firstRow.NumberOfWeek || extractWeekNumber(firstRow.name);
+        currentWeekNumber = firstRow.NumberOfWeek;
         console.log(`[checkDeletedShiftsInWeek] Using week number ${currentWeekNumber} from first row (fallback)`);
       }
       
@@ -240,11 +236,11 @@ export const createAddShiftHandler = (
         console.log(`[checkDeletedShiftsInWeek] Week ${currentWeekNumber}, Row ${index}: ID=${row.id}, NumberOfShift=${row.NumberOfShift}, deleted=${row.deleted}`);
       });
       
-      // Находим максимальный номер смены в текущей неделе
+      // ИСПРАВЛЕНО: Находим максимальный номер смены в текущей неделе используя ТОЛЬКО NumberOfShift
       let maxShiftNumberInCurrentWeek = 0;
       rowsInCurrentWeek.forEach(row => {
-        const shiftNumber = row.NumberOfShift || 1;
-        if (shiftNumber > maxShiftNumberInCurrentWeek) {
+        const shiftNumber = row.NumberOfShift;
+        if (shiftNumber !== undefined && shiftNumber > maxShiftNumberInCurrentWeek) {
           maxShiftNumberInCurrentWeek = shiftNumber;
         }
       });
@@ -265,12 +261,12 @@ export const createAddShiftHandler = (
         });
       }
       
-      // Проверяем, есть ли "дыры" в последовательности номеров смен
+      // ИСПРАВЛЕНО: Проверяем, есть ли "дыры" в последовательности номеров смен используя ТОЛЬКО NumberOfShift
       // Должны быть смены от 1 до maxShiftNumberInCurrentWeek без пропусков
       const existingShiftNumbers = new Set<number>();
       rowsInCurrentWeek.forEach(row => {
-        const shiftNumber = row.NumberOfShift || 1;
-        if (row.deleted !== 1 && row.Deleted !== 1) {
+        const shiftNumber = row.NumberOfShift;
+        if (shiftNumber !== undefined && (row.deleted !== 1 && row.Deleted !== 1)) {
           // Добавляем только не удаленные смены
           existingShiftNumbers.add(shiftNumber);
         }
@@ -290,15 +286,18 @@ export const createAddShiftHandler = (
       
       // Если есть удаленные смены в текущей неделе, которые создают "дыры"
       if (missingShiftNumbers.length > 0 && deletedShiftsInCurrentWeek.length > 0) {
-        // Проверяем, какие смены из пропущенных есть среди удаленных
+        // ИСПРАВЛЕНО: Проверяем, какие смены из пропущенных есть среди удаленных используя ТОЛЬКО NumberOfShift
         const deletedMissingShifts = deletedShiftsInCurrentWeek.filter(row => {
-          const shiftNumber = row.NumberOfShift || 1;
-          return missingShiftNumbers.includes(shiftNumber);
+          const shiftNumber = row.NumberOfShift;
+          return shiftNumber !== undefined && missingShiftNumbers.includes(shiftNumber);
         });
         
         if (deletedMissingShifts.length > 0) {
           // Есть удаленные смены, которые нужно восстановить перед добавлением новой
-          const deletedShiftNumbers = deletedMissingShifts.map(row => row.NumberOfShift || 1).sort();
+          const deletedShiftNumbers = deletedMissingShifts
+            .map(row => row.NumberOfShift)
+            .filter((num): num is number => num !== undefined)
+            .sort();
           console.log(`[checkDeletedShiftsInWeek] Deleted shifts that need to be restored: ${deletedShiftNumbers.join(', ')}`);
           
           // Показываем информационное сообщение

@@ -3,7 +3,7 @@ import {
     IFormattedWeeklyTimeRow
   } from '../../../models/IWeeklyTimeTable';
 import { IDayHoursComplete } from '../../../models/IWeeklyTimeTable';
-import { DateUtils } from '../../CustomDatePicker/CustomDatePicker';
+// ЗАКОММЕНТИРОВАНО: import { DateUtils } from '../../CustomDatePicker/CustomDatePicker';
 
 // Интерфейс для расширенной строки с дополнительным полем displayedTotalHours
 export interface IExtendedWeeklyTimeRow extends IFormattedWeeklyTimeRow {
@@ -12,6 +12,8 @@ export interface IExtendedWeeklyTimeRow extends IFormattedWeeklyTimeRow {
   [key: string]: string | IDayHoursComplete | number | undefined;
 }
 
+// СТАРЫЕ ФУНКЦИИ РАБОТЫ С ДАТАМИ - ЗАКОММЕНТИРОВАНЫ (больше не нужны с числовыми полями)
+/*
 // Получение начала недели для заданной даты
 export const getStartOfWeek = (date: Date, startOfWeek: number = 1): Date => {
   const normalizedDate = DateUtils.normalizeDateToUTCMidnight(date);
@@ -40,7 +42,7 @@ export const getEndOfWeek = (date: Date, startOfWeek: number = 1): Date => {
   return endDate;
 };
 
-// НОВАЯ ФУНКЦИЯ: Нормализация временных данных в строках недельного расписания
+// ФУНКЦИЯ: Нормализация временных данных в строках недельного расписания
 export const normalizeWeeklyTimeRowDates = (row: IExtendedWeeklyTimeRow): IExtendedWeeklyTimeRow => {
   const normalizedRow = { ...row };
   
@@ -78,7 +80,7 @@ export const normalizeWeeklyTimeRowDates = (row: IExtendedWeeklyTimeRow): IExten
   return normalizedRow;
 };
 
-// НОВАЯ ФУНКЦИЯ: Создание временной метки для недельного расписания
+// ФУНКЦИЯ: Создание временной метки для недельного расписания
 export const createWeeklyTimeStamp = (baseDate: Date, timeHours: string, timeMinutes: string): Date => {
   const hours = parseInt(timeHours, 10);
   const minutes = parseInt(timeMinutes, 10);
@@ -92,7 +94,7 @@ export const createWeeklyTimeStamp = (baseDate: Date, timeHours: string, timeMin
   return DateUtils.createShiftDateTime(baseDate, hours, minutes);
 };
 
-// НОВАЯ ФУНКЦИЯ: Парсинг времени из строки в формате HH:MM
+// ФУНКЦИЯ: Парсинг времени из строки в формате HH:MM
 export const parseTimeString = (timeString: string): { hours: string, minutes: string } | undefined => {
   if (!timeString) {
     return undefined;
@@ -119,7 +121,7 @@ export const parseTimeString = (timeString: string): { hours: string, minutes: s
   return undefined;
 };
 
-// НОВАЯ ФУНКЦИЯ: Форматирование времени для отображения
+// ФУНКЦИЯ: Форматирование времени для отображения
 export const formatTimeForDisplay = (hours: string | number, minutes: string | number): string => {
   const h = typeof hours === 'string' ? hours : hours.toString().padStart(2, '0');
   const m = typeof minutes === 'string' ? minutes : minutes.toString().padStart(2, '0');
@@ -127,13 +129,13 @@ export const formatTimeForDisplay = (hours: string | number, minutes: string | n
   return `${h}:${m}`;
 };
 
-// НОВАЯ ФУНКЦИЯ: Получение текущей даты для недельного расписания
+// ФУНКЦИЯ: Получение текущей даты для недельного расписания
 export const getCurrentWeekDate = (): Date => {
   const today = new Date();
   return DateUtils.normalizeDateToUTCMidnight(today);
 };
 
-// НОВАЯ ФУНКЦИЯ: Проверка, является ли дата в пределах текущей недели
+// ФУНКЦИЯ: Проверка, является ли дата в пределах текущей недели
 export const isDateInCurrentWeek = (date: Date, startOfWeek: number = 1): boolean => {
   const currentDate = getCurrentWeekDate();
   const inputDate = DateUtils.normalizeDateToUTCMidnight(date);
@@ -146,7 +148,7 @@ export const isDateInCurrentWeek = (date: Date, startOfWeek: number = 1): boolea
   return DateUtils.isSameDay(currentWeekStart, inputWeekStart);
 };
 
-// НОВАЯ ФУНКЦИЯ: Валидация времени смены с использованием DateUtils  
+// ФУНКЦИЯ: Валидация времени смены с использованием DateUtils  
 export const validateShiftTime = (
   startHours: string, 
   startMinutes: string, 
@@ -179,7 +181,7 @@ export const validateShiftTime = (
   return { isValid: true };
 };
 
-// НОВАЯ ФУНКЦИЯ: Получение метаданных для отладки времени
+// ФУНКЦИЯ: Получение метаданных для отладки времени
 export const getTimeDebugInfo = (date: Date): Record<string, unknown> => {
   return {
     original: date.toISOString(),
@@ -194,9 +196,126 @@ export const getTimeDebugInfo = (date: Date): Record<string, unknown> => {
   };
 };
 
-// СУЩЕСТВУЮЩИЕ ФУНКЦИИ (без изменений)
+// УСТАРЕВШАЯ ФУНКЦИЯ - ЗАКОММЕНТИРОВАНА (не должна использоваться)
+// Вспомогательная функция для извлечения номера недели из названия строки
+// function extractWeekNumber(name: string): number {
+//   const match = name?.match(/Week\s+(\d+)/i);
+//   return match ? parseInt(match[1], 10) : 1;
+// }
+*/
+
+// НОВЫЕ ФУНКЦИИ для работы с числовыми полями времени (заменяют старые функции работы с датами)
+
 /**
- * Определяет, можно ли удалить строку таблицы
+ * Парсинг времени из строки в формате HH:MM для числовых полей
+ * @param timeString Строка времени в формате "HH:MM"
+ * @returns Объект с часами и минутами или undefined
+ */
+export const parseNumericTimeString = (timeString: string): { hours: string, minutes: string } | undefined => {
+  if (!timeString) {
+    return undefined;
+  }
+  
+  // Пытаемся распарсить время в различных форматах
+  const timeRegex = /^(\d{1,2}):(\d{2})$/;
+  const match = timeString.match(timeRegex);
+  
+  if (match) {
+    const hours = match[1].padStart(2, '0');
+    const minutes = match[2];
+    
+    // Валидация времени
+    const hoursNum = parseInt(hours, 10);
+    const minutesNum = parseInt(minutes, 10);
+    
+    if (hoursNum >= 0 && hoursNum <= 23 && minutesNum >= 0 && minutesNum <= 59) {
+      return { hours, minutes };
+    }
+  }
+  
+  console.warn(`[WeeklyTimeTableLogic] Invalid time format: ${timeString}`);
+  return undefined;
+};
+
+/**
+ * Форматирование времени для отображения (числовые поля)
+ * @param hours Часы (строка или число)
+ * @param minutes Минуты (строка или число)
+ * @returns Отформатированная строка времени
+ */
+export const formatNumericTimeForDisplay = (hours: string | number, minutes: string | number): string => {
+  const h = typeof hours === 'string' ? hours : hours.toString().padStart(2, '0');
+  const m = typeof minutes === 'string' ? minutes : minutes.toString().padStart(2, '0');
+  
+  return `${h}:${m}`;
+};
+
+/**
+ * Валидация времени смены с использованием числовых полей
+ * @param startHours Часы начала смены
+ * @param startMinutes Минуты начала смены
+ * @param endHours Часы окончания смены
+ * @param endMinutes Минуты окончания смены
+ * @returns Результат валидации
+ */
+export const validateNumericShiftTime = (
+  startHours: string | number, 
+  startMinutes: string | number, 
+  endHours: string | number, 
+  endMinutes: string | number
+): { isValid: boolean; message?: string } => {
+  
+  // Преобразуем в числа
+  const startH = typeof startHours === 'number' ? startHours : parseInt(startHours.toString(), 10);
+  const startM = typeof startMinutes === 'number' ? startMinutes : parseInt(startMinutes.toString(), 10);
+  const endH = typeof endHours === 'number' ? endHours : parseInt(endHours.toString(), 10);
+  const endM = typeof endMinutes === 'number' ? endMinutes : parseInt(endMinutes.toString(), 10);
+  
+  // Валидация значений
+  if (isNaN(startH) || startH < 0 || startH > 23) {
+    return { isValid: false, message: 'Invalid start hours' };
+  }
+  if (isNaN(startM) || startM < 0 || startM > 59) {
+    return { isValid: false, message: 'Invalid start minutes' };
+  }
+  if (isNaN(endH) || endH < 0 || endH > 23) {
+    return { isValid: false, message: 'Invalid end hours' };
+  }
+  if (isNaN(endM) || endM < 0 || endM > 59) {
+    return { isValid: false, message: 'Invalid end minutes' };
+  }
+  
+  // Преобразуем в минуты для сравнения
+  const startTotalMinutes = startH * 60 + startM;
+  const endTotalMinutes = endH * 60 + endM;
+  
+  if (endTotalMinutes <= startTotalMinutes) {
+    // Проверяем случай перехода через полночь
+    const nextDayEndMinutes = endTotalMinutes + 24 * 60;
+    const diffInHours = (nextDayEndMinutes - startTotalMinutes) / 60;
+    
+    if (diffInHours > 24) {
+      return { isValid: false, message: 'Shift cannot be longer than 24 hours' };
+    }
+    
+    // Если смена переходит через полночь, это допустимо
+    return { isValid: true };
+  }
+  
+  // Проверяем, что смена не длится более 24 часов
+  const diffInHours = (endTotalMinutes - startTotalMinutes) / 60;
+  if (diffInHours > 24) {
+    return { isValid: false, message: 'Shift cannot be longer than 24 hours' };
+  }
+  
+  return { isValid: true };
+};
+
+// АКТИВНЫЕ ФУНКЦИИ (логика работы с таблицей) - ИСПРАВЛЕНО для использования только NumberOfWeek и NumberOfShift
+
+/**
+ * ИСПРАВЛЕНО: Определяет, можно ли удалить строку таблицы
+ * Использует ТОЛЬКО поля NumberOfWeek и NumberOfShift
  * @param data Данные таблицы
  * @param rowIndex Индекс проверяемой строки
  * @returns true, если строку можно удалить, иначе false
@@ -213,8 +332,13 @@ export const canDeleteRow = (data: IExtendedWeeklyTimeRow[], rowIndex: number): 
     return false;
   }
   
-  // Получаем номер недели текущей строки
-  const currentWeekNumber = currentRow.NumberOfWeek || extractWeekNumber(currentRow.name);
+  // ИСПРАВЛЕНО: Получаем номер недели ТОЛЬКО из поля NumberOfWeek
+  const currentWeekNumber = currentRow.NumberOfWeek;
+  
+  if (currentWeekNumber === undefined) {
+    console.error(`[canDeleteRow] Row ${rowIndex} (ID: ${currentRow.id}) missing NumberOfWeek field`);
+    return false;
+  }
   
   // Проверяем, есть ли неудаленные строки с большим номером недели
   const hasNextWeek = data.some(row => {
@@ -222,7 +346,9 @@ export const canDeleteRow = (data: IExtendedWeeklyTimeRow[], rowIndex: number): 
     const isRowDeleted = row.deleted === 1 || row.Deleted === 1;
     if (isRowDeleted) return false;
     
-    const weekNumber = row.NumberOfWeek || extractWeekNumber(row.name);
+    const weekNumber = row.NumberOfWeek;
+    if (weekNumber === undefined) return false;
+    
     return weekNumber > currentWeekNumber;
   });
   
@@ -231,7 +357,7 @@ export const canDeleteRow = (data: IExtendedWeeklyTimeRow[], rowIndex: number): 
     const isRowDeleted = row.deleted === 1 || row.Deleted === 1;
     if (isRowDeleted) return false;
     
-    const weekNumber = row.NumberOfWeek || extractWeekNumber(row.name);
+    const weekNumber = row.NumberOfWeek;
     return weekNumber === currentWeekNumber;
   });
   
@@ -268,7 +394,8 @@ export interface IWeekAnalysisResult {
 }
 
 /**
- * Анализирует данные таблицы для определения состояния недель
+ * ИСПРАВЛЕНО: Анализирует данные таблицы для определения состояния недель
+ * Использует ТОЛЬКО поля NumberOfWeek и NumberOfShift
  * @param data Данные таблицы недельного расписания
  * @returns Результат анализа недель
  */
@@ -291,17 +418,16 @@ export const analyzeWeeklyTableData = (data: IExtendedWeeklyTimeRow[]): IWeekAna
   
   // Анализируем данные
   for (const row of data) {
-    // Получаем номер недели
-    let weekNumber = row.NumberOfWeek;
+    // ИСПРАВЛЕНО: Получаем номер недели ТОЛЬКО из поля NumberOfWeek
+    const weekNumber = row.NumberOfWeek;
     
-    // Если номер недели не определен, пытаемся извлечь из имени
     if (weekNumber === undefined) {
-      const match = row.name.match(/Week\s+(\d+)/i);
-      weekNumber = match ? parseInt(match[1], 10) : 0;
+      console.warn(`[analyzeWeeklyTableData] Row ${row.id} missing NumberOfWeek field, skipping`);
+      continue;
     }
     
     // Если номер недели определен и больше 0
-    if (weekNumber && weekNumber > 0) {
+    if (weekNumber > 0) {
       // Добавляем в список номеров недель, если его там еще нет
       if (!weekNumbers.includes(weekNumber)) {
         weekNumbers.push(weekNumber);
@@ -425,7 +551,8 @@ export const checkCanAddNewWeekFromData = (data: IExtendedWeeklyTimeRow[]): IAdd
 };
 
 /**
- * Проверяет, можно ли восстановить удаленную строку
+ * ИСПРАВЛЕНО: Проверяет, можно ли восстановить удаленную строку
+ * Использует ТОЛЬКО поля NumberOfWeek и NumberOfShift
  * @param data Данные таблицы
  * @param rowIndex Индекс проверяемой строки
  * @returns true, если строку можно восстановить, иначе false
@@ -447,16 +574,25 @@ export const canRestoreRow = (data: IExtendedWeeklyTimeRow[], rowIndex: number):
     return false;
   }
   
-  // Получаем номер недели текущей строки
-  const currentWeekNumber = currentRow.NumberOfWeek || extractWeekNumber(currentRow.name);
-  // Получаем номер смены текущей строки
-  const currentShiftNumber = currentRow.NumberOfShift || 1;
+  // ИСПРАВЛЕНО: Получаем номер недели и смены ТОЛЬКО из полей NumberOfWeek и NumberOfShift
+  const currentWeekNumber = currentRow.NumberOfWeek;
+  const currentShiftNumber = currentRow.NumberOfShift;
+  
+  if (currentWeekNumber === undefined) {
+    console.error(`[canRestoreRow] Row ${rowIndex} (ID: ${currentRow.id}) missing NumberOfWeek field`);
+    return false;
+  }
+  
+  if (currentShiftNumber === undefined) {
+    console.error(`[canRestoreRow] Row ${rowIndex} (ID: ${currentRow.id}) missing NumberOfShift field`);
+    return false;
+  }
   
   console.log(`canRestoreRow: Row ${rowIndex} is in week ${currentWeekNumber}, shift ${currentShiftNumber}`);
   
   // Найдем все удаленные строки в той же неделе
   const deletedRowsInSameWeek = data.filter(row => {
-    const rowWeekNumber = row.NumberOfWeek || extractWeekNumber(row.name);
+    const rowWeekNumber = row.NumberOfWeek;
     const isRowDeleted = row.deleted === 1 || row.Deleted === 1;
     
     return rowWeekNumber === currentWeekNumber && isRowDeleted;
@@ -472,10 +608,10 @@ export const canRestoreRow = (data: IExtendedWeeklyTimeRow[], rowIndex: number):
   
   // Логируем найденные удаленные строки для отладки
   deletedRowsInSameWeek.forEach((row, idx) => {
-    console.log(`canRestoreRow: Deleted row ${idx} in week ${currentWeekNumber}: ID=${row.id}, shift=${row.NumberOfShift || 1}`);
+    console.log(`canRestoreRow: Deleted row ${idx} in week ${currentWeekNumber}: ID=${row.id}, shift=${row.NumberOfShift}`);
   });
   
-  // Найдем строку с минимальным номером смены среди удаленных
+  // ИСПРАВЛЕНО: Найдем строку с минимальным номером смены среди удаленных (использует только NumberOfShift)
   const minShiftNumber = Math.min(...deletedRowsInSameWeek.map(row => row.NumberOfShift || 1));
   
   console.log(`canRestoreRow: Min shift number among deleted rows: ${minShiftNumber}`);
@@ -486,31 +622,20 @@ export const canRestoreRow = (data: IExtendedWeeklyTimeRow[], rowIndex: number):
   return currentShiftNumber === minShiftNumber;
 };
 
-/**
- * Вспомогательная функция для извлечения номера недели из названия строки
- * @param name Название строки
- * @returns Номер недели или 1, если не удалось извлечь
- */
-function extractWeekNumber(name: string): number {
-  const match = name?.match(/Week\s+(\d+)/i);
-  return match ? parseInt(match[1], 10) : 1;
-}
-//////////////
 // Функция для получения множества уникальных шаблонов в данных
 export const getUniqueTemplates = (data: IExtendedWeeklyTimeRow[]): { templateId: string, rows: IExtendedWeeklyTimeRow[] }[] => {
   if (!data || data.length === 0) {
     return [];
   }
 
-  // Группируем строки по шаблону (используем часть имени до "Week")
+  // ИСПРАВЛЕНО: Группируем строки по шаблону используя NumberOfWeek вместо извлечения из имени
   const templateMap = new Map<string, IExtendedWeeklyTimeRow[]>();
   
   data.forEach(row => {
-    // Предполагаем, что формат имени включает номер недели (например, "Week 1", "Week 1 Shift 2")
-    const match = row.name.match(/Week\s+(\d+)/i);
-    if (match) {
-      const weekNumber = match[1];
-      // Используем комбинацию числа недели и общего количества недель в шаблоне как ключ
+    // ИСПРАВЛЕНО: Используем NumberOfWeek вместо извлечения из имени
+    const weekNumber = row.NumberOfWeek;
+    
+    if (weekNumber !== undefined) {
       const templateKey = `template_${weekNumber}`;
       
       if (!templateMap.has(templateKey)) {
@@ -518,7 +643,8 @@ export const getUniqueTemplates = (data: IExtendedWeeklyTimeRow[]): { templateId
       }
       templateMap.get(templateKey)?.push(row);
     } else {
-      // Если формат имени не соответствует ожидаемому, используем ID как ключ
+      console.warn(`[getUniqueTemplates] Row ${row.id} missing NumberOfWeek field, using ID as fallback`);
+      // Если формат данных некорректный, используем ID как ключ
       const templateKey = `template_${row.id}`;
       templateMap.set(templateKey, [row]);
     }
@@ -527,22 +653,19 @@ export const getUniqueTemplates = (data: IExtendedWeeklyTimeRow[]): { templateId
   // Преобразуем Map в массив объектов для удобства использования
   const templates: { templateId: string, rows: IExtendedWeeklyTimeRow[] }[] = [];
   templateMap.forEach((rows, templateId) => {
-    // Сортируем строки в каждом шаблоне по номеру недели и смены
+    // ИСПРАВЛЕНО: Сортируем строки в каждом шаблоне по NumberOfWeek и NumberOfShift
     rows.sort((a, b) => {
-      // Извлекаем номер недели
-      const weekA = parseInt(a.name.split('Week ')[1]?.split(' ')[0] || '0', 10);
-      const weekB = parseInt(b.name.split('Week ')[1]?.split(' ')[0] || '0', 10);
+      // Сначала по NumberOfWeek
+      const weekA = a.NumberOfWeek || 0;
+      const weekB = b.NumberOfWeek || 0;
       
       if (weekA !== weekB) {
         return weekA - weekB;
       }
       
-      // Если неделя одинаковая, сортируем по наличию "Shift" и номеру смены
-      const shiftAMatch = a.name.match(/Shift\s+(\d+)/i);
-      const shiftBMatch = b.name.match(/Shift\s+(\d+)/i);
-      
-      const shiftA = shiftAMatch ? parseInt(shiftAMatch[1], 10) : 0;
-      const shiftB = shiftBMatch ? parseInt(shiftBMatch[1], 10) : 0;
+      // Затем по NumberOfShift
+      const shiftA = a.NumberOfShift || 0;
+      const shiftB = b.NumberOfShift || 0;
       
       return shiftA - shiftB;
     });
@@ -646,7 +769,8 @@ export const updateDisplayedTotalHours = (data: IExtendedWeeklyTimeRow[]): IExte
   return updatedData;
 };
 
-// Определяет, является ли строка первой в своем шаблоне
+// ИСПРАВЛЕНО: Определяет, является ли строка первой в своем шаблоне
+// Использует ТОЛЬКО поле NumberOfWeek
 export const isFirstRowInTemplate = (data: IExtendedWeeklyTimeRow[], rowIndex: number): boolean => {
   if (!data || rowIndex < 0 || rowIndex >= data.length) {
     return false;
@@ -654,19 +778,20 @@ export const isFirstRowInTemplate = (data: IExtendedWeeklyTimeRow[], rowIndex: n
   
   const currentRow = data[rowIndex];
   
-  // Извлекаем номер недели из имени текущей строки
-  const weekMatch = currentRow.name.match(/Week\s+(\d+)/i);
-  if (!weekMatch) {
-    return true; // Если формат имени не соответствует, предполагаем что это первая строка шаблона
-  }
+  // ИСПРАВЛЕНО: Получаем номер недели ТОЛЬКО из поля NumberOfWeek
+  const currentWeekNumber = currentRow.NumberOfWeek;
   
-  const weekNumber = weekMatch[1];
+  if (currentWeekNumber === undefined) {
+    console.warn(`[isFirstRowInTemplate] Row ${rowIndex} (ID: ${currentRow.id}) missing NumberOfWeek field`);
+    return true; // Если данные некорректны, предполагаем что это первая строка шаблона
+  }
   
   // Проверяем, есть ли строки с таким же номером недели до текущей строки
   for (let i = 0; i < rowIndex; i++) {
     const prevRow = data[i];
-    const prevWeekMatch = prevRow.name.match(/Week\s+(\d+)/i);
-    if (prevWeekMatch && prevWeekMatch[1] === weekNumber) {
+    const prevWeekNumber = prevRow.NumberOfWeek;
+    
+    if (prevWeekNumber === currentWeekNumber) {
       return false; // Нашли строку с таким же номером недели выше, значит текущая строка не первая в шаблоне
     }
   }
@@ -721,7 +846,8 @@ export const getOrderedWeekDays = (dayOfStartWeek: number): { name: string; key:
   ];
 };
 
-// Определяет, является ли строка последней в своем шаблоне
+// ИСПРАВЛЕНО: Определяет, является ли строка последней в своем шаблоне
+// Использует ТОЛЬКО поле NumberOfWeek
 export const isLastRowInTemplate = (data: IExtendedWeeklyTimeRow[], rowIndex: number): boolean => {
     if (!data || rowIndex < 0 || rowIndex >= data.length) {
       return false;
@@ -729,23 +855,23 @@ export const isLastRowInTemplate = (data: IExtendedWeeklyTimeRow[], rowIndex: nu
     
     const currentRow = data[rowIndex];
     
-    // Извлекаем номер недели из имени текущей строки
-    const weekMatch = currentRow.name.match(/Week\s+(\d+)/i);
-    if (!weekMatch) {
-      return true; // Если формат имени не соответствует, предполагаем, что это единственная строка шаблона
+    // ИСПРАВЛЕНО: Получаем номер недели ТОЛЬКО из поля NumberOfWeek
+    const currentWeekNumber = currentRow.NumberOfWeek;
+    
+    if (currentWeekNumber === undefined) {
+      console.warn(`[isLastRowInTemplate] Row ${rowIndex} (ID: ${currentRow.id}) missing NumberOfWeek field`);
+      return true; // Если данные некорректны, предполагаем, что это единственная строка шаблона
     }
     
-    const weekNumber = weekMatch[1];
-    
-    // Если это последняя строка в массиве или следующая строка имеет другой номер недели
+    // Если это последняя строка в массиве
     if (rowIndex === data.length - 1) {
       return true;
     }
     
     // Проверяем следующую строку
     const nextRow = data[rowIndex + 1];
-    const nextWeekMatch = nextRow.name.match(/Week\s+(\d+)/i);
+    const nextWeekNumber = nextRow.NumberOfWeek;
     
-    // Если у следующей строки другой номер недели или нет совпадения, значит текущая строка последняя
-    return !nextWeekMatch || nextWeekMatch[1] !== weekNumber;
+    // Если у следующей строки другой номер недели или отсутствует NumberOfWeek, значит текущая строка последняя
+    return nextWeekNumber === undefined || nextWeekNumber !== currentWeekNumber;
 };
