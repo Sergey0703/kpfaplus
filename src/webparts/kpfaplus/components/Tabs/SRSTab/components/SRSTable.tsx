@@ -134,7 +134,7 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
     console.log(`[SRSTable] Current values for item ${item.id}:`, currentValues);
     
     // *** НОВОЕ: Обновляем актуальные значения с новым изменением ***
-    let updatedCurrentValues = { ...currentValues };
+    const updatedCurrentValues = { ...currentValues };
     if (field === 'startWork' && typeof value === 'object') {
       updatedCurrentValues.startWork = value;
     } else if (field === 'finishWork' && typeof value === 'object') {
