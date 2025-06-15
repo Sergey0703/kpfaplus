@@ -28,7 +28,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     showDeletedSupport: true // *** НОВОЕ ***
   });
   
-  // Используем главный хук логики с поддержкой праздников, РЕАЛЬНЫМИ сервисами и showDeleted
+  // *** ИСПРАВЛЕНО: Используем главный хук логики с поддержкой showDeleted ***
   const srsLogic = useSRSTabLogic(props);
 
   // *** НОВОЕ: Состояние для диалогов подтверждения ***
@@ -48,7 +48,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     message: ''
   });
 
-  console.log('[SRSTab] SRS Logic state with types of leave, holidays, showDeleted, and REAL delete/restore support:', {
+  console.log('[SRSTab] *** SRS Logic state with FIXED showDeleted support ***:', {
     recordsCount: srsLogic.srsRecords.length,
     totalHours: srsLogic.totalHours,
     fromDate: srsLogic.fromDate.toLocaleDateString(),
@@ -62,15 +62,16 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     // Информация о праздниках
     holidaysCount: srsLogic.holidays.length,
     isLoadingHolidays: srsLogic.isLoadingHolidays,
-    // *** НОВОЕ: Информация о функциях удаления ***
-    hasDeleteSupport: true,
-    hasRestoreSupport: true,
-    realDeleteRestoreIntegration: 'StaffRecordsService',
-    // *** НОВОЕ: Информация о showDeleted ***
+    // *** ИСПРАВЛЕНО: Информация о showDeleted из srsLogic ***
     showDeleted: srsLogic.showDeleted,
+    hasToggleShowDeletedHandler: !!srsLogic.onToggleShowDeleted,
     showDeletedSupport: true,
     deletedRecordsCount: srsLogic.srsRecords.filter(r => r.Deleted === 1).length,
-    activeRecordsCount: srsLogic.srsRecords.filter(r => r.Deleted !== 1).length
+    activeRecordsCount: srsLogic.srsRecords.filter(r => r.Deleted !== 1).length,
+    // *** ИНФОРМАЦИЯ О РЕАЛЬНЫХ СЕРВИСАХ ***
+    hasDeleteSupport: !!srsLogic.onDeleteRecord,
+    hasRestoreSupport: !!srsLogic.onRestoreRecord,
+    realDeleteRestoreIntegration: 'StaffRecordsService'
   });
 
   // *** НОВОЕ: Обработчик показа диалога удаления ***
@@ -208,50 +209,8 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     setRestoreConfirmDialog(prev => ({ ...prev, isOpen: false }));
   }, []);
 
-  // *** НОВОЕ: Функции-заглушки для удаления/восстановления (пока API не готово) ***
-  const onDeleteItem = useCallback(async (recordId: string): Promise<boolean> => {
-    console.log('[SRSTab] onDeleteItem called for record:', recordId);
-    
-    // TODO: Replace with actual delete service call
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // TODO: Implement actual delete logic
-      // const staffRecordsService = StaffRecordsService.getInstance(context);
-      // const result = await staffRecordsService.deleteStaffRecord(recordId, currentUserId);
-      // return result.success;
-      
-      console.log('[SRSTab] Record deletion simulated successfully');
-      return true; // Simulated success
-      
-    } catch (error) {
-      console.error('[SRSTab] Error in onDeleteItem:', error);
-      return false;
-    }
-  }, []);
-
-  const onRestoreItem = useCallback(async (recordId: string): Promise<boolean> => {
-    console.log('[SRSTab] onRestoreItem called for record:', recordId);
-    
-    // TODO: Replace with actual restore service call
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // TODO: Implement actual restore logic
-      // const staffRecordsService = StaffRecordsService.getInstance(context);
-      // const result = await staffRecordsService.restoreStaffRecord(recordId, currentUserId);
-      // return result.success;
-      
-      console.log('[SRSTab] Record restoration simulated successfully');
-      return true; // Simulated success
-      
-    } catch (error) {
-      console.error('[SRSTab] Error in onRestoreItem:', error);
-      return false;
-    }
-  }, []);
+  // *** УДАЛЕНО: Функции-заглушки onDeleteItem и onRestoreItem больше не нужны ***
+  // Теперь используем только РЕАЛЬНЫЕ обработчики из srsLogic
 
   // Создание опций для таблицы с типами отпусков
   const tableOptions: ISRSTableOptions = React.useMemo(() => {
@@ -446,7 +405,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
           (Delete/Restore via StaffRecordsService)
         </span>
 
-        {/* *** НОВОЕ: Информация о showDeleted фильтре *** */}
+        {/* *** ИСПРАВЛЕНО: Информация о showDeleted фильтре из srsLogic *** */}
         <span style={{
           fontSize: '12px',
           color: srsLogic.showDeleted ? '#d83b01' : '#107c10',
@@ -487,7 +446,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         </div>
       )}
       
-      {/* Таблица SRS с поддержкой удаления/восстановления и showDeleted */}
+      {/* *** ИСПРАВЛЕНО: Таблица SRS с ПРАВИЛЬНОЙ передачей showDeleted пропсов *** */}
       <SRSTable
         items={srsRecordsForTable}
         options={tableOptions}
@@ -498,9 +457,10 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         onTypeOfLeaveChange={handleTypeOfLeaveChange}
         showDeleteConfirmDialog={showDeleteConfirmDialog}
         showRestoreConfirmDialog={showRestoreConfirmDialog}
-        onDeleteItem={onDeleteItem}
-        onRestoreItem={onRestoreItem}
-        // *** НОВОЕ: Передаем пропсы для showDeleted ***
+        // *** УДАЛЕНО: onDeleteItem и onRestoreItem больше не передаются ***
+        // Используем только РЕАЛЬНЫЕ диалоги подтверждения
+        
+        // *** ИСПРАВЛЕНО: Передаем ОБЯЗАТЕЛЬНЫЕ пропсы для showDeleted из srsLogic ***
         showDeleted={srsLogic.showDeleted}
         onToggleShowDeleted={srsLogic.onToggleShowDeleted}
       />
@@ -531,7 +491,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         confirmButtonColor="#107c10" // Green for restore
       />
       
-      {/* Отладочная информация с праздниками, функциями удаления и showDeleted */}
+      {/* *** ИСПРАВЛЕНО: Отладочная информация с showDeleted из srsLogic *** */}
       {process.env.NODE_ENV === 'development' && (
         <div style={{
           marginTop: '20px',
@@ -555,9 +515,10 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
           <div>Restore Support: Enabled</div>
           <div>Delete Dialog Open: {deleteConfirmDialog.isOpen ? 'Yes' : 'No'}</div>
           <div>Restore Dialog Open: {restoreConfirmDialog.isOpen ? 'Yes' : 'No'}</div>
-          {/* *** НОВОЕ: Отладочная информация о showDeleted *** */}
-          <div>Show Deleted: {srsLogic.showDeleted ? 'Yes' : 'No'}</div>
+          {/* *** ИСПРАВЛЕНО: Отладочная информация о showDeleted из srsLogic *** */}
+          <div>Show Deleted (srsLogic): {srsLogic.showDeleted ? 'Yes' : 'No'}</div>
           <div>Show Deleted Support: Enabled</div>
+          <div>Toggle Handler Available: {!!srsLogic.onToggleShowDeleted ? 'Yes' : 'No'}</div>
           
           {srsLogic.typesOfLeave.length > 0 && (
             <div>

@@ -45,7 +45,7 @@ export interface UseSRSTabLogicReturn extends ISRSTabState {
   onDeleteRecord: (recordId: string) => Promise<boolean>;
   onRestoreRecord: (recordId: string) => Promise<boolean>;
   
-  // *** НОВОЕ: Обработчик переключения отображения удаленных записей ***
+  // *** ИСПРАВЛЕНО: Обработчик переключения отображения удаленных записей ***
   onToggleShowDeleted: (checked: boolean) => void;
   
   // Вычисляемые значения
@@ -65,7 +65,7 @@ export interface UseSRSTabLogicReturn extends ISRSTabState {
 
 /**
  * Главный оркестрирующий хук для SRS Tab
- * ОБНОВЛЕНО: Интегрированы РЕАЛЬНЫЕ операции удаления/восстановления через StaffRecordsService и showDeleted
+ * ИСПРАВЛЕНО: Добавлен handleToggleShowDeleted обработчик и правильная передача showDeleted
  */
 export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   const { selectedStaff, context, currentUserId, managingGroupId } = props;
@@ -105,7 +105,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     setState
   });
 
-  // Инициализируем хук загрузки SRS данных с поддержкой showDeleted
+  // *** ИСПРАВЛЕНО: Инициализируем хук загрузки SRS данных с правильной передачей showDeleted ***
   const { loadSRSData, refreshSRSData, isDataValid } = useSRSData({
     context,
     selectedStaff,
@@ -113,7 +113,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     managingGroupId,
     fromDate: state.fromDate,
     toDate: state.toDate,
-    showDeleted: state.showDeleted, // *** НОВОЕ: Передаем флаг showDeleted ***
+    showDeleted: state.showDeleted, // *** ИСПРАВЛЕНО: Передаем showDeleted из состояния ***
     setState
   });
 
@@ -351,16 +351,17 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   }, [state.fromDate, setState, loadHolidays]);
 
   // ===============================================
-  // *** НОВЫЙ ОБРАБОТЧИК: ПЕРЕКЛЮЧЕНИЕ ОТОБРАЖЕНИЯ УДАЛЕННЫХ ЗАПИСЕЙ ***
+  // *** ИСПРАВЛЕНО: ОБРАБОТЧИК ПЕРЕКЛЮЧЕНИЯ ОТОБРАЖЕНИЯ УДАЛЕННЫХ ЗАПИСЕЙ ***
   // ===============================================
 
   /**
-   * *** НОВАЯ ФУНКЦИЯ: Обработчик переключения отображения удаленных записей ***
-   * Аналогично Schedule Tab
+   * *** ИСПРАВЛЕНО: Обработчик переключения отображения удаленных записей ***
+   * Точно такой же как в Schedule Tab
    */
   const handleToggleShowDeleted = useCallback((checked: boolean): void => {
-    console.log('[useSRSTabLogic] handleToggleShowDeleted called with:', checked);
+    console.log('[useSRSTabLogic] *** HANDLE TOGGLE SHOW DELETED ***');
     console.log('[useSRSTabLogic] Previous showDeleted state:', state.showDeleted);
+    console.log('[useSRSTabLogic] New showDeleted value:', checked);
     
     // Обновляем состояние showDeleted
     SRSTabStateHelpers.setShowDeleted(setState, checked);
@@ -369,10 +370,12 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     setModifiedRecords(new Map());
     SRSTabStateHelpers.setHasUnsavedChanges(setState, false);
     
-    console.log('[useSRSTabLogic] showDeleted updated, data will be reloaded via useSRSData effect');
+    console.log('[useSRSTabLogic] showDeleted state updated, data will be automatically reloaded via useSRSData effect');
+    console.log('[useSRSTabLogic] *** TOGGLE SHOW DELETED COMPLETE ***');
     
-    // Данные будут автоматически перезагружены через эффект в useSRSData,
-    // который следит за изменением state.showDeleted
+    // *** ВАЖНО: Данные будут автоматически перезагружены через эффект в useSRSData,
+    // который отслеживает изменение state.showDeleted в зависимостях
+    
   }, [state.showDeleted, setState]);
 
   // ===============================================
@@ -746,7 +749,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   }, [deleteOperations.size, restoreOperations.size]);
 
   // ===============================================
-  // ВОЗВРАЩАЕМЫЙ ОБЪЕКТ
+  // *** ИСПРАВЛЕНО: ВОЗВРАЩАЕМЫЙ ОБЪЕКТ С onToggleShowDeleted ***
   // ===============================================
 
   const hookReturn: UseSRSTabLogicReturn = useMemo(() => ({
@@ -782,7 +785,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     onDeleteRecord: handleDeleteRecord,
     onRestoreRecord: handleRestoreRecord,
     
-    // *** НОВОЕ: Обработчик переключения отображения удаленных записей ***
+    // *** ИСПРАВЛЕНО: Обработчик переключения отображения удаленных записей ***
     onToggleShowDeleted: handleToggleShowDeleted,
     
     // Вычисляемые значения
@@ -811,7 +814,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     handleTypeOfLeaveChange,
     handleDeleteRecord, // *** РЕАЛЬНЫЙ ОБРАБОТЧИК ***
     handleRestoreRecord, // *** РЕАЛЬНЫЙ ОБРАБОТЧИК ***
-    handleToggleShowDeleted, // *** НОВЫЙ ОБРАБОТЧИК ***
+    handleToggleShowDeleted, // *** ИСПРАВЛЕНО: ДОБАВЛЕН В ЗАВИСИМОСТИ ***
     hasCheckedItems,
     selectedItemsCount,
     loadSRSData,
@@ -838,9 +841,10 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     restoreOperationsCount: restoreOperations.size,
     hasOngoingOperations,
     realDeleteRestoreIntegration: 'StaffRecordsService.markRecordAsDeleted & restoreDeletedRecord',
-    // *** НОВАЯ ИНФОРМАЦИЯ: Поддержка showDeleted ***
+    // *** ИСПРАВЛЕНО: Информация о поддержке showDeleted ***
     showDeleted: state.showDeleted,
-    showDeletedSupport: true
+    showDeletedSupport: true,
+    hasToggleShowDeletedHandler: !!handleToggleShowDeleted
   });
 
   return hookReturn;

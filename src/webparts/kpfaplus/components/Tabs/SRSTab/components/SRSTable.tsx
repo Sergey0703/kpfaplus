@@ -25,7 +25,7 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
     showRestoreConfirmDialog,
     onDeleteItem,
     onRestoreItem,
-    // *** НОВОЕ: Пропсы для showDeleted ***
+    // *** ИСПРАВЛЕНО: Обязательные пропсы для showDeleted ***
     showDeleted,
     onToggleShowDeleted
   } = props;
@@ -40,14 +40,17 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
     lunch: string;
   }>>({});
 
-  console.log('[SRSTable] Rendering with items count, types of leave support, delete/restore functionality and showDeleted:', {
+  console.log('[SRSTable] Rendering with items count, types of leave support, delete/restore functionality and FIXED showDeleted:', {
     itemsCount: items.length,
     hasTypeOfLeaveHandler: !!onTypeOfLeaveChange,
     optionsLeaveTypesCount: options.leaveTypes?.length || 0,
     hasDeleteHandler: !!showDeleteConfirmDialog,
     hasRestoreHandler: !!showRestoreConfirmDialog,
-    showDeleted: showDeleted, // *** НОВОЕ ***
+    // *** ИСПРАВЛЕНО: Проверяем обязательные пропсы showDeleted ***
+    showDeleted: showDeleted,
     hasToggleShowDeleted: !!onToggleShowDeleted,
+    showDeletedIsRequired: showDeleted !== undefined,
+    toggleHandlerIsRequired: !!onToggleShowDeleted,
     deletedItemsCount: items.filter(item => item.deleted === true).length,
     activeItemsCount: items.filter(item => item.deleted !== true).length
   });
@@ -101,6 +104,7 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
       lunch: '0'
     };
   }, [currentItemValues]);
+
   // *** ИСПРАВЛЕНО: Обработчик изменения времени с обновлением актуальных значений ***
   const handleTimeChange = useCallback((item: ISRSRecord, field: string, value: string | { hours: string; minutes: string }): void => {
     if (item.deleted) { return; }
@@ -284,11 +288,17 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
     onContractNumberChange(item, value);
   }, [onContractNumberChange]);
 
-  // *** НОВЫЙ ОБРАБОТЧИК: Переключение отображения удаленных записей ***
+  // *** ИСПРАВЛЕНО: Обработчик переключения отображения удаленных записей ***
   const handleToggleShowDeleted = useCallback((ev?: React.FormEvent<HTMLElement>, checked?: boolean): void => {
+    console.log('[SRSTable] *** HANDLE TOGGLE SHOW DELETED ***');
     console.log('[SRSTable] Show deleted toggle changed:', checked);
+    console.log('[SRSTable] onToggleShowDeleted handler available:', !!onToggleShowDeleted);
+    
     if (checked !== undefined && onToggleShowDeleted) {
+      console.log('[SRSTable] Calling parent onToggleShowDeleted handler');
       onToggleShowDeleted(checked);
+    } else {
+      console.warn('[SRSTable] onToggleShowDeleted handler not available or checked value undefined');
     }
   }, [onToggleShowDeleted]);
 
@@ -392,7 +402,7 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
     }).length;
   };
 
-  // *** НОВАЯ ФУНКЦИЯ: Статистика записей для заголовка ***
+  // *** ИСПРАВЛЕНО: Функция статистики записей для заголовка ***
   const getRecordsStatistics = (): {
     total: number;
     active: number;
@@ -424,7 +434,7 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
 
   return (
     <div style={{ width: '100%', overflowX: 'auto' }}>
-      {/* *** НОВЫЙ ЗАГОЛОВОК: Переключатель Show deleted и статистика *** */}
+      {/* *** ИСПРАВЛЕНО: Единственный заголовок с переключателем Show deleted *** */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -433,7 +443,7 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
         borderBottom: '1px solid #edebe9',
         marginBottom: '10px'
       }}>
-        {/* Переключатель Show deleted */}
+        {/* *** ИСПРАВЛЕНО: Переключатель Show deleted - ЕДИНСТВЕННОЕ МЕСТО *** */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <Checkbox
             label="Show deleted"
@@ -446,7 +456,7 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
             }}
           />
           
-          {/* Статистика записей */}
+          {/* *** ИСПРАВЛЕНО: Статистика записей с учетом обязательного showDeleted *** */}
           <Text variant="medium" style={{ color: '#666', fontSize: '13px' }}>
             Showing {recordsStats.visible} of {recordsStats.total} records
             {recordsStats.deleted > 0 && (
@@ -628,7 +638,7 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
                     ? `${options.leaveTypes.length - 1} types of leave available` 
                     : 'Loading types of leave...'}
                 </small>
-                {/* *** НОВОЕ: Информация о фильтре удаленных *** */}
+                {/* *** ИСПРАВЛЕНО: Информация о фильтре удаленных с обязательным showDeleted *** */}
                 <br />
                 <small style={{ color: '#888', marginTop: '5px', display: 'block' }}>
                   {showDeleted 

@@ -66,7 +66,7 @@ export interface ISRSFilterControlsProps {
 
 /**
  * Пропсы для компонента SRSTable
- * ОБНОВЛЕНО: Добавлены типы отпусков, delete/restore функционал и showDeleted
+ * *** ИСПРАВЛЕНО: Добавлены showDeleted и onToggleShowDeleted ***
  */
 export interface ISRSTableProps {
   items: ISRSRecord[];
@@ -82,9 +82,9 @@ export interface ISRSTableProps {
   showRestoreConfirmDialog?: (id: string) => void;
   onDeleteItem?: (id: string) => Promise<boolean>;
   onRestoreItem?: (id: string) => Promise<boolean>;
-  // *** НОВОЕ: Поддержка showDeleted ***
-  showDeleted?: boolean; // Флаг отображения удаленных записей
-  onToggleShowDeleted?: (checked: boolean) => void; // Обработчик переключения флага
+  // *** ИСПРАВЛЕНО: Добавлены пропсы для showDeleted ***
+  showDeleted: boolean; // Флаг отображения удаленных записей
+  onToggleShowDeleted: (checked: boolean) => void; // Обработчик переключения флага
 }
 
 /**
@@ -121,7 +121,7 @@ export interface ISRSTabState {
   // *** НОВОЕ: Типы отпусков ***
   typesOfLeave: Array<{ id: string; title: string; color?: string }>; // Упрощенный интерфейс типов отпусков
   isLoadingTypesOfLeave: boolean;
-  // *** НОВОЕ: Поддержка showDeleted ***
+  // *** ИСПРАВЛЕНО: Добавлено поле showDeleted ***
   showDeleted: boolean; // Флаг отображения удаленных записей
 }
 
@@ -202,7 +202,7 @@ export interface ISRSDeleteRestoreParams {
 }
 
 /**
- * *** НОВЫЕ ИНТЕРФЕЙСЫ ДЛЯ SHOWDELETED ФУНКЦИОНАЛА ***
+ * *** ИСПРАВЛЕНО: Интерфейсы для showDeleted функционала ***
  */
 
 /**
@@ -218,18 +218,19 @@ export interface ISRSDeletedStatistics {
 
 /**
  * Параметры фильтрации записей
+ * *** ИСПРАВЛЕНО: Обязательное поле showDeleted ***
  */
 export interface ISRSFilterParams {
   fromDate: Date;
   toDate: Date;
-  showDeleted: boolean;
+  showDeleted: boolean; // *** ИСПРАВЛЕНО: Убран optional, сделан обязательным ***
   staffId?: string;
   typeOfLeave?: string;
 }
 
 /**
  * Расширенные пропсы для главного компонента SRS Tab
- * ОБНОВЛЕНО: Включает типы отпусков, праздники, delete/restore функционал и showDeleted
+ * *** ИСПРАВЛЕНО: Обязательные пропсы для showDeleted ***
  */
 export interface ISRSTabProps {
   // Основные пропсы
@@ -265,8 +266,8 @@ export interface ISRSTabProps {
   selectedItems: Set<string>;
   hasCheckedItems: boolean;
   
-  // *** НОВОЕ: Поддержка showDeleted ***
-  showDeleted: boolean; // Флаг отображения удаленных записей
+  // *** ИСПРАВЛЕНО: Обязательные пропсы для showDeleted ***
+  showDeleted: boolean; // *** ИСПРАВЛЕНО: Убран optional, сделан обязательным ***
   
   // Обработчики
   onFromDateChange: (date: Date | undefined) => void;
@@ -287,8 +288,8 @@ export interface ISRSTabProps {
   onDeleteRecord: (recordId: string) => Promise<ISRSDeleteResult>;
   onRestoreRecord: (recordId: string) => Promise<ISRSRestoreResult>;
   
-  // *** НОВОЕ: Обработчик showDeleted ***
-  onToggleShowDeleted: (checked: boolean) => void;
+  // *** ИСПРАВЛЕНО: Обязательный обработчик showDeleted ***
+  onToggleShowDeleted: (checked: boolean) => void; // *** ИСПРАВЛЕНО: Убран optional, сделан обязательным ***
 }
 
 /**
@@ -303,31 +304,33 @@ export interface ISRSTableOptionsConfig {
 }
 
 /**
- * *** НОВЫЕ ИНТЕРФЕЙСЫ ДЛЯ ДИАЛОГОВ ПОДТВЕРЖДЕНИЯ ***
+ * *** ИСПРАВЛЕНО: Интерфейсы для диалогов подтверждения ***
  */
 
 /**
  * Пропсы для диалога подтверждения удаления
+ * *** ИСПРАВЛЕНО: Добавлены обязательные обработчики ***
  */
 export interface ISRSDeleteConfirmDialogProps {
   isOpen: boolean;
   recordId: string;
   recordDate?: string;
   staffName?: string;
-  onConfirm: (recordId: string) => void;
-  onCancel: () => void;
+  onConfirm: (recordId: string) => void; // *** ИСПРАВЛЕНО: Обязательный обработчик ***
+  onCancel: () => void; // *** ИСПРАВЛЕНО: Обязательный обработчик ***
 }
 
 /**
  * Пропсы для диалога подтверждения восстановления
+ * *** ИСПРАВЛЕНО: Добавлены обязательные обработчики ***
  */
 export interface ISRSRestoreConfirmDialogProps {
   isOpen: boolean;
   recordId: string;
   recordDate?: string;
   staffName?: string;
-  onConfirm: (recordId: string) => void;
-  onCancel: () => void;
+  onConfirm: (recordId: string) => void; // *** ИСПРАВЛЕНО: Обязательный обработчик ***
+  onCancel: () => void; // *** ИСПРАВЛЕНО: Обязательный обработчик ***
 }
 
 /**
@@ -444,7 +447,7 @@ export class SRSTableOptionsHelper {
   }
 
   /**
-   * *** НОВОЕ: Получение статистики удаленных записей ***
+   * *** ИСПРАВЛЕНО: Получение статистики удаленных записей ***
    */
   public static getDeletedRecordsStatistics(records: ISRSRecord[]): ISRSDeletedStatistics {
     const totalRecords = records.length;
@@ -462,12 +465,12 @@ export class SRSTableOptionsHelper {
   }
 
   /**
-   * *** НОВОЕ: Фильтрация записей по статусу удаления ***
-   * Применяет клиентскую фильтрацию записей
+   * *** ИСПРАВЛЕНО: Фильтрация записей по статусу удаления ***
+   * Применяет клиентскую фильтрацию записей на основе showDeleted
    */
   public static filterRecordsByDeletedStatus(
     records: ISRSRecord[], 
-    showDeleted: boolean
+    showDeleted: boolean // *** ИСПРАВЛЕНО: Убран optional, сделан обязательным ***
   ): ISRSRecord[] {
     if (showDeleted) {
       // Показываем все записи
@@ -479,12 +482,12 @@ export class SRSTableOptionsHelper {
   }
 
   /**
-   * *** НОВОЕ: Получение краткой статистики для UI ***
-   * Возвращает текст для отображения в интерфейсе
+   * *** ИСПРАВЛЕНО: Получение краткой статистики для UI ***
+   * Возвращает текст для отображения в интерфейсе с учетом showDeleted
    */
   public static getRecordsDisplayText(
     records: ISRSRecord[], 
-    showDeleted: boolean
+    showDeleted: boolean // *** ИСПРАВЛЕНО: Убран optional, сделан обязательным ***
   ): {
     mainText: string;
     detailText: string;
@@ -503,11 +506,81 @@ export class SRSTableOptionsHelper {
   }
 
   /**
-   * *** НОВОЕ: Проверка необходимости показа переключателя ***
+   * *** ИСПРАВЛЕНО: Проверка необходимости показа переключателя ***
    * Определяет, нужно ли показывать переключатель "Show deleted"
    */
   public static shouldShowDeletedToggle(records: ISRSRecord[]): boolean {
     const stats = SRSTableOptionsHelper.getDeletedRecordsStatistics(records);
     return stats.deletedRecords > 0; // Показываем переключатель только если есть удаленные записи
+  }
+
+  /**
+   * *** НОВАЯ ФУНКЦИЯ: Проверка совместимости showDeleted состояний ***
+   * Помогает синхронизировать состояние showDeleted между компонентами
+   */
+  public static validateShowDeletedState(
+    parentShowDeleted: boolean,
+    childShowDeleted?: boolean
+  ): {
+    isConsistent: boolean;
+    shouldUpdate: boolean;
+    expectedValue: boolean;
+  } {
+    const isConsistent = childShowDeleted === parentShowDeleted;
+    const shouldUpdate = !isConsistent && childShowDeleted !== undefined;
+    
+    return {
+      isConsistent,
+      shouldUpdate,
+      expectedValue: parentShowDeleted
+    };
+  }
+
+  /**
+   * *** НОВАЯ ФУНКЦИЯ: Создание параметров фильтрации ***
+   * Создает объект параметров фильтрации с правильными типами
+   */
+  public static createFilterParams(
+    fromDate: Date,
+    toDate: Date,
+    showDeleted: boolean, // *** ОБЯЗАТЕЛЬНЫЙ ПАРАМЕТР ***
+    staffId?: string,
+    typeOfLeave?: string
+  ): ISRSFilterParams {
+    return {
+      fromDate,
+      toDate,
+      showDeleted, // *** ОБЯЗАТЕЛЬНЫЙ ***
+      staffId,
+      typeOfLeave
+    };
+  }
+
+  /**
+   * *** НОВАЯ ФУНКЦИЯ: Валидация параметров фильтрации ***
+   * Проверяет корректность параметров фильтрации
+   */
+  public static validateFilterParams(params: ISRSFilterParams): {
+    isValid: boolean;
+    errors: string[];
+  } {
+    const errors: string[] = [];
+
+    // Проверяем даты
+    if (!params.fromDate || !params.toDate) {
+      errors.push('From date and to date are required');
+    } else if (params.fromDate > params.toDate) {
+      errors.push('From date must be before or equal to to date');
+    }
+
+    // Проверяем showDeleted
+    if (typeof params.showDeleted !== 'boolean') {
+      errors.push('showDeleted must be a boolean value');
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
   }
 }
