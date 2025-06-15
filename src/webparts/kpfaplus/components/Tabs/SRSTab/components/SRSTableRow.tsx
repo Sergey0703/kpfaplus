@@ -6,6 +6,16 @@ import { Checkbox, Dropdown, DefaultButton, IconButton, IDropdownOption, Tooltip
 import { ISRSTableRowProps, ISRSRecord } from '../utils/SRSTabInterfaces';
 import { calculateSRSWorkTime } from '../utils/SRSTimeCalculationUtils';
 
+// *** НОВЫЙ ИНТЕРФЕЙС: Данные для новой смены (аналог из Schedule) ***
+export interface INewSRSShiftData {
+  date: Date;
+  timeForLunch: string;
+  contract: string;
+  contractNumber?: string;
+  typeOfLeave?: string;
+  Holiday?: number;
+}
+
 export const SRSTableRow: React.FC<ISRSTableRowProps & {
   rowPositionInDate: number;
   totalTimeForDate: string; 
@@ -21,6 +31,9 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   // onDeleteItem и onRestoreItem переданы для совместимости, но не используются в этом компоненте
   onDeleteItem?: (id: string) => Promise<boolean>;
   onRestoreItem?: (id: string) => Promise<boolean>;
+  // *** НОВОЕ: Обработчик добавления смены ***
+  showAddShiftConfirmDialog?: (item: ISRSRecord) => void;
+  onAddShift?: (date: Date, shiftData?: INewSRSShiftData) => void;
 }> = (props) => {
   const {
     item,
@@ -35,7 +48,10 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     onTypeOfLeaveChange,
     // *** РЕАЛЬНАЯ ИНТЕГРАЦИЯ: Деструктуризация обработчиков удаления ***
     showDeleteConfirmDialog,
-    showRestoreConfirmDialog
+    showRestoreConfirmDialog,
+    // *** НОВЫЕ ПРОПСЫ: Обработчики добавления смены ***
+    showAddShiftConfirmDialog,
+    onAddShift
   //  onDeleteItem,
   //  onRestoreItem
   } = props;
@@ -87,7 +103,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   // *** ОПРЕДЕЛЯЕМ СОСТОЯНИЕ ЗАПИСИ: Является ли запись удаленной ***
   const isDeleted = item.deleted === true;
 
-  console.log(`[SRSTableRow] Rendering row for item ${item.id} with REAL delete/restore integration:`, {
+  console.log(`[SRSTableRow] Rendering row for item ${item.id} with REAL delete/restore integration and ADD SHIFT functionality:`, {
     date: item.date.toLocaleDateString(),
     isHoliday: isHoliday,
     holidayValue: item.Holiday,
@@ -97,8 +113,36 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     isDeleted: isDeleted,
     hasDeleteHandler: !!showDeleteConfirmDialog,
     hasRestoreHandler: !!showRestoreConfirmDialog,
-    realServicesIntegration: true
+    realServicesIntegration: true,
+    // *** НОВОЕ: Информация о добавлении смены ***
+    hasAddShiftHandler: !!showAddShiftConfirmDialog,
+    onAddShiftAvailable: !!onAddShift
   });
+
+  // *** НОВЫЙ ОБРАБОТЧИК: Клик по кнопке "+Shift" с подтверждением (аналог Schedule) ***
+  const handleAddShiftClick = useCallback((): void => {
+    console.log(`[SRSTableRow] *** ADD SHIFT CLICK *** for item ${item.id} on date: ${item.date.toLocaleDateString()}`);
+    
+    if (!showAddShiftConfirmDialog) {
+      console.error('[SRSTableRow] showAddShiftConfirmDialog handler not available - cannot show confirmation dialog');
+      return;
+    }
+
+    console.log('[SRSTableRow] Calling showAddShiftConfirmDialog with full item data');
+    console.log('[SRSTableRow] Item data for shift creation:', {
+      id: item.id,
+      date: item.date.toISOString(),
+      lunch: item.lunch,
+      contract: item.contract,
+      contractNumber: item.contract, // Используем contract как contractNumber
+      typeOfLeave: item.typeOfLeave,
+      Holiday: item.Holiday
+    });
+    
+    // *** ИСПРАВЛЕНО: Передаем весь item в диалог подтверждения (как в Schedule) ***
+    showAddShiftConfirmDialog(item);
+    
+  }, [item, showAddShiftConfirmDialog]);
 
   // *** ФУНКЦИЯ СТИЛИЗАЦИИ: Получение стилей праздничных ячеек ***
   const getHolidayCellStyle = (): React.CSSProperties => {
@@ -330,10 +374,6 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     }
   }, [item, contractNumberChangeHandler, localContract]);
 
-  const handleAddShift = useCallback((): void => {
-    console.log('[SRSTableRow] Add shift clicked for date:', item.date.toLocaleDateString());
-  }, [item.date]);
-
   // ===============================================
   // *** РЕАЛЬНЫЕ ОБРАБОТЧИКИ УДАЛЕНИЯ/ВОССТАНОВЛЕНИЯ ***
   // ===============================================
@@ -482,7 +522,8 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     isHoliday,
     isDeleted,
     hasRealDeleteIntegration: !!showDeleteConfirmDialog,
-    hasRealRestoreIntegration: !!showRestoreConfirmDialog
+    hasRealRestoreIntegration: !!showRestoreConfirmDialog,
+    hasAddShiftIntegration: !!showAddShiftConfirmDialog
   });
 
   return (
@@ -631,11 +672,11 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
         />
       </td>
 
-      {/* +Shift button */}
+      {/* *** ИСПРАВЛЕНО: +Shift button - теперь с правильным обработчиком *** */}
       <td style={cellStyle}>
         <DefaultButton
           text="+Shift"
-          onClick={handleAddShift}
+          onClick={handleAddShiftClick} // *** ИСПРАВЛЕНО: Используем новый обработчик ***
           disabled={isDeleted}
           styles={{ 
             root: { 
@@ -689,7 +730,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
         )}
       </td>
 
-      {/* *** НОВАЯ ЯЧЕЙКА: Actions (Delete/Restore) + ID С РЕАЛЬНЫМИ СЕРВИСАМИ *** */}
+      {/* *** ЯЧЕЙКА: Actions (Delete/Restore) + ID С РЕАЛЬНЫМИ СЕРВИСАМИ *** */}
       <td style={{ ...cellStyle, padding: '4px' }}>
         <div style={{ 
           display: 'flex', 
