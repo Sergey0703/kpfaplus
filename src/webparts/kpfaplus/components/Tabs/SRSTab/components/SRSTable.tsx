@@ -736,7 +736,7 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
                 {/* *** НОВОЕ: Информация о функционале добавления смены *** */}
                 <br />
                 <small style={{ color: '#107c10', marginTop: '5px', display: 'block' }}>
-                  Use "+Shift" button to add new SRS records with default time 00:00-00:00
+                  Use +Shift button to add new SRS records 
                 </small>
               </td>
             </tr>
