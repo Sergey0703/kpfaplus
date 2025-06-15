@@ -43,7 +43,7 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
     lunch: string;
   }>>({});
 
-  // *** НОВОЕ: State для диалога подтверждения добавления смены ***
+  // *** УПРОЩЕННОЕ: State для диалога подтверждения добавления смены ***
   const [addShiftConfirmDialog, setAddShiftConfirmDialog] = useState({
     isOpen: false,
     item: null as ISRSRecord | null,
@@ -51,7 +51,7 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
     message: ''
   });
 
-  console.log('[SRSTable] Rendering with items count, types of leave support, delete/restore functionality, showDeleted and ADD SHIFT functionality:', {
+  console.log('[SRSTable] Rendering with items count, types of leave support, delete/restore functionality, showDeleted and SIMPLIFIED ADD SHIFT functionality:', {
     itemsCount: items.length,
     hasTypeOfLeaveHandler: !!onTypeOfLeaveChange,
     optionsLeaveTypesCount: options.leaveTypes?.length || 0,
@@ -66,7 +66,8 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
     activeItemsCount: items.filter(item => item.deleted !== true).length,
     // *** НОВОЕ: Информация о добавлении смены ***
     hasAddShiftDialog: true,
-    addShiftDialogOpen: addShiftConfirmDialog.isOpen
+    addShiftDialogOpen: addShiftConfirmDialog.isOpen,
+    simplifiedDialog: true
   });
 
   // *** ДОБАВЛЕНО: Инициализация вычисленного времени и актуальных значений при загрузке элементов ***
@@ -119,20 +120,10 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
     };
   }, [currentItemValues]);
 
-  // *** НОВЫЙ ОБРАБОТЧИК: Показ диалога подтверждения добавления смены ***
+  // *** УПРОЩЕННЫЙ ОБРАБОТЧИК: Показ диалога подтверждения добавления смены ***
   const showAddShiftConfirmDialog = useCallback((item: ISRSRecord): void => {
-    console.log('[SRSTable] *** SHOW ADD SHIFT CONFIRM DIALOG *** for item:', item.id);
-    console.log('[SRSTable] Item data for shift creation:', {
-      id: item.id,
-      date: item.date.toISOString(),
-      dateLocal: item.date.toLocaleDateString(),
-      lunch: item.lunch,
-      contract: item.contract,
-      typeOfLeave: item.typeOfLeave,
-      Holiday: item.Holiday,
-      deleted: item.deleted
-    });
-
+    console.log('[SRSTable] *** SHOW SIMPLIFIED ADD SHIFT CONFIRM DIALOG *** for item:', item.id);
+    
     // Проверяем, что запись не удалена
     if (item.deleted) {
       console.warn('[SRSTable] Cannot add shift to deleted record');
@@ -143,14 +134,14 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
       isOpen: true,
       item: item,
       title: 'Confirm Add Shift',
-      message: `Are you sure you want to add a new shift on ${item.date.toLocaleDateString()} for the same date? A new SRS record will be created with default time 00:00-00:00.`
+      message: `Are you sure you want to add a new shift on ${item.date.toLocaleDateString()}?`
     });
   }, []);
 
-  // *** НОВЫЙ ОБРАБОТЧИК: Подтверждение добавления смены ***
+  // *** УПРОЩЕННЫЙ ОБРАБОТЧИК: Подтверждение добавления смены ***
   const handleAddShiftConfirm = useCallback((): void => {
     const { item } = addShiftConfirmDialog;
-    console.log('[SRSTable] *** HANDLE ADD SHIFT CONFIRM ***');
+    console.log('[SRSTable] *** HANDLE SIMPLIFIED ADD SHIFT CONFIRM ***');
     console.log('[SRSTable] Item for shift creation:', item?.id);
 
     if (!item) {
@@ -187,7 +178,7 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
       console.log('[SRSTable] onAddShift will be passed from useSRSTabLogic in next implementation step');
       
       // Временно показываем alert для демонстрации
-      alert(`Add Shift functionality activated!\n\nDate: ${shiftData.date.toLocaleDateString()}\nTime: 00:00-00:00\nLunch: ${shiftData.timeForLunch} min\nContract: ${shiftData.contract}\nType of Leave: ${shiftData.typeOfLeave || 'none'}\nHoliday: ${shiftData.Holiday ? 'Yes' : 'No'}\n\nNext step: Integrate with onAddShift from useSRSTabLogic`);
+      alert(`Add Shift functionality activated!\n\nDate: ${shiftData.date.toLocaleDateString()}\nTime: 00:00-00:00\nLunch: ${shiftData.timeForLunch} min\nContract: ${shiftData.contract}`);
 
       // Закрываем диалог
       setAddShiftConfirmDialog(prev => ({ ...prev, isOpen: false, item: null }));
@@ -634,22 +625,6 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
               fontWeight: '600',
               fontSize: '12px',
               border: '1px solid #edebe9'
-            }}>Hrs</th>
-            <th style={{ 
-              backgroundColor: '#f3f3f3',
-              padding: '8px',
-              textAlign: 'center',
-              fontWeight: '600',
-              fontSize: '12px',
-              border: '1px solid #edebe9'
-            }}>Relief?</th>
-            <th style={{ 
-              backgroundColor: '#f3f3f3',
-              padding: '8px',
-              textAlign: 'center',
-              fontWeight: '600',
-              fontSize: '12px',
-              border: '1px solid #edebe9'
             }}>Start Work</th>
             <th style={{ 
               backgroundColor: '#f3f3f3',
@@ -809,7 +784,7 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
         </tbody>
       </table>
 
-      {/* *** НОВОЕ: Диалог подтверждения добавления смены *** */}
+      {/* *** УПРОЩЕННОЕ: Диалог подтверждения добавления смены по аналогии со Schedule *** */}
       {addShiftConfirmDialog.isOpen && (
         <div style={{
           position: 'fixed',
@@ -828,7 +803,7 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
             padding: '24px',
             borderRadius: '4px',
             minWidth: '400px',
-            maxWidth: '600px',
+            maxWidth: '500px',
             boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)'
           }}>
             <h3 style={{ 
@@ -848,27 +823,6 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
             }}>
               {addShiftConfirmDialog.message}
             </p>
-
-            {/* *** ДЕТАЛИ НОВОЙ СМЕНЫ *** */}
-            {addShiftConfirmDialog.item && (
-              <div style={{
-                backgroundColor: '#f8f9fa',
-                padding: '16px',
-                borderRadius: '4px',
-                marginBottom: '24px',
-                fontSize: '13px'
-              }}>
-                <strong>New shift details:</strong>
-                <div style={{ marginTop: '8px' }}>
-                  <div>📅 Date: {addShiftConfirmDialog.item.date.toLocaleDateString()}</div>
-                  <div>⏰ Time: 00:00 - 00:00 (default)</div>
-                  <div>🍽️ Lunch: {addShiftConfirmDialog.item.lunch} minutes</div>
-                  <div>📋 Contract: {addShiftConfirmDialog.item.contract}</div>
-                  <div>🏖️ Type of Leave: {addShiftConfirmDialog.item.typeOfLeave || 'None'}</div>
-                  <div>🎉 Holiday: {addShiftConfirmDialog.item.Holiday ? 'Yes' : 'No'}</div>
-                </div>
-              </div>
-            )}
 
             <div style={{
               display: 'flex',
