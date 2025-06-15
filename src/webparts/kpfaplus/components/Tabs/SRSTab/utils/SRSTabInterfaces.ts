@@ -235,7 +235,7 @@ export interface ISRSFilterParams {
 export interface ISRSTabProps {
   // Основные пропсы
   selectedStaff?: { id: string; name: string; employeeId: string };
-  context?: any;
+  context?: unknown;
   currentUserId?: string;
   managingGroupId?: string;
   

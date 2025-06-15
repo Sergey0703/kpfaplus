@@ -394,7 +394,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     console.log('[useSRSTabLogic] Value type:', typeof value);
     
     // Создаем обновленную запись
-    let updatedItem = { ...item };
+    const updatedItem = { ...item };
     
     // ИСПРАВЛЕНО: Обрабатываем различные типы полей с правильной логикой пересчета
     if (field === 'startWork' && typeof value === 'object') {
@@ -420,7 +420,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       console.log('[useSRSTabLogic] Updated timeLeave:', value);
     } else {
       // Для других полей используем прямое присвоение с проверкой типа
-      (updatedItem as any)[field] = value;
+      (updatedItem as Record<string, any>)[field] = value;
       console.log('[useSRSTabLogic] Updated field', field, 'with value:', value);
     }
     
@@ -446,7 +446,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       const existingModifications = newModified.get(item.id) || {};
       
       // Объединяем существующие изменения с новыми
-      const newModifications: any = { ...existingModifications };
+      const newModifications: Record<string, any> = { ...existingModifications };
       
       if (field === 'startWork') {
         newModifications.startWork = updatedItem.startWork;

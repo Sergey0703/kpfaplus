@@ -226,28 +226,32 @@ export const formatSRSTimeForDisplay = (hours: string, minutes: string): string 
 export const updateSRSRecordWithCalculatedTime = (
   record: ISRSRecord, 
   field: string, 
-  value: any
+  value: string | boolean | { hours: string; minutes: string }
 ): ISRSRecord => {
   // Create updated record with new field value
   let updatedRecord: ISRSRecord;
 
   switch (field) {
     case 'startWork':
-      updatedRecord = { ...record, startWork: value };
+      updatedRecord = { ...record, startWork: value as { hours: string; minutes: string } };
       break;
     case 'finishWork':
-      updatedRecord = { ...record, finishWork: value };
+      updatedRecord = { ...record, finishWork: value as { hours: string; minutes: string } };
       break;
     case 'lunch':
-      updatedRecord = { ...record, lunch: value };
+      updatedRecord = { ...record, lunch: value as string };
       break;
     case 'relief':
       // *** ИСПРАВЛЕНО: Relief не влияет на время работы ***
-      updatedRecord = { ...record, relief: value };
+      updatedRecord = { ...record, relief: value as boolean };
       console.log('[SRSTimeCalculationUtils] Relief changed, NOT recalculating time');
       return updatedRecord; // Возвращаем без пересчета времени
     default:
-      updatedRecord = { ...record, [field]: value };
+      // *** ИСПРАВЛЕНО: Убрана any типизация ***
+      updatedRecord = { 
+        ...record, 
+        [field]: value 
+      } as ISRSRecord;
       break;
   }
 
