@@ -162,9 +162,9 @@ export const useHolidays = (props: UseHolidaysProps): UseHolidaysReturn => {
 };
 
 /**
- * *** ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ: Получение месяцев в диапазоне дат ***
+ * *** ИСПРАВЛЕНО: Функция получения месяцев в диапазоне дат ***
  * Возвращает список месяцев/годов, которые нужно загрузить для покрытия диапазона
- * АДАПТИРОВАНО для SRS: может охватывать несколько месяцев
+ * ИСПРАВЛЕНО: Убрана ошибка no-unmodified-loop-condition
  */
 function getMonthsInDateRange(fromDate: Date, toDate: Date): Array<{ month: number; year: number }> {
   const months: Array<{ month: number; year: number }> = [];
@@ -180,17 +180,25 @@ function getMonthsInDateRange(fromDate: Date, toDate: Date): Array<{ month: numb
     normalizedEnd: endDate.toISOString()
   });
   
-  // Перебираем месяцы от начальной до конечной даты
-  const currentDate = new Date(startDate);
-  while (currentDate <= endDate) {
-    const month = currentDate.getMonth() + 1; // API ожидает 1-12, а не 0-11
-    const year = currentDate.getFullYear();
+  // *** ИСПРАВЛЕНО: Используем отдельную переменную currentMonth для итерации ***
+  let currentMonth = startDate.getMonth();
+  let currentYear = startDate.getFullYear();
+  const endMonth = endDate.getMonth();
+  const endYear = endDate.getFullYear();
+  
+  // *** ИСПРАВЛЕНО: Цикл с правильным условием выхода ***
+  while (currentYear < endYear || (currentYear === endYear && currentMonth <= endMonth)) {
+    const month = currentMonth + 1; // API ожидает 1-12, а не 0-11
     
-    months.push({ month, year });
-    console.log(`[getMonthsInDateRange] Added month for SRS: ${month}/${year}`);
+    months.push({ month, year: currentYear });
+    console.log(`[getMonthsInDateRange] Added month for SRS: ${month}/${currentYear}`);
     
-    // Переходим к следующему месяцу
-    currentDate.setMonth(currentDate.getMonth() + 1);
+    // *** ИСПРАВЛЕНО: Переходим к следующему месяцу правильно ***
+    currentMonth++;
+    if (currentMonth > 11) { // Декабрь - это 11-й месяц (0-based)
+      currentMonth = 0; // Январь следующего года
+      currentYear++;
+    }
   }
   
   console.log(`[getMonthsInDateRange] Total months to load for SRS: ${months.length}`);
