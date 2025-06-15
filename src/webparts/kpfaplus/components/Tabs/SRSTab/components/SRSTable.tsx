@@ -30,7 +30,8 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
     onRestoreItem,
     // *** ИСПРАВЛЕНО: Обязательные пропсы для showDeleted ***
     showDeleted,
-    onToggleShowDeleted
+    onToggleShowDeleted,
+    onAddShift
   } = props;
 
   // *** КЛЮЧЕВОЕ ДОБАВЛЕНИЕ: State для вычисленного времени работы ***

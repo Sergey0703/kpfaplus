@@ -463,6 +463,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         // *** ИСПРАВЛЕНО: Передаем ОБЯЗАТЕЛЬНЫЕ пропсы для showDeleted из srsLogic ***
         showDeleted={srsLogic.showDeleted}
         onToggleShowDeleted={srsLogic.onToggleShowDeleted}
+        onAddShift={srsLogic.onAddShift} 
       />
       
       {/* *** НОВОЕ: Диалоги подтверждения удаления и восстановления *** */}

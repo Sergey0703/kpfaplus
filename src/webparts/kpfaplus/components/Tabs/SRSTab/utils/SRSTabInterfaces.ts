@@ -35,6 +35,18 @@ export interface ISRSRecord {
 }
 
 /**
+ * *** НОВЫЙ ИНТЕРФЕЙС: Данные для новой смены (аналог из Schedule) ***
+ */
+export interface INewSRSShiftData {
+  date: Date;
+  timeForLunch: string;
+  contract: string;
+  contractNumber?: string;
+  typeOfLeave?: string;
+  Holiday?: number;
+}
+
+/**
  * Опции для выпадающих списков в SRS таблице
  * ОБНОВЛЕНО: Добавлены типы отпусков
  */
@@ -67,6 +79,7 @@ export interface ISRSFilterControlsProps {
 /**
  * Пропсы для компонента SRSTable
  * *** ИСПРАВЛЕНО: Добавлены showDeleted и onToggleShowDeleted ***
+ * *** НОВОЕ: Добавлен onAddShift ***
  */
 export interface ISRSTableProps {
   items: ISRSRecord[];
@@ -85,12 +98,14 @@ export interface ISRSTableProps {
   // *** ИСПРАВЛЕНО: Добавлены пропсы для showDeleted ***
   showDeleted: boolean; // Флаг отображения удаленных записей
   onToggleShowDeleted: (checked: boolean) => void; // Обработчик переключения флага
-  
+  // *** НОВОЕ: Добавлен обработчик добавления смены ***
+  onAddShift?: (date: Date, shiftData?: INewSRSShiftData) => Promise<boolean>;
 }
 
 /**
  * Пропсы для компонента SRSTableRow
  * ОБНОВЛЕНО: Добавлены типы отпусков и delete/restore функционал
+ * *** НОВОЕ: Добавлен onAddShift ***
  */
 export interface ISRSTableRowProps {
   item: ISRSRecord;
@@ -104,6 +119,8 @@ export interface ISRSTableRowProps {
   showRestoreConfirmDialog?: (id: string) => void;
   onDeleteItem?: (id: string) => Promise<boolean>;
   onRestoreItem?: (id: string) => Promise<boolean>;
+  // *** НОВОЕ: Добавлен обработчик добавления смены ***
+  onAddShift?: (date: Date, shiftData?: INewSRSShiftData) => Promise<boolean>;
 }
 
 /**
@@ -291,6 +308,9 @@ export interface ISRSTabProps {
   
   // *** ИСПРАВЛЕНО: Обязательный обработчик showDeleted ***
   onToggleShowDeleted: (checked: boolean) => void; // *** ИСПРАВЛЕНО: Убран optional, сделан обязательным ***
+  
+  // *** НОВОЕ: Добавлен обработчик добавления смены ***
+  onAddShift: (date: Date, shiftData?: INewSRSShiftData) => Promise<boolean>;
 }
 
 /**
