@@ -6,15 +6,8 @@ import { DateUtils } from '../../../CustomDatePicker/CustomDatePicker';
 
 /**
  * Вспомогательная функция для создания Date из часов и минут
- * ИСПРАВЛЕНО: Использует DateUtils для правильной нормализации базовой даты
- */
-/**
- * Вспомогательная функция для создания Date из часов и минут
- * ИСПРАВЛЕНО: Использует консистентную нормализацию базовой даты
- */
-/**
- * Вспомогательная функция для создания Date из часов и минут
- * ИСПРАВЛЕНО: Использует DateUtils для правильной нормализации базовой даты
+ * ИСПРАВЛЕНО: Использует прямое создание времени БЕЗ DateUtils.createShiftDateTime
+ * для избежания любой потенциальной корректировки часового пояса
  */
 export const createTimeFromScheduleItem = (baseDate: Date, hourStr: string, minuteStr: string): Date => {
   const hour = parseInt(hourStr, 10) || 0;
@@ -22,9 +15,29 @@ export const createTimeFromScheduleItem = (baseDate: Date, hourStr: string, minu
   
   console.log(`[ScheduleTabDataUtils] createTimeFromScheduleItem: base=${baseDate.toISOString()}, time=${hour}:${minute}`);
   
-  // ИСПРАВЛЕНО: Используем DateUtils для создания времени смены с нормализованной базовой датой
-  const result = DateUtils.createShiftDateTime(baseDate, hour, minute);
+  // *** ИСПРАВЛЕНО: Создаем время напрямую БЕЗ корректировки часового пояса ***
+  const result = new Date(baseDate);
   
+  // Валидация диапазонов
+  if (hour < 0 || hour > 23) {
+    console.warn(`[ScheduleTabDataUtils] Hours out of range: ${hour} (should be 0-23), setting to 0`);
+    result.setUTCHours(0, 0, 0, 0);
+    console.log(`[ScheduleTabDataUtils] createTimeFromScheduleItem result (invalid hours): ${result.toISOString()}`);
+    return result;
+  }
+
+  if (minute < 0 || minute > 59) {
+    console.warn(`[ScheduleTabDataUtils] Minutes out of range: ${minute} (should be 0-59), setting to 0`);
+    result.setUTCHours(hour, 0, 0, 0);
+    console.log(`[ScheduleTabDataUtils] createTimeFromScheduleItem result (invalid minutes): ${result.toISOString()}`);
+    return result;
+  }
+  
+  // *** УБИРАЕМ КОРРЕКТИРОВКУ ЧАСОВОГО ПОЯСА - устанавливаем время напрямую в UTC ***
+  result.setUTCHours(hour, minute, 0, 0);
+  
+  console.log(`[ScheduleTabDataUtils] *** DIRECT TIME SETTING WITHOUT TIMEZONE ADJUSTMENT ***`);
+  console.log(`[ScheduleTabDataUtils] Input: ${hour}:${minute} → Output UTC: ${hour}:${minute} (no adjustment)`);
   console.log(`[ScheduleTabDataUtils] createTimeFromScheduleItem result: ${result.toISOString()}`);
   return result;
 };
@@ -161,15 +174,7 @@ export const convertStaffRecordsToScheduleItems = (
 
 /**
  * Форматирует объект IStaffRecord для обновления из IScheduleItem
- * ИСПРАВЛЕНО: Использует нормализованные даты для обновления
- */
-/**
- * Форматирует объект IStaffRecord для обновления из IScheduleItem
- * ИСПРАВЛЕНО: Использует консистентную нормализацию дат
- */
-/**
- * Форматирует объект IStaffRecord для обновления из IScheduleItem
- * ИСПРАВЛЕНО: Использует местную полночь для поля Date, UTC для времен смен
+ * ИСПРАВЛЕНО: Использует местную полночь для поля Date, прямое создание UTC времени для смен
  */
 export const formatItemForUpdate = (recordId: string, scheduleItem: IScheduleItem): Partial<IStaffRecord> => {
   console.log(`[ScheduleTabDataUtils] formatItemForUpdate for record ID: ${recordId}`);
@@ -195,19 +200,19 @@ export const formatItemForUpdate = (recordId: string, scheduleItem: IScheduleIte
     console.log(`[ScheduleTabDataUtils] Local midnight date (local): ${localMidnightDate.toLocaleString()}`);
   }
   
-  // Для времен смен используем исходную дату (которая должна быть нормализована к UTC)
+  // *** ИСПРАВЛЕНО: Используем createTimeFromScheduleItem с прямым созданием времени ***
   const shiftDate1 = createTimeFromScheduleItem(scheduleItem.date, scheduleItem.startHour, scheduleItem.startMinute);
   const shiftDate2 = createTimeFromScheduleItem(scheduleItem.date, scheduleItem.finishHour, scheduleItem.finishMinute);
   
-  console.log(`[ScheduleTabDataUtils] Created shift times:
-    ShiftDate1: ${shiftDate1.toISOString()} (${scheduleItem.startHour}:${scheduleItem.startMinute})
-    ShiftDate2: ${shiftDate2.toISOString()} (${scheduleItem.finishHour}:${scheduleItem.finishMinute})`);
+  console.log(`[ScheduleTabDataUtils] *** CREATED SHIFT TIMES WITHOUT TIMEZONE ADJUSTMENT ***`);
+  console.log(`[ScheduleTabDataUtils] ShiftDate1: ${shiftDate1.toISOString()} (${scheduleItem.startHour}:${scheduleItem.startMinute})`);
+  console.log(`[ScheduleTabDataUtils] ShiftDate2: ${shiftDate2.toISOString()} (${scheduleItem.finishHour}:${scheduleItem.finishMinute})`);
 
   const updateData: Partial<IStaffRecord> = {
     // *** ИСПРАВЛЕНИЕ: Используем местную полночь для поля Date ***
     Date: localMidnightDate, // ✅ ПРАВИЛЬНО - местная полночь для Date
     
-    // Времена смен в UTC (как и раньше)
+    // *** ИСПРАВЛЕНО: Времена смен БЕЗ корректировки часового пояса ***
     ShiftDate1: shiftDate1,
     ShiftDate2: shiftDate2,
     

@@ -481,7 +481,7 @@ async function generateScheduleRecords(
         console.log(`[DEBUG] Local time representation - End: ${shiftDate2.toLocaleString()}`);
         
         const recordData: Partial<IStaffRecord> = {
-          Title: `Template=${selectedContractId} Week=${dayData.appliedWeekNumber} Shift=${template.NumberOfShift || template.shiftNumber || 1}`,
+          Title: `Template=${selectedContractId} Week=${dayData.appliedWeekNumber} Shift=${template.NumberOfShift || template.shiftNumber || 1} Time:${template.start?.hours}:${template.start?.minutes}`,//Title: `Template=${selectedContractId} Week=${dayData.appliedWeekNumber} Shift=${template.NumberOfShift || template.shiftNumber || 1}`,
           Date: dayData.date,
           ShiftDate1: shiftDate1,
           ShiftDate2: shiftDate2,

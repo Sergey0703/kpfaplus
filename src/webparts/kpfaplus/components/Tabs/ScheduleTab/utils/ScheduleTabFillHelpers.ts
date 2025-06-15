@@ -13,7 +13,6 @@ import {
  IExistingRecordCheck,
  IRecordsProcessingStatus
 } from './ScheduleTabFillInterfaces';
-// import { SharePointTimeZoneUtils } from '../../../../utils/SharePointTimeZoneUtils'; // Закомментировано - больше не используется для числовых полей времени
 import { RemoteSiteService } from '../../../../services/RemoteSiteService';
 
 /**
@@ -117,12 +116,13 @@ export function getAppliedWeekNumber(calculatedWeekNumber: number, numberOfWeekT
 
 /**
 * Helper function to create Date object with specified time from numeric fields
-* ОБНОВЛЕНО: Работает с числовыми полями часов и минут из IDayHours
+* ИСПРАВЛЕНО: Работает с числовыми полями часов и минут из IDayHours БЕЗ timezone adjustment
+* Эта функция используется ТОЛЬКО для создания ShiftDate1 и ShiftDate2 из числовых полей
 * 
 * @param baseDate Base date
-* @param remoteSiteService Сервис для получения информации о часовом поясе (ОБЯЗАТЕЛЬНЫЙ)
+* @param remoteSiteService Сервис для получения информации о часовом поясе (НЕ ИСПОЛЬЗУЕТСЯ для числовых полей)
 * @param time Object with hours and minutes as strings from numeric fields (может быть undefined)
-* @returns Date object with set time in UTC с корректировкой часового пояса
+* @returns Date object with set time in UTC без корректировки часового пояса
 */
 export async function createDateWithTime(
   baseDate: Date, 
@@ -137,8 +137,8 @@ export async function createDateWithTime(
     return result;
   }
 
-  // *** ОБНОВЛЕНО: Обработка времени из числовых полей ***
-  console.log(`[ScheduleTabFillHelpers] *** PROCESSING TIME FROM NUMERIC FIELDS ***`);
+  // *** ИСПРАВЛЕНО: Обработка времени из числовых полей БЕЗ timezone adjustment ***
+  console.log(`[ScheduleTabFillHelpers] *** PROCESSING TIME FROM NUMERIC FIELDS WITHOUT TIMEZONE ADJUSTMENT ***`);
   console.log(`[ScheduleTabFillHelpers] Input time from numeric fields: hours="${time.hours}", minutes="${time.minutes}"`);
   
   // Проверяем, что поля времени не пустые
@@ -175,7 +175,7 @@ export async function createDateWithTime(
     return result;
   }
 
-  console.log(`[ScheduleTabFillHelpers] *** DIRECT TIME SETTING FROM NUMERIC FIELDS ***`);
+  console.log(`[ScheduleTabFillHelpers] *** ПРЯМАЯ УСТАНОВКА ВРЕМЕНИ ИЗ ЧИСЛОВЫХ ПОЛЕЙ БЕЗ КОРРЕКТИРОВКИ ЧАСОВОГО ПОЯСА ***`);
   console.log(`[ScheduleTabFillHelpers] Input time from numeric fields: ${hours}:${minutes}`);
   console.log(`[ScheduleTabFillHelpers] Setting time directly without timezone adjustment (numeric fields already contain correct local time)`);
   
@@ -183,7 +183,7 @@ export async function createDateWithTime(
   // Числовые поля уже содержат правильное локальное время
   result.setUTCHours(hours, minutes, 0, 0);
   
-  console.log(`[ScheduleTabFillHelpers] *** TIME SET DIRECTLY ***`);
+  console.log(`[ScheduleTabFillHelpers] *** TIME SET DIRECTLY FROM NUMERIC FIELDS ***`);
   console.log(`[ScheduleTabFillHelpers] Numeric fields ${hours}:${minutes} → ${hours}:${minutes} UTC (no adjustment)`);
   console.log(`[ScheduleTabFillHelpers] Final result: ${result.toISOString()}`);
   
