@@ -14,6 +14,10 @@ type IFetchStaffRecordsResult = IRemotePaginatedItemsResponse;
 /**
  * Сервис для получения записей сотрудников из SharePoint
  * Отвечает за формирование запросов, фильтров и получение данных через API
+ * 
+ * ОБНОВЛЕНО: Добавлена поддержка числовых полей времени для ScheduleTab
+ * Теперь получает как существующие поля даты-времени (ShiftDate1, ShiftDate2), 
+ * так и новые числовые поля (ShiftDate1Hours, ShiftDate1Minutes, ShiftDate2Hours, ShiftDate2Minutes)
  */
 export class StaffRecordsFetchService {
   private _remoteSiteService: RemoteSiteService;
@@ -34,12 +38,13 @@ export class StaffRecordsFetchService {
     this._remoteSiteService = remoteSiteService;
     this._listName = listName;
     this._logSource = logSource + ".Fetch";
-    this.logInfo("StaffRecordsFetchService инициализирован");
+    this.logInfo("StaffRecordsFetchService инициализирован с поддержкой числовых полей времени");
   }
 
   /**
    * Получает записи расписания персонала из SharePoint с поддержкой пагинации.
    * Использует метод getPaginatedItemsFromList из RemoteSiteService.
+   * ОБНОВЛЕНО: Теперь получает как существующие поля даты-времени, так и новые числовые поля времени
    *
    * @param queryParams Параметры запроса, включая skip и top для пагинации, а также filter и orderBy
    * @returns Promise с объектом IRemotePaginatedItemsResponse, содержащим массив сырых записей для страницы и общее количество
@@ -61,7 +66,7 @@ export class StaffRecordsFetchService {
 
       // Расширенное логирование параметров запроса, включая пагинацию
       this.logInfo(
-        `[DEBUG] fetchStaffRecords ВЫЗВАН С ПАРАМЕТРАМИ:` +
+        `[DEBUG] fetchStaffRecords ВЫЗВАН С ПАРАМЕТРАМИ (с поддержкой числовых полей времени):` +
         `\n  startDate: ${startDate.toISOString()}` +
         `\n  endDate: ${endDate.toISOString()}` +
         `\n  currentUserID: ${currentUserID} (тип: ${typeof currentUserID})` +
@@ -120,7 +125,7 @@ export class StaffRecordsFetchService {
       const orderBy = { field: "fields/Date", ascending: true };
 
       // --- ИСПОЛЬЗУЕМ ПУБЛИЧНЫЙ МЕТОД RemoteSiteService.getPaginatedItemsFromList ---
-      this.logInfo(`[DEBUG] НАЧИНАЕМ запрос к списку ${this._listName} с пагинацией через RemoteSiteService...`);
+      this.logInfo(`[DEBUG] НАЧИНАЕМ запрос к списку ${this._listName} с пагинацией через RemoteSiteService (включая числовые поля времени)...`);
 
       let fetchResult: IRemotePaginatedItemsResponse; // Используем импортированный тип
       try {
@@ -128,7 +133,7 @@ export class StaffRecordsFetchService {
         fetchResult = await this._remoteSiteService.getPaginatedItemsFromList(
           this._listName,
           { // Передаем опции в формате IGetPaginatedListItemsOptions
-            expandFields: true, // Расширять поля для маппинга в StaffRecordsService
+            expandFields: true, // Расширять поля для маппинга в StaffRecordsService (включает числовые поля времени)
             filter: filter,
             orderBy: orderBy,
             skip: skip || 0, // Передаем skip (по умолчанию 0 если не указан)
@@ -147,13 +152,13 @@ export class StaffRecordsFetchService {
         throw requestError; // Пробрасываем ошибку дальше
       }
 
-      // Логирование результата запроса
+      // Логирование результата запроса с проверкой числовых полей времени
       this.logInfo(
-        `Получено ${fetchResult.items.length} элементов расписания из SharePoint для текущей страницы (сырые данные)`
+        `Получено ${fetchResult.items.length} элементов расписания из SharePoint для текущей страницы (сырые данные с числовыми полями времени)`
       );
       if (fetchResult.items.length > 0) {
-        // Логируем первый элемент сырых данных
-        this.logDetailedDataInfo(fetchResult.items[0]);
+        // Логируем первый элемент сырых данных с проверкой числовых полей
+        this.logDetailedDataInfoWithNumericFields(fetchResult.items[0]);
       } else {
         this.logInfo(
           `[DEBUG] Нет элементов в ответе от сервера для фильтра: ${filter} с skip=${skip}, top=${top}`
@@ -186,6 +191,7 @@ export class StaffRecordsFetchService {
    * --- НОВЫЙ МЕТОД ДЛЯ TIMETABLE ---
    * Получает ВСЕ записи расписания персонала за период БЕЗ ПАГИНАЦИИ.
    * Использует getAllFilteredItemsFromList вместо getPaginatedItemsFromList.
+   * ОБНОВЛЕНО: Включает поддержку числовых полей времени
    *
    * @param queryParams Параметры запроса (без skip/top - не нужны)
    * @returns Promise с объектом содержащим ВСЕ записи и общее количество
@@ -205,14 +211,14 @@ export class StaffRecordsFetchService {
 
       // Расширенное логирование параметров запроса
       this.logInfo(
-        `[DEBUG] fetchAllStaffRecordsForTimetable ВЫЗВАН С ПАРАМЕТРАМИ:` +
+        `[DEBUG] fetchAllStaffRecordsForTimetable ВЫЗВАН С ПАРАМЕТРАМИ (с числовыми полями времени):` +
         `\n  startDate: ${startDate.toISOString()}` +
         `\n  endDate: ${endDate.toISOString()}` +
         `\n  currentUserID: ${currentUserID} (тип: ${typeof currentUserID})` +
         `\n  staffGroupID: ${staffGroupID} (тип: ${typeof staffGroupID})` +
         `\n  employeeID: ${employeeID} (тип: ${typeof employeeID})` +
         `\n  timeTableID: ${timeTableID || "не указан"} (тип: ${typeof timeTableID})` +
-        `\n  NOTE: БЕЗ ПАГИНАЦИИ - загружаем ВСЕ данные за период`
+        `\n  NOTE: БЕЗ ПАГИНАЦИИ - загружаем ВСЕ данные за период (включая числовые поля времени)`
       );
 
       // Проверяем наличие RemoteSiteService
@@ -257,7 +263,7 @@ export class StaffRecordsFetchService {
       const orderBy = { field: "fields/Date", ascending: true };
 
       // --- ИСПОЛЬЗУЕМ НОВЫЙ МЕТОД RemoteSiteService.getAllFilteredItemsFromList ---
-      this.logInfo(`[DEBUG] НАЧИНАЕМ запрос к списку ${this._listName} БЕЗ пагинации через RemoteSiteService...`);
+      this.logInfo(`[DEBUG] НАЧИНАЕМ запрос к списку ${this._listName} БЕЗ пагинации через RemoteSiteService (включая числовые поля времени)...`);
 
       let fetchResult: { items: IRemoteListItemResponse[], totalCount: number };
       try {
@@ -280,11 +286,11 @@ export class StaffRecordsFetchService {
 
       // Логирование результата запроса
       this.logInfo(
-        `Получено ${fetchResult.items.length} элементов расписания из SharePoint (ВСЕ данные за период)`
+        `Получено ${fetchResult.items.length} элементов расписания из SharePoint (ВСЕ данные за период с числовыми полями времени)`
       );
       if (fetchResult.items.length > 0) {
-        // Логируем первый элемент сырых данных
-        this.logDetailedDataInfo(fetchResult.items[0]);
+        // Логируем первый элемент сырых данных с проверкой числовых полей
+        this.logDetailedDataInfoWithNumericFields(fetchResult.items[0]);
       } else {
         this.logInfo(
           `[DEBUG] Нет элементов в ответе от сервера для фильтра: ${filter}`
@@ -309,12 +315,12 @@ export class StaffRecordsFetchService {
     }
   }
 
-
-/**
+  /**
    * --- НОВЫЙ МЕТОД ДЛЯ TIMETABLE С ФИЛЬТРАЦИЕЙ УДАЛЕННЫХ ЗАПИСЕЙ ---
    * Получает ВСЕ активные записи расписания персонала за период БЕЗ ПАГИНАЦИИ.
    * Исключает записи с Deleted=1.
    * Использует getAllFilteredItemsFromList вместо getPaginatedItemsFromList.
+   * ОБНОВЛЕНО: Включает поддержку числовых полей времени
    *
    * @param queryParams Параметры запроса (без skip/top - не нужны)
    * @returns Promise с объектом содержащим ВСЕ активные записи и общее количество
@@ -334,14 +340,14 @@ export class StaffRecordsFetchService {
 
       // Расширенное логирование параметров запроса
       this.logInfo(
-        `[DEBUG] fetchAllActiveStaffRecordsForTimetable ВЫЗВАН С ПАРАМЕТРАМИ:` +
+        `[DEBUG] fetchAllActiveStaffRecordsForTimetable ВЫЗВАН С ПАРАМЕТРАМИ (с числовыми полями времени):` +
         `\n  startDate: ${startDate.toISOString()}` +
         `\n  endDate: ${endDate.toISOString()}` +
         `\n  currentUserID: ${currentUserID} (тип: ${typeof currentUserID})` +
         `\n  staffGroupID: ${staffGroupID} (тип: ${typeof staffGroupID})` +
         `\n  employeeID: ${employeeID} (тип: ${typeof employeeID})` +
         `\n  timeTableID: ${timeTableID || "не указан"} (тип: ${typeof timeTableID})` +
-        `\n  NOTE: БЕЗ ПАГИНАЦИИ - загружаем ВСЕ АКТИВНЫЕ данные за период (исключая Deleted=1)`
+        `\n  NOTE: БЕЗ ПАГИНАЦИИ - загружаем ВСЕ АКТИВНЫЕ данные за период (исключая Deleted=1, включая числовые поля времени)`
       );
 
       // Проверяем наличие RemoteSiteService
@@ -386,7 +392,7 @@ export class StaffRecordsFetchService {
       const orderBy = { field: "fields/Date", ascending: true };
 
       // --- ИСПОЛЬЗУЕМ НОВЫЙ МЕТОД RemoteSiteService.getAllFilteredItemsFromList ---
-      this.logInfo(`[DEBUG] НАЧИНАЕМ запрос к списку ${this._listName} БЕЗ пагинации и БЕЗ DELETED записей через RemoteSiteService...`);
+      this.logInfo(`[DEBUG] НАЧИНАЕМ запрос к списку ${this._listName} БЕЗ пагинации и БЕЗ DELETED записей через RemoteSiteService (включая числовые поля времени)...`);
 
       let fetchResult: { items: IRemoteListItemResponse[], totalCount: number };
       try {
@@ -409,11 +415,11 @@ export class StaffRecordsFetchService {
 
       // Логирование результата запроса
       this.logInfo(
-        `Получено ${fetchResult.items.length} АКТИВНЫХ элементов расписания из SharePoint (исключены Deleted=1)`
+        `Получено ${fetchResult.items.length} АКТИВНЫХ элементов расписания из SharePoint (исключены Deleted=1, включены числовые поля времени)`
       );
       if (fetchResult.items.length > 0) {
-        // Логируем первый элемент сырых данных
-        this.logDetailedDataInfo(fetchResult.items[0]);
+        // Логируем первый элемент сырых данных с проверкой числовых полей
+        this.logDetailedDataInfoWithNumericFields(fetchResult.items[0]);
       } else {
         this.logInfo(
           `[DEBUG] Нет активных элементов в ответе от сервера для фильтра: ${filter}`
@@ -437,162 +443,160 @@ export class StaffRecordsFetchService {
       throw new Error(`Failed to fetch all active staff records: ${errorMessage}`);
     }
   }
-/////////////////////////////////
 
-// ЭТАП 1: Добавить этот метод в StaffRecordsFetchService.ts
-// Вставить ПОСЛЕ метода fetchAllActiveStaffRecordsForTimetable
-
-/**
- * НОВЫЙ МЕТОД ДЛЯ SRS REPORTS: Получает записи с заполненным типом отпуска
- * Базируется на fetchAllActiveStaffRecordsForTimetable + фильтр TypeOfLeaveLookupId IS NOT NULL
- */
-public async fetchStaffRecordsForSRSReports(
-  queryParams: Omit<IStaffRecordsQueryParams, 'skip' | 'top' | 'nextLink'>
-): Promise<{ items: IRemoteListItemResponse[], totalCount: number }> {
-  try {
-    this.logInfo('[DEBUG] fetchStaffRecordsForSRSReports НАЧИНАЕТСЯ');
-    this.logInfo(`[DEBUG] Параметры запроса для SRS Reports: ${JSON.stringify({
-      startDate: queryParams.startDate.toISOString(),
-      endDate: queryParams.endDate.toISOString(),
-      currentUserID: queryParams.currentUserID,
-      staffGroupID: queryParams.staffGroupID,
-      employeeID: queryParams.employeeID,
-      timeTableID: queryParams.timeTableID
-    })}`);
-
-    // Проверяем наличие RemoteSiteService
-    if (!this._remoteSiteService) {
-      this.logError("[ОШИБКА] RemoteSiteService не инициализирован");
-      return { items: [], totalCount: 0 };
-    }
-
-    // Проверка имени списка
-    if (!this._listName) {
-      const errorMsg = "Имя списка не определено";
-      this.logError(`[ОШИБКА] ${errorMsg}`);
-      throw new Error(errorMsg);
-    }
-
-    // ИСПРАВЛЕНО: НЕ переформатируем даты, если они уже в правильном формате
-    const startDateStr = this.formatDateForFilterFixed(queryParams.startDate);
-    const endDateStr = this.formatDateForFilterFixed(queryParams.endDate);
-    this.logInfo(
-      `[DEBUG] Форматированные даты для запроса: ${startDateStr} - ${endDateStr}`
-    );
-
-    // Проверка валидности дат после форматирования
-    if (startDateStr === '' || endDateStr === '') {
-      const errorMsg = "Некорректные даты начала/окончания периода";
-      this.logError(`[ОШИБКА] ${errorMsg}`);
-      throw new Error(errorMsg);
-    }
-
-    // Строим фильтр для SRS Reports с дополнительным условием TypeOfLeaveLookupId IS NOT NULL
-    const filter = this.buildFilterForSRSReports(
-      startDateStr,
-      endDateStr,
-      queryParams.employeeID,
-      queryParams.staffGroupID,
-      queryParams.currentUserID,
-      queryParams.timeTableID
-    );
-    this.logInfo(`[DEBUG] SRS Reports фильтр: ${filter}`);
-
-    // Определяем параметры сортировки по умолчанию (по дате)
-    const orderBy = { field: "fields/Date", ascending: true };
-
-    // --- ИСПОЛЬЗУЕМ МЕТОД RemoteSiteService.getAllFilteredItemsFromList ---
-    this.logInfo(`[DEBUG] НАЧИНАЕМ запрос к списку ${this._listName} для SRS Reports через RemoteSiteService...`);
-
-    let fetchResult: { items: IRemoteListItemResponse[], totalCount: number };
+  /**
+   * НОВЫЙ МЕТОД ДЛЯ SRS REPORTS: Получает записи с заполненным типом отпуска
+   * Базируется на fetchAllActiveStaffRecordsForTimetable + фильтр TypeOfLeaveLookupId IS NOT NULL
+   * ОБНОВЛЕНО: Включает поддержку числовых полей времени
+   */
+  public async fetchStaffRecordsForSRSReports(
+    queryParams: Omit<IStaffRecordsQueryParams, 'skip' | 'top' | 'nextLink'>
+  ): Promise<{ items: IRemoteListItemResponse[], totalCount: number }> {
     try {
-      // Вызываем метод RemoteSiteService.getAllFilteredItemsFromList
-      fetchResult = await this._remoteSiteService.getAllFilteredItemsFromList(
-        this._listName,
-        filter,
-        orderBy
-      );
+      this.logInfo('[DEBUG] fetchStaffRecordsForSRSReports НАЧИНАЕТСЯ (с числовыми полями времени)');
+      this.logInfo(`[DEBUG] Параметры запроса для SRS Reports: ${JSON.stringify({
+        startDate: queryParams.startDate.toISOString(),
+        endDate: queryParams.endDate.toISOString(),
+        currentUserID: queryParams.currentUserID,
+        staffGroupID: queryParams.staffGroupID,
+        employeeID: queryParams.employeeID,
+        timeTableID: queryParams.timeTableID
+      })}`);
 
+      // Проверяем наличие RemoteSiteService
+      if (!this._remoteSiteService) {
+        this.logError("[ОШИБКА] RemoteSiteService не инициализирован");
+        return { items: [], totalCount: 0 };
+      }
+
+      // Проверка имени списка
+      if (!this._listName) {
+        const errorMsg = "Имя списка не определено";
+        this.logError(`[ОШИБКА] ${errorMsg}`);
+        throw new Error(errorMsg);
+      }
+
+      // ИСПРАВЛЕНО: НЕ переформатируем даты, если они уже в правильном формате
+      const startDateStr = this.formatDateForFilterFixed(queryParams.startDate);
+      const endDateStr = this.formatDateForFilterFixed(queryParams.endDate);
       this.logInfo(
-        `[DEBUG] ПОЛУЧЕН ответ от RemoteSiteService.getAllFilteredItemsFromList: ${fetchResult.items.length} элементов с типом отпуска, ОБЩЕЕ количество: ${fetchResult.totalCount}`
+        `[DEBUG] Форматированные даты для запроса: ${startDateStr} - ${endDateStr}`
       );
-    } catch (requestError) {
-      this.logError(
-        `[ОШИБКА] Ошибка при запросе к списку для SRS Reports через RemoteSiteService: ${JSON.stringify(requestError)}`
-      );
-      throw requestError;
-    }
 
-    // Логирование результата запроса
-    this.logInfo(
-      `Получено ${fetchResult.items.length} элементов с типом отпуска из SharePoint для SRS Reports`
-    );
-    if (fetchResult.items.length > 0) {
-      // Логируем первый элемент сырых данных
-      this.logDetailedDataInfo(fetchResult.items[0]);
-    } else {
+      // Проверка валидности дат после форматирования
+      if (startDateStr === '' || endDateStr === '') {
+        const errorMsg = "Некорректные даты начала/окончания периода";
+        this.logError(`[ОШИБКА] ${errorMsg}`);
+        throw new Error(errorMsg);
+      }
+
+      // Строим фильтр для SRS Reports с дополнительным условием TypeOfLeaveLookupId IS NOT NULL
+      const filter = this.buildFilterForSRSReports(
+        startDateStr,
+        endDateStr,
+        queryParams.employeeID,
+        queryParams.staffGroupID,
+        queryParams.currentUserID,
+        queryParams.timeTableID
+      );
+      this.logInfo(`[DEBUG] SRS Reports фильтр: ${filter}`);
+
+      // Определяем параметры сортировки по умолчанию (по дате)
+      const orderBy = { field: "fields/Date", ascending: true };
+
+      // --- ИСПОЛЬЗУЕМ МЕТОД RemoteSiteService.getAllFilteredItemsFromList ---
+      this.logInfo(`[DEBUG] НАЧИНАЕМ запрос к списку ${this._listName} для SRS Reports через RemoteSiteService (включая числовые поля времени)...`);
+
+      let fetchResult: { items: IRemoteListItemResponse[], totalCount: number };
+      try {
+        // Вызываем метод RemoteSiteService.getAllFilteredItemsFromList
+        fetchResult = await this._remoteSiteService.getAllFilteredItemsFromList(
+          this._listName,
+          filter,
+          orderBy
+        );
+
+        this.logInfo(
+          `[DEBUG] ПОЛУЧЕН ответ от RemoteSiteService.getAllFilteredItemsFromList: ${fetchResult.items.length} элементов с типом отпуска, ОБЩЕЕ количество: ${fetchResult.totalCount}`
+        );
+      } catch (requestError) {
+        this.logError(
+          `[ОШИБКА] Ошибка при запросе к списку для SRS Reports через RemoteSiteService: ${JSON.stringify(requestError)}`
+        );
+        throw requestError;
+      }
+
+      // Логирование результата запроса
       this.logInfo(
-        `[DEBUG] Нет элементов с типом отпуска в ответе от сервера для фильтра: ${filter}`
+        `Получено ${fetchResult.items.length} элементов с типом отпуска из SharePoint для SRS Reports (включая числовые поля времени)`
       );
+      if (fetchResult.items.length > 0) {
+        // Логируем первый элемент сырых данных с проверкой числовых полей
+        this.logDetailedDataInfoWithNumericFields(fetchResult.items[0]);
+      } else {
+        this.logInfo(
+          `[DEBUG] Нет элементов с типом отпуска в ответе от сервера для фильтра: ${filter}`
+        );
+      }
+
+      this.logInfo(`[DEBUG] fetchStaffRecordsForSRSReports ЗАВЕРШЕН: ${fetchResult.items.length} записей`);
+      return fetchResult;
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logError(`[ОШИБКА] fetchStaffRecordsForSRSReports: ${errorMessage}`);
+      console.error(`[${this._logSource}] Подробности ошибки:`, error);
+      
+      // Возвращаем пустой результат при ошибке
+      return {
+        items: [],
+        totalCount: 0
+      };
     }
-
-    this.logInfo(`[DEBUG] fetchStaffRecordsForSRSReports ЗАВЕРШЕН: ${fetchResult.items.length} записей`);
-    return fetchResult;
-
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    this.logError(`[ОШИБКА] fetchStaffRecordsForSRSReports: ${errorMessage}`);
-    console.error(`[${this._logSource}] Подробности ошибки:`, error);
-    
-    // Возвращаем пустой результат при ошибке
-    return {
-      items: [],
-      totalCount: 0
-    };
   }
-}
 
-/**
- * ВСПОМОГАТЕЛЬНЫЙ МЕТОД: Построение фильтра для SRS Reports
- * Добавляет условие TypeOfLeaveLookupId IS NOT NULL к базовому фильтру
- */
-private buildFilterForSRSReports(
-  startDateStr: string,
-  endDateStr: string,
-  employeeID: string | number,
-  staffGroupID: string | number,
-  currentUserID: string | number,
-  timeTableID?: string | number
-): string {
-  try {
-    // Используем существующий метод построения фильтра с исключением удаленных записей
-    const baseFilter = this.buildFilterExpressionExcludingDeleted(
-      startDateStr,
-      endDateStr,
-      employeeID,
-      staffGroupID,
-      currentUserID,
-      timeTableID
-    );
-    
-    // Добавляем условие для типа отпуска
-    const typeOfLeaveFilter = 'fields/TypeOfLeaveLookupId ne null';
-    
-    // Объединяем фильтры
-    const combinedFilter = baseFilter 
-      ? `(${baseFilter}) and (${typeOfLeaveFilter})`
-      : typeOfLeaveFilter;
+  /**
+   * ВСПОМОГАТЕЛЬНЫЙ МЕТОД: Построение фильтра для SRS Reports
+   * Добавляет условие TypeOfLeaveLookupId IS NOT NULL к базовому фильтру
+   */
+  private buildFilterForSRSReports(
+    startDateStr: string,
+    endDateStr: string,
+    employeeID: string | number,
+    staffGroupID: string | number,
+    currentUserID: string | number,
+    timeTableID?: string | number
+  ): string {
+    try {
+      // Используем существующий метод построения фильтра с исключением удаленных записей
+      const baseFilter = this.buildFilterExpressionExcludingDeleted(
+        startDateStr,
+        endDateStr,
+        employeeID,
+        staffGroupID,
+        currentUserID,
+        timeTableID
+      );
+      
+      // Добавляем условие для типа отпуска
+      const typeOfLeaveFilter = 'fields/TypeOfLeaveLookupId ne null';
+      
+      // Объединяем фильтры
+      const combinedFilter = baseFilter 
+        ? `(${baseFilter}) and (${typeOfLeaveFilter})`
+        : typeOfLeaveFilter;
 
-    this.logInfo(`[DEBUG] SRS Reports комбинированный фильтр: ${combinedFilter}`);
-    return combinedFilter;
+      this.logInfo(`[DEBUG] SRS Reports комбинированный фильтр: ${combinedFilter}`);
+      return combinedFilter;
 
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    this.logError(`[ОШИБКА] buildFilterForSRSReports: ${errorMessage}`);
-    // Возвращаем только фильтр типа отпуска при ошибке
-    return 'fields/TypeOfLeaveLookupId ne null';
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logError(`[ОШИБКА] buildFilterForSRSReports: ${errorMessage}`);
+      // Возвращаем только фильтр типа отпуска при ошибке
+      return 'fields/TypeOfLeaveLookupId ne null';
+    }
   }
-}
+
   /**
    * ВСПОМОГАТЕЛЬНЫЙ МЕТОД: Строит выражение фильтра с исключением удаленных записей (Deleted=1)
    *
@@ -632,6 +636,7 @@ private buildFilterForSRSReports(
   /**
    * Получает одну запись расписания по ID
    * Использует публичный метод RemoteSiteService.getListItem
+   * ОБНОВЛЕНО: Получает числовые поля времени
    *
    * @param recordId ID записи для получения
    * @returns Promise с объектом записи или null при ошибке
@@ -640,7 +645,7 @@ private buildFilterForSRSReports(
     recordId: string | number
   ): Promise<IRawStaffRecord | undefined> { // Возвращаем IRawStaffRecord
     try {
-      this.logInfo(`[DEBUG] Получение записи по ID: ${recordId} через RemoteSiteService...`);
+      this.logInfo(`[DEBUG] Получение записи по ID: ${recordId} через RemoteSiteService (с числовыми полями времени)...`);
 
       // Проверка наличия RemoteSiteService
       if (!this._remoteSiteService) {
@@ -652,7 +657,7 @@ private buildFilterForSRSReports(
       const rawItem = await this._remoteSiteService.getListItem(
         this._listName,
         recordId,
-        true // expandFields = true для получения всех полей
+        true // expandFields = true для получения всех полей (включая числовые поля времени)
       );
 
       if (!rawItem || !rawItem.id) {
@@ -660,21 +665,19 @@ private buildFilterForSRSReports(
         return undefined;
       }
 
-      this.logInfo(`[DEBUG] Запись с ID: ${recordId} успешно получена`);
+      this.logInfo(`[DEBUG] Запись с ID: ${recordId} успешно получена (включая числовые поля времени)`);
+      
+      // Проверяем наличие числовых полей времени в полученных данных
+      this.logNumericTimeFieldsAvailability(rawItem);
+      
       // Возвращаем сырой формат, приводим к типу IRawStaffRecord для ясности
       // Копируем свойства из rawItem.fields на верхний уровень для соответствия IRawStaffRecord,
       // так как StaffRecordsMapperService ожидает такую структуру.
-      // Или изменяем маппер, чтобы он работал с rawItem.fields.
-      // Предполагаем, что маппер ожидает плоскую структуру IRawStaffRecord.
-      // Тогда нужно скопировать поля:
       const flatRawItem: IRawStaffRecord = {
         ID: rawItem.id,
-        ...rawItem.fields, // Копируем поля из fields на верхний уровень
-        // Если есть другие топ-уровневые свойства, кроме id и fields, их тоже нужно скопировать
-        // например: '@odata.etag': (rawItem as any)['@odata.etag'],
+        ...rawItem.fields, // Копируем поля из fields на верхний уровень (включая числовые поля времени)
       };
       return flatRawItem;
-
 
     } catch (error) {
       this.logError(`[ОШИБКА] Не удалось получить запись по ID: ${recordId}: ${error}`);
@@ -719,7 +722,6 @@ private buildFilterForSRSReports(
       return 0;
     }
   }
-
 
   /**
    * Строит выражение фильтра для запроса к SharePoint
@@ -809,60 +811,121 @@ private buildFilterForSRSReports(
   }
 
   /**
-   * СТАРЫЙ МЕТОД: Оставлен для совместимости, но не используется
-   * @deprecated Используйте formatDateForFilterFixed вместо этого
-   */
-  /*private formatDateForFilter(date: Date): string {
-    if (!date || isNaN(date.getTime())) {
-      this.logError('[ОШИБКА] formatDateForFilter: Получена недействительная дата.');
-      const fallbackDate = new Date();
-      this.logError(`[ОШИБКА] formatDateForFilter: Используется запасная дата ${fallbackDate.toISOString()}`);
-      return fallbackDate.toISOString().split('T')[0] + 'T00:00:00Z';
-    }
-    try {
-      // Формат ISO для SharePoint: YYYY-MM-DDT00:00:00Z
-      // Устанавливаем время в 00:00:00Z для точного сравнения по дате
-      const dateUtc = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-      const formattedDate = dateUtc.toISOString();
-      return formattedDate;
-    } catch (error) {
-      this.logError(`[ОШИБКА] Ошибка форматирования даты ${date}: ${error instanceof Error ? error.message : String(error)}`);
-      const fallbackDate = new Date();
-      this.logError(`[ОШИБКА] formatDateForFilter: Используется запасная дата ${fallbackDate.toISOString()}`);
-      return fallbackDate.toISOString().split('T')[0] + 'T00:00:00Z';
-    }
-  } */
-
-
-  /**
-   * Логирует подробную информацию о полученных данных для диагностики
+   * НОВЫЙ МЕТОД: Логирует подробную информацию о полученных данных для диагностики
+   * ОБНОВЛЕНО: Включает проверку числовых полей времени
    * @param item Элемент данных для логирования
    */
-  private logDetailedDataInfo(item: IRemoteListItemResponse): void { // Изменен тип параметра
-    this.logInfo(`[DEBUG] Пример ПЕРВОГО элемента (сырые данные): ${JSON.stringify(item, null, 2)}`);
+  private logDetailedDataInfoWithNumericFields(item: IRemoteListItemResponse): void {
+    this.logInfo(`[DEBUG] Пример ПЕРВОГО элемента (сырые данные с числовыми полями времени): ${JSON.stringify(item, null, 2)}`);
 
     // Проверка наличия полей (используя оператор ?)
     if (item && item.fields) {
-      const fields = item.fields; // Используем поля из IRemoteListItemResponse
+      const fields = item.fields;
       this.logInfo(`[DEBUG] Поля первого элемента: ${Object.keys(fields).join(', ')}`);
 
       // Проверка полей Lookup
       const lookupFields = Object.keys(fields).filter(key => key.endsWith('LookupId') || key.includes('Lookup'));
       this.logInfo(`[DEBUG] Поля LookupId/Lookup: ${lookupFields.join(', ')}`);
 
-      // Проверка важных полей
+      // Проверка важных существующих полей
       ['ID', 'Title', 'Date', 'ShiftDate1', 'ShiftDate2', 'TimeForLunch', 'Deleted', 'TypeOfLeave', 'WeeklyTimeTable'].forEach(field => {
-        const hasField = fields[field] !== undefined; // Проверяем наличие поля
+        const hasField = fields[field] !== undefined;
         this.logInfo(`[DEBUG] Поле ${field}: ${hasField ? 'присутствует' : 'отсутствует'}`);
         if (hasField) {
           this.logInfo(`[DEBUG] Значение ${field}: ${JSON.stringify(fields[field])}`);
         }
       });
+
+      // *** НОВАЯ ПРОВЕРКА: Числовые поля времени ***
+      this.logInfo(`[DEBUG] *** ПРОВЕРКА ЧИСЛОВЫХ ПОЛЕЙ ВРЕМЕНИ ***`);
+      const numericTimeFields = [
+        'ShiftDate1Hours', 'ShiftDate1Minutes', 
+        'ShiftDate2Hours', 'ShiftDate2Minutes',
+        'ShiftDate3Hours', 'ShiftDate3Minutes',
+        'ShiftDate4Hours', 'ShiftDate4Minutes'
+      ];
+      
+      numericTimeFields.forEach(field => {
+        const hasField = fields[field] !== undefined;
+        const value = fields[field];
+        this.logInfo(`[DEBUG] Числовое поле времени ${field}: ${hasField ? 'присутствует' : 'отсутствует'}`);
+        if (hasField) {
+          this.logInfo(`[DEBUG] Значение ${field}: ${value} (тип: ${typeof value})`);
+        }
+      });
+
+      // Проверка, есть ли хотя бы одно числовое поле времени
+      const hasAnyNumericTimeField = numericTimeFields.some(field => fields[field] !== undefined);
+      if (hasAnyNumericTimeField) {
+        this.logInfo(`[DEBUG] ✅ УСПЕХ: Обнаружены числовые поля времени в данных SharePoint`);
+      } else {
+        this.logError(`[DEBUG] ❌ ПРЕДУПРЕЖДЕНИЕ: Числовые поля времени НЕ найдены в данных SharePoint`);
+      }
+
     } else {
       this.logInfo(`[DEBUG] ВНИМАНИЕ: Первый элемент пустой или не имеет полей`);
     }
   }
 
+  /**
+   * НОВЫЙ МЕТОД: Проверяет доступность числовых полей времени в полученной записи
+   * @param rawItem Сырые данные записи из SharePoint
+   */
+  private logNumericTimeFieldsAvailability(rawItem: IRemoteListItemResponse): void {
+    if (!rawItem || !rawItem.fields) {
+      this.logError(`[DEBUG] ❌ Нет данных для проверки числовых полей времени`);
+      return;
+    }
+
+    const fields = rawItem.fields;
+    const numericTimeFields = [
+      'ShiftDate1Hours', 'ShiftDate1Minutes', 
+      'ShiftDate2Hours', 'ShiftDate2Minutes',
+      'ShiftDate3Hours', 'ShiftDate3Minutes',
+      'ShiftDate4Hours', 'ShiftDate4Minutes'
+    ];
+
+    this.logInfo(`[DEBUG] *** ПРОВЕРКА ЧИСЛОВЫХ ПОЛЕЙ ВРЕМЕНИ ДЛЯ ЗАПИСИ ID: ${rawItem.id} ***`);
+    
+    const presentFields: string[] = [];
+    const missingFields: string[] = [];
+
+    numericTimeFields.forEach(field => {
+      if (fields[field] !== undefined) {
+        presentFields.push(`${field}=${fields[field]}`);
+      } else {
+        missingFields.push(field);
+      }
+    });
+
+    if (presentFields.length > 0) {
+      this.logInfo(`[DEBUG] ✅ Найденные числовые поля времени: ${presentFields.join(', ')}`);
+    }
+
+    if (missingFields.length > 0) {
+      this.logInfo(`[DEBUG] ⚠️ Отсутствующие числовые поля времени: ${missingFields.join(', ')}`);
+    }
+
+    // Проверка основных полей времени для ScheduleTab
+    const mainFields = ['ShiftDate1Hours', 'ShiftDate1Minutes', 'ShiftDate2Hours', 'ShiftDate2Minutes'];
+    const hasMainFields = mainFields.every(field => fields[field] !== undefined);
+
+    if (hasMainFields) {
+      this.logInfo(`[DEBUG] ✅ ОТЛИЧНО: Все основные числовые поля времени присутствуют для ScheduleTab`);
+    } else {
+      this.logError(`[DEBUG] ❌ ПРОБЛЕМА: Не все основные числовые поля времени найдены для ScheduleTab`);
+    }
+  }
+
+  /**
+   * LEGACY: Логирует подробную информацию о полученных данных для диагностики
+   * @deprecated Используйте logDetailedDataInfoWithNumericFields вместо этого метода
+   * @param item Элемент данных для логирования
+   */
+  // private logDetailedDataInfo(item: IRemoteListItemResponse): void {
+  //   // Перенаправляем на новый метод с поддержкой числовых полей
+  //   this.logDetailedDataInfoWithNumericFields(item);
+  // }
 
   /**
    * Логирование информационных сообщений
