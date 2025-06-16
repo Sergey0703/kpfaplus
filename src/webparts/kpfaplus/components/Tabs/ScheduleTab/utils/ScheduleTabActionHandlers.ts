@@ -14,6 +14,39 @@ export interface IActionHandlerParams {
 }
 
 /**
+ * *** HELPER FUNCTION: Создает время из числовых компонентов ***
+ * Используется для создания ShiftDate1/ShiftDate2 из числовых полей
+ */
+const createTimeFromScheduleItem = (baseDate: Date, hour: number, minute: number): Date => {
+  console.log(`[ScheduleTabActionHandlers] createTimeFromScheduleItem: base=${baseDate.toISOString()}, time=${hour}:${minute}`);
+  
+  const result = new Date(baseDate);
+  
+  // Валидация диапазонов
+  if (hour < 0 || hour > 23) {
+    console.warn(`[ScheduleTabActionHandlers] Hours out of range: ${hour} (should be 0-23), setting to 0`);
+    result.setUTCHours(0, 0, 0, 0);
+    console.log(`[ScheduleTabActionHandlers] createTimeFromScheduleItem result (invalid hours): ${result.toISOString()}`);
+    return result;
+  }
+
+  if (minute < 0 || minute > 59) {
+    console.warn(`[ScheduleTabActionHandlers] Minutes out of range: ${minute} (should be 0-59), setting to 0`);
+    result.setUTCHours(hour, 0, 0, 0);
+    console.log(`[ScheduleTabActionHandlers] createTimeFromScheduleItem result (invalid minutes): ${result.toISOString()}`);
+    return result;
+  }
+  
+  // *** УСТАНАВЛИВАЕМ ВРЕМЯ В UTC БЕЗ КОРРЕКТИРОВКИ ЧАСОВОГО ПОЯСА ***
+  result.setUTCHours(hour, minute, 0, 0);
+  
+  console.log(`[ScheduleTabActionHandlers] *** DIRECT TIME SETTING WITHOUT TIMEZONE ADJUSTMENT ***`);
+  console.log(`[ScheduleTabActionHandlers] Input: ${hour}:${minute} → Output UTC: ${hour}:${minute} (no adjustment)`);
+  console.log(`[ScheduleTabActionHandlers] createTimeFromScheduleItem result: ${result.toISOString()}`);
+  return result;
+};
+
+/**
  * *** ОБНОВЛЕННАЯ ФУНКЦИЯ formatItemForUpdate С ПОДДЕРЖКОЙ ЧИСЛОВЫХ ПОЛЕЙ ***
  * Приоритет числовых полей при формировании данных для обновления
  */
@@ -114,39 +147,6 @@ export const formatItemForUpdate = (recordId: string, scheduleItem: IScheduleIte
   });
 
   return updateData;
-};
-
-/**
- * *** HELPER FUNCTION: Создает время из числовых компонентов ***
- * Используется для создания ShiftDate1/ShiftDate2 из числовых полей
- */
-const createTimeFromScheduleItem = (baseDate: Date, hour: number, minute: number): Date => {
-  console.log(`[ScheduleTabActionHandlers] createTimeFromScheduleItem: base=${baseDate.toISOString()}, time=${hour}:${minute}`);
-  
-  const result = new Date(baseDate);
-  
-  // Валидация диапазонов
-  if (hour < 0 || hour > 23) {
-    console.warn(`[ScheduleTabActionHandlers] Hours out of range: ${hour} (should be 0-23), setting to 0`);
-    result.setUTCHours(0, 0, 0, 0);
-    console.log(`[ScheduleTabActionHandlers] createTimeFromScheduleItem result (invalid hours): ${result.toISOString()}`);
-    return result;
-  }
-
-  if (minute < 0 || minute > 59) {
-    console.warn(`[ScheduleTabActionHandlers] Minutes out of range: ${minute} (should be 0-59), setting to 0`);
-    result.setUTCHours(hour, 0, 0, 0);
-    console.log(`[ScheduleTabActionHandlers] createTimeFromScheduleItem result (invalid minutes): ${result.toISOString()}`);
-    return result;
-  }
-  
-  // *** УСТАНАВЛИВАЕМ ВРЕМЯ В UTC БЕЗ КОРРЕКТИРОВКИ ЧАСОВОГО ПОЯСА ***
-  result.setUTCHours(hour, minute, 0, 0);
-  
-  console.log(`[ScheduleTabActionHandlers] *** DIRECT TIME SETTING WITHOUT TIMEZONE ADJUSTMENT ***`);
-  console.log(`[ScheduleTabActionHandlers] Input: ${hour}:${minute} → Output UTC: ${hour}:${minute} (no adjustment)`);
-  console.log(`[ScheduleTabActionHandlers] createTimeFromScheduleItem result: ${result.toISOString()}`);
-  return result;
 };
 
 /**
