@@ -417,8 +417,8 @@ export const checkExistingRecordsStatus = async (
 };
 
 /**
+ * *** ОБНОВЛЕННАЯ ФУНКЦИЯ generateScheduleRecords С ПОДДЕРЖКОЙ ЧИСЛОВЫХ ПОЛЕЙ ***
  * Генерирует записи расписания на основе подготовленных данных
- * *** ОБНОВЛЕНО: Работает с числовыми полями времени из шаблонов ***
  */
 async function generateScheduleRecords(
   daysData: Map<string, IDayData>,
@@ -427,6 +427,8 @@ async function generateScheduleRecords(
   remoteSiteService: RemoteSiteService
 ): Promise<Partial<IStaffRecord>[]> {
   const generatedRecords: Partial<IStaffRecord>[] = [];
+  
+  console.log(`[ScheduleTabFillService] *** GENERATING RECORDS WITH NUMERIC FIELDS SUPPORT ***`);
   
   // Используем for...of для поддержки async/await
   for (const dayData of Array.from(daysData.values())) {
@@ -480,11 +482,29 @@ async function generateScheduleRecords(
         console.log(`[DEBUG] Local time representation - Start: ${shiftDate1.toLocaleString()}`);
         console.log(`[DEBUG] Local time representation - End: ${shiftDate2.toLocaleString()}`);
         
+        // *** НОВОЕ: Извлекаем числовые значения времени из шаблона ***
+        const startHours = parseInt(template.start.hours, 10);
+        const startMinutes = parseInt(template.start.minutes, 10);
+        const finishHours = parseInt(template.end.hours, 10);
+        const finishMinutes = parseInt(template.end.minutes, 10);
+        
+        console.log(`[DEBUG] *** EXTRACTED NUMERIC TIME VALUES ***`);
+        console.log(`[DEBUG] Start: ${startHours}:${startMinutes}, Finish: ${finishHours}:${finishMinutes}`);
+
         const recordData: Partial<IStaffRecord> = {
-          Title: `Template=${selectedContractId} Week=${dayData.appliedWeekNumber} Shift=${template.NumberOfShift || template.shiftNumber || 1} Time:${template.start?.hours}:${template.start?.minutes}`,//Title: `Template=${selectedContractId} Week=${dayData.appliedWeekNumber} Shift=${template.NumberOfShift || template.shiftNumber || 1}`,
+          Title: `Template=${selectedContractId} Week=${dayData.appliedWeekNumber} Shift=${template.NumberOfShift || template.shiftNumber || 1} Time:${template.start?.hours}:${template.start?.minutes}`,
           Date: dayData.date,
+          
+          // *** НОВОЕ: Заполняем числовые поля времени (ПРИОРИТЕТ) ***
+          ShiftDate1Hours: startHours,
+          ShiftDate1Minutes: startMinutes,
+          ShiftDate2Hours: finishHours,
+          ShiftDate2Minutes: finishMinutes,
+          
+          // *** ОБРАТНАЯ СОВМЕСТИМОСТЬ: DateTime поля (старая система) ***
           ShiftDate1: shiftDate1,
           ShiftDate2: shiftDate2,
+          
           TimeForLunch: parseInt(template.lunch || '30', 10),
           Contract: parseInt(template.total || '1', 10),
           Holiday: dayData.isHoliday ? 1 : 0,
@@ -506,6 +526,12 @@ async function generateScheduleRecords(
           console.log(`[ScheduleTabFillService] Template start time (from numeric): ${template.start?.hours}:${template.start?.minutes}`);
           console.log(`[ScheduleTabFillService] Template end time (from numeric): ${template.end?.hours}:${template.end?.minutes}`);
           console.log(`[ScheduleTabFillService] Template week: ${template.NumberOfWeek}, shift: ${template.NumberOfShift}`);
+          console.log(`[ScheduleTabFillService] *** NUMERIC FIELDS IN RECORD ***`);
+          console.log(`[ScheduleTabFillService] ShiftDate1Hours: ${recordData.ShiftDate1Hours}`);
+          console.log(`[ScheduleTabFillService] ShiftDate1Minutes: ${recordData.ShiftDate1Minutes}`);
+          console.log(`[ScheduleTabFillService] ShiftDate2Hours: ${recordData.ShiftDate2Hours}`);
+          console.log(`[ScheduleTabFillService] ShiftDate2Minutes: ${recordData.ShiftDate2Minutes}`);
+          console.log(`[ScheduleTabFillService] *** DATETIME FIELDS FOR COMPATIBILITY ***`);
           console.log(`[ScheduleTabFillService] Generated ShiftDate1: ${shiftDate1.toISOString()}`);
           console.log(`[ScheduleTabFillService] Generated ShiftDate2: ${shiftDate2.toISOString()}`);
           console.log(`[ScheduleTabFillService] Record Date: ${recordData.Date?.toISOString()}`);
@@ -516,6 +542,10 @@ async function generateScheduleRecords(
       }
     }
   }
+  
+  console.log(`[ScheduleTabFillService] *** GENERATION COMPLETED ***`);
+  console.log(`[ScheduleTabFillService] Total records generated: ${generatedRecords.length}`);
+  console.log(`[ScheduleTabFillService] All records contain both numeric time fields (priority) and DateTime fields (compatibility)`);
   
   return generatedRecords;
 }
@@ -535,6 +565,8 @@ async function saveGeneratedRecords(
   let successCount = 0;
   const failedRecords: string[] = [];
   
+  console.log(`[ScheduleTabFillService] *** SAVING ${records.length} RECORDS WITH NUMERIC FIELDS ***`);
+  
   // Сохраняем записи последовательно для лучшего контроля
   for (let i = 0; i < records.length; i++) {
     const record = records[i];
@@ -546,6 +578,10 @@ async function saveGeneratedRecords(
         console.log(`[ScheduleTabFillService] Record data for Oct 1st:`, {
           Title: record.Title,
           Date: record.Date?.toISOString(),
+          ShiftDate1Hours: record.ShiftDate1Hours,
+          ShiftDate1Minutes: record.ShiftDate1Minutes,
+          ShiftDate2Hours: record.ShiftDate2Hours,
+          ShiftDate2Minutes: record.ShiftDate2Minutes,
           ShiftDate1: record.ShiftDate1?.toISOString(),
           ShiftDate2: record.ShiftDate2?.toISOString(),
           TimeForLunch: record.TimeForLunch,
@@ -566,6 +602,7 @@ async function saveGeneratedRecords(
         successCount++;
         if (record.Date && record.Date.getUTCDate() === 1 && record.Date.getUTCMonth() === 9 && record.Date.getUTCFullYear() === 2024) {
           console.log(`[ScheduleTabFillService] *** OCTOBER 1st RECORD CREATED SUCCESSFULLY: ID=${newRecordId} ***`);
+          console.log(`[ScheduleTabFillService] *** NUMERIC FIELDS SAVED: ${record.ShiftDate1Hours}:${record.ShiftDate1Minutes} - ${record.ShiftDate2Hours}:${record.ShiftDate2Minutes} ***`);
         }
       } else {
         failedRecords.push(record.Title || 'Unknown');
@@ -581,16 +618,20 @@ async function saveGeneratedRecords(
     }
   }
   
+  console.log(`[ScheduleTabFillService] *** SAVE OPERATION COMPLETED ***`);
+  console.log(`[ScheduleTabFillService] Success: ${successCount}/${records.length}, Failed: ${failedRecords.length}`);
+  console.log(`[ScheduleTabFillService] All successful records contain both numeric and DateTime fields`);
+  
   // Показываем результат
   if (setOperationMessage) {
     if (successCount === records.length) {
       setOperationMessage({
-        text: `Successfully generated ${successCount} schedule records from template`,
+        text: `Successfully generated ${successCount} schedule records from template with numeric time fields`,
         type: MessageBarType.success
       });
     } else if (successCount > 0) {
       setOperationMessage({
-        text: `Generated ${successCount} of ${records.length} records. Failed: ${failedRecords.length}`,
+        text: `Generated ${successCount} of ${records.length} records with numeric fields. Failed: ${failedRecords.length}`,
         type: MessageBarType.warning
       });
     } else {

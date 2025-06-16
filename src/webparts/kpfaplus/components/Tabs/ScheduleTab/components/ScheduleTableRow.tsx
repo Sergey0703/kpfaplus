@@ -18,12 +18,15 @@ export interface IScheduleTableRowProps {
   totalRowsInDate: number; // Общее количество строк в дате (включая удаленные)
   options: IScheduleOptions;
   displayWorkTime: string;
-  isTimesEqual: boolean; // Keep this prop to avoid breaking interface, but won't use it
+  // isTimesEqual: boolean; // Закомментировано - не используется после удаления UI индикаторов
   showDeleteConfirmDialog: (id: string) => void;
   showAddShiftConfirmDialog: (item: IScheduleItem) => void; // Changed to pass the entire item
   showRestoreConfirmDialog: (id: string) => void;
   onRestoreItem?: (id: string) => Promise<boolean>; 
+  
+  // *** ОБНОВЛЕНО: onItemChange теперь поддерживает числовые поля ***
   onItemChange: (item: IScheduleItem, field: string, value: string) => void;
+  
   onContractNumberChange: (item: IScheduleItem, value: string) => void;
   onLunchTimeChange: (item: IScheduleItem, value: string) => void;
 }
@@ -37,7 +40,7 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
     totalRowsInDate,
     options, 
     displayWorkTime, 
-    // isTimesEqual, // Removed - no longer using this
+    // isTimesEqual, // Закомментировано - не используется
     showDeleteConfirmDialog,
     showAddShiftConfirmDialog,
     showRestoreConfirmDialog,
@@ -72,14 +75,14 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
     backgroundColor = '#f5f5f5';
     rowClassName = styles.deletedRow;
   }
-  // Removed isTimesEqual condition completely
+
+
 
   // Стили для dropdown при удаленных записях
   const getDropdownStyles = (isError = false): Partial<IDropdownStyles> => ({
     root: { 
       width: 60, 
       margin: '0 4px',
-      borderColor: isError ? '#a4262c' : undefined,
       ...(isDeleted && {
         backgroundColor: '#f5f5f5',
         color: '#888',
@@ -230,6 +233,14 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
     showAddShiftConfirmDialog(item);
   };
 
+  // *** ОБНОВЛЕННЫЕ ОБРАБОТЧИКИ ИЗМЕНЕНИЯ ВРЕМЕНИ ***
+  const handleTimeFieldChange = (field: string, optionKey: string): void => {
+    if (isDeleted) return;
+    
+    // Вызываем родительский обработчик, который обновит как строковые, так и числовые поля
+    onItemChange(item, field, optionKey);
+  };
+
   return (
     <tr 
       style={{ 
@@ -254,12 +265,13 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
         textAlign: 'center',
         fontWeight: 'bold',
         whiteSpace: 'nowrap',
-        color: displayWorkTime === '0.00' ? '#666' : 'inherit', // Removed isTimesEqual condition
+        color: displayWorkTime === '0.00' ? '#666' : 'inherit',
         ...getHolidayCellStyle(true) // Применяем розовый фон для праздничных дней
       }}
       className={isDeleted ? styles.deletedText : ''}>
-        {/* Removed isTimesEqual tooltip logic */}
-        <span className={isDeleted ? styles.deletedText : ''}>{displayWorkTime}</span>
+        <span className={isDeleted ? styles.deletedText : ''}>
+          {displayWorkTime}
+        </span>
         {isDeleted && (
           <div style={{ 
             fontSize: '10px', 
@@ -278,15 +290,15 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
           <Dropdown
             selectedKey={item.startHour}
             options={options.hours}
-            onChange={(_, option): void => option && onItemChange(item, 'startHour', option.key as string)}
-            styles={getDropdownStyles()} // Removed isTimesEqual parameter
+            onChange={(_, option): void => option && handleTimeFieldChange('startHour', option.key as string)}
+            styles={getDropdownStyles()}
             disabled={isDeleted}
           />
           <Dropdown
             selectedKey={item.startMinute}
             options={options.minutes}
-            onChange={(_, option): void => option && onItemChange(item, 'startMinute', option.key as string)}
-            styles={getDropdownStyles()} // Removed isTimesEqual parameter
+            onChange={(_, option): void => option && handleTimeFieldChange('startMinute', option.key as string)}
+            styles={getDropdownStyles()}
             disabled={isDeleted}
           />
         </div>
@@ -298,15 +310,15 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
           <Dropdown
             selectedKey={item.finishHour}
             options={options.hours}
-            onChange={(_, option): void => option && onItemChange(item, 'finishHour', option.key as string)}
-            styles={getDropdownStyles()} // Removed isTimesEqual parameter
+            onChange={(_, option): void => option && handleTimeFieldChange('finishHour', option.key as string)}
+            styles={getDropdownStyles()}
             disabled={isDeleted}
           />
           <Dropdown
             selectedKey={item.finishMinute}
             options={options.minutes}
-            onChange={(_, option): void => option && onItemChange(item, 'finishMinute', option.key as string)}
-            styles={getDropdownStyles()} // Removed isTimesEqual parameter
+            onChange={(_, option): void => option && handleTimeFieldChange('finishMinute', option.key as string)}
+            styles={getDropdownStyles()}
             disabled={isDeleted}
           />
         </div>

@@ -2,7 +2,6 @@
 import { MessageBarType } from '@fluentui/react';
 import { IScheduleItem, INewShiftData } from '../components/ScheduleTable';
 import { IStaffRecord } from '../../../../services/StaffRecordsService';
-import { formatItemForUpdate } from './ScheduleTabDataUtils';
 
 /**
  * Интерфейс с общими параметрами для обработчиков действий
@@ -13,6 +12,142 @@ export interface IActionHandlerParams {
   setModifiedRecords: React.Dispatch<React.SetStateAction<Record<string, IScheduleItem>>>;
   onRefreshData?: () => void;
 }
+
+/**
+ * *** ОБНОВЛЕННАЯ ФУНКЦИЯ formatItemForUpdate С ПОДДЕРЖКОЙ ЧИСЛОВЫХ ПОЛЕЙ ***
+ * Приоритет числовых полей при формировании данных для обновления
+ */
+export const formatItemForUpdate = (recordId: string, scheduleItem: IScheduleItem): Partial<IStaffRecord> => {
+  console.log(`[ScheduleTabActionHandlers] *** formatItemForUpdate WITH NUMERIC FIELDS PRIORITY ***`);
+  console.log(`[ScheduleTabActionHandlers] formatItemForUpdate for record ID: ${recordId}`);
+  console.log(`[ScheduleTabActionHandlers] Input schedule item date: ${scheduleItem.date.toISOString()}`);
+
+  // *** ИСПРАВЛЕНИЕ: Создаем дату с местной полуночью для поля Date ***
+  const localMidnightDate = new Date(
+    scheduleItem.date.getFullYear(),
+    scheduleItem.date.getMonth(),
+    scheduleItem.date.getDate(),
+    0, 0, 0, 0 // Местная полночь
+  );
+
+  console.log(`[ScheduleTabActionHandlers] Created local midnight date for Date field: ${localMidnightDate.toISOString()}`);
+
+  // *** ПРИОРИТЕТ ЧИСЛОВЫХ ПОЛЕЙ ДЛЯ ВРЕМЕНИ ***
+  let startHour: number, startMinute: number, finishHour: number, finishMinute: number;
+
+  // Проверяем наличие числовых полей (ПРИОРИТЕТ)
+  if (typeof scheduleItem.startHours === 'number' && typeof scheduleItem.startMinutes === 'number' &&
+      typeof scheduleItem.finishHours === 'number' && typeof scheduleItem.finishMinutes === 'number') {
+    
+    console.log(`[ScheduleTabActionHandlers] *** USING NUMERIC FIELDS (PRIORITY) ***`);
+    startHour = scheduleItem.startHours;
+    startMinute = scheduleItem.startMinutes;
+    finishHour = scheduleItem.finishHours;
+    finishMinute = scheduleItem.finishMinutes;
+    
+    console.log(`[ScheduleTabActionHandlers] Numeric time values: ${startHour}:${startMinute} - ${finishHour}:${finishMinute}`);
+  } else {
+    // Fallback к строковым полям
+    console.log(`[ScheduleTabActionHandlers] *** FALLBACK TO STRING FIELDS ***`);
+    startHour = parseInt(scheduleItem.startHour, 10) || 0;
+    startMinute = parseInt(scheduleItem.startMinute, 10) || 0;
+    finishHour = parseInt(scheduleItem.finishHour, 10) || 0;
+    finishMinute = parseInt(scheduleItem.finishMinute, 10) || 0;
+    
+    console.log(`[ScheduleTabActionHandlers] Parsed string time values: ${startHour}:${startMinute} - ${finishHour}:${finishMinute}`);
+  }
+
+  // *** СОЗДАНИЕ DATETIME ПОЛЕЙ ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ ***
+  const shiftDate1 = createTimeFromScheduleItem(scheduleItem.date, startHour, startMinute);
+  const shiftDate2 = createTimeFromScheduleItem(scheduleItem.date, finishHour, finishMinute);
+
+  console.log(`[ScheduleTabActionHandlers] *** CREATED DATETIME FIELDS FOR COMPATIBILITY ***`);
+  console.log(`[ScheduleTabActionHandlers] ShiftDate1: ${shiftDate1.toISOString()}`);
+  console.log(`[ScheduleTabActionHandlers] ShiftDate2: ${shiftDate2.toISOString()}`);
+
+  const updateData: Partial<IStaffRecord> = {
+    // *** ИСПРАВЛЕНИЕ: Используем местную полночь для поля Date ***
+    Date: localMidnightDate,
+    
+    // *** ПРИОРИТЕТ: Числовые поля времени (новая система) ***
+    ShiftDate1Hours: startHour,
+    ShiftDate1Minutes: startMinute,
+    ShiftDate2Hours: finishHour,
+    ShiftDate2Minutes: finishMinute,
+    
+    // *** ОБРАТНАЯ СОВМЕСТИМОСТЬ: DateTime поля (старая система) ***
+    ShiftDate1: shiftDate1,
+    ShiftDate2: shiftDate2,
+    
+    // Numeric values
+    TimeForLunch: parseInt(scheduleItem.lunchTime, 10) || 0,
+    Contract: parseInt(scheduleItem.contractNumber || '1', 10),
+    
+    // TypeOfLeave could be a string ID or empty
+    TypeOfLeaveID: scheduleItem.typeOfLeave || '',
+    
+    // Work time as calculated
+    WorkTime: scheduleItem.workingHours,
+    
+    // Holiday status
+    Holiday: scheduleItem.Holiday
+  };
+
+  console.log(`[ScheduleTabActionHandlers] *** FINAL UPDATE DATA ***`);
+  console.log(`[ScheduleTabActionHandlers] Numeric fields:`, {
+    ShiftDate1Hours: updateData.ShiftDate1Hours,
+    ShiftDate1Minutes: updateData.ShiftDate1Minutes,
+    ShiftDate2Hours: updateData.ShiftDate2Hours,
+    ShiftDate2Minutes: updateData.ShiftDate2Minutes
+  });
+  console.log(`[ScheduleTabActionHandlers] DateTime fields:`, {
+    ShiftDate1: updateData.ShiftDate1?.toISOString(),
+    ShiftDate2: updateData.ShiftDate2?.toISOString()
+  });
+  console.log(`[ScheduleTabActionHandlers] Other fields:`, {
+    Date: updateData.Date?.toISOString(),
+    TimeForLunch: updateData.TimeForLunch,
+    Contract: updateData.Contract,
+    TypeOfLeaveID: updateData.TypeOfLeaveID,
+    WorkTime: updateData.WorkTime,
+    Holiday: updateData.Holiday
+  });
+
+  return updateData;
+};
+
+/**
+ * *** HELPER FUNCTION: Создает время из числовых компонентов ***
+ * Используется для создания ShiftDate1/ShiftDate2 из числовых полей
+ */
+const createTimeFromScheduleItem = (baseDate: Date, hour: number, minute: number): Date => {
+  console.log(`[ScheduleTabActionHandlers] createTimeFromScheduleItem: base=${baseDate.toISOString()}, time=${hour}:${minute}`);
+  
+  const result = new Date(baseDate);
+  
+  // Валидация диапазонов
+  if (hour < 0 || hour > 23) {
+    console.warn(`[ScheduleTabActionHandlers] Hours out of range: ${hour} (should be 0-23), setting to 0`);
+    result.setUTCHours(0, 0, 0, 0);
+    console.log(`[ScheduleTabActionHandlers] createTimeFromScheduleItem result (invalid hours): ${result.toISOString()}`);
+    return result;
+  }
+
+  if (minute < 0 || minute > 59) {
+    console.warn(`[ScheduleTabActionHandlers] Minutes out of range: ${minute} (should be 0-59), setting to 0`);
+    result.setUTCHours(hour, 0, 0, 0);
+    console.log(`[ScheduleTabActionHandlers] createTimeFromScheduleItem result (invalid minutes): ${result.toISOString()}`);
+    return result;
+  }
+  
+  // *** УСТАНАВЛИВАЕМ ВРЕМЯ В UTC БЕЗ КОРРЕКТИРОВКИ ЧАСОВОГО ПОЯСА ***
+  result.setUTCHours(hour, minute, 0, 0);
+  
+  console.log(`[ScheduleTabActionHandlers] *** DIRECT TIME SETTING WITHOUT TIMEZONE ADJUSTMENT ***`);
+  console.log(`[ScheduleTabActionHandlers] Input: ${hour}:${minute} → Output UTC: ${hour}:${minute} (no adjustment)`);
+  console.log(`[ScheduleTabActionHandlers] createTimeFromScheduleItem result: ${result.toISOString()}`);
+  return result;
+};
 
 /**
  * Обработчик для сохранения всех изменений в расписании
@@ -47,7 +182,7 @@ export const handleSaveAllChanges = async (
       return;
     }
     
-    console.log(`Saving ${modifiedIds.length} modified records...`);
+    console.log(`[ScheduleTabActionHandlers] *** SAVING ${modifiedIds.length} MODIFIED RECORDS WITH NUMERIC FIELDS ***`);
     
     let successCount = 0;
     const failedRecords: string[] = [];
@@ -61,25 +196,37 @@ export const handleSaveAllChanges = async (
       const batchPromises = currentBatch.map(async (recordId) => {
         const scheduleItem = modifiedRecords[recordId];
         
-        console.log(`[DEBUG] Saving record ID ${recordId}:`, scheduleItem);
+        console.log(`[ScheduleTabActionHandlers] *** PROCESSING RECORD ${recordId} ***`);
+        console.log(`[ScheduleTabActionHandlers] Schedule Item:`, {
+          startHour: scheduleItem.startHour,
+          startMinute: scheduleItem.startMinute,
+          finishHour: scheduleItem.finishHour,
+          finishMinute: scheduleItem.finishMinute,
+          startHours: scheduleItem.startHours,
+          startMinutes: scheduleItem.startMinutes,
+          finishHours: scheduleItem.finishHours,
+          finishMinutes: scheduleItem.finishMinutes,
+          workingHours: scheduleItem.workingHours
+        });
         
-        // Format data for update
+        // *** ИСПОЛЬЗУЕМ ОБНОВЛЕННУЮ formatItemForUpdate С ПОДДЕРЖКОЙ ЧИСЛОВЫХ ПОЛЕЙ ***
         const updateData = formatItemForUpdate(recordId, scheduleItem);
         
-        console.log(`[DEBUG] Formatted update data for ID ${recordId}:`, updateData);
+        console.log(`[ScheduleTabActionHandlers] *** FORMATTED UPDATE DATA FOR ${recordId} ***`);
         
         try {
           const success = await onUpdateStaffRecord(recordId, updateData);
           
           if (success) {
             successCount++;
+            console.log(`[ScheduleTabActionHandlers] ✓ Successfully updated record ${recordId} with numeric fields`);
             return { recordId, success: true };
           } else {
             failedRecords.push(recordId);
             return { recordId, success: false, error: 'Update returned false' };
           }
         } catch (error) {
-          console.error(`Error saving record ${recordId}:`, error);
+          console.error(`[ScheduleTabActionHandlers] ✗ Error saving record ${recordId}:`, error);
           failedRecords.push(recordId);
           return { recordId, success: false, error };
         }
@@ -87,7 +234,7 @@ export const handleSaveAllChanges = async (
       
       // Wait for all promises in this batch to complete before moving to the next batch
       const batchResults = await Promise.all(batchPromises);
-      console.log(`[DEBUG] Batch results:`, batchResults);
+      console.log(`[ScheduleTabActionHandlers] Batch results:`, batchResults);
       
       // Add a small delay between batches to not overwhelm the server
       if (i + batchSize < modifiedIds.length) {
@@ -98,7 +245,7 @@ export const handleSaveAllChanges = async (
     // Show appropriate message based on results
     if (successCount === modifiedIds.length) {
       setOperationMessage({
-        text: `All ${successCount} changes saved successfully`,
+        text: `All ${successCount} changes saved successfully with numeric time fields`,
         type: MessageBarType.success
       });
       // Clear all modified records since they've been saved
@@ -128,7 +275,7 @@ export const handleSaveAllChanges = async (
       onRefreshData();
     }
   } catch (error) {
-    console.error('Error during save operation:', error);
+    console.error('[ScheduleTabActionHandlers] Error during save operation:', error);
     setOperationMessage({
       text: `Error saving changes: ${error instanceof Error ? error.message : String(error)}`,
       type: MessageBarType.error
@@ -158,7 +305,7 @@ export const handleAddShift = (
     return;
   }
   
-  console.log(`Adding shift for date: ${date.toLocaleDateString()}`);
+  console.log(`[ScheduleTabActionHandlers] Adding shift for date: ${date.toLocaleDateString()}`);
   
   setIsSaving(true);
   

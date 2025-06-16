@@ -14,15 +14,25 @@ import {
  DefaultButton,
 } from '@fluentui/react';
 
+// *** ОБНОВЛЕННЫЙ ИНТЕРФЕЙС IScheduleItem С ЧИСЛОВЫМИ ПОЛЯМИ ВРЕМЕНИ ***
 export interface IScheduleItem {
  id: string;
  date: Date;
  dayOfWeek: string;
  workingHours: string;
+ 
+ // *** ОБНОВЛЕНО: Строковые поля для UI (для обратной совместимости) ***
  startHour: string;
  startMinute: string;
  finishHour: string;
  finishMinute: string;
+ 
+ // *** НОВОЕ: Числовые поля времени (приоритет при сохранении) ***
+ startHours?: number;
+ startMinutes?: number;
+ finishHours?: number;
+ finishMinutes?: number;
+ 
  lunchTime: string;
  typeOfLeave?: string;
  shift: number;
@@ -59,7 +69,10 @@ export interface IScheduleTableProps {
  isLoading: boolean;
  showDeleted: boolean;
  onToggleShowDeleted: (checked: boolean) => void;
+ 
+ // *** ОБНОВЛЕНО: onItemChange теперь работает с числовыми полями ***
  onItemChange: (item: IScheduleItem, field: string, value: string | number) => void;
+ 
  onAddShift: (date: Date, shiftData?: INewShiftData) => void;
  onDeleteItem: (id: string) => Promise<boolean>;
  onRestoreItem?: (id: string) => Promise<boolean>;
@@ -383,17 +396,92 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
    pendingShiftDataRef.current = undefined;
  }, []);
 
+ // *** ОБНОВЛЕННАЯ ФУНКЦИЯ handleTimeChange ДЛЯ РАБОТЫ С ЧИСЛОВЫМИ ПОЛЯМИ ***
  const handleTimeChange = useCallback((item: IScheduleItem, field: string, value: string): void => {
    if (item.deleted) { return; }
-   const updatedItem = { ...item, [field]: value };
+   
+   console.log(`[ScheduleTable] *** TIME CHANGE WITH NUMERIC FIELDS SUPPORT ***`);
+   console.log(`[ScheduleTable] Field: ${field}, Value: ${value}, Item ID: ${item.id}`);
+   
+   // *** СОЗДАЕМ ОБНОВЛЕННЫЙ ЭЛЕМЕНТ С СИНХРОНИЗАЦИЕЙ ПОЛЕЙ ***
+   const updatedItem = { ...item };
+   
+   // Обновляем строковое поле для UI (явная типизация для каждого поля)
+   switch (field) {
+     case 'startHour':
+       updatedItem.startHour = value;
+       break;
+     case 'startMinute':
+       updatedItem.startMinute = value;
+       break;
+     case 'finishHour':
+       updatedItem.finishHour = value;
+       break;
+     case 'finishMinute':
+       updatedItem.finishMinute = value;
+       break;
+     default:
+       console.warn(`[ScheduleTable] Unknown time field: ${field}`);
+       return;
+   }
+   
+   // *** СИНХРОНИЗИРУЕМ ЧИСЛОВЫЕ ПОЛЯ ***
+   const numericValue = parseInt(value, 10);
+   if (!isNaN(numericValue)) {
+     switch (field) {
+       case 'startHour':
+         updatedItem.startHours = numericValue;
+         console.log(`[ScheduleTable] Updated startHours to: ${numericValue}`);
+         break;
+       case 'startMinute':
+         updatedItem.startMinutes = numericValue;
+         console.log(`[ScheduleTable] Updated startMinutes to: ${numericValue}`);
+         break;
+       case 'finishHour':
+         updatedItem.finishHours = numericValue;
+         console.log(`[ScheduleTable] Updated finishHours to: ${numericValue}`);
+         break;
+       case 'finishMinute':
+         updatedItem.finishMinutes = numericValue;
+         console.log(`[ScheduleTable] Updated finishMinutes to: ${numericValue}`);
+         break;
+     }
+   }
+   
+   // *** ПЕРЕСЧИТЫВАЕМ РАБОЧЕЕ ВРЕМЯ ***
    const workTime = calculateItemWorkTime(updatedItem);
+   updatedItem.workingHours = workTime;
+
+   console.log(`[ScheduleTable] *** CALCULATED WORK TIME: ${workTime} ***`);
+   console.log(`[ScheduleTable] Time components: ${updatedItem.startHour}:${updatedItem.startMinute} - ${updatedItem.finishHour}:${updatedItem.finishMinute}`);
+   console.log(`[ScheduleTable] Numeric fields: start(${updatedItem.startHours}:${updatedItem.startMinutes}) - finish(${updatedItem.finishHours}:${updatedItem.finishMinutes})`);
 
    setCalculatedWorkTimes(prev => ({
      ...prev,
      [item.id]: workTime
    }));
+   
+   // *** УВЕДОМЛЯЕМ РОДИТЕЛЬСКИЙ КОМПОНЕНТ О ВСЕХ ИЗМЕНЕНИЯХ ***
    onItemChange(updatedItem, field, value);
    onItemChange(updatedItem, 'workingHours', workTime);
+   
+   // *** ТАКЖЕ УВЕДОМЛЯЕМ О ЧИСЛОВЫХ ПОЛЯХ ***
+   if (!isNaN(numericValue)) {
+     switch (field) {
+       case 'startHour':
+         onItemChange(updatedItem, 'startHours', numericValue);
+         break;
+       case 'startMinute':
+         onItemChange(updatedItem, 'startMinutes', numericValue);
+         break;
+       case 'finishHour':
+         onItemChange(updatedItem, 'finishHours', numericValue);
+         break;
+       case 'finishMinute':
+         onItemChange(updatedItem, 'finishMinutes', numericValue);
+         break;
+     }
+   }
  }, [calculatedWorkTimes, onItemChange]);
 
  const handleContractNumberChange = useCallback((item: IScheduleItem, value: string): void => {

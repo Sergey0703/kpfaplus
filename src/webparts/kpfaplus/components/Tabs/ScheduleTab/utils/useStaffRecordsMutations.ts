@@ -42,6 +42,28 @@ export interface UseStaffRecordsMutationsReturn {
   handleBulkDeleteStaffRecords: (recordIds: string[]) => Promise<{ successCount: number; failedIds: string[] }>;
 }
 
+// *** ФУНКЦИЯ ДЛЯ СОЗДАНИЯ UTC ВРЕМЕНИ ИЗ ЧИСЛОВЫХ КОМПОНЕНТОВ ***
+const createTimeFromNumericComponents = (baseDate: Date, hours: number, minutes: number): Date => {
+  const result = new Date(baseDate);
+  
+  // Валидация входных данных
+  if (hours < 0 || hours > 23) {
+    console.warn(`[useStaffRecordsMutations] Hours out of range: ${hours}, setting to 0`);
+    hours = 0;
+  }
+  
+  if (minutes < 0 || minutes > 59) {
+    console.warn(`[useStaffRecordsMutations] Minutes out of range: ${minutes}, setting to 0`);
+    minutes = 0;
+  }
+  
+  // *** УСТАНАВЛИВАЕМ ВРЕМЯ В UTC БЕЗ КОРРЕКТИРОВКИ ЧАСОВОГО ПОЯСА ***
+  result.setUTCHours(hours, minutes, 0, 0);
+  
+  console.log(`[useStaffRecordsMutations] Created time from numeric: ${hours}:${minutes} → ${result.toISOString()}`);
+  return result;
+};
+
 // Custom hook for staff records mutation actions
 // ИСПРАВЛЕНО: Добавлен явный тип возврата
 export const useStaffRecordsMutations = (
@@ -103,9 +125,11 @@ export const useStaffRecordsMutations = (
     }
   }, [context, staffRecordsService, reloadRecords, selectedDate, selectedContractId, setIsLoading, setError]);
 
-
+  // *** ОБНОВЛЕННАЯ ФУНКЦИЯ handleAddShift С ПОДДЕРЖКОЙ ЧИСЛОВЫХ ПОЛЕЙ ***
   const handleAddShift = useCallback(async (date: Date, shiftData?: INewShiftData): Promise<void> => {
+      console.log(`[useStaffRecordsMutations] *** HANDLE ADD SHIFT WITH NUMERIC FIELDS ***`);
       console.log(`[useStaffRecordsMutations] handleAddShift called for date: ${date.toLocaleDateString()}`);
+      
       // Проверяем наличие необходимых данных и сервиса
       if (!selectedStaff?.employeeId) {
         console.error('[useStaffRecordsMutations] Cannot add shift: missing selected staff or employeeId');
@@ -118,20 +142,39 @@ export const useStaffRecordsMutations = (
             return;
        }
 
-
+      // *** СОЗДАЕМ НОРМАЛИЗОВАННУЮ ДАТУ ***
       const newDate = new Date(date);
       newDate.setHours(0, 0, 0, 0);
 
-      const shiftDate1 = new Date(newDate);
-      shiftDate1.setHours(9, 0, 0, 0);
+      // *** СОЗДАЕМ ВРЕМЕНА СМЕН С ИСПОЛЬЗОВАНИЕМ ЧИСЛОВЫХ ПОЛЕЙ ***
+      console.log(`[useStaffRecordsMutations] *** CREATING SHIFT TIMES WITH NUMERIC FIELDS ***`);
+      
+      // Используем числовые значения напрямую
+      const startHours = 9;
+      const startMinutes = 0;
+      const finishHours = 17;
+      const finishMinutes = 0;
+      
+      const shiftDate1 = createTimeFromNumericComponents(newDate, startHours, startMinutes);
+      const shiftDate2 = createTimeFromNumericComponents(newDate, finishHours, finishMinutes);
 
-      const shiftDate2 = new Date(newDate);
-      shiftDate2.setHours(17, 0, 0, 0);
+      console.log(`[useStaffRecordsMutations] *** SHIFT TIMES CREATED ***`);
+      console.log(`[useStaffRecordsMutations] ShiftDate1: ${shiftDate1.toISOString()} (${startHours}:${startMinutes})`);
+      console.log(`[useStaffRecordsMutations] ShiftDate2: ${shiftDate2.toISOString()} (${finishHours}:${finishMinutes})`);
 
       const createData: Partial<IStaffRecord> = {
         Date: newDate,
+        
+        // *** НОВОЕ: Заполняем числовые поля времени (ПРИОРИТЕТ) ***
+        ShiftDate1Hours: startHours,
+        ShiftDate1Minutes: startMinutes,
+        ShiftDate2Hours: finishHours,
+        ShiftDate2Minutes: finishMinutes,
+        
+        // *** ОБРАТНАЯ СОВМЕСТИМОСТЬ: Заполняем также старые поля DateTime ***
         ShiftDate1: shiftDate1,
         ShiftDate2: shiftDate2,
+        
         TimeForLunch: shiftData ? parseInt(shiftData.timeForLunch, 10) || 60 : 60,
         Contract: shiftData?.contractNumber ? parseInt(shiftData.contractNumber, 10) : 1, // Assuming contractNumber from UI maps to Contract field
         WeeklyTimeTableID: selectedContractId, // Use the currently selected contract ID from state/props
@@ -144,7 +187,17 @@ export const useStaffRecordsMutations = (
       const currentUserID = currentUserId || '0';
       const staffGroupID = managingGroupId || '0';
 
-      console.log('[useStaffRecordsMutations] Creating new shift with data:', JSON.stringify(createData, null, 2));
+      console.log('[useStaffRecordsMutations] *** CREATING NEW SHIFT WITH NUMERIC FIELDS ***');
+      console.log('[useStaffRecordsMutations] Numeric time fields:', {
+        ShiftDate1Hours: createData.ShiftDate1Hours,
+        ShiftDate1Minutes: createData.ShiftDate1Minutes,
+        ShiftDate2Hours: createData.ShiftDate2Hours,
+        ShiftDate2Minutes: createData.ShiftDate2Minutes
+      });
+      console.log('[useStaffRecordsMutations] DateTime fields for compatibility:', {
+        ShiftDate1: createData.ShiftDate1?.toISOString(),
+        ShiftDate2: createData.ShiftDate2?.toISOString()
+      });
       console.log('[useStaffRecordsMutations] Using reference IDs:', {
         currentUserID,
         staffGroupID,
@@ -154,14 +207,36 @@ export const useStaffRecordsMutations = (
       await handleMutation(
           // Используем стрелочную функцию для отложенного вызова сервиса
           () => staffRecordsService.createStaffRecord(createData, currentUserID, staffGroupID, employeeId),
-          'Shift added successfully.',
+          'Shift added successfully with numeric time fields.',
           'add shift'
       );
   }, [selectedStaff?.employeeId, selectedContractId, currentUserId, managingGroupId, staffRecordsService, handleMutation, setError]); // Зависит от onAddShift
 
-
   const handleUpdateStaffRecord = useCallback(async (recordId: string, updateData: Partial<IStaffRecord>): Promise<boolean> => {
+    console.log(`[useStaffRecordsMutations] *** UPDATE STAFF RECORD WITH NUMERIC FIELDS ***`);
     console.log(`[useStaffRecordsMutations] handleUpdateStaffRecord called for record ID: ${recordId}`);
+    
+    // *** ЛОГИРУЕМ ВХОДЯЩИЕ ДАННЫЕ ДЛЯ ОТЛАДКИ ***
+    console.log(`[useStaffRecordsMutations] Update data received:`, {
+      hasDate: !!updateData.Date,
+      hasShiftDate1Hours: updateData.ShiftDate1Hours !== undefined,
+      hasShiftDate1Minutes: updateData.ShiftDate1Minutes !== undefined,
+      hasShiftDate2Hours: updateData.ShiftDate2Hours !== undefined,
+      hasShiftDate2Minutes: updateData.ShiftDate2Minutes !== undefined,
+      hasShiftDate1: !!updateData.ShiftDate1,
+      hasShiftDate2: !!updateData.ShiftDate2,
+      numericFields: {
+        ShiftDate1Hours: updateData.ShiftDate1Hours,
+        ShiftDate1Minutes: updateData.ShiftDate1Minutes,
+        ShiftDate2Hours: updateData.ShiftDate2Hours,
+        ShiftDate2Minutes: updateData.ShiftDate2Minutes
+      },
+      dateTimeFields: {
+        ShiftDate1: updateData.ShiftDate1?.toISOString(),
+        ShiftDate2: updateData.ShiftDate2?.toISOString()
+      }
+    });
+    
      // Проверяем наличие сервиса перед использованием
      if (!staffRecordsService) {
           console.error('[useStaffRecordsMutations] Cannot update record: staffRecordsService is not available');
@@ -172,20 +247,42 @@ export const useStaffRecordsMutations = (
     const result = await handleMutation(
         // Используем стрелочную функцию для отложенного вызова сервиса
         () => staffRecordsService.updateStaffRecord(recordId, updateData),
-        `Record ${recordId} updated successfully.`,
+        `Record ${recordId} updated successfully with numeric time fields.`,
         `update record ${recordId}`
     );
     return result === true; // Результат handleMutation может быть undefined (для создания), поэтому явное сравнение с true
   }, [staffRecordsService, handleMutation, setError]);
 
-
+  // *** ОБНОВЛЕННАЯ ФУНКЦИЯ handleCreateStaffRecord С ПОДДЕРЖКОЙ ЧИСЛОВЫХ ПОЛЕЙ ***
   const handleCreateStaffRecord = useCallback(async (
     createData: Partial<IStaffRecord>,
     currentUserIdParam?: string, // Optional override
     staffGroupIdParam?: string,  // Optional override
     staffMemberIdParam?: string  // Optional override
   ): Promise<string | undefined> => {
+    console.log(`[useStaffRecordsMutations] *** CREATE STAFF RECORD WITH NUMERIC FIELDS ***`);
     console.log(`[useStaffRecordsMutations] handleCreateStaffRecord called`);
+
+    // *** ЛОГИРУЕМ ВХОДЯЩИЕ ДАННЫЕ ДЛЯ ОТЛАДКИ ***
+    console.log(`[useStaffRecordsMutations] Create data received:`, {
+      hasDate: !!createData.Date,
+      hasShiftDate1Hours: createData.ShiftDate1Hours !== undefined,
+      hasShiftDate1Minutes: createData.ShiftDate1Minutes !== undefined,
+      hasShiftDate2Hours: createData.ShiftDate2Hours !== undefined,
+      hasShiftDate2Minutes: createData.ShiftDate2Minutes !== undefined,
+      hasShiftDate1: !!createData.ShiftDate1,
+      hasShiftDate2: !!createData.ShiftDate2,
+      numericFields: {
+        ShiftDate1Hours: createData.ShiftDate1Hours,
+        ShiftDate1Minutes: createData.ShiftDate1Minutes,
+        ShiftDate2Hours: createData.ShiftDate2Hours,
+        ShiftDate2Minutes: createData.ShiftDate2Minutes
+      },
+      dateTimeFields: {
+        ShiftDate1: createData.ShiftDate1?.toISOString(),
+        ShiftDate2: createData.ShiftDate2?.toISOString()
+      }
+    });
 
      // Проверяем наличие сервиса перед использованием
      if (!staffRecordsService) {
@@ -207,13 +304,12 @@ export const useStaffRecordsMutations = (
     const newRecordId = await handleMutation(
         // Используем стрелочную функцию для отложенного вызова сервиса
         () => staffRecordsService.createStaffRecord(createData, userId, groupId, staffId),
-        'Record created successfully.',
+        'Record created successfully with numeric time fields.',
         'create record'
     );
     // Возвращаем результат, который может быть строкой ID или undefined
     return typeof newRecordId === 'string' ? newRecordId : undefined;
   }, [currentUserId, managingGroupId, selectedStaff?.employeeId, staffRecordsService, handleMutation, setError]);
-
 
   const handleDeleteStaffRecord = useCallback(async (recordId: string): Promise<boolean> => {
     console.log(`[useStaffRecordsMutations] handleDeleteStaffRecord called for record ID: ${recordId}`);
@@ -232,7 +328,6 @@ export const useStaffRecordsMutations = (
     );
     return result === true; // Результат handleMutation может быть undefined (для создания), поэтому явное сравнение с true
   }, [staffRecordsService, handleMutation, setError]); // Зависит от markRecordAsDeleted
-
 
   const handleRestoreStaffRecord = useCallback(async (recordId: string): Promise<boolean> => {
     console.log(`[useStaffRecordsMutations] handleRestoreStaffRecord called for record ID: ${recordId}`);
@@ -329,7 +424,6 @@ export const useStaffRecordsMutations = (
       }, 300);
     }
   }, [staffRecordsService, setIsLoading, setError]);
-
 
   // ИСПРАВЛЕНО: Возвращаем useMemo с явным типом возврата
   return useMemo((): UseStaffRecordsMutationsReturn => ({
