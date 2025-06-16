@@ -30,10 +30,23 @@ export interface IStaffRecord {
   ExportResult: string;          // Результат экспорта записи
   Title: string;                 // Заголовок записи
   Date: Date;                    // Дата записи
+  
+  // СУЩЕСТВУЮЩИЕ поля даты-времени (для обратной совместимости с другими вкладками)
   ShiftDate1: Date | undefined;  // Время начала работы
   ShiftDate2: Date | undefined;  // Время окончания работы
   ShiftDate3: Date | undefined;  // Время начала обеда
   ShiftDate4: Date | undefined;  // Время окончания обеда
+  
+  // НОВЫЕ числовые поля времени (основные для ScheduleTab)
+  ShiftDate1Hours?: number;      // Часы начала работы (0-23)
+  ShiftDate1Minutes?: number;    // Минуты начала работы (0-59)
+  ShiftDate2Hours?: number;      // Часы окончания работы (0-23)
+  ShiftDate2Minutes?: number;    // Минуты окончания работы (0-59)
+  ShiftDate3Hours?: number;      // Часы начала обеда (0-23)
+  ShiftDate3Minutes?: number;    // Минуты начала обеда (0-59)
+  ShiftDate4Hours?: number;      // Часы окончания обеда (0-23)
+  ShiftDate4Minutes?: number;    // Минуты окончания обеда (0-59)
+  
   TimeForLunch: number;          // Продолжительность обеда в минутах
   Contract: number;              // Номер контракта
   Holiday: number;               // Признак праздника: 1 = праздник, 0 = рабочий день
@@ -62,10 +75,23 @@ export interface IRawStaffRecord {
   ExportResult?: string;         // Результат экспорта
   Title?: string;                // Заголовок
   Date?: string;                 // Дата (в строковом формате)
+  
+  // СУЩЕСТВУЮЩИЕ поля даты-времени (для обратной совместимости)
   ShiftDate1?: string;           // Время начала работы (в строковом формате)
   ShiftDate2?: string;           // Время окончания работы (в строковом формате)
   ShiftDate3?: string;           // Время начала обеда (в строковом формате)
   ShiftDate4?: string;           // Время окончания обеда (в строковом формате)
+  
+  // НОВЫЕ числовые поля времени из SharePoint
+  ShiftDate1Hours?: number | string;    // Часы начала работы
+  ShiftDate1Minutes?: number | string;  // Минуты начала работы
+  ShiftDate2Hours?: number | string;    // Часы окончания работы
+  ShiftDate2Minutes?: number | string;  // Минуты окончания работы
+  ShiftDate3Hours?: number | string;    // Часы начала обеда
+  ShiftDate3Minutes?: number | string;  // Минуты начала обеда
+  ShiftDate4Hours?: number | string;    // Часы окончания обеда
+  ShiftDate4Minutes?: number | string;  // Минуты окончания обеда
+  
   TimeForLunch?: number | string; // Время обеда
   Contract?: number | string;    // Номер контракта
   Holiday?: number | string | boolean; // Признак праздника
@@ -147,10 +173,23 @@ export interface ISortOptions {
 export interface IStaffRecordUpdateParams {
   title?: string;                // Заголовок
   date?: Date;                   // Дата
+  
+  // СУЩЕСТВУЮЩИЕ поля даты-времени (для обратной совместимости)
   shiftDate1?: Date | undefined; // Время начала работы
   shiftDate2?: Date | undefined; // Время окончания работы
   shiftDate3?: Date | undefined; // Время начала обеда
   shiftDate4?: Date | undefined; // Время окончания обеда
+  
+  // НОВЫЕ числовые поля времени
+  shiftDate1Hours?: number;      // Часы начала работы (0-23)
+  shiftDate1Minutes?: number;    // Минуты начала работы (0-59)
+  shiftDate2Hours?: number;      // Часы окончания работы (0-23)
+  shiftDate2Minutes?: number;    // Минуты окончания работы (0-59)
+  shiftDate3Hours?: number;      // Часы начала обеда (0-23)
+  shiftDate3Minutes?: number;    // Минуты начала обеда (0-59)
+  shiftDate4Hours?: number;      // Часы окончания обеда (0-23)
+  shiftDate4Minutes?: number;    // Минуты окончания обеда (0-59)
+  
   timeForLunch?: number;         // Время обеда
   contract?: number;             // Номер контракта
   holiday?: number;              // Признак праздника

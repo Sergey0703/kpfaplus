@@ -7,6 +7,7 @@ import { DateUtils } from "../components/CustomDatePicker/CustomDatePicker";
  * Сервис для операций записи данных расписания персонала
  * Отвечает за создание, обновление и удаление записей
  * 
+ * ОБНОВЛЕНО: Добавлена поддержка числовых полей времени для ScheduleTab
  * ОБНОВЛЕНО: Убрана двойная нормализация дат для решения проблемы смещения времени
  * Теперь использует даты как есть, если они уже правильно нормализованы
  */
@@ -29,12 +30,13 @@ export class StaffRecordsCommandService {
     this._remoteSiteService = remoteSiteService;
     this._listName = listName;
     this._logSource = logSource + ".Command";
-    this.logInfo("StaffRecordsCommandService инициализирован с исправленной обработкой UTC дат");
+    this.logInfo("StaffRecordsCommandService инициализирован с поддержкой числовых полей времени и исправленной обработкой UTC дат");
   }
 
   /**
    * Обновляет запись расписания
    * ИСПРАВЛЕНО: Убрана повторная нормализация дат через DateUtils для времен смен
+   * ОБНОВЛЕНО: Добавлена поддержка числовых полей времени
    *
    * @param recordId ID записи для обновления
    * @param updateData Параметры обновления
@@ -102,6 +104,40 @@ export class StaffRecordsCommandService {
           fields.ShiftDate4 = null;
           this.logInfo(`[DEBUG] ShiftDate4 set to null`);
         }
+      }
+
+      // НОВОЕ: Process numeric time fields
+      if (updateData.ShiftDate1Hours !== undefined) {
+        fields.ShiftDate1Hours = updateData.ShiftDate1Hours;
+        this.logInfo(`[DEBUG] Setting ShiftDate1Hours to ${updateData.ShiftDate1Hours}`);
+      }
+      if (updateData.ShiftDate1Minutes !== undefined) {
+        fields.ShiftDate1Minutes = updateData.ShiftDate1Minutes;
+        this.logInfo(`[DEBUG] Setting ShiftDate1Minutes to ${updateData.ShiftDate1Minutes}`);
+      }
+      if (updateData.ShiftDate2Hours !== undefined) {
+        fields.ShiftDate2Hours = updateData.ShiftDate2Hours;
+        this.logInfo(`[DEBUG] Setting ShiftDate2Hours to ${updateData.ShiftDate2Hours}`);
+      }
+      if (updateData.ShiftDate2Minutes !== undefined) {
+        fields.ShiftDate2Minutes = updateData.ShiftDate2Minutes;
+        this.logInfo(`[DEBUG] Setting ShiftDate2Minutes to ${updateData.ShiftDate2Minutes}`);
+      }
+      if (updateData.ShiftDate3Hours !== undefined) {
+        fields.ShiftDate3Hours = updateData.ShiftDate3Hours;
+        this.logInfo(`[DEBUG] Setting ShiftDate3Hours to ${updateData.ShiftDate3Hours}`);
+      }
+      if (updateData.ShiftDate3Minutes !== undefined) {
+        fields.ShiftDate3Minutes = updateData.ShiftDate3Minutes;
+        this.logInfo(`[DEBUG] Setting ShiftDate3Minutes to ${updateData.ShiftDate3Minutes}`);
+      }
+      if (updateData.ShiftDate4Hours !== undefined) {
+        fields.ShiftDate4Hours = updateData.ShiftDate4Hours;
+        this.logInfo(`[DEBUG] Setting ShiftDate4Hours to ${updateData.ShiftDate4Hours}`);
+      }
+      if (updateData.ShiftDate4Minutes !== undefined) {
+        fields.ShiftDate4Minutes = updateData.ShiftDate4Minutes;
+        this.logInfo(`[DEBUG] Setting ShiftDate4Minutes to ${updateData.ShiftDate4Minutes}`);
       }
 
       // Process numeric fields
@@ -204,6 +240,7 @@ export class StaffRecordsCommandService {
   /**
    * Creates a new staff record
    * ИСПРАВЛЕНО: Убрана повторная нормализация дат через DateUtils для времен смен
+   * ОБНОВЛЕНО: Добавлена поддержка числовых полей времени
    *
    * @param createParams Параметры для staff record creation
    * @param currentUserID ID of the current user (Manager)
@@ -281,6 +318,40 @@ export class StaffRecordsCommandService {
           fields.ShiftDate4 = null;
           this.logInfo(`[DEBUG] Create ShiftDate4 set to null`);
         }
+      }
+
+      // НОВОЕ: Process numeric time fields for creation
+      if (createParams.ShiftDate1Hours !== undefined) {
+        fields.ShiftDate1Hours = createParams.ShiftDate1Hours;
+        this.logInfo(`[DEBUG] Create: Setting ShiftDate1Hours to ${createParams.ShiftDate1Hours}`);
+      }
+      if (createParams.ShiftDate1Minutes !== undefined) {
+        fields.ShiftDate1Minutes = createParams.ShiftDate1Minutes;
+        this.logInfo(`[DEBUG] Create: Setting ShiftDate1Minutes to ${createParams.ShiftDate1Minutes}`);
+      }
+      if (createParams.ShiftDate2Hours !== undefined) {
+        fields.ShiftDate2Hours = createParams.ShiftDate2Hours;
+        this.logInfo(`[DEBUG] Create: Setting ShiftDate2Hours to ${createParams.ShiftDate2Hours}`);
+      }
+      if (createParams.ShiftDate2Minutes !== undefined) {
+        fields.ShiftDate2Minutes = createParams.ShiftDate2Minutes;
+        this.logInfo(`[DEBUG] Create: Setting ShiftDate2Minutes to ${createParams.ShiftDate2Minutes}`);
+      }
+      if (createParams.ShiftDate3Hours !== undefined) {
+        fields.ShiftDate3Hours = createParams.ShiftDate3Hours;
+        this.logInfo(`[DEBUG] Create: Setting ShiftDate3Hours to ${createParams.ShiftDate3Hours}`);
+      }
+      if (createParams.ShiftDate3Minutes !== undefined) {
+        fields.ShiftDate3Minutes = createParams.ShiftDate3Minutes;
+        this.logInfo(`[DEBUG] Create: Setting ShiftDate3Minutes to ${createParams.ShiftDate3Minutes}`);
+      }
+      if (createParams.ShiftDate4Hours !== undefined) {
+        fields.ShiftDate4Hours = createParams.ShiftDate4Hours;
+        this.logInfo(`[DEBUG] Create: Setting ShiftDate4Hours to ${createParams.ShiftDate4Hours}`);
+      }
+      if (createParams.ShiftDate4Minutes !== undefined) {
+        fields.ShiftDate4Minutes = createParams.ShiftDate4Minutes;
+        this.logInfo(`[DEBUG] Create: Setting ShiftDate4Minutes to ${createParams.ShiftDate4Minutes}`);
       }
 
       // Process numeric fields (use default if not provided)
@@ -398,10 +469,11 @@ export class StaffRecordsCommandService {
       }
 
       // Log the complete field set for debugging
-      this.logInfo(`[DEBUG] *** FINAL CREATE FIELDS WITH FIXED UTC TIMES ***`);
+      this.logInfo(`[DEBUG] *** FINAL CREATE FIELDS WITH NUMERIC TIME FIELDS ***`);
       this.logInfo(`[DEBUG] Main Date: ${fields.Date}`);
       this.logInfo(`[DEBUG] ShiftDate1 (start): ${fields.ShiftDate1}`);
       this.logInfo(`[DEBUG] ShiftDate2 (end): ${fields.ShiftDate2}`);
+      this.logInfo(`[DEBUG] Numeric time fields: Start=${fields.ShiftDate1Hours}:${fields.ShiftDate1Minutes}, End=${fields.ShiftDate2Hours}:${fields.ShiftDate2Minutes}`);
       this.logInfo(`[DEBUG] All fields: ${JSON.stringify(fields)}`);
 
       // Use the RemoteSiteService to create the item
@@ -409,7 +481,7 @@ export class StaffRecordsCommandService {
 
       if (result && result.id) {
         this.logInfo(`[DEBUG] Successfully created staff record with ID: ${result.id}`);
-        this.logInfo(`[DEBUG] *** RECORD CREATED WITH FIXED UTC TIMES - NO DOUBLE NORMALIZATION ***`);
+        this.logInfo(`[DEBUG] *** RECORD CREATED WITH NUMERIC TIME FIELDS AND FIXED UTC TIMES ***`);
         return result.id.toString();
       } else {
         this.logError(`[DEBUG] Failed to create staff record, no ID returned in result`);

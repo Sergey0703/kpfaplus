@@ -10,6 +10,7 @@ import { DateUtils } from "../components/CustomDatePicker/CustomDatePicker";
    * Сервис для преобразования данных из SharePoint в бизнес-модели
    * Отвечает за маппинг, валидацию и нормализацию данных
    * 
+   * ОБНОВЛЕНО: Добавлена поддержка числовых полей времени для ScheduleTab
    * ОБНОВЛЕНО: Добавлена правильная обработка дат через DateUtils для решения проблемы с 1 октября
    * и корректного парсинга дат из SharePoint с учетом временных зон
    */
@@ -22,7 +23,7 @@ import { DateUtils } from "../components/CustomDatePicker/CustomDatePicker";
      */
     constructor(logSource: string) {
       this._logSource = logSource + ".Mapper";
-      this.logInfo("StaffRecordsMapperService инициализирован с поддержкой DateUtils");
+      this.logInfo("StaffRecordsMapperService инициализирован с поддержкой DateUtils и числовых полей времени");
     }
   
     /**
@@ -78,6 +79,7 @@ import { DateUtils } from "../components/CustomDatePicker/CustomDatePicker";
     /**
      * Преобразует одну сырую запись в структурированный объект IStaffRecord
      * ИСПРАВЛЕНО: Добавлена правильная обработка дат через DateUtils
+     * ОБНОВЛЕНО: Добавлена поддержка числовых полей времени
      * 
      * @param id Идентификатор записи
      * @param fields Поля записи
@@ -111,10 +113,23 @@ import { DateUtils } from "../components/CustomDatePicker/CustomDatePicker";
         ExportResult: this.ensureString(fields.ExportResult),
         Title: this.ensureString(fields.Title),
         Date: mainDate,
+        
+        // СУЩЕСТВУЮЩИЕ поля даты-времени (для обратной совместимости)
         ShiftDate1: shiftDate1,
         ShiftDate2: shiftDate2,
         ShiftDate3: shiftDate3,
         ShiftDate4: shiftDate4,
+        
+        // НОВЫЕ числовые поля времени
+        ShiftDate1Hours: this.ensureNumber(fields.ShiftDate1Hours),
+        ShiftDate1Minutes: this.ensureNumber(fields.ShiftDate1Minutes),
+        ShiftDate2Hours: this.ensureNumber(fields.ShiftDate2Hours),
+        ShiftDate2Minutes: this.ensureNumber(fields.ShiftDate2Minutes),
+        ShiftDate3Hours: this.ensureNumber(fields.ShiftDate3Hours),
+        ShiftDate3Minutes: this.ensureNumber(fields.ShiftDate3Minutes),
+        ShiftDate4Hours: this.ensureNumber(fields.ShiftDate4Hours),
+        ShiftDate4Minutes: this.ensureNumber(fields.ShiftDate4Minutes),
+        
         TimeForLunch: this.ensureNumber(fields.TimeForLunch, 0),
         Contract: this.ensureNumber(fields.Contract, 1),
         Holiday: this.ensureNumber(fields.Holiday, 0),
@@ -213,8 +228,6 @@ import { DateUtils } from "../components/CustomDatePicker/CustomDatePicker";
       }
     }
 
-
-  
     /**
      * Извлекает информацию о типе отпуска из правильного поля TypeOfLeaveLookupId
      */
