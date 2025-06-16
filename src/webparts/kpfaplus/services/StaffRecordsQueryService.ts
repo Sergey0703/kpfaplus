@@ -16,6 +16,7 @@ import { DateUtils } from "../components/CustomDatePicker/CustomDatePicker";
  * Отвечает за получение, фильтрацию, сортировку и расчет данных
  * 
  * ОБНОВЛЕНО: Добавлена нормализация дат через DateUtils для решения проблемы с 1 октября
+ * ОБНОВЛЕНО: Добавлена поддержка числовых полей времени (ShiftDate1Hours, ShiftDate1Minutes, ShiftDate2Hours, ShiftDate2Minutes)
  */
 export class StaffRecordsQueryService {
   private _logSource: string;
@@ -40,13 +41,14 @@ export class StaffRecordsQueryService {
     this._mapperService = mapperService;
     this._calculationService = calculationService;
     this._logSource = logSource + ".Query";
-    this.logInfo("StaffRecordsQueryService инициализирован с поддержкой DateUtils");
+    this.logInfo("StaffRecordsQueryService инициализирован с поддержкой DateUtils и числовых полей времени");
   }
 
   /**
    * Получение записей расписания персонала
    * Этот метод сохранен для обратной совместимости с текущим API
    * ИСПРАВЛЕНО: Добавлена нормализация дат для решения проблемы с 1 октября
+   * ОБНОВЛЕНО: Записи теперь содержат числовые поля времени
    *
    * @param startDate Дата начала периода
    * @param endDate Дата окончания периода
@@ -94,6 +96,7 @@ export class StaffRecordsQueryService {
       }
 
       this.logInfo(`getStaffRecords (обратная совместимость): Возвращаем ${result.records.length} записей`);
+      
       return result.records;
 
     } catch (error) {
@@ -107,6 +110,7 @@ export class StaffRecordsQueryService {
   /**
    * Получение записей расписания персонала с расширенными опциями, включая пагинацию.
    * ИСПРАВЛЕНО: Добавлена нормализация дат для решения проблемы с 1 октября
+   * ОБНОВЛЕНО: Записи теперь содержат числовые поля времени
    *
    * @param queryParams Параметры запроса, включая пагинацию (skip, top)
    * @param sortOptions Опции сортировки (опционально)
@@ -196,6 +200,7 @@ export class StaffRecordsQueryService {
   /**
    * Получение ВСЕХ записей расписания персонала за период БЕЗ ПАГИНАЦИИ.
    * ИСПРАВЛЕНО: Добавлена нормализация дат для решения проблемы с 1 октября
+   * ОБНОВЛЕНО: Записи теперь содержат числовые поля времени
    * 
    * @param queryParams Параметры запроса (без skip/top)
    * @param sortOptions Опции сортировки (опционально)
@@ -286,6 +291,7 @@ export class StaffRecordsQueryService {
   /**
    * Получает ВСЕ АКТИВНЫЕ записи расписания (исключает Deleted=1)
    * ИСПРАВЛЕНО: Добавлена нормализация дат для решения проблемы с 1 октября
+   * ОБНОВЛЕНО: Записи теперь содержат числовые поля времени
    */
   public async getAllActiveStaffRecordsForTimetable(
     queryParams: Omit<IStaffRecordsQueryParams, 'skip' | 'top' | 'nextLink'>
@@ -366,6 +372,7 @@ export class StaffRecordsQueryService {
   /**
    * Получает записи расписания с заполненным типом отпуска
    * ИСПРАВЛЕНО: Добавлена нормализация дат для решения проблемы с 1 октября
+   * ОБНОВЛЕНО: Записи теперь содержат числовые поля времени
    * 
    * @param queryParams Параметры запроса (без пагинации)
    * @returns Promise с результатами (записи с типом отпуска, исключая удаленные)
@@ -457,6 +464,7 @@ export class StaffRecordsQueryService {
 
   /**
    * Получает одну запись расписания по ID
+   * ОБНОВЛЕНО: Запись теперь содержит числовые поля времени
    *
    * @param recordId ID записи для получения
    * @returns Promise с записью или undefined при ошибке
@@ -503,14 +511,23 @@ export class StaffRecordsQueryService {
   public calculateTotalWorkTime(records: IStaffRecord[]): number {
     try {
       this.logInfo(`[DEBUG] Calculating total work time for ${records.length} records`);
+      
       // Delegate calculation to the calculation service
-      return this._calculationService.calculateTotalWorkTime(records);
+      const totalTime = this._calculationService.calculateTotalWorkTime(records);
+      
+      this.logInfo(`[DEBUG] Total work time calculated: ${totalTime} minutes for ${records.length} records`);
+      
+      return totalTime;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logError(`[ERROR] Error calculating total work time: ${errorMessage}`);
       return 0;
     }
   }
+
+  // ===============================================
+  // LOGGING
+  // ===============================================
 
   /**
    * Логирование информационных сообщений

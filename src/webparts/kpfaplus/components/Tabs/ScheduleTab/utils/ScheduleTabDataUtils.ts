@@ -44,7 +44,7 @@ export const createTimeFromScheduleItem = (baseDate: Date, hourStr: string, minu
 
 /**
  * Преобразует данные записей расписания в формат для отображения в таблице
- * ИСПРАВЛЕНО: Используется правильное извлечение UTC времени из дат для отображения
+ * ОБНОВЛЕНО: Приоритет отдается числовым полям времени, fallback на ShiftDate1/ShiftDate2
  */
 export const convertStaffRecordsToScheduleItems = (
   records: IStaffRecord[] | undefined, 
@@ -55,9 +55,6 @@ export const convertStaffRecordsToScheduleItems = (
   }
 
   console.log(`[ScheduleTabDataUtils] Converting ${records.length} staff records to schedule items`);
-  console.log(`[ScheduleTabDataUtils] Using ONLY data from StaffRecords - no mixing with leaves/holidays data`);
-  console.log(`[ScheduleTabDataUtils] IMPORTANT: Using DateUtils for date normalization to fix October 1st issue`);
-  console.log(`[ScheduleTabDataUtils] *** CRITICAL: Using getUTCHours/getUTCMinutes for correct time display ***`);
 
   return records.map((record, index) => {
     // ИСПРАВЛЕНО: Нормализуем основную дату записи к UTC полуночи для консистентности
@@ -71,40 +68,35 @@ export const convertStaffRecordsToScheduleItems = (
       console.log(`[ScheduleTabDataUtils] Record ID: ${record.ID}`);
       console.log(`[ScheduleTabDataUtils] Original Date: ${record.Date.toISOString()}`);
       console.log(`[ScheduleTabDataUtils] Normalized Date: ${normalizedDate.toISOString()}`);
-      console.log(`[ScheduleTabDataUtils] Record details:`, {
-        ID: record.ID,
-        Title: record.Title,
-        Deleted: record.Deleted,
-        ShiftDate1: record.ShiftDate1?.toISOString(),
-        ShiftDate2: record.ShiftDate2?.toISOString()
-      });
     }
     
     // Форматирование дня недели
     const dayOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][normalizedDate.getDay()];
     
-    // ИСПРАВЛЕНО: Получение часов и минут из дат с использованием UTC методов
-    console.log(`[ScheduleTabDataUtils] *** EXTRACTING TIME USING UTC METHODS ***`);
-    if (record.ShiftDate1) {
-      console.log(`[ScheduleTabDataUtils] ShiftDate1 stored: ${record.ShiftDate1.toISOString()}`);
-      console.log(`[ScheduleTabDataUtils] Local time would be: ${record.ShiftDate1.getHours()}:${record.ShiftDate1.getMinutes()}`);
-      console.log(`[ScheduleTabDataUtils] UTC time (correct): ${record.ShiftDate1.getUTCHours()}:${record.ShiftDate1.getUTCMinutes()}`);
-    }
-    if (record.ShiftDate2) {
-      console.log(`[ScheduleTabDataUtils] ShiftDate2 stored: ${record.ShiftDate2.toISOString()}`);
-      console.log(`[ScheduleTabDataUtils] Local time would be: ${record.ShiftDate2.getHours()}:${record.ShiftDate2.getMinutes()}`);
-      console.log(`[ScheduleTabDataUtils] UTC time (correct): ${record.ShiftDate2.getUTCHours()}:${record.ShiftDate2.getUTCMinutes()}`);
+    // *** НОВАЯ ЛОГИКА: Приоритет числовым полям времени ***
+    let startHour = '00';
+    let startMinute = '00';
+    let finishHour = '00';
+    let finishMinute = '00';
+    
+    // ПРИОРИТЕТ 1: Числовые поля времени (для ScheduleTab)
+    if (record.ShiftDate1Hours !== undefined && record.ShiftDate1Minutes !== undefined) {
+      startHour = record.ShiftDate1Hours.toString().padStart(2, '0');
+      startMinute = record.ShiftDate1Minutes.toString().padStart(2, '0');
+    } else if (record.ShiftDate1) {
+      // FALLBACK: Используем ShiftDate1 с UTC методами
+      startHour = record.ShiftDate1.getUTCHours().toString().padStart(2, '0');
+      startMinute = record.ShiftDate1.getUTCMinutes().toString().padStart(2, '0');
     }
     
-    // ИСПРАВЛЕНО: Используем getUTCHours() и getUTCMinutes() вместо getHours() и getMinutes()
-    const startHour = record.ShiftDate1 ? record.ShiftDate1.getUTCHours().toString().padStart(2, '0') : '00';
-    const startMinute = record.ShiftDate1 ? record.ShiftDate1.getUTCMinutes().toString().padStart(2, '0') : '00';
-    const finishHour = record.ShiftDate2 ? record.ShiftDate2.getUTCHours().toString().padStart(2, '0') : '00';
-    const finishMinute = record.ShiftDate2 ? record.ShiftDate2.getUTCMinutes().toString().padStart(2, '0') : '00';
-    
-    console.log(`[ScheduleTabDataUtils] *** EXTRACTED UTC TIME FOR DISPLAY ***`);
-    console.log(`[ScheduleTabDataUtils] Start time: ${startHour}:${startMinute} (from UTC)`);
-    console.log(`[ScheduleTabDataUtils] Finish time: ${finishHour}:${finishMinute} (from UTC)`);
+    if (record.ShiftDate2Hours !== undefined && record.ShiftDate2Minutes !== undefined) {
+      finishHour = record.ShiftDate2Hours.toString().padStart(2, '0');
+      finishMinute = record.ShiftDate2Minutes.toString().padStart(2, '0');
+    } else if (record.ShiftDate2) {
+      // FALLBACK: Используем ShiftDate2 с UTC методами
+      finishHour = record.ShiftDate2.getUTCHours().toString().padStart(2, '0');
+      finishMinute = record.ShiftDate2.getUTCMinutes().toString().padStart(2, '0');
+    }
     
     // ИСПРАВЛЕНО: Извлекаем значение TypeOfLeaveID ТОЛЬКО из записи расписания
     let typeOfLeaveValue = '';
@@ -112,14 +104,10 @@ export const convertStaffRecordsToScheduleItems = (
     // Проверяем оба возможных формата данных из StaffRecords
     if (record.TypeOfLeave && record.TypeOfLeave.Id) {
       typeOfLeaveValue = String(record.TypeOfLeave.Id);
-      console.log(`[ScheduleTabDataUtils] Record ${record.ID}: Using TypeOfLeave.Id from StaffRecord: ${typeOfLeaveValue}`);
     } 
     // Если нет объекта TypeOfLeave, проверяем прямое поле TypeOfLeaveID
     else if (record.TypeOfLeaveID) {
       typeOfLeaveValue = String(record.TypeOfLeaveID);
-      console.log(`[ScheduleTabDataUtils] Record ${record.ID}: Using TypeOfLeaveID from StaffRecord: ${typeOfLeaveValue}`);
-    } else {
-      console.log(`[ScheduleTabDataUtils] Record ${record.ID}: No TypeOfLeave found in StaffRecord, using empty string`);
     }
     
     // Формирование объекта IScheduleItem с нормализованной датой
@@ -156,25 +144,13 @@ export const convertStaffRecordsToScheduleItems = (
       });
     }
     
-    // Логирование для каждого элемента (только для первых нескольких для экономии места)
-    if (index < 3) {
-      console.log(`[ScheduleTabDataUtils] *** FINAL SCHEDULE ITEM ${index + 1} ***`);
-      console.log(`[ScheduleTabDataUtils] ID: ${scheduleItem.id}`);
-      console.log(`[ScheduleTabDataUtils] Date: ${scheduleItem.date.toISOString()}`);
-      console.log(`[ScheduleTabDataUtils] Time: ${scheduleItem.startHour}:${scheduleItem.startMinute} - ${scheduleItem.finishHour}:${scheduleItem.finishMinute}`);
-      console.log(`[ScheduleTabDataUtils] Working hours: ${scheduleItem.workingHours}`);
-      console.log(`[ScheduleTabDataUtils] Type of leave: ${scheduleItem.typeOfLeave || 'none'}`);
-      console.log(`[ScheduleTabDataUtils] Deleted: ${scheduleItem.deleted}`);
-      console.log(`[ScheduleTabDataUtils] Holiday: ${scheduleItem.Holiday}`);
-    }
-    
     return scheduleItem;
   });
 };
 
 /**
  * Форматирует объект IStaffRecord для обновления из IScheduleItem
- * ИСПРАВЛЕНО: Использует местную полночь для поля Date, прямое создание UTC времени для смен
+ * ОБНОВЛЕНО: Заполняет как числовые поля времени, так и ShiftDate1/ShiftDate2 для совместимости
  */
 export const formatItemForUpdate = (recordId: string, scheduleItem: IScheduleItem): Partial<IStaffRecord> => {
   console.log(`[ScheduleTabDataUtils] formatItemForUpdate for record ID: ${recordId}`);
@@ -189,7 +165,6 @@ export const formatItemForUpdate = (recordId: string, scheduleItem: IScheduleIte
   );
   
   console.log(`[ScheduleTabDataUtils] Created local midnight date for Date field: ${localMidnightDate.toISOString()}`);
-  console.log(`[ScheduleTabDataUtils] Local time representation: ${localMidnightDate.toLocaleString()}`);
   
   // Специальная отладка для октября 2024
   if (scheduleItem.date.getUTCMonth() === 9 && scheduleItem.date.getUTCFullYear() === 2024 && scheduleItem.date.getUTCDate() === 1) {
@@ -197,22 +172,29 @@ export const formatItemForUpdate = (recordId: string, scheduleItem: IScheduleIte
     console.log(`[ScheduleTabDataUtils] Record ID: ${recordId}`);
     console.log(`[ScheduleTabDataUtils] Original item date: ${scheduleItem.date.toISOString()}`);
     console.log(`[ScheduleTabDataUtils] Local midnight date: ${localMidnightDate.toISOString()}`);
-    console.log(`[ScheduleTabDataUtils] Local midnight date (local): ${localMidnightDate.toLocaleString()}`);
   }
+  
+  // *** НОВОЕ: Парсим числовые значения времени ***
+  const startHour = parseInt(scheduleItem.startHour, 10) || 0;
+  const startMinute = parseInt(scheduleItem.startMinute, 10) || 0;
+  const finishHour = parseInt(scheduleItem.finishHour, 10) || 0;
+  const finishMinute = parseInt(scheduleItem.finishMinute, 10) || 0;
   
   // *** ИСПРАВЛЕНО: Используем createTimeFromScheduleItem с прямым созданием времени ***
   const shiftDate1 = createTimeFromScheduleItem(scheduleItem.date, scheduleItem.startHour, scheduleItem.startMinute);
   const shiftDate2 = createTimeFromScheduleItem(scheduleItem.date, scheduleItem.finishHour, scheduleItem.finishMinute);
-  
-  console.log(`[ScheduleTabDataUtils] *** CREATED SHIFT TIMES WITHOUT TIMEZONE ADJUSTMENT ***`);
-  console.log(`[ScheduleTabDataUtils] ShiftDate1: ${shiftDate1.toISOString()} (${scheduleItem.startHour}:${scheduleItem.startMinute})`);
-  console.log(`[ScheduleTabDataUtils] ShiftDate2: ${shiftDate2.toISOString()} (${scheduleItem.finishHour}:${scheduleItem.finishMinute})`);
 
   const updateData: Partial<IStaffRecord> = {
     // *** ИСПРАВЛЕНИЕ: Используем местную полночь для поля Date ***
-    Date: localMidnightDate, // ✅ ПРАВИЛЬНО - местная полночь для Date
+    Date: localMidnightDate,
     
-    // *** ИСПРАВЛЕНО: Времена смен БЕЗ корректировки часового пояса ***
+    // *** ОБНОВЛЕНО: Заполняем числовые поля времени (ПРИОРИТЕТ для ScheduleTab) ***
+    ShiftDate1Hours: startHour,
+    ShiftDate1Minutes: startMinute,
+    ShiftDate2Hours: finishHour,
+    ShiftDate2Minutes: finishMinute,
+    
+    // *** ИСПРАВЛЕНО: Времена смен БЕЗ корректировки часового пояса (для обратной совместимости) ***
     ShiftDate1: shiftDate1,
     ShiftDate2: shiftDate2,
     
@@ -229,18 +211,6 @@ export const formatItemForUpdate = (recordId: string, scheduleItem: IScheduleIte
     // Holiday status
     Holiday: scheduleItem.Holiday
   };
-  
-  console.log(`[ScheduleTabDataUtils] formatItemForUpdate result:`, {
-    Date: updateData.Date?.toISOString(),
-    'Date (local)': updateData.Date?.toLocaleString(),
-    ShiftDate1: updateData.ShiftDate1?.toISOString(),
-    ShiftDate2: updateData.ShiftDate2?.toISOString(),
-    TimeForLunch: updateData.TimeForLunch,
-    Contract: updateData.Contract,
-    TypeOfLeaveID: updateData.TypeOfLeaveID,
-    WorkTime: updateData.WorkTime,
-    Holiday: updateData.Holiday
-  });
   
   return updateData;
 };
@@ -294,8 +264,8 @@ export const logScheduleItemConversion = (record: IStaffRecord, scheduleItem: IS
   console.log(`Deleted Status: ${scheduleItem.deleted}`);
   console.log(`Holiday Status: ${scheduleItem.Holiday}`);
   console.log(`Type of Leave: ${scheduleItem.typeOfLeave || 'none'}`);
-  console.log(`Start Time: ${scheduleItem.startHour}:${scheduleItem.startMinute} (extracted from UTC)`);
-  console.log(`Finish Time: ${scheduleItem.finishHour}:${scheduleItem.finishMinute} (extracted from UTC)`);
+  console.log(`Start Time: ${scheduleItem.startHour}:${scheduleItem.startMinute}`);
+  console.log(`Finish Time: ${scheduleItem.finishHour}:${scheduleItem.finishMinute}`);
   console.log(`Lunch Time: ${scheduleItem.lunchTime} minutes`);
   console.log(`Contract: ${scheduleItem.contract} (ID: ${scheduleItem.contractId})`);
   console.log(`Contract Number: ${scheduleItem.contractNumber}`);
