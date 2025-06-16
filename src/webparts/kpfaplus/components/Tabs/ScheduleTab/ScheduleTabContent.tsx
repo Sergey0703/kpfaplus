@@ -141,7 +141,7 @@ export const ScheduleTabContent: React.FC<IScheduleTabContentProps> = (props) =>
    onBulkDeleteStaffRecords,
  } = props;
 
-console.log('[ScheduleTabContent] *** COMPONENT RENDER ***');
+console.log('[ScheduleTabContent] *** COMPONENT RENDER WITH NUMERIC FIELDS SUPPORT ***');
  console.log('[ScheduleTabContent] currentPage:', currentPage);
  console.log('[ScheduleTabContent] staffRecords length:', staffRecords?.length || 0);
  console.log('[ScheduleTabContent] totalItemCount:', totalItemCount);
@@ -151,6 +151,17 @@ console.log('[ScheduleTabContent] *** COMPONENT RENDER ***');
  if (staffRecords && staffRecords.length > 0) {
    console.log('[ScheduleTabContent] First record ID:', staffRecords[0].ID);
    console.log('[ScheduleTabContent] Last record ID:', staffRecords[staffRecords.length - 1].ID);
+   
+   // *** ПРОВЕРЯЕМ НАЛИЧИЕ ЧИСЛОВЫХ ПОЛЕЙ В ЗАПИСЯХ ***
+   const firstRecord = staffRecords[0];
+   console.log('[ScheduleTabContent] *** NUMERIC FIELDS CHECK ***');
+   console.log('[ScheduleTabContent] First record numeric fields:', {
+     ShiftDate1Hours: firstRecord.ShiftDate1Hours,
+     ShiftDate1Minutes: firstRecord.ShiftDate1Minutes,
+     ShiftDate2Hours: firstRecord.ShiftDate2Hours,
+     ShiftDate2Minutes: firstRecord.ShiftDate2Minutes,
+     hasNumericFields: firstRecord.ShiftDate1Hours !== undefined
+   });
    
    // Проверяем что сервер правильно отфильтровал записи
    const deletedRecords = staffRecords.filter(r => r.Deleted === 1);
@@ -250,9 +261,9 @@ console.log('[ScheduleTabContent] *** COMPONENT RENDER ***');
    setOperationMessage(undefined);
  }, [selectedDate, selectedContractId, selectedStaff?.id]);
 
- // ИСПРАВЛЕНО: Функция конвертации использует ТОЛЬКО данные из StaffRecords
- // Никаких отпусков из DaysOfLeaves не передается и не используется
+ // *** ОБНОВЛЕННАЯ ФУНКЦИЯ getAllScheduleItems С ПОДДЕРЖКОЙ ЧИСЛОВЫХ ПОЛЕЙ ***
  const getAllScheduleItems = useCallback((): IScheduleItem[] => {
+  console.log('[ScheduleTabContent] *** CONVERTING STAFF RECORDS WITH NUMERIC FIELDS SUPPORT ***');
   console.log('[ScheduleTabContent] *** CURRENT DATA STATE ***');
   console.log('[ScheduleTabContent] staffRecords length:', staffRecords?.length);
   console.log('[ScheduleTabContent] currentPage:', currentPage);
@@ -261,13 +272,23 @@ console.log('[ScheduleTabContent] *** COMPONENT RENDER ***');
     console.log('[ScheduleTabContent] First record ID:', staffRecords[0].ID);
     console.log('[ScheduleTabContent] First record Date:', staffRecords[0].Date);
     console.log('[ScheduleTabContent] Last record ID:', staffRecords[staffRecords.length - 1].ID);
+    
+    // *** ЛОГИРУЕМ ЧИСЛОВЫЕ ПОЛЯ ПЕРВОЙ ЗАПИСИ ***
+    const firstRecord = staffRecords[0];
+    console.log('[ScheduleTabContent] *** FIRST RECORD NUMERIC FIELDS ***');
+    console.log('[ScheduleTabContent] ShiftDate1Hours:', firstRecord.ShiftDate1Hours);
+    console.log('[ScheduleTabContent] ShiftDate1Minutes:', firstRecord.ShiftDate1Minutes);
+    console.log('[ScheduleTabContent] ShiftDate2Hours:', firstRecord.ShiftDate2Hours);
+    console.log('[ScheduleTabContent] ShiftDate2Minutes:', firstRecord.ShiftDate2Minutes);
+    console.log('[ScheduleTabContent] ShiftDate1 (DateTime):', firstRecord.ShiftDate1?.toISOString());
+    console.log('[ScheduleTabContent] ShiftDate2 (DateTime):', firstRecord.ShiftDate2?.toISOString());
   }
-   console.log('[ScheduleTabContent] Converting staff records using ONLY StaffRecords data');
+  
+   console.log('[ScheduleTabContent] Converting staff records using ENHANCED convertStaffRecordsToScheduleItems');
    console.log('[ScheduleTabContent] Staff records count:', staffRecords?.length || 0);
-   console.log('[ScheduleTabContent] IMPORTANT: NOT using DaysOfLeaves data for TypeOfLeave - using only StaffRecords.TypeOfLeaveID');
+   console.log('[ScheduleTabContent] IMPORTANT: Now supporting BOTH numeric fields AND DateTime fields');
    
-   // ИСПРАВЛЕНО: Передаем ТОЛЬКО StaffRecords и selectedContract
-   // НЕ передаем leaves - они не нужны для определения TypeOfLeave
+   // *** ОБНОВЛЕНО: convertStaffRecordsToScheduleItems теперь поддерживает числовые поля ***
    const baseItems = convertStaffRecordsToScheduleItems(
      staffRecords || [], 
      selectedContract
@@ -275,11 +296,20 @@ console.log('[ScheduleTabContent] *** COMPONENT RENDER ***');
 
    console.log('[ScheduleTabContent] Base items converted:', baseItems.length);
    
-   // Логируем несколько примеров для проверки
+   // *** ЛОГИРУЕМ ЧИСЛОВЫЕ ПОЛЯ В ПЕРВОМ ПРЕОБРАЗОВАННОМ ЭЛЕМЕНТЕ ***
    if (baseItems.length > 0) {
+     const firstItem = baseItems[0];
+     console.log('[ScheduleTabContent] *** FIRST CONVERTED ITEM TIME FIELDS ***');
+     console.log('[ScheduleTabContent] String fields: startHour=' + firstItem.startHour + ', startMinute=' + firstItem.startMinute + ', finishHour=' + firstItem.finishHour + ', finishMinute=' + firstItem.finishMinute);
+     console.log('[ScheduleTabContent] Numeric fields: startHours=' + firstItem.startHours + ', startMinutes=' + firstItem.startMinutes + ', finishHours=' + firstItem.finishHours + ', finishMinutes=' + firstItem.finishMinutes);
+     console.log('[ScheduleTabContent] Working hours:', firstItem.workingHours);
+     
+     // Логируем несколько примеров для проверки
      console.log('[ScheduleTabContent] Sample converted items:');
      baseItems.slice(0, 3).forEach(item => {
        console.log(`- Item ${item.id}: date=${item.date.toLocaleDateString()}, typeOfLeave="${item.typeOfLeave}", Holiday=${item.Holiday}, deleted=${item.deleted}`);
+       console.log(`  String time: ${item.startHour}:${item.startMinute}-${item.finishHour}:${item.finishMinute}`);
+       console.log(`  Numeric time: ${item.startHours}:${item.startMinutes}-${item.finishHours}:${item.finishMinutes}`);
      });
    }
 
@@ -295,7 +325,7 @@ console.log('[ScheduleTabContent] *** COMPONENT RENDER ***');
      }
      return item;
    });
- }, [staffRecords, modifiedRecords, selectedContract, currentPage, totalItemCount]); // ИСПРАВЛЕНО: убрали leaves из зависимостей
+ }, [staffRecords, modifiedRecords, selectedContract, currentPage, totalItemCount]);
 
 // *** НОВАЯ ФУНКЦИЯ БЕЗ КЛИЕНТСКОЙ ФИЛЬТРАЦИИ ***
 const getScheduleItemsWithModifications = (): IScheduleItem[] => {
@@ -356,7 +386,7 @@ const itemsForTable = getScheduleItemsWithModifications();
      markRecordsAsDeleted: markRecordsAsDeleted
    };
 
-   console.log('[ScheduleTabContent] Calling fillScheduleFromTemplate');
+   console.log('[ScheduleTabContent] Calling fillScheduleFromTemplate with numeric fields support');
 
    try {
      await fillScheduleFromTemplate(fillParams, fillHandlers);
@@ -588,7 +618,7 @@ const itemsForTable = getScheduleItemsWithModifications();
  };
 
  const saveAllChanges = async (): Promise<void> => {
-   console.log('[ScheduleTabContent] saveAllChanges called');
+   console.log('[ScheduleTabContent] *** SAVE ALL CHANGES WITH NUMERIC FIELDS SUPPORT ***');
    if (!onUpdateStaffRecord) {
      setOperationMessage({
        text: 'Unable to save changes: Update function not available',
@@ -605,20 +635,31 @@ const itemsForTable = getScheduleItemsWithModifications();
      return;
    }
 
+   console.log(`[ScheduleTabContent] Saving ${Object.keys(modifiedRecords).length} modified records with numeric fields support`);
+   
+   // *** ЛОГИРУЕМ ТИПЫ ИЗМЕНЕНИЙ ***
+   Object.entries(modifiedRecords).forEach(([recordId, modifiedItem]) => {
+     console.log(`[ScheduleTabContent] Modified record ${recordId}:`, {
+       stringFields: `${modifiedItem.startHour}:${modifiedItem.startMinute}-${modifiedItem.finishHour}:${modifiedItem.finishMinute}`,
+       numericFields: `${modifiedItem.startHours}:${modifiedItem.startMinutes}-${modifiedItem.finishHours}:${modifiedItem.finishMinutes}`,
+       workingHours: modifiedItem.workingHours,
+       hasNumericFields: modifiedItem.startHours !== undefined
+     });
+   });
+
    void handleSaveAllChanges(modifiedRecords, onUpdateStaffRecord, actionHandlerParams);
  };
 
- // ИСПРАВЛЕНО: handleItemChange НЕ использует данные об отпусках из DaysOfLeaves
- // Все изменения применяются только к данным из StaffRecords
+ // *** ОБНОВЛЕННАЯ ФУНКЦИЯ handleItemChange С ПОДДЕРЖКОЙ ЧИСЛОВЫХ ПОЛЕЙ ***
  const handleItemChange = useCallback((item: IScheduleItem, field: string, value: string | number): void => {
+   console.log(`[ScheduleTabContent] *** HANDLE ITEM CHANGE WITH NUMERIC FIELDS ***`);
    console.log(`[ScheduleTabContent] handleItemChange called for item ${item.id}, field: ${field}, value: ${value}`);
-   console.log(`[ScheduleTabContent] IMPORTANT: Using ONLY StaffRecords data for base item conversion`);
+   console.log(`[ScheduleTabContent] IMPORTANT: Full support for BOTH string and numeric time fields`);
 
    setModifiedRecords(prev => {
      const originalRecord = staffRecords?.find(sr => sr.ID === item.id);
      
-     // ИСПРАВЛЕНО: НЕ передаем данные об отпусках в функцию конвертации
-     // Используем только данные из StaffRecords + selectedContract
+     // *** ОБНОВЛЕНО: convertStaffRecordsToScheduleItems теперь поддерживает числовые поля ***
      const baseIScheduleItem = originalRecord ? 
        convertStaffRecordsToScheduleItems([originalRecord], selectedContract)[0] : 
        item;
@@ -641,19 +682,78 @@ const itemsForTable = getScheduleItemsWithModifications();
        }
      }
      
+     // *** НОВОЕ: Создаем обновленный элемент с синхронизацией числовых полей ***
      const updatedItem = {
        ...currentLocalItem,
        [field]: updatedValue,
      };
 
-     console.log('[ScheduleTabContent] Updating modifiedRecords state for item:', item.id, 'field:', field, 'new value:', updatedValue);
+     // *** СИНХРОНИЗИРУЕМ ЧИСЛОВЫЕ ПОЛЯ ПРИ ИЗМЕНЕНИИ ВРЕМЕНИ ***
+     if (field === 'startHour' || field === 'startMinute' || field === 'finishHour' || field === 'finishMinute') {
+       const numericValue = typeof value === 'string' ? parseInt(value, 10) : Number(value);
+       if (!isNaN(numericValue)) {
+         switch (field) {
+           case 'startHour':
+             updatedItem.startHours = numericValue;
+             console.log(`[ScheduleTabContent] Synced startHours to: ${numericValue}`);
+             break;
+           case 'startMinute':
+             updatedItem.startMinutes = numericValue;
+             console.log(`[ScheduleTabContent] Synced startMinutes to: ${numericValue}`);
+             break;
+           case 'finishHour':
+             updatedItem.finishHours = numericValue;
+             console.log(`[ScheduleTabContent] Synced finishHours to: ${numericValue}`);
+             break;
+           case 'finishMinute':
+             updatedItem.finishMinutes = numericValue;
+             console.log(`[ScheduleTabContent] Synced finishMinutes to: ${numericValue}`);
+             break;
+         }
+       }
+     }
+     
+     // *** ТАКЖЕ СИНХРОНИЗИРУЕМ ЕСЛИ ПРЯМО МЕНЯЮТСЯ ЧИСЛОВЫЕ ПОЛЯ ***
+     if (field === 'startHours' || field === 'startMinutes' || field === 'finishHours' || field === 'finishMinutes') {
+       const numericValue = typeof value === 'string' ? parseInt(value, 10) : Number(value);
+       if (!isNaN(numericValue)) {
+         const paddedValue = numericValue.toString().padStart(2, '0');
+         switch (field) {
+           case 'startHours':
+             updatedItem.startHour = paddedValue;
+             console.log(`[ScheduleTabContent] Synced startHour to: ${paddedValue}`);
+             break;
+           case 'startMinutes':
+             updatedItem.startMinute = paddedValue;
+             console.log(`[ScheduleTabContent] Synced startMinute to: ${paddedValue}`);
+             break;
+           case 'finishHours':
+             updatedItem.finishHour = paddedValue;
+             console.log(`[ScheduleTabContent] Synced finishHour to: ${paddedValue}`);
+             break;
+           case 'finishMinutes':
+             updatedItem.finishMinute = paddedValue;
+             console.log(`[ScheduleTabContent] Synced finishMinute to: ${paddedValue}`);
+             break;
+         }
+       }
+     }
+
+     console.log('[ScheduleTabContent] *** FINAL UPDATED ITEM ***', {
+       id: updatedItem.id,
+       field: field,
+       newValue: updatedValue,
+       stringTime: `${updatedItem.startHour}:${updatedItem.startMinute}-${updatedItem.finishHour}:${updatedItem.finishMinute}`,
+       numericTime: `${updatedItem.startHours}:${updatedItem.startMinutes}-${updatedItem.finishHours}:${updatedItem.finishMinutes}`,
+       workingHours: updatedItem.workingHours
+     });
 
      return {
        ...prev,
        [item.id]: updatedItem
      };
    });
- }, [staffRecords, selectedContract]); // ИСПРАВЛЕНО: убрали leaves из зависимостей
+ }, [staffRecords, selectedContract]);
 
  const scheduleOptions: IScheduleOptions = useMemo(() => ({
    hours: Array.from({ length: 24 }, (_, i) => ({
@@ -679,7 +779,7 @@ const itemsForTable = getScheduleItemsWithModifications();
    ]
  }), [typesOfLeave]);
 
- console.log('[ScheduleTabContent] Rendering component with SERVER-SIDE FILTERING:', {
+ console.log('[ScheduleTabContent] *** RENDERING COMPONENT WITH NUMERIC FIELDS SUPPORT ***', {
    selectedStaffName: selectedStaff?.name,
    selectedDate: selectedDate.toISOString(),
    holidaysCount: holidays.length,
@@ -690,7 +790,8 @@ const itemsForTable = getScheduleItemsWithModifications();
    serverFiltering: 'ENABLED - no client-side filtering by deleted status',
    hasHolidaysService: !!holidaysServiceInstance,
    hasDaysOfLeavesService: !!daysOfLeavesServiceInstance,
-   hasBulkDeleteFunction: !!onBulkDeleteStaffRecords
+   hasBulkDeleteFunction: !!onBulkDeleteStaffRecords,
+   numericFieldsSupport: 'ENABLED - both string and numeric time fields supported'
  });
 
  return (
@@ -761,7 +862,7 @@ const itemsForTable = getScheduleItemsWithModifications();
            />
 
            <div style={{ padding: '10px' }}>
-             {/* ИСПРАВЛЕНО: Таблица расписания использует ТОЛЬКО данные из StaffRecords */}
+             {/* *** ОБНОВЛЕНО: Таблица расписания теперь поддерживает числовые поля времени *** */}
              {/* TypeOfLeave берется из StaffRecords.TypeOfLeaveID, а НЕ из DaysOfLeaves */}
              {/* ВАЖНО: БЕЗ КЛИЕНТСКОЙ ФИЛЬТРАЦИИ - сервер уже отфильтровал данные */}
              <ScheduleTable
