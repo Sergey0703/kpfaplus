@@ -18,7 +18,7 @@ import { TimetableShiftCalculatorLeaveTypes } from './utils/TimetableShiftCalcul
 import { TimetableDataProcessor } from './utils/TimetableDataProcessor';
 import { useTimetableTabState } from './utils/useTimetableTabState';
 import { 
-  formatDayCellWithMarkers, 
+   formatDayCellWithMarkers, // Закомментировано для диагностики
   formatDateForExcel, 
   generateFileName,
   saveTimetableDate
@@ -386,6 +386,7 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
     }
   }, [setState]);
 
+  // *** ДИАГНОСТИЧЕСКАЯ ВЕРСИЯ EXCEL ЭКСПОРТА ***
   const handleExportToExcel = async (): Promise<void> => {
     try {
       if (state.weeksData.length === 0) {
@@ -465,7 +466,47 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
           
           orderedDays.forEach((dayNum, dayIndex) => {
             const dayData = staffRow.weekData.days[dayNum];
-            const cellContent = formatDayCellWithMarkers(dayData, typesOfLeave);
+            
+            // *** ДИАГНОСТИЧЕСКИЙ КОД - НАЧАЛО ***
+            console.log('=== ДИАГНОСТИКА EXCEL ЯЧЕЙКИ ===');
+            console.log(`Сотрудник: ${staffRow.staffName}, День: ${dayNum}`);
+            
+            // ВАРИАНТ 1: Простая замена на "22-22"
+        //    const cellContent = "22-22";
+         //   console.log(`Устанавливаем в ячейку: "${cellContent}"`);
+            
+             /*
+            // ВАРИАНТ 2: Обрезка до 5 символов (раскомментировать для тестирования)
+            const originalContent = formatDayCellWithMarkers(dayData, typesOfLeave);
+            const cellContent = originalContent.substring(0, 5);
+            console.log(`Оригинал: "${originalContent}" (${originalContent.length} символов)`);
+            console.log(`Обрезано: "${cellContent}"`);
+            */
+            
+            
+            // ВАРИАНТ 3: Показать длинное содержимое (раскомментировать для тестирования)
+         // ВАРИАНТ 3: Показать длинное содержимое (раскомментировать для тестирования)
+// ВАРИАНТ 6: Пошаговое тестирование содержимого
+// ВАРИАНТ 7: Принудительное создание проблемных строк
+const cellContent = formatDayCellWithMarkers(dayData, typesOfLeave);
+            /* 
+            // ВАРИАНТ 4: Постепенное тестирование (раскомментировать для тестирования)
+            let cellContent = "";
+            if (dayData && dayData.hasData) {
+              cellContent = "HAS_DATA";
+            } else if (dayData && dayData.hasHoliday) {
+              cellContent = "HOLIDAY";
+            } else if (dayData && dayData.hasLeave) {
+              cellContent = "LEAVE";
+            } else {
+              cellContent = "EMPTY";
+            }
+            */
+            
+            console.log(`Финальное содержимое: "${cellContent}"`);
+            console.log('================================');
+            // *** ДИАГНОСТИЧЕСКИЙ КОД - КОНЕЦ ***
+            
             const dayCell = worksheet.getCell(currentRow, dayIndex + 2);
             dayCell.value = cellContent;
             
@@ -498,6 +539,12 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
       }
 
       const fileName = generateFileName(groupName, excelWeeksData);
+      
+      console.log('=== СОЗДАНИЕ EXCEL ФАЙЛА ===');
+      console.log(`Имя файла: ${fileName}`);
+      console.log(`Всего строк: ${currentRow}`);
+      console.log('============================');
+      
       const buffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       const url = window.URL.createObjectURL(blob);
@@ -508,6 +555,8 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
+      
+      console.log('Excel файл создан и загружен');
       
     } catch (error) {
       console.error('[useTimetableLogic] Excel export failed:', error);
