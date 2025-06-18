@@ -9,6 +9,7 @@ import { IStaffRecord } from '../../../../services/StaffRecordsService';
 
 /**
  * Основные функции расчета смен и времени
+ * ОБНОВЛЕНО: Переход на числовые поля времени ShiftDate1Hours/Minutes, ShiftDate2Hours/Minutes
  */
 export class TimetableShiftCalculatorCore {
 
@@ -124,46 +125,113 @@ export class TimetableShiftCalculatorCore {
   }
 
   /**
+   * Извлекает время из записи используя числовые поля
+   * НОВЫЙ МЕТОД: Использует ShiftDate1Hours/Minutes и ShiftDate2Hours/Minutes
+   */
+  private static extractTimeFromRecord(record: IStaffRecord): {
+    startHours: number;
+    startMinutes: number;
+    endHours: number;
+    endMinutes: number;
+    isValidTime: boolean;
+  } {
+    console.log(`[TimetableShiftCalculatorCore] *** EXTRACTING TIME FROM NUMERIC FIELDS ***`);
+    console.log(`[TimetableShiftCalculatorCore] Record ID: ${record.ID}`);
+    
+    // *** ИСПОЛЬЗУЕМ ЧИСЛОВЫЕ ПОЛЯ ВРЕМЕНИ ***
+    const startHours = record.ShiftDate1Hours ?? 0;
+    const startMinutes = record.ShiftDate1Minutes ?? 0;
+    const endHours = record.ShiftDate2Hours ?? 0;
+    const endMinutes = record.ShiftDate2Minutes ?? 0;
+    
+    console.log(`[TimetableShiftCalculatorCore] Numeric time fields:`, {
+      ShiftDate1Hours: record.ShiftDate1Hours,
+      ShiftDate1Minutes: record.ShiftDate1Minutes,
+      ShiftDate2Hours: record.ShiftDate2Hours,
+      ShiftDate2Minutes: record.ShiftDate2Minutes,
+      extracted: `${startHours}:${startMinutes} - ${endHours}:${endMinutes}`
+    });
+    
+    // Валидация числовых значений
+    const isValidTime = (
+      startHours >= 0 && startHours <= 23 &&
+      startMinutes >= 0 && startMinutes <= 59 &&
+      endHours >= 0 && endHours <= 23 &&
+      endMinutes >= 0 && endMinutes <= 59
+    );
+    
+    if (!isValidTime) {
+      console.warn(`[TimetableShiftCalculatorCore] Invalid time values in record ${record.ID}:`, {
+        startHours, startMinutes, endHours, endMinutes
+      });
+    }
+    
+    return {
+      startHours,
+      startMinutes,
+      endHours,
+      endMinutes,
+      isValidTime
+    };
+  }
+
+  /**
+   * Создает объект Date из числовых компонентов времени
+   */
+  private static createTimeFromNumericComponents(baseDate: Date, hours: number, minutes: number): Date {
+    const result = new Date(baseDate);
+    result.setHours(hours, minutes, 0, 0);
+    return result;
+  }
+
+  /**
    * Обрабатывает записи StaffRecord в IShiftInfo
+   * ОБНОВЛЕНО: Использует числовые поля времени
    */
   public static processStaffRecordsToShifts(
     records: IStaffRecord[],
     getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined
   ): IShiftInfo[] {
+    console.log(`[TimetableShiftCalculatorCore] *** PROCESSING RECORDS WITH NUMERIC FIELDS ***`);
+    console.log(`[TimetableShiftCalculatorCore] Processing ${records.length} records`);
+    
     if (records.length === 0) {
       return [];
     }
 
     const validRecords = records.filter(record => {
-      if (!record.ShiftDate1 || !record.ShiftDate2) {
+      const timeData = this.extractTimeFromRecord(record);
+      
+      if (!timeData.isValidTime) {
+        console.warn(`[TimetableShiftCalculatorCore] Skipping record ${record.ID} - invalid time values`);
         return false;
       }
 
-      const start = new Date(record.ShiftDate1);
-      const end = new Date(record.ShiftDate2);
+      const { startHours, startMinutes, endHours, endMinutes } = timeData;
       
-      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-        return false;
-      }
-      
-      const startStr = this.formatTime(start);
-      const endStr = this.formatTime(end);
-
-      if (startStr === "00:00" && endStr === "00:00") {
+      // Пропускаем записи 00:00 - 00:00
+      if (startHours === 0 && startMinutes === 0 && endHours === 0 && endMinutes === 0) {
+        console.log(`[TimetableShiftCalculatorCore] Skipping record ${record.ID} - zero time (00:00 - 00:00)`);
         return false;
       }
 
       return true;
     });
 
+    console.log(`[TimetableShiftCalculatorCore] Valid records after filtering: ${validRecords.length}`);
+
     if (validRecords.length === 0) {
       return [];
     }
 
     const sortedRecords = validRecords.sort((a, b) => {
-      const aStart = new Date(a.ShiftDate1!).getTime();
-      const bStart = new Date(b.ShiftDate1!).getTime();
-      return aStart - bStart;
+      const aTimeData = this.extractTimeFromRecord(a);
+      const bTimeData = this.extractTimeFromRecord(b);
+      
+      const aStartMinutes = aTimeData.startHours * 60 + aTimeData.startMinutes;
+      const bStartMinutes = bTimeData.startHours * 60 + bTimeData.startMinutes;
+      
+      return aStartMinutes - bStartMinutes;
     });
 
     return this.createShiftsFromRecords(sortedRecords, getLeaveTypeColor);
@@ -171,14 +239,31 @@ export class TimetableShiftCalculatorCore {
 
   /**
    * Создает смены из отсортированных записей
+   * ОБНОВЛЕНО: Использует числовые поля времени
    */
   private static createShiftsFromRecords(
     sortedRecords: IStaffRecord[],
     getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined
   ): IShiftInfo[] {
+    console.log(`[TimetableShiftCalculatorCore] *** CREATING SHIFTS FROM NUMERIC FIELDS ***`);
+    
     const shifts: IShiftInfo[] = sortedRecords.map(record => {
-      const startTime = new Date(record.ShiftDate1!);
-      const endTime = new Date(record.ShiftDate2!);
+      console.log(`[TimetableShiftCalculatorCore] Processing record ${record.ID} with numeric fields`);
+      
+      // *** ИЗВЛЕКАЕМ ВРЕМЯ ИЗ ЧИСЛОВЫХ ПОЛЕЙ ***
+      const timeData = this.extractTimeFromRecord(record);
+      const { startHours, startMinutes, endHours, endMinutes } = timeData;
+      
+      // Создаем объекты Date из числовых компонентов
+      const baseDate = new Date(record.Date);
+      const startTime = this.createTimeFromNumericComponents(baseDate, startHours, startMinutes);
+      const endTime = this.createTimeFromNumericComponents(baseDate, endHours, endMinutes);
+      
+      console.log(`[TimetableShiftCalculatorCore] Created times for record ${record.ID}:`, {
+        numeric: `${startHours}:${startMinutes} - ${endHours}:${endMinutes}`,
+        dates: `${startTime.toISOString()} - ${endTime.toISOString()}`
+      });
+
       const lunchStart = record.ShiftDate3 ? new Date(record.ShiftDate3) : undefined;
       const lunchEnd = record.ShiftDate4 ? new Date(record.ShiftDate4) : undefined;
       const timeForLunch = record.TimeForLunch || 0;
@@ -227,7 +312,7 @@ export class TimetableShiftCalculatorCore {
         holidayColor
       });
 
-      return {
+      const shift: IShiftInfo = {
         recordId: record.ID,
         startTime,
         endTime,
@@ -242,8 +327,18 @@ export class TimetableShiftCalculatorCore {
         isHoliday: calculation.isHoliday,
         holidayColor: calculation.holidayColor
       };
+
+      console.log(`[TimetableShiftCalculatorCore] Created shift from numeric fields:`, {
+        recordId: record.ID,
+        time: `${startHours}:${startMinutes} - ${endHours}:${endMinutes}`,
+        workMinutes: calculation.workMinutes,
+        formattedShift: calculation.formattedShift
+      });
+
+      return shift;
     });
     
+    console.log(`[TimetableShiftCalculatorCore] *** CREATED ${shifts.length} SHIFTS FROM NUMERIC FIELDS ***`);
     return shifts;
   }
 
@@ -401,6 +496,7 @@ export class TimetableShiftCalculatorCore {
 
   /**
    * Извлекает информацию о типе отпуска из записей дня без рабочего времени
+   * ОБНОВЛЕНО: Проверяет числовые поля времени
    */
   public static extractLeaveInfoFromNonWorkRecords(
     allDayRecords: IStaffRecord[],
@@ -412,10 +508,11 @@ export class TimetableShiftCalculatorCore {
     leaveTypeColor?: string;
   } {
     const nonWorkLeaveRecords = allDayRecords.filter(record => {
-      const hasWorkTime = record.ShiftDate1 && record.ShiftDate2 && 
-        !(record.ShiftDate1.getHours() === 0 && record.ShiftDate1.getMinutes() === 0 && 
-          record.ShiftDate2.getHours() === 0 && record.ShiftDate2.getMinutes() === 0);
-    
+      // *** ПРОВЕРЯЕМ ЧИСЛОВЫЕ ПОЛЯ ВРЕМЕНИ ***
+      const timeData = this.extractTimeFromRecord(record);
+      const hasWorkTime = !(timeData.startHours === 0 && timeData.startMinutes === 0 && 
+                           timeData.endHours === 0 && timeData.endMinutes === 0);
+      
       const hasLeaveType = record.TypeOfLeaveID && record.TypeOfLeaveID !== '0';
       
       return !hasWorkTime && hasLeaveType;

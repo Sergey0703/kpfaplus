@@ -12,7 +12,7 @@ import { IStaffRecord } from '../../../../services/StaffRecordsService';
 /**
  * Утилиты для обработки данных расписания
  * Содержит индексирование, валидацию, фильтрацию и оптимизацию
- * Версия 3.0 - Полная поддержка цветов отпусков
+ * ОБНОВЛЕНО: Переход на числовые поля времени ShiftDate1Hours/Minutes, ShiftDate2Hours/Minutes
  */
 export class TimetableDataUtils {
 
@@ -249,6 +249,7 @@ export class TimetableDataUtils {
 
   /**
    * Валидация данных с проверкой цветов отпусков
+   * ОБНОВЛЕНО: Проверяет числовые поля времени вместо ShiftDate1/ShiftDate2
    */
   public static validateDataIntegrityWithLeaveColors(
     staffRecords: IStaffRecord[],
@@ -271,6 +272,8 @@ export class TimetableDataUtils {
       staffWithoutRecords: number;
     };
   } {
+    console.log('[TimetableDataUtils] *** VALIDATING DATA WITH NUMERIC TIME FIELDS ***');
+    
     const issues: string[] = [];
     const warnings: string[] = [];
     
@@ -307,11 +310,30 @@ export class TimetableDataUtils {
       if (!record.Date || isNaN(record.Date.getTime())) {
         issues.push(`Record ${record.ID} has invalid Date`);
       }
-      if (!record.ShiftDate1 || isNaN(record.ShiftDate1.getTime())) {
-        issues.push(`Record ${record.ID} has invalid ShiftDate1`);
+
+      // *** ОБНОВЛЕНО: Проверка числовых полей времени вместо ShiftDate1/ShiftDate2 ***
+      if (record.ShiftDate1Hours === undefined || record.ShiftDate1Hours === null) {
+        issues.push(`Record ${record.ID} has missing ShiftDate1Hours`);
+      } else if (record.ShiftDate1Hours < 0 || record.ShiftDate1Hours > 23) {
+        issues.push(`Record ${record.ID} has invalid ShiftDate1Hours: ${record.ShiftDate1Hours} (should be 0-23)`);
       }
-      if (!record.ShiftDate2 || isNaN(record.ShiftDate2.getTime())) {
-        issues.push(`Record ${record.ID} has invalid ShiftDate2`);
+
+      if (record.ShiftDate1Minutes === undefined || record.ShiftDate1Minutes === null) {
+        issues.push(`Record ${record.ID} has missing ShiftDate1Minutes`);
+      } else if (record.ShiftDate1Minutes < 0 || record.ShiftDate1Minutes > 59) {
+        issues.push(`Record ${record.ID} has invalid ShiftDate1Minutes: ${record.ShiftDate1Minutes} (should be 0-59)`);
+      }
+
+      if (record.ShiftDate2Hours === undefined || record.ShiftDate2Hours === null) {
+        issues.push(`Record ${record.ID} has missing ShiftDate2Hours`);
+      } else if (record.ShiftDate2Hours < 0 || record.ShiftDate2Hours > 23) {
+        issues.push(`Record ${record.ID} has invalid ShiftDate2Hours: ${record.ShiftDate2Hours} (should be 0-23)`);
+      }
+
+      if (record.ShiftDate2Minutes === undefined || record.ShiftDate2Minutes === null) {
+        issues.push(`Record ${record.ID} has missing ShiftDate2Minutes`);
+      } else if (record.ShiftDate2Minutes < 0 || record.ShiftDate2Minutes > 59) {
+        issues.push(`Record ${record.ID} has invalid ShiftDate2Minutes: ${record.ShiftDate2Minutes} (should be 0-59)`);
       }
 
       // Проверка цветов отпусков
@@ -368,6 +390,15 @@ export class TimetableDataUtils {
     };
 
     const isValid = issues.length === 0;
+
+    console.log('[TimetableDataUtils] *** VALIDATION COMPLETED WITH NUMERIC FIELDS ***', {
+      isValid,
+      issuesCount: issues.length,
+      warningsCount: warnings.length,
+      totalRecordsWithLeave,
+      recordsWithValidColors,
+      recordsWithInvalidColors
+    });
 
     return {
       isValid,

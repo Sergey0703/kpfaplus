@@ -6,14 +6,53 @@ import { TimetableShiftCalculatorCore } from './TimetableShiftCalculatorCore';
 /**
  * Specialized module for utility functions and helpers
  * Extracted from TimetableDataProcessorCore for better maintainability
- * Version 4.1 - Refactored modular architecture
+ * ОБНОВЛЕНО: Переход на числовые поля времени ShiftDate1Hours/Minutes, ShiftDate2Hours/Minutes
  */
 export class TimetableDataProcessorUtils {
 
   /**
-   * *** УЛУЧШЕННЫЙ МЕТОД v4.1 ***
+   * Извлекает время из записи используя числовые поля
+   * НОВЫЙ МЕТОД: Использует ShiftDate1Hours/Minutes и ShiftDate2Hours/Minutes
+   */
+  private static extractTimeFromRecord(record: IStaffRecord): {
+    startHours: number;
+    startMinutes: number;
+    endHours: number;
+    endMinutes: number;
+    isValidTime: boolean;
+    hasWorkTime: boolean;
+  } {
+    // *** ИСПОЛЬЗУЕМ ЧИСЛОВЫЕ ПОЛЯ ВРЕМЕНИ ***
+    const startHours = record.ShiftDate1Hours ?? 0;
+    const startMinutes = record.ShiftDate1Minutes ?? 0;
+    const endHours = record.ShiftDate2Hours ?? 0;
+    const endMinutes = record.ShiftDate2Minutes ?? 0;
+    
+    // Валидация числовых значений
+    const isValidTime = (
+      startHours >= 0 && startHours <= 23 &&
+      startMinutes >= 0 && startMinutes <= 59 &&
+      endHours >= 0 && endHours <= 23 &&
+      endMinutes >= 0 && endMinutes <= 59
+    );
+    
+    // Проверяем наличие рабочего времени (не 00:00 - 00:00)
+    const hasWorkTime = !(startHours === 0 && startMinutes === 0 && endHours === 0 && endMinutes === 0);
+    
+    return {
+      startHours,
+      startMinutes,
+      endHours,
+      endMinutes,
+      isValidTime,
+      hasWorkTime
+    };
+  }
+
+  /**
+   * *** ОБНОВЛЕННЫЙ МЕТОД v4.1 ***
    * Получает ВСЕ записи для конкретного дня недели (включая без рабочего времени)
-   * REFACTORED: Extracted from core with enhanced error handling
+   * ОБНОВЛЕНО: Использует числовые поля времени для анализа
    */
   public static getAllRecordsForDayEnhanced(
     records: IStaffRecord[],
@@ -21,6 +60,8 @@ export class TimetableDataProcessorUtils {
     weekStart: Date,
     weekEnd: Date
   ): IStaffRecord[] {
+    console.log(`[TimetableDataProcessorUtils] *** ENHANCED DAY RECORDS WITH NUMERIC FIELDS ***`);
+    
     // Фильтруем ВСЕ записи для конкретного дня недели в указанной неделе
     const dayRecords = records.filter(record => {
       const recordDate = new Date(record.Date);
@@ -40,17 +81,15 @@ export class TimetableDataProcessorUtils {
 
     console.log(`[TimetableDataProcessorUtils] *** v4.1: Found ${dayRecords.length} total records for day ${dayNumber} ***`);
 
-    // Дополнительная диагностика v4.1
+    // *** ОБНОВЛЕННАЯ ДИАГНОСТИКА С ЧИСЛОВЫМИ ПОЛЯМИ ***
     const recordsWithLeave = dayRecords.filter(r => r.TypeOfLeaveID && r.TypeOfLeaveID !== '0');
     const recordsWithHoliday = dayRecords.filter(r => r.Holiday === 1);
     const recordsWithWorkTime = dayRecords.filter(r => {
-      const hasWork = r.ShiftDate1 && r.ShiftDate2 && 
-        !(r.ShiftDate1.getHours() === 0 && r.ShiftDate1.getMinutes() === 0 && 
-          r.ShiftDate2.getHours() === 0 && r.ShiftDate2.getMinutes() === 0);
-      return hasWork;
+      const timeData = this.extractTimeFromRecord(r);
+      return timeData.hasWorkTime;
     });
 
-    console.log(`[TimetableDataProcessorUtils] *** v4.1: Day ${dayNumber} records analysis ***`, {
+    console.log(`[TimetableDataProcessorUtils] *** v4.1: Day ${dayNumber} records analysis WITH NUMERIC FIELDS ***`, {
       totalRecords: dayRecords.length,
       recordsWithLeave: recordsWithLeave.length,
       recordsWithHoliday: recordsWithHoliday.length,
@@ -80,7 +119,7 @@ export class TimetableDataProcessorUtils {
 
   /**
    * Анализирует записи на наличие отметок без рабочего времени
-   * REFACTORED v4.1: Enhanced analysis with better categorization
+   * ОБНОВЛЕНО: Использует числовые поля времени для анализа
    */
   public static analyzeRecordsForNonWorkMarkers(records: IStaffRecord[]): {
     totalRecords: number;
@@ -96,6 +135,8 @@ export class TimetableDataProcessorUtils {
       emptyRecords: number;
     };
   } {
+    console.log(`[TimetableDataProcessorUtils] *** ANALYZING NON-WORK MARKERS WITH NUMERIC FIELDS ***`);
+    
     const totalRecords = records.length;
     let recordsWithWorkTime = 0;
     let recordsWithoutWorkTime = 0;
@@ -110,13 +151,14 @@ export class TimetableDataProcessorUtils {
     let emptyRecords = 0;
 
     records.forEach(record => {
-      // Проверяем есть ли рабочее время
-      const hasWorkTime = record.ShiftDate1 && record.ShiftDate2 && 
-        !(record.ShiftDate1.getHours() === 0 && record.ShiftDate1.getMinutes() === 0 && 
-          record.ShiftDate2.getHours() === 0 && record.ShiftDate2.getMinutes() === 0);
+      // *** ПРОВЕРЯЕМ РАБОЧЕЕ ВРЕМЯ ЧЕРЕЗ ЧИСЛОВЫЕ ПОЛЯ ***
+      const timeData = this.extractTimeFromRecord(record);
+      const hasWorkTime = timeData.hasWorkTime;
 
       const isHoliday = record.Holiday === 1;
       const hasLeaveType = record.TypeOfLeaveID && record.TypeOfLeaveID !== '0';
+
+      console.log(`[TimetableDataProcessorUtils] Record ${record.ID}: numeric time ${timeData.startHours}:${timeData.startMinutes}-${timeData.endHours}:${timeData.endMinutes}, hasWork: ${hasWorkTime}`);
 
       if (hasWorkTime) {
         recordsWithWorkTime++;
@@ -146,7 +188,7 @@ export class TimetableDataProcessorUtils {
       }
     });
 
-    console.log(`[TimetableDataProcessorUtils] *** v4.1: Non-work markers analysis ***`, {
+    console.log(`[TimetableDataProcessorUtils] *** v4.1: Non-work markers analysis WITH NUMERIC FIELDS ***`, {
       totalRecords,
       recordsWithWorkTime,
       recordsWithoutWorkTime,
@@ -210,7 +252,7 @@ export class TimetableDataProcessorUtils {
 
   /**
    * Валидирует записи на корректность данных
-   * REFACTORED v4.1: Comprehensive validation
+   * ОБНОВЛЕНО: Проверяет числовые поля времени вместо ShiftDate1/ShiftDate2
    */
   public static validateRecordsIntegrity(
     records: IStaffRecord[]
@@ -230,6 +272,8 @@ export class TimetableDataProcessorUtils {
       dataInconsistencies: number;
     };
   } {
+    console.log(`[TimetableDataProcessorUtils] *** VALIDATING RECORDS WITH NUMERIC TIME FIELDS ***`);
+    
     const issues: Array<{
       recordId: string;
       issue: string;
@@ -257,25 +301,41 @@ export class TimetableDataProcessorUtils {
         recordHasIssues = true;
       }
 
-      // Проверка времен смены
-      if (record.ShiftDate1 && isNaN(record.ShiftDate1.getTime())) {
+      // *** ОБНОВЛЕНО: Проверка числовых полей времени ***
+      const timeData = this.extractTimeFromRecord(record);
+      
+      if (!timeData.isValidTime) {
         issues.push({
           recordId: record.ID,
-          issue: 'Invalid ShiftDate1',
+          issue: `Invalid numeric time fields: ${timeData.startHours}:${timeData.startMinutes} - ${timeData.endHours}:${timeData.endMinutes}`,
           severity: 'ERROR'
         });
         timeIssues++;
         recordHasIssues = true;
       }
 
-      if (record.ShiftDate2 && isNaN(record.ShiftDate2.getTime())) {
-        issues.push({
-          recordId: record.ID,
-          issue: 'Invalid ShiftDate2',
-          severity: 'ERROR'
-        });
-        timeIssues++;
-        recordHasIssues = true;
+      // Проверка на слишком длинные смены (более 24 часов)
+      if (timeData.isValidTime && timeData.hasWorkTime) {
+        const startMinutes = timeData.startHours * 60 + timeData.startMinutes;
+        const endMinutes = timeData.endHours * 60 + timeData.endMinutes;
+        
+        let durationMinutes = 0;
+        if (endMinutes >= startMinutes) {
+          durationMinutes = endMinutes - startMinutes;
+        } else {
+          // Смена через полночь
+          durationMinutes = (24 * 60) - startMinutes + endMinutes;
+        }
+        
+        const durationHours = durationMinutes / 60;
+        if (durationHours > 24) {
+          issues.push({
+            recordId: record.ID,
+            issue: `Shift duration ${durationHours.toFixed(1)} hours seems excessive`,
+            severity: 'WARNING'
+          });
+          dataInconsistencies++;
+        }
       }
 
       // Проверка сотрудника
@@ -287,23 +347,6 @@ export class TimetableDataProcessorUtils {
         });
         staffIssues++;
         recordHasIssues = true;
-      }
-
-      // Проверка логической согласованности
-      if (record.ShiftDate1 && record.ShiftDate2) {
-        const start = record.ShiftDate1.getTime();
-        const end = record.ShiftDate2.getTime();
-        
-        // Предупреждение о слишком длинных сменах (более 24 часов)
-        const diffHours = Math.abs(end - start) / (1000 * 60 * 60);
-        if (diffHours > 24) {
-          issues.push({
-            recordId: record.ID,
-            issue: `Shift duration ${diffHours.toFixed(1)} hours seems excessive`,
-            severity: 'WARNING'
-          });
-          dataInconsistencies++;
-        }
       }
 
       // Проверка времени обеда
@@ -337,7 +380,7 @@ export class TimetableDataProcessorUtils {
 
     const isValid = issues.filter(i => i.severity === 'ERROR').length === 0;
 
-    console.log(`[TimetableDataProcessorUtils] *** v4.1: Validation completed ***`, {
+    console.log(`[TimetableDataProcessorUtils] *** v4.1: Validation completed WITH NUMERIC FIELDS ***`, {
       totalRecords: records.length,
       validRecords,
       invalidRecords,
@@ -432,7 +475,7 @@ export class TimetableDataProcessorUtils {
 
   /**
    * Создает статистику по записям
-   * REFACTORED v4.1: Comprehensive statistics generation
+   * ОБНОВЛЕНО: Использует числовые поля времени для анализа
    */
   public static generateRecordsStatistics(
     records: IStaffRecord[]
@@ -460,6 +503,8 @@ export class TimetableDataProcessorUtils {
       qualityScore: number;
     };
   } {
+    console.log(`[TimetableDataProcessorUtils] *** GENERATING STATISTICS WITH NUMERIC FIELDS ***`);
+    
     const totalRecords = records.length;
     
     if (totalRecords === 0) {
@@ -498,7 +543,7 @@ export class TimetableDataProcessorUtils {
 
     const averageRecordsPerStaff = uniqueStaff > 0 ? Math.round(totalStaffRecords / uniqueStaff) : 0;
 
-    // Анализ временных паттернов
+    // *** ОБНОВЛЕННЫЙ АНАЛИЗ ВРЕМЕННЫХ ПАТТЕРНОВ С ЧИСЛОВЫМИ ПОЛЯМИ ***
     let recordsWithWorkTime = 0;
     let recordsWithHolidays = 0;
     let recordsWithLeave = 0;
@@ -508,12 +553,9 @@ export class TimetableDataProcessorUtils {
     records.forEach(record => {
       let isComplete = true;
 
-      // Проверяем рабочее время
-      const hasWorkTime = record.ShiftDate1 && record.ShiftDate2 && 
-        !(record.ShiftDate1.getHours() === 0 && record.ShiftDate1.getMinutes() === 0 && 
-          record.ShiftDate2.getHours() === 0 && record.ShiftDate2.getMinutes() === 0);
-      
-      if (hasWorkTime) recordsWithWorkTime++;
+      // *** ПРОВЕРЯЕМ РАБОЧЕЕ ВРЕМЯ ЧЕРЕЗ ЧИСЛОВЫЕ ПОЛЯ ***
+      const timeData = this.extractTimeFromRecord(record);
+      if (timeData.hasWorkTime) recordsWithWorkTime++;
 
       // Проверяем праздники
       if (record.Holiday === 1) recordsWithHolidays++;
@@ -529,6 +571,7 @@ export class TimetableDataProcessorUtils {
       // Проверяем полноту записи
       if (!record.Date || isNaN(record.Date.getTime())) isComplete = false;
       if (!record.StaffMemberLookupId) isComplete = false;
+      if (!timeData.isValidTime) isComplete = false;
 
       if (isComplete) completeRecords++;
     });
@@ -536,10 +579,11 @@ export class TimetableDataProcessorUtils {
     const incompleteRecords = totalRecords - completeRecords;
     const qualityScore = totalRecords > 0 ? Math.round((completeRecords / totalRecords) * 100) : 0;
 
-    console.log(`[TimetableDataProcessorUtils] *** v4.1: Statistics generated ***`, {
+    console.log(`[TimetableDataProcessorUtils] *** v4.1: Statistics generated WITH NUMERIC FIELDS ***`, {
       totalRecords,
       dateSpan: `${earliest.toLocaleDateString()} - ${latest.toLocaleDateString()}`,
       uniqueStaff,
+      recordsWithWorkTime,
       qualityScore: qualityScore + '%'
     });
 
@@ -571,7 +615,7 @@ export class TimetableDataProcessorUtils {
 
   /**
    * Оптимизирует список записей для обработки
-   * REFACTORED v4.1: Performance optimization utility
+   * ОБНОВЛЕНО: Проверяет числовые поля времени при оптимизации
    */
   public static optimizeRecordsForProcessing(
     records: IStaffRecord[]
@@ -585,6 +629,8 @@ export class TimetableDataProcessorUtils {
       reductionPercentage: number;
     };
   } {
+    console.log(`[TimetableDataProcessorUtils] *** OPTIMIZING RECORDS WITH NUMERIC FIELDS ***`);
+    
     const originalSize = records.length;
     const optimizations: string[] = [];
     let optimizedRecords = [...records];
@@ -598,6 +644,17 @@ export class TimetableDataProcessorUtils {
       return isValid;
     });
     optimizedRecords = validDateRecords;
+
+    // *** УДАЛЯЕМ ЗАПИСИ С НЕВАЛИДНЫМИ ЧИСЛОВЫМИ ПОЛЯМИ ВРЕМЕНИ ***
+    const validTimeRecords = optimizedRecords.filter(record => {
+      const timeData = this.extractTimeFromRecord(record);
+      if (!timeData.isValidTime) {
+        optimizations.push(`Removed record ${record.ID} - invalid numeric time fields`);
+        return false;
+      }
+      return true;
+    });
+    optimizedRecords = validTimeRecords;
 
     // Удаляем записи без указания сотрудника
     const validStaffRecords = optimizedRecords.filter(record => {
@@ -618,7 +675,7 @@ export class TimetableDataProcessorUtils {
     const reductionPercentage = originalSize > 0 ? 
       Math.round((removedCount / originalSize) * 100) : 0;
 
-    console.log(`[TimetableDataProcessorUtils] *** v4.1: Records optimized ***`, {
+    console.log(`[TimetableDataProcessorUtils] *** v4.1: Records optimized WITH NUMERIC FIELDS ***`, {
       originalSize,
       optimizedSize,
       removedCount,
@@ -714,31 +771,33 @@ export class TimetableDataProcessorUtils {
 
   /**
    * Получает информацию о модуле
-   * REFACTORED v4.1: Module information
+   * ОБНОВЛЕНО: Указывает на поддержку числовых полей времени
    */
   public static getModuleInfo(): {
     version: string;
     module: string;
     features: string[];
     totalMethods: number;
+    numericFieldsSupport: boolean;
   } {
     return {
       version: '4.1',
       module: 'TimetableDataProcessorUtils',
       features: [
-        'Enhanced record retrieval for days',
-        'Holiday counting in weekly data',
-        'Non-work markers analysis',
-        'Date calculations with validation',
-        'Records integrity validation',
-        'Flexible grouping utilities',
-        'Comprehensive statistics generation',
-        'Performance optimization',
-        'Advanced indexing'
-      ],
-      totalMethods: Object.getOwnPropertyNames(TimetableDataProcessorUtils)
-        .filter(name => typeof TimetableDataProcessorUtils[name as keyof typeof TimetableDataProcessorUtils] === 'function')
-        .length
-    };
-  }
+       'Enhanced record retrieval for days with numeric time fields',
+       'Holiday counting in weekly data',
+       'Non-work markers analysis with numeric fields',
+       'Date calculations with validation',
+       'Records integrity validation for numeric time fields',
+       'Flexible grouping utilities',
+       'Comprehensive statistics generation with numeric support',
+       'Performance optimization with numeric validation',
+       'Advanced indexing'
+     ],
+     totalMethods: Object.getOwnPropertyNames(TimetableDataProcessorUtils)
+       .filter(name => typeof TimetableDataProcessorUtils[name as keyof typeof TimetableDataProcessorUtils] === 'function')
+       .length,
+     numericFieldsSupport: true
+   };
+ }
 }
