@@ -41,7 +41,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
     <div style={{ 
       color: '#a19f9d', 
       textAlign: 'center', 
-      padding: '12px 8px',
+      padding: '12px 8px 12px 4px',
       fontSize: '11px',
       minHeight: '50px',
       width: '100%',
@@ -304,7 +304,7 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
                 key={`${staffRowWithKey.uniqueKey}-day${dayNumber}`}
                 style={{ 
                   fontSize: '11px',
-                  padding: '12px 8px',
+                  padding: '12px 8px 12px 4px',
                   lineHeight: '1.3',
                   minHeight: '50px',
                   width: '100%',

@@ -5,12 +5,12 @@ import { IShiftInfo, TIMETABLE_COLORS } from '../interfaces/TimetableInterfaces'
 /**
  * Specialized module for holidays analysis and processing
  * Extracted from TimetableDataProcessorCore for better maintainability
- * Version 4.1 - Refactored modular architecture
+ * Version 4.2 - UPDATED: Migrated to numeric time fields (ShiftDate1Hours/Minutes, ShiftDate2Hours/Minutes)
  */
 export class TimetableDataProcessorHolidays {
 
   /**
-   * *** КЛЮЧЕВОЙ МЕТОД v4.1 ***
+   * *** КЛЮЧЕВОЙ МЕТОД v4.2 - UPDATED FOR NUMERIC FIELDS ***
    * Анализирует записи дня на предмет праздников
    * REFACTORED: Extracted from core for better organization
    */
@@ -24,10 +24,13 @@ export class TimetableDataProcessorHolidays {
     let nonWorkHolidayRecords = 0;
 
     allDayRecords.forEach(record => {
-      // Проверяем есть ли рабочее время в этой записи
-      const hasWorkTime = record.ShiftDate1 && record.ShiftDate2 && 
-        !(record.ShiftDate1.getHours() === 0 && record.ShiftDate1.getMinutes() === 0 && 
-          record.ShiftDate2.getHours() === 0 && record.ShiftDate2.getMinutes() === 0);
+      // *** UPDATED v4.2: Проверяем есть ли рабочее время используя числовые поля ***
+      const startHours = record.ShiftDate1Hours ?? 0;
+      const startMinutes = record.ShiftDate1Minutes ?? 0;
+      const endHours = record.ShiftDate2Hours ?? 0;
+      const endMinutes = record.ShiftDate2Minutes ?? 0;
+      
+      const hasWorkTime = !(startHours === 0 && startMinutes === 0 && endHours === 0 && endMinutes === 0);
 
       // Если нет рабочего времени, но есть отметка праздника
       if (!hasWorkTime && record.Holiday === 1) {
@@ -36,7 +39,7 @@ export class TimetableDataProcessorHolidays {
       }
     });
 
-    console.log(`[TimetableDataProcessorHolidays] *** v4.1: Holiday analysis ***`, {
+    console.log(`[TimetableDataProcessorHolidays] *** v4.2: Holiday analysis ***`, {
       totalRecords: allDayRecords.length,
       hasNonWorkHoliday,
       nonWorkHolidayRecords
@@ -50,7 +53,7 @@ export class TimetableDataProcessorHolidays {
 
   /**
    * Анализирует записи на наличие праздников (включая записи без рабочего времени)
-   * REFACTORED v4.1: Comprehensive holiday analysis
+   * REFACTORED v4.2: Comprehensive holiday analysis
    */
   public static analyzeHolidayRecords(records: IStaffRecord[]): {
     totalRecords: number;
@@ -72,9 +75,13 @@ export class TimetableDataProcessorHolidays {
     let nonWorkHolidayRecords = 0;
 
     records.filter(r => r.Holiday === 1).forEach(record => {
-      const hasWorkTime = record.ShiftDate1 && record.ShiftDate2 && 
-        !(record.ShiftDate1.getHours() === 0 && record.ShiftDate1.getMinutes() === 0 && 
-          record.ShiftDate2.getHours() === 0 && record.ShiftDate2.getMinutes() === 0);
+      // *** UPDATED v4.2: Используем числовые поля времени ***
+      const startHours = record.ShiftDate1Hours ?? 0;
+      const startMinutes = record.ShiftDate1Minutes ?? 0;
+      const endHours = record.ShiftDate2Hours ?? 0;
+      const endMinutes = record.ShiftDate2Minutes ?? 0;
+      
+      const hasWorkTime = !(startHours === 0 && startMinutes === 0 && endHours === 0 && endMinutes === 0);
 
       if (hasWorkTime) {
         workHolidayRecords++;
@@ -96,7 +103,7 @@ export class TimetableDataProcessorHolidays {
 
   /**
    * Создает "пустую" смену для отметки праздника без рабочего времени
-   * REFACTORED v4.1: Holiday marker creation
+   * REFACTORED v4.2: Holiday marker creation
    */
   public static createNonWorkHolidayMarker(
     recordId: string,
@@ -127,7 +134,7 @@ export class TimetableDataProcessorHolidays {
 
   /**
    * Анализирует праздничные записи по дням недели
-   * REFACTORED v4.1: Day-wise holiday analysis
+   * REFACTORED v4.2: Day-wise holiday analysis
    */
   public static analyzeHolidaysByDayOfWeek(
     records: IStaffRecord[]
@@ -187,7 +194,7 @@ export class TimetableDataProcessorHolidays {
 
   /**
    * Валидирует качество данных о праздниках
-   * REFACTORED v4.1: Holiday data validation
+   * REFACTORED v4.2: Holiday data validation
    */
   public static validateHolidayData(
     records: IStaffRecord[]
@@ -224,9 +231,13 @@ export class TimetableDataProcessorHolidays {
         }
         
         // Проверяем логическую согласованность
-        const hasWorkTime = record.ShiftDate1 && record.ShiftDate2 && 
-          !(record.ShiftDate1.getHours() === 0 && record.ShiftDate1.getMinutes() === 0 && 
-            record.ShiftDate2.getHours() === 0 && record.ShiftDate2.getMinutes() === 0);
+        // *** UPDATED v4.2: Используем числовые поля времени ***
+        const startHours = record.ShiftDate1Hours ?? 0;
+        const startMinutes = record.ShiftDate1Minutes ?? 0;
+        const endHours = record.ShiftDate2Hours ?? 0;
+        const endMinutes = record.ShiftDate2Minutes ?? 0;
+        
+        const hasWorkTime = !(startHours === 0 && startMinutes === 0 && endHours === 0 && endMinutes === 0);
             
         if (hasWorkTime) {
           warnings.push(`Holiday record ${record.ID} has both holiday flag and work time - unusual combination`);
@@ -270,7 +281,7 @@ export class TimetableDataProcessorHolidays {
 
   /**
    * Создает сводку по праздникам
-   * REFACTORED v4.1: Comprehensive holiday summary
+   * REFACTORED v4.2: Comprehensive holiday summary
    */
   public static createHolidaysSummary(
     records: IStaffRecord[]
@@ -318,9 +329,13 @@ export class TimetableDataProcessorHolidays {
       }
       
       // Анализируем паттерны
-      const hasWorkTime = record.ShiftDate1 && record.ShiftDate2 && 
-        !(record.ShiftDate1.getHours() === 0 && record.ShiftDate1.getMinutes() === 0 && 
-          record.ShiftDate2.getHours() === 0 && record.ShiftDate2.getMinutes() === 0);
+      // *** UPDATED v4.2: Используем числовые поля времени ***
+      const startHours = record.ShiftDate1Hours ?? 0;
+      const startMinutes = record.ShiftDate1Minutes ?? 0;
+      const endHours = record.ShiftDate2Hours ?? 0;
+      const endMinutes = record.ShiftDate2Minutes ?? 0;
+      
+      const hasWorkTime = !(startHours === 0 && startMinutes === 0 && endHours === 0 && endMinutes === 0);
       
       if (hasWorkTime) {
         workHolidays++;
@@ -394,7 +409,7 @@ export class TimetableDataProcessorHolidays {
 
   /**
    * Получает статистику использования праздников по периодам
-   * REFACTORED v4.1: Time-based holiday analysis
+   * REFACTORED v4.2: Time-based holiday analysis
    */
   public static getHolidayUsageByPeriod(
     records: IStaffRecord[],
@@ -484,7 +499,7 @@ export class TimetableDataProcessorHolidays {
 
   /**
    * Проверяет конфликты между праздниками и отпусками
-   * REFACTORED v4.1: Conflict detection
+   * REFACTORED v4.2: Conflict detection
    */
   public static detectHolidayLeaveConflicts(
     records: IStaffRecord[]
