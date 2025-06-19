@@ -708,11 +708,20 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     alert(`Export functionality will be implemented. Records to export: ${state.srsRecords.length}, Types of leave: ${state.typesOfLeave.length}, Holidays: ${state.holidays.length}, Show deleted: ${state.showDeleted}, Numeric time fields: enabled`);
   }, [state.srsRecords, state.totalHours, state.fromDate, state.toDate, state.typesOfLeave, state.holidays, state.showDeleted]);
 
-  const handleSave = useCallback((): void => {
-    console.log('[useSRSTabLogic] Save all changes requested (including numeric time fields changes)');
+  /**
+   * Обработчик сохранения всех изменений
+   * *** РЕАЛИЗОВАНО: Реальное сохранение через StaffRecordsService с числовыми полями времени ***
+   */
+  const handleSave = useCallback(async (): Promise<void> => {
+    console.log('[useSRSTabLogic] *** REAL SAVE ALL CHANGES WITH NUMERIC TIME FIELDS ***');
     
     if (!state.hasUnsavedChanges) {
       console.log('[useSRSTabLogic] No unsaved changes to save');
+      return;
+    }
+
+    if (!context) {
+      console.error('[useSRSTabLogic] Context is not available for save operation');
       return;
     }
 
@@ -720,28 +729,144 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       modifiedRecordsCount: modifiedRecords.size,
       modifiedIds: Array.from(modifiedRecords.keys())
     });
-    
-    modifiedRecords.forEach((modifications, itemId) => {
-      console.log(`[useSRSTabLogic] Modified record ${itemId}:`, modifications);
-      if ('relief' in modifications) {
-        console.log(`[useSRSTabLogic] Record ${itemId} has relief change:`, modifications.relief);
+
+    try {
+      const staffRecordsService = StaffRecordsService.getInstance(context);
+      let successCount = 0;
+      let errorCount = 0;
+      const errors: string[] = [];
+
+      // Сохраняем каждую измененную запись
+      for (const [itemId, modifications] of modifiedRecords.entries()) {
+        try {
+          console.log(`[useSRSTabLogic] *** SAVING RECORD ${itemId} WITH MODIFICATIONS ***:`, modifications);
+
+          // Находим оригинальную запись
+          const originalRecord = state.srsRecords.find(r => r.ID === itemId);
+          if (!originalRecord) {
+            console.error(`[useSRSTabLogic] Original record not found for ID: ${itemId}`);
+            errorCount++;
+            errors.push(`Record ${itemId} not found`);
+            continue;
+          }
+
+          // Создаем объект для обновления с числовыми полями времени
+          const updateData: Partial<IStaffRecord> = {};
+
+          // *** КЛЮЧЕВОЕ: Обработка изменений времени с числовыми полями ***
+          if ('startWork' in modifications) {
+            const startWork = modifications.startWork as { hours: string; minutes: string };
+            updateData.ShiftDate1Hours = parseInt(startWork.hours, 10);
+            updateData.ShiftDate1Minutes = parseInt(startWork.minutes, 10);
+            console.log(`[useSRSTabLogic] Setting start time (numeric): ${updateData.ShiftDate1Hours}:${updateData.ShiftDate1Minutes}`);
+          }
+
+          if ('finishWork' in modifications) {
+            const finishWork = modifications.finishWork as { hours: string; minutes: string };
+            updateData.ShiftDate2Hours = parseInt(finishWork.hours, 10);
+            updateData.ShiftDate2Minutes = parseInt(finishWork.minutes, 10);
+            console.log(`[useSRSTabLogic] Setting finish time (numeric): ${updateData.ShiftDate2Hours}:${updateData.ShiftDate2Minutes}`);
+          }
+
+          // Обработка других полей
+          if ('lunch' in modifications) {
+            updateData.TimeForLunch = parseInt(modifications.lunch as string, 10);
+            console.log(`[useSRSTabLogic] Setting lunch time: ${updateData.TimeForLunch}`);
+          }
+
+          if ('contract' in modifications) {
+            updateData.Contract = parseInt(modifications.contract as string, 10);
+            console.log(`[useSRSTabLogic] Setting contract: ${updateData.Contract}`);
+          }
+
+          if ('typeOfLeave' in modifications) {
+            updateData.TypeOfLeaveID = modifications.typeOfLeave as string;
+            console.log(`[useSRSTabLogic] Setting type of leave: ${updateData.TypeOfLeaveID}`);
+          }
+
+          if ('timeLeave' in modifications) {
+            updateData.LeaveTime = parseFloat(modifications.timeLeave as string);
+            console.log(`[useSRSTabLogic] Setting leave time: ${updateData.LeaveTime}`);
+          }
+
+          if ('relief' in modifications) {
+            // Relief не сохраняется в StaffRecords, это только UI поле
+            console.log(`[useSRSTabLogic] Relief field ignored (UI only): ${modifications.relief}`);
+          }
+
+          // Проверяем, есть ли что сохранять
+          if (Object.keys(updateData).length === 0) {
+            console.log(`[useSRSTabLogic] No server fields to update for record ${itemId}`);
+            successCount++;
+            continue;
+          }
+
+          console.log(`[useSRSTabLogic] *** CALLING REAL StaffRecordsService.updateStaffRecord ***`);
+          console.log(`[useSRSTabLogic] Update data for record ${itemId}:`, updateData);
+
+          // *** РЕАЛЬНЫЙ ВЫЗОВ: updateStaffRecord с числовыми полями времени ***
+          const success = await staffRecordsService.updateStaffRecord(itemId, updateData);
+
+          if (success) {
+            console.log(`[useSRSTabLogic] *** REAL SAVE SUCCESSFUL *** for record ${itemId}`);
+            successCount++;
+          } else {
+            console.error(`[useSRSTabLogic] *** REAL SAVE FAILED *** for record ${itemId}`);
+            errorCount++;
+            errors.push(`Failed to save record ${itemId}`);
+          }
+
+        } catch (recordError) {
+          const errorMessage = recordError instanceof Error ? recordError.message : String(recordError);
+          console.error(`[useSRSTabLogic] Error saving record ${itemId}:`, recordError);
+          errorCount++;
+          errors.push(`Error saving record ${itemId}: ${errorMessage}`);
+        }
       }
-      if ('typeOfLeave' in modifications) {
-        console.log(`[useSRSTabLogic] Record ${itemId} has typeOfLeave change:`, modifications.typeOfLeave);
+
+      console.log(`[useSRSTabLogic] *** SAVE OPERATION COMPLETE ***:`, {
+        totalRecords: modifiedRecords.size,
+        successCount,
+        errorCount,
+        errors: errors.length > 0 ? errors : 'None'
+      });
+
+      if (successCount > 0) {
+        // Очищаем локальные изменения для успешно сохраненных записей
+        setModifiedRecords(prev => {
+          const newModified = new Map(prev);
+          // Удаляем только успешно сохраненные записи
+          // TODO: Можно улучшить, отслеживая какие именно записи сохранились
+          if (errorCount === 0) {
+            newModified.clear(); // Если все успешно, очищаем все
+          }
+          return newModified;
+        });
+
+        SRSTabStateHelpers.setHasUnsavedChanges(setState, errorCount > 0);
+
+        // Обновляем данные с сервера
+        console.log('[useSRSTabLogic] Auto-refreshing data after save to show server changes...');
+        setTimeout(() => {
+          void refreshSRSData();
+        }, 500);
       }
-      if ('startWork' in modifications) {
-        console.log(`[useSRSTabLogic] Record ${itemId} has startWork change (numeric fields):`, modifications.startWork);
+
+      if (errorCount > 0) {
+        // Показываем ошибки пользователю
+        const errorMessage = `Saved ${successCount} records, failed ${errorCount}. Errors: ${errors.join(', ')}`;
+        SRSTabStateHelpers.setErrorSRS(setState, errorMessage);
       }
-      if ('finishWork' in modifications) {
-        console.log(`[useSRSTabLogic] Record ${itemId} has finishWork change (numeric fields):`, modifications.finishWork);
-      }
-    });
-    
-    // TODO: Реализовать сохранение изменений через StaffRecordsService с числовыми полями времени
-    setModifiedRecords(new Map());
-    SRSTabStateHelpers.setHasUnsavedChanges(setState, false);
-    console.log('[useSRSTabLogic] Changes saved successfully (mock) with numeric time fields support');
-  }, [state.hasUnsavedChanges, modifiedRecords, setState]);
+
+      console.log('[useSRSTabLogic] *** REAL SAVE OPERATION WITH NUMERIC TIME FIELDS COMPLETE ***');
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('[useSRSTabLogic] Critical error during save operation:', error);
+      
+      SRSTabStateHelpers.setErrorSRS(setState, `Save operation failed: ${errorMessage}`);
+    }
+  }, [state.hasUnsavedChanges, modifiedRecords, setState, context, state.srsRecords, refreshSRSData]);
 
   const handleSaveChecked = useCallback((): void => {
     console.log('[useSRSTabLogic] Save checked items requested');
