@@ -143,8 +143,14 @@ export const useStaffRecordsMutations = (
        }
 
       // *** СОЗДАЕМ НОРМАЛИЗОВАННУЮ ДАТУ ***
-      const newDate = new Date(date);
-      newDate.setHours(0, 0, 0, 0);
+      //const newDate = new Date(date);
+      //newDate.setHours(0, 0, 0, 0);
+      const newDate = new Date(Date.UTC(
+  date.getUTCFullYear(),
+  date.getUTCMonth(), 
+  date.getUTCDate(),
+  0, 0, 0, 0
+));  // UTC timezone
 
       // *** СОЗДАЕМ ВРЕМЕНА СМЕН С ИСПОЛЬЗОВАНИЕМ ЧИСЛОВЫХ ПОЛЕЙ ***
       console.log(`[useStaffRecordsMutations] *** CREATING SHIFT TIMES WITH NUMERIC FIELDS ***`);
