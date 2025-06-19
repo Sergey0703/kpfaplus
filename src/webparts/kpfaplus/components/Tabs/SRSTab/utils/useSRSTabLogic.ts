@@ -737,7 +737,9 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       const errors: string[] = [];
 
       // Сохраняем каждую измененную запись
-      for (const [itemId, modifications] of modifiedRecords.entries()) {
+     const modifiedEntries = Array.from(modifiedRecords.entries());
+      for (let i = 0; i < modifiedEntries.length; i++) {
+        const [itemId, modifications] = modifiedEntries[i];
         try {
           console.log(`[useSRSTabLogic] *** SAVING RECORD ${itemId} WITH MODIFICATIONS ***:`, modifications);
 
