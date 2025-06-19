@@ -329,8 +329,9 @@ export function groupTemplatesByWeekAndDay(activeTemplates: IScheduleTemplate[],
 }
 
 /**
-* Подготавливает данные для всех дней периода
-* ИСПРАВЛЕНО: Использует UTC методы для создания дат
+* *** ИСПРАВЛЕННАЯ ФУНКЦИЯ prepareDaysData - ФИКСИТ ПРОБЛЕМУ С 32 ДНЯМИ ***
+* Подготавливает данные для всех дней периода с правильным подсчетом дней
+* ИСПРАВЛЕНО: Использует UTC методы для создания дат и правильно считает количество дней
 */
 export function prepareDaysData(
  firstDay: Date,
@@ -340,25 +341,63 @@ export function prepareDaysData(
  templatesByWeekAndDay: TemplateCache,
  numberOfWeekTemplates: number
 ): Map<string, IDayData> {
- console.log(`[ScheduleTabFillHelpers] *** PREPARING DAYS DATA WITH UTC DATE CREATION ***`);
+ console.log(`[ScheduleTabFillHelpers] *** FIXED prepareDaysData - CORRECT DAY COUNT CALCULATION ***`);
  console.log(`[ScheduleTabFillHelpers] Period: ${firstDay.toISOString()} - ${lastDay.toISOString()}`);
  console.log(`[ScheduleTabFillHelpers] Templates contain time from numeric fields`);
  
- const dayCount = Math.ceil((lastDay.getTime() - firstDay.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+ // *** ИСПРАВЛЕНИЕ: Правильный расчет количества дней в периоде ***
+ // Создаем нормализованные даты для точного подсчета дней
+ const normalizedFirstDay = new Date(Date.UTC(
+   firstDay.getUTCFullYear(),
+   firstDay.getUTCMonth(),
+   firstDay.getUTCDate(),
+   0, 0, 0, 0
+ ));
+ 
+ const normalizedLastDay = new Date(Date.UTC(
+   lastDay.getUTCFullYear(),
+   lastDay.getUTCMonth(),
+   lastDay.getUTCDate(),
+   0, 0, 0, 0
+ ));
+ 
+ // Правильный расчет количества дней: разность дат в днях + 1
+ const timeDiffMs = normalizedLastDay.getTime() - normalizedFirstDay.getTime();
+ const dayCount = Math.floor(timeDiffMs / (1000 * 60 * 60 * 24)) + 1;
+ 
+ console.log(`[ScheduleTabFillHelpers] *** CORRECTED DAY CALCULATION ***`);
+ console.log(`[ScheduleTabFillHelpers] Normalized first day: ${normalizedFirstDay.toISOString()}`);
+ console.log(`[ScheduleTabFillHelpers] Normalized last day: ${normalizedLastDay.toISOString()}`);
+ console.log(`[ScheduleTabFillHelpers] Time difference (ms): ${timeDiffMs}`);
+ console.log(`[ScheduleTabFillHelpers] Time difference (days): ${timeDiffMs / (1000 * 60 * 60 * 24)}`);
+ console.log(`[ScheduleTabFillHelpers] Calculated day count: ${dayCount}`);
+ 
+ // *** ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА для переходов летнее/зимнее время ***
+ // UTC не подвержен переходам на летнее/зимнее время, поэтому такая логика безопасна
+ console.log(`[ScheduleTabFillHelpers] *** TIMEZONE TRANSITION SAFETY ***`);
+ console.log(`[ScheduleTabFillHelpers] Using UTC dates - immune to DST transitions`);
+ console.log(`[ScheduleTabFillHelpers] This logic works correctly in any timezone and any month`);
+ 
  const daysData = new Map<string, IDayData>();
  
- console.log(`[ScheduleTabFillHelpers] Will process ${dayCount} days`);
- 
  for (let i = 0; i < dayCount; i++) {
-   // *** ИСПРАВЛЕНИЕ: Используем UTC методы для создания дат ***
+   // *** ИСПРАВЛЕНИЕ: Используем UTC методы для создания дат С ПРОВЕРКОЙ ГРАНИЦ ***
    const currentDate = new Date(Date.UTC(
-     firstDay.getUTCFullYear(),
-     firstDay.getUTCMonth(),
-     firstDay.getUTCDate() + i,
+     normalizedFirstDay.getUTCFullYear(),
+     normalizedFirstDay.getUTCMonth(),
+     normalizedFirstDay.getUTCDate() + i,
      0, 0, 0, 0  // UTC полночь
    ));
    
-   console.log(`[ScheduleTabFillHelpers] Day ${i + 1}: ${currentDate.toISOString()}`);
+   // *** КРИТИЧЕСКИ ВАЖНАЯ ПРОВЕРКА: убеждаемся, что не выходим за границы периода ***
+   if (currentDate > normalizedLastDay) {
+     console.warn(`[ScheduleTabFillHelpers] *** DAY BOUNDARY CHECK FAILED ***`);
+     console.warn(`[ScheduleTabFillHelpers] Generated date ${currentDate.toISOString()} exceeds lastDay ${normalizedLastDay.toISOString()}`);
+     console.warn(`[ScheduleTabFillHelpers] Breaking loop at day ${i + 1} of ${dayCount}`);
+     break;
+   }
+   
+   console.log(`[ScheduleTabFillHelpers] Day ${i + 1}/${dayCount}: ${currentDate.toISOString()}`);
    
    // *** ИСПРАВЛЕНИЕ: Используем UTC методы для ключа ***
    const dateKey = `${currentDate.getUTCFullYear()}-${currentDate.getUTCMonth() + 1}-${currentDate.getUTCDate()}`;
@@ -417,6 +456,15 @@ export function prepareDaysData(
      console.log(`[ScheduleTabFillHelpers] Templates contain time from numeric fields`);
    }
    
+   // *** СПЕЦИАЛЬНАЯ ОТЛАДКА ДЛЯ ПОСЛЕДНЕГО ДНЯ МЕСЯЦА ***
+   if (currentDate.getUTCDate() === normalizedLastDay.getUTCDate() && 
+       currentDate.getUTCMonth() === normalizedLastDay.getUTCMonth() && 
+       currentDate.getUTCFullYear() === normalizedLastDay.getUTCFullYear()) {
+     console.log(`[ScheduleTabFillHelpers] *** LAST DAY OF PERIOD PROCESSED ***`);
+     console.log(`[ScheduleTabFillHelpers] Last day: ${currentDate.toISOString()}`);
+     console.log(`[ScheduleTabFillHelpers] Day ${i + 1} of ${dayCount} total days`);
+   }
+   
    // Логируем информацию о дне (только для первых нескольких дней и важных случаев)
    if (i < 3 || isHoliday || isLeave || templatesForDay.length > 0) {
      const dayName = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][adjustedDayIndex];
@@ -439,7 +487,11 @@ export function prepareDaysData(
    }
  }
  
- console.log(`[ScheduleTabFillHelpers] Подготовлены данные для ${daysData.size} дней с временем из числовых полей`);
+ console.log(`[ScheduleTabFillHelpers] *** FINAL RESULT: CORRECT DAY COUNT ***`);
+ console.log(`[ScheduleTabFillHelpers] Expected days: ${dayCount}, Generated days: ${daysData.size}`);
+ console.log(`[ScheduleTabFillHelpers] Day count matches: ${dayCount === daysData.size ? 'YES ✓' : 'NO ✗'}`);
+ console.log(`[ScheduleTabFillHelpers] Templates contain time from numeric fields: ✓`);
+ console.log(`[ScheduleTabFillHelpers] UTC timezone safe for DST transitions: ✓`);
  
  // Статистика по подготовленным данным
  let holidaysCount = 0;
