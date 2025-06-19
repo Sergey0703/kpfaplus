@@ -6,7 +6,7 @@ import { Checkbox, Dropdown, DefaultButton, IconButton, IDropdownOption, Tooltip
 import { ISRSTableRowProps, ISRSRecord } from '../utils/SRSTabInterfaces';
 import { calculateSRSWorkTime } from '../utils/SRSTimeCalculationUtils';
 
-// *** НОВЫЙ ИНТЕРФЕЙС: Данные для новой смены (аналог из Schedule) ***
+// *** ОБНОВЛЕНО: Интерфейс данных для новой смены с числовыми полями времени ***
 export interface INewSRSShiftData {
   date: Date;
   timeForLunch: string;
@@ -14,6 +14,11 @@ export interface INewSRSShiftData {
   contractNumber?: string;
   typeOfLeave?: string;
   Holiday?: number;
+  // *** НОВОЕ: Числовые поля времени для создания смены ***
+  ShiftDate1Hours?: number;
+  ShiftDate1Minutes?: number;
+  ShiftDate2Hours?: number;
+  ShiftDate2Minutes?: number;
 }
 
 export const SRSTableRow: React.FC<ISRSTableRowProps & {
@@ -25,13 +30,10 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   onLunchTimeChange: (item: ISRSRecord, value: string) => void;
   onContractNumberChange: (item: ISRSRecord, value: string) => void;
   onTypeOfLeaveChange?: (item: ISRSRecord, value: string) => void;
-  // *** РЕАЛЬНАЯ ИНТЕГРАЦИЯ: Обработчики удаления/восстановления через StaffRecordsService ***
   showDeleteConfirmDialog?: (id: string) => void;
   showRestoreConfirmDialog?: (id: string) => void;
-  // onDeleteItem и onRestoreItem переданы для совместимости, но не используются в этом компоненте
   onDeleteItem?: (id: string) => Promise<boolean>;
   onRestoreItem?: (id: string) => Promise<boolean>;
-  // *** НОВОЕ: Обработчик добавления смены ***
   showAddShiftConfirmDialog?: (item: ISRSRecord) => void;
   onAddShift?: (date: Date, shiftData?: INewSRSShiftData) => void;
 }> = (props) => {
@@ -46,14 +48,10 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     isTimesEqual,
     onItemChange,
     onTypeOfLeaveChange,
-    // *** РЕАЛЬНАЯ ИНТЕГРАЦИЯ: Деструктуризация обработчиков удаления ***
     showDeleteConfirmDialog,
     showRestoreConfirmDialog,
-    // *** НОВЫЕ ПРОПСЫ: Обработчики добавления смены ***
     showAddShiftConfirmDialog,
     onAddShift
-  //  onDeleteItem,
-  //  onRestoreItem
   } = props;
 
   // Extract handlers directly from props to avoid unused variable errors
@@ -67,15 +65,34 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   const [localContract, setLocalContract] = useState(item.contract);
   const [localTypeOfLeave, setLocalTypeOfLeave] = useState(item.typeOfLeave);
 
-  // *** СОСТОЯНИЕ ОПЕРАЦИЙ: Отслеживание выполнения операций удаления/восстановления ***
-  // Примечание: В текущей реализации состояние операций отслеживается в useSRSTabLogic
-  // Эти переменные зарезервированы для будущего использования на уровне компонента
-  // const [isDeleting, setIsDeleting] = useState(false);
-  // const [isRestoring, setIsRestoring] = useState(false);
+  // Определяем состояние записи: Является ли запись праздничной
+  const isHoliday = item.Holiday === 1;
+  if (item.id === '34825') {
+    console.log(`[SRSTableRow] Record 34825 Holiday value:`, item.Holiday);
+    console.log(`[SRSTableRow] Record 34825 isHoliday calculated:`, isHoliday);
+  }
+
+  // Определяем состояние записи: Является ли запись удаленной
+  const isDeleted = item.deleted === true;
+
+  console.log(`[SRSTableRow] Rendering row for item ${item.id} with NUMERIC TIME FIELDS integration:`, {
+    date: item.date.toLocaleDateString(),
+    isHoliday: isHoliday,
+    holidayValue: item.Holiday,
+    displayWorkTime: displayWorkTime,
+    isTimesEqual: isTimesEqual,
+    deleted: item.deleted,
+    isDeleted: isDeleted,
+    hasDeleteHandler: !!showDeleteConfirmDialog,
+    hasRestoreHandler: !!showRestoreConfirmDialog,
+    hasAddShiftHandler: !!showAddShiftConfirmDialog,
+    onAddShiftAvailable: !!onAddShift,
+    workingWithNumericFields: true
+  });
 
   // Синхронизируем локальное состояние с props при изменении item
   useEffect(() => {
-    console.log('[SRSTableRow] Syncing local state with item (including type of leave and delete/restore states):', {
+    console.log('[SRSTableRow] Syncing local state with item (numeric time fields support):', {
       itemId: item.id,
       startWork: item.startWork,
       finishWork: item.finishWork,
@@ -93,42 +110,16 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     setLocalTypeOfLeave(item.typeOfLeave);
   }, [item.id, item.startWork, item.finishWork, item.lunch, item.contract, item.typeOfLeave, item.deleted]);
 
-  // *** ОПРЕДЕЛЯЕМ СОСТОЯНИЕ ЗАПИСИ: Является ли запись праздничной ***
-  const isHoliday = item.Holiday === 1;
-  if (item.id === '34825') {
-    console.log(`[SRSTableRow] Record 34825 Holiday value:`, item.Holiday);
-    console.log(`[SRSTableRow] Record 34825 isHoliday calculated:`, isHoliday);
-  }
-
-  // *** ОПРЕДЕЛЯЕМ СОСТОЯНИЕ ЗАПИСИ: Является ли запись удаленной ***
-  const isDeleted = item.deleted === true;
-
-  console.log(`[SRSTableRow] Rendering row for item ${item.id} with REAL delete/restore integration and ADD SHIFT functionality:`, {
-    date: item.date.toLocaleDateString(),
-    isHoliday: isHoliday,
-    holidayValue: item.Holiday,
-    displayWorkTime: displayWorkTime,
-    isTimesEqual: isTimesEqual,
-    deleted: item.deleted,
-    isDeleted: isDeleted,
-    hasDeleteHandler: !!showDeleteConfirmDialog,
-    hasRestoreHandler: !!showRestoreConfirmDialog,
-    realServicesIntegration: true,
-    // *** НОВОЕ: Информация о добавлении смены ***
-    hasAddShiftHandler: !!showAddShiftConfirmDialog,
-    onAddShiftAvailable: !!onAddShift
-  });
-
-  // *** НОВЫЙ ОБРАБОТЧИК: Клик по кнопке "+Shift" с подтверждением (аналог Schedule) ***
+  // *** ОБНОВЛЕНО: Обработчик клика по кнопке "+Shift" с числовыми полями времени ***
   const handleAddShiftClick = useCallback((): void => {
-    console.log(`[SRSTableRow] *** ADD SHIFT CLICK *** for item ${item.id} on date: ${item.date.toLocaleDateString()}`);
+    console.log(`[SRSTableRow] *** ADD SHIFT CLICK WITH NUMERIC TIME FIELDS *** for item ${item.id} on date: ${item.date.toLocaleDateString()}`);
     
     if (!showAddShiftConfirmDialog) {
       console.error('[SRSTableRow] showAddShiftConfirmDialog handler not available - cannot show confirmation dialog');
       return;
     }
 
-    console.log('[SRSTableRow] Calling showAddShiftConfirmDialog with full item data');
+    console.log('[SRSTableRow] Calling showAddShiftConfirmDialog with item data for NUMERIC time fields creation');
     console.log('[SRSTableRow] Item data for shift creation:', {
       id: item.id,
       date: item.date.toISOString(),
@@ -136,34 +127,37 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
       contract: item.contract,
       contractNumber: item.contract, // Используем contract как contractNumber
       typeOfLeave: item.typeOfLeave,
-      Holiday: item.Holiday
+      Holiday: item.Holiday,
+      // *** НОВОЕ: Логируем текущие числовые значения времени для будущей смены ***
+      currentStartWork: `${item.startWork.hours}:${item.startWork.minutes}`,
+      currentFinishWork: `${item.finishWork.hours}:${item.finishWork.minutes}`,
+      willCreateWith: 'Numeric time fields (00:00-00:00 by default)'
     });
     
-    // *** ИСПРАВЛЕНО: Передаем весь item в диалог подтверждения (как в Schedule) ***
+    // Передаем весь item в диалог подтверждения
     showAddShiftConfirmDialog(item);
     
   }, [item, showAddShiftConfirmDialog]);
 
-  // *** ФУНКЦИЯ СТИЛИЗАЦИИ: Получение стилей праздничных ячеек ***
+  // Функция стилизации: Получение стилей праздничных ячеек
   const getHolidayCellStyle = (): React.CSSProperties => {
     if (!isHoliday) {
       return {};
     }
     
     return {
-      backgroundColor: '#ffe6f0', // Розовый фон для праздников (как в Schedule)
+      backgroundColor: '#ffe6f0', // Розовый фон для праздников
       borderColor: '#ff69b4',     // Розовая граница
     };
   };
 
-  // Базовые стили для ячеек (как в Schedule table style)
+  // Базовые стили для ячеек
   const cellStyle: React.CSSProperties = {
     border: '1px solid #edebe9',
     padding: '8px',
     textAlign: 'center',
     fontSize: '12px',
     verticalAlign: 'middle',
-    // *** СТИЛИЗАЦИЯ: Добавляем стили праздника ***
     ...getHolidayCellStyle()
   };
 
@@ -190,7 +184,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   // Получение дня недели
   const dayOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][item.date.getDay()];
 
-  // *** РЕНДЕР ЯЧЕЙКИ ДАТЫ: С учетом праздников и удаления ***
+  // Рендер ячейки даты: С учетом праздников и удаления
   const renderDateCell = (): JSX.Element => {
     if (rowPositionInDate === 0) {
       return (
@@ -210,7 +204,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
             ...(isDeleted && { color: '#aaa', textDecoration: 'line-through' })
           }}>
             {dayOfWeek}
-            {/* *** ИНДИКАТОР: Отображение "Holiday" для праздников *** */}
+            {/* Индикатор: Отображение "Holiday" для праздников */}
             {isHoliday && !isDeleted && (
               <div style={{ 
                 color: '#d83b01', 
@@ -375,13 +369,9 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   }, [item, contractNumberChangeHandler, localContract]);
 
   // ===============================================
-  // *** РЕАЛЬНЫЕ ОБРАБОТЧИКИ УДАЛЕНИЯ/ВОССТАНОВЛЕНИЯ ***
+  // РЕАЛЬНЫЕ ОБРАБОТЧИКИ УДАЛЕНИЯ/ВОССТАНОВЛЕНИЯ
   // ===============================================
 
-  /**
-   * *** РЕАЛЬНЫЙ ОБРАБОТЧИК: Клик по кнопке удаления ***
-   * Показывает диалог подтверждения через showDeleteConfirmDialog
-   */
   const handleDeleteClick = useCallback((): void => {
     console.log('[SRSTableRow] *** REAL DELETE CLICK *** for item:', item.id);
     
@@ -393,10 +383,6 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     }
   }, [item.id, showDeleteConfirmDialog]);
 
-  /**
-   * *** РЕАЛЬНЫЙ ОБРАБОТЧИК: Клик по кнопке восстановления ***
-   * Показывает диалог подтверждения через showRestoreConfirmDialog
-   */
   const handleRestoreClick = useCallback((): void => {
     console.log('[SRSTableRow] *** REAL RESTORE CLICK *** for item:', item.id);
     
@@ -412,13 +398,11 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   // ФУНКЦИИ СТИЛИЗАЦИИ DROPDOWN
   // ===============================================
 
-  // *** СТИЛИЗАЦИЯ: dropdown с учетом праздников и удаления ***
   const getDropdownStyles = (isError = false): object => ({
     root: { 
       width: 60, 
       margin: '0 2px',
       borderColor: isError ? '#a4262c' : undefined,
-      // *** СТИЛИ ПРАЗДНИКОВ: Розовый фон для праздников ***
       backgroundColor: isHoliday ? '#ffe6f0' : undefined,
       ...(isDeleted && {
         backgroundColor: '#f5f5f5',
@@ -428,7 +412,6 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     },
     title: {
       fontSize: '12px',
-      // *** СТИЛИ ПРАЗДНИКОВ: Цвет текста для праздников ***
       color: isHoliday ? '#d83b01' : undefined,
       ...(isDeleted && {
         color: '#888',
@@ -436,7 +419,6 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
       })
     },
     caretDown: {
-      // *** СТИЛИ ПРАЗДНИКОВ: Цвет стрелки для праздников ***
       color: isHoliday ? '#d83b01' : undefined,
       ...(isDeleted && {
         color: '#aaa'
@@ -447,7 +429,6 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   const getLunchDropdownStyles = (): object => ({
     root: { 
       width: 80,
-      // *** СТИЛИ ПРАЗДНИКОВ: Розовый фон для праздников ***
       backgroundColor: isHoliday ? '#ffe6f0' : undefined,
       ...(isDeleted && {
         backgroundColor: '#f5f5f5',
@@ -457,7 +438,6 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     },
     title: {
       fontSize: '12px',
-      // *** СТИЛИ ПРАЗДНИКОВ: Цвет текста для праздников ***
       color: isHoliday ? '#d83b01' : undefined,
       ...(isDeleted && {
         color: '#888',
@@ -469,7 +449,6 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   const getLeaveDropdownStyles = (): object => ({
     root: { 
       width: 140,
-      // *** СТИЛИ ПРАЗДНИКОВ: Розовый фон для праздников ***
       backgroundColor: isHoliday ? '#ffe6f0' : undefined,
       ...(isDeleted && {
         backgroundColor: '#f5f5f5',
@@ -479,7 +458,6 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     },
     title: {
       fontSize: '12px',
-      // *** СТИЛИ ПРАЗДНИКОВ: Цвет текста для праздников ***
       color: isHoliday ? '#d83b01' : undefined,
       ...(isDeleted && {
         color: '#888',
@@ -491,7 +469,6 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   const getContractDropdownStyles = (): object => ({
     root: { 
       width: 50,
-      // *** СТИЛИ ПРАЗДНИКОВ: Розовый фон для праздников ***
       backgroundColor: isHoliday ? '#ffe6f0' : undefined,
       ...(isDeleted && {
         backgroundColor: '#f5f5f5',
@@ -501,7 +478,6 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     },
     title: {
       fontSize: '12px',
-      // *** СТИЛИ ПРАЗДНИКОВ: Цвет текста для праздников ***
       color: isHoliday ? '#d83b01' : undefined,
       ...(isDeleted && {
         color: '#888',
@@ -511,7 +487,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   });
 
   // Логирование текущих отображаемых значений для отладки
-  console.log('[SRSTableRow] Rendering row for item', item.id, 'with display values and REAL services:', {
+  console.log('[SRSTableRow] Rendering row for item', item.id, 'with display values and NUMERIC time fields:', {
     displayWorkTime,
     localStartWork,
     localFinishWork,
@@ -523,17 +499,18 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     isDeleted,
     hasRealDeleteIntegration: !!showDeleteConfirmDialog,
     hasRealRestoreIntegration: !!showRestoreConfirmDialog,
-    hasAddShiftIntegration: !!showAddShiftConfirmDialog
+    hasAddShiftIntegration: !!showAddShiftConfirmDialog,
+    numericTimeFieldsSupport: true
   });
 
   return (
     <tr style={rowStyle}>
-      {/* *** ЯЧЕЙКА ДАТЫ: С поддержкой праздников и удаления *** */}
+      {/* Ячейка даты: С поддержкой праздников и удаления */}
       <td style={{ ...cellStyle, textAlign: 'left' }}>
         {renderDateCell()}
       </td>
 
-      {/* *** ЯЧЕЙКА ЧАСОВ: С выделением праздников и удаления *** */}
+      {/* Ячейка часов: С выделением праздников и удаления */}
       <td style={{ 
         ...cellStyle, 
         fontWeight: 'bold',
@@ -541,7 +518,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
           ? '#a4262c' 
           : isHoliday 
             ? '#d83b01'
-            : (displayWorkTime === '0.00' ? '#666' : 'inherit'),
+            : (displayWorkTime === '0:00' ? '#666' : 'inherit'),
         ...(isDeleted && { color: '#888', textDecoration: 'line-through' })
       }}>
         {isTimesEqual ? (
@@ -553,7 +530,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
         ) : (
           <span>{displayWorkTime}</span>
         )}
-        {/* *** ИНДИКАТОР ПРАЗДНИКА *** */}
+        {/* Индикатор праздника */}
         {isHoliday && !isDeleted && (
           <div style={{ 
             fontSize: '10px', 
@@ -665,18 +642,17 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
             fontSize: '12px',
             textAlign: 'center',
             borderRadius: '2px',
-            // *** СТИЛИ ПРАЗДНИКОВ ***
             backgroundColor: isHoliday ? '#ffe6f0' : (isDeleted ? '#f5f5f5' : 'white'),
             color: isHoliday ? '#d83b01' : undefined
           }}
         />
       </td>
 
-      {/* *** ИСПРАВЛЕНО: +Shift button - теперь с правильным обработчиком *** */}
+      {/* +Shift button - с правильным обработчиком */}
       <td style={cellStyle}>
         <DefaultButton
           text="+Shift"
-          onClick={handleAddShiftClick} // *** ИСПРАВЛЕНО: Используем новый обработчик ***
+          onClick={handleAddShiftClick}
           disabled={isDeleted}
           styles={{ 
             root: { 
@@ -730,7 +706,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
         )}
       </td>
 
-      {/* *** ЯЧЕЙКА: Actions (Delete/Restore) + ID С РЕАЛЬНЫМИ СЕРВИСАМИ *** */}
+      {/* Actions (Delete/Restore) + ID */}
       <td style={{ ...cellStyle, padding: '4px' }}>
         <div style={{ 
           display: 'flex', 
@@ -738,9 +714,9 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
           alignItems: 'center',
           gap: '4px'
         }}>
-          {/* *** РЕАЛЬНЫЕ КНОПКИ: Delete/Restore с интеграцией StaffRecordsService *** */}
+          {/* РЕАЛЬНЫЕ КНОПКИ: Delete/Restore с интеграцией StaffRecordsService */}
           {isDeleted ? (
-            // *** РЕАЛЬНАЯ КНОПКА ВОССТАНОВЛЕНИЯ: Вызывает StaffRecordsService.restoreDeletedRecord ***
+            // РЕАЛЬНАЯ КНОПКА ВОССТАНОВЛЕНИЯ: Вызывает StaffRecordsService.restoreDeletedRecord
             <IconButton
               iconProps={{ iconName: 'Refresh' }}
               title="Restore (via StaffRecordsService)"
@@ -760,7 +736,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
               }}
             />
           ) : (
-            // *** РЕАЛЬНАЯ КНОПКА УДАЛЕНИЯ: Вызывает StaffRecordsService.markRecordAsDeleted ***
+            // РЕАЛЬНАЯ КНОПКА УДАЛЕНИЯ: Вызывает StaffRecordsService.markRecordAsDeleted
             <IconButton
               iconProps={{ iconName: 'Delete' }}
               title="Delete (via StaffRecordsService)"
