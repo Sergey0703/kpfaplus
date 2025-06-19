@@ -648,6 +648,22 @@ const handleAddShiftCancel = useCallback((): void => {
               fontWeight: '600',
               fontSize: '12px',
               border: '1px solid #edebe9'
+            }}>Hours</th>
+            <th style={{ 
+              backgroundColor: '#f3f3f3',
+              padding: '8px',
+              textAlign: 'center',
+              fontWeight: '600',
+              fontSize: '12px',
+              border: '1px solid #edebe9'
+            }}>Relief</th>
+            <th style={{ 
+              backgroundColor: '#f3f3f3',
+              padding: '8px',
+              textAlign: 'center',
+              fontWeight: '600',
+              fontSize: '12px',
+              border: '1px solid #edebe9'
             }}>Start Work</th>
             <th style={{ 
               backgroundColor: '#f3f3f3',
