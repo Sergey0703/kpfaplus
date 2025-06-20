@@ -1,5 +1,5 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/DashboardTab.tsx
-// ИСПРАВЛЕНО: Интеграция с новой функциональностью автозаполнения
+// COMPLETE IMPLEMENTATION: Enhanced Auto-Fill with timer, spinner, and execution time tracking
 import * as React from 'react';
 import { useCallback, useMemo } from 'react';
 import { MessageBar } from '@fluentui/react';
@@ -47,8 +47,8 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     handleDateChange,
     handleAutoscheduleToggle,
     handleFillStaff,
-    handleAutoFillAll, // ДОБАВЛЕНО: новая функция автозаполнения
-    autoFillProgress, // ДОБАВЛЕНО: прогресс автозаполнения
+    handleAutoFillAll, // NEW: auto-fill function
+    autoFillProgress, // NEW: progress tracking
     logsService,
     handleLogRefresh,
     handleBulkLogRefresh,
@@ -61,10 +61,10 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     managingGroupId: effectiveGroupId
   });
 
-  // *** КРИТИЧЕСКИ ВАЖНО: СТАБИЛИЗИРОВАННЫЕ ДАННЫЕ ДЛЯ ПЕРЕДАЧИ В ТАБЛИЦУ ***
+  // *** STABILIZED DATA FOR TABLE ***
   const stableCachedLogs = useMemo(() => {
     const logs = getCachedLogsForStaff();
-    console.log('[DashboardTab] 📊 МЕМОИЗИРОВАННЫЕ ДАННЫЕ ДЛЯ ТАБЛИЦЫ:', {
+    console.log('[DashboardTab] 📊 MEMOIZED DATA FOR TABLE:', {
       totalLogs: Object.keys(logs).length,
       effectiveGroupId,
       logKeys: Object.keys(logs),
@@ -80,8 +80,8 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     return logs;
   }, [getCachedLogsForStaff, effectiveGroupId]);
 
-  // *** ДОПОЛНИТЕЛЬНОЕ ЛОГИРОВАНИЕ ПЕРЕДАЧИ ДАННЫХ ***
-  console.log('[DashboardTab] 🔍 ПРОВЕРКА ПЕРЕДАЧИ ДАННЫХ В DASHBOARDTABLE:', {
+  // *** ADDITIONAL LOGGING FOR DATA PASSING ***
+  console.log('[DashboardTab] 🔍 DATA PASSING CHECK TO DASHBOARDTABLE:', {
     effectiveGroupId,
     staffCount: staffMembersData.length,
     cachedLogsCount: Object.keys(stableCachedLogs).length,
@@ -90,12 +90,10 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     clearLogCacheAvailable: !!clearLogCache,
     registerTableResetCallbackAvailable: !!registerTableResetCallback,
     selectedDate: selectedDate?.toLocaleDateString(),
-    // *** NEW: LoadingState info ***
     loadingStateAvailable: !!loadingState,
     isStaffLoading: loadingState?.loadingSteps.some(step => 
       step.id === 'fetch-group-members' && step.status === 'loading'
     ),
-    // *** ДОБАВЛЕНО: Auto Fill функция доступна ***
     handleAutoFillAllAvailable: !!handleAutoFillAll
   });
 
@@ -125,7 +123,7 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     setConfirmDialog((prev: IConfirmDialogState) => ({ ...prev, isOpen: false }));
   }, [setConfirmDialog]);
 
-  // *** ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ ЛОГОВ ПО STAFF ID ***
+  // *** FUNCTION TO GET LOGS BY STAFF ID ***
   const getCachedLogsForStaffMember = useCallback((staffId: string) => {
     return stableCachedLogs[staffId] || { hasLog: false, isLoading: false, error: undefined };
   }, [stableCachedLogs]);
@@ -135,11 +133,12 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     return (
       <div style={{ 
         padding: '20px', 
+        paddingTop: '40px', // Reduced from default padding - less space from top
         height: '100vh', 
         display: 'flex', 
         flexDirection: 'column',
         backgroundColor: '#fafafa',
-        justifyContent: 'center',
+        justifyContent: 'flex-start', // Changed from center to start
         alignItems: 'center'
       }}>
         {/* Enhanced Loading Spinner with Auto-Fill Progress */}
@@ -172,7 +171,7 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
                 alignItems: 'center',
                 justifyContent: 'center'
               }}>
-                <span style={{ color: 'white', fontSize: '20px', fontWeight: 'bold' }}>🤖</span>
+                <span style={{ color: 'white', fontSize: '20px', fontWeight: 'bold' }}>AF</span>
               </div>
               <div>
                 <h2 style={{ 
@@ -190,6 +189,28 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
                 }}>
                   Processing staff members with Auto Schedule enabled
                 </p>
+              </div>
+            </div>
+
+            {/* Execution Timer */}
+            <div style={{
+              width: '100%',
+              textAlign: 'center',
+              marginBottom: '16px',
+              padding: '12px',
+              backgroundColor: '#f0f7ff',
+              borderRadius: '8px',
+              border: '1px solid #b3d7ff'
+            }}>
+              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#0078d4', marginBottom: '4px' }}>
+                {(() => {
+                  const minutes = Math.floor(autoFillProgress.elapsedTime / 60000);
+                  const seconds = Math.floor((autoFillProgress.elapsedTime % 60000) / 1000);
+                  return minutes > 0 ? `${minutes}:${seconds.toString().padStart(2, '0')}` : `${seconds}s`;
+                })()}
+              </div>
+              <div style={{ fontSize: '12px', color: '#605e5c' }}>
+                Execution Time
               </div>
             </div>
 
@@ -250,17 +271,30 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
                     ⏳ Waiting {Math.ceil(autoFillProgress.remainingPauseTime / 1000)} seconds before processing next staff member...
                   </span>
                 </div>
+              ) : autoFillProgress.isProcessing ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{
+                    width: '16px',
+                    height: '16px',
+                    border: '2px solid #f3f3f3',
+                    borderTop: '2px solid #107c10',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite'
+                  }} />
+                  <span style={{ color: '#323130', fontWeight: '500' }}>
+                    🔄 Processing: {autoFillProgress.currentStaffName}...
+                  </span>
+                </div>
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <div style={{
                     width: '8px',
                     height: '8px',
                     borderRadius: '50%',
-                    backgroundColor: '#107c10',
-                    animation: 'pulse 1.5s infinite'
+                    backgroundColor: '#107c10'
                   }} />
                   <span style={{ color: '#323130', fontWeight: '500' }}>
-                    🔄 Processing: {autoFillProgress.currentStaffName}
+                    ✅ Completed: {autoFillProgress.currentStaffName}
                   </span>
                 </div>
               )}
@@ -323,7 +357,7 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
             )}
 
             {/* Next Staff Member Info */}
-            {!autoFillProgress.isPaused && autoFillProgress.nextStaffName && (
+            {!autoFillProgress.isPaused && !autoFillProgress.isProcessing && autoFillProgress.nextStaffName && (
               <div style={{
                 marginTop: '16px',
                 padding: '12px',
@@ -339,12 +373,16 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
               </div>
             )}
 
-            {/* CSS Animation */}
+            {/* CSS Animations */}
             <style>{`
               @keyframes pulse {
                 0% { opacity: 1; }
                 50% { opacity: 0.5; }
                 100% { opacity: 1; }
+              }
+              @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
               }
             `}</style>
           </div>
@@ -396,7 +434,7 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
               <strong>Logs Service:</strong> Active
             </span>
           )}
-          {/* ДОБАВЛЕНО: Индикатор поддержки автозаполнения */}
+          {/* Auto Fill support indicator */}
           <span style={{ color: '#107c10', fontWeight: '500' }}>
             <strong>Auto Fill:</strong> Available
           </span>
@@ -429,7 +467,7 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
           isLoading={isLoading}
           staffCount={staffMembersData.length}
           onDateChange={handleDateChange}
-          onAutoFillAll={handleAutoFillAll} // ИЗМЕНЕНО: передаем новую функцию автозаполнения
+          onAutoFillAll={handleAutoFillAll} // NEW: auto-fill function
         />
       </div>
 
@@ -442,8 +480,8 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
         boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
         overflow: 'hidden'
       }}>
-        {/* *** КРИТИЧЕСКИ ВАЖНО: ПРОВЕРЯЕМ ПЕРЕДАЧУ ДАННЫХ ПРЯМО ПЕРЕД РЕНДЕРОМ *** */}
-        {console.log('[DashboardTab] 🚀 ПЕРЕДАЧА ДАННЫХ В DASHBOARDTABLE СЕЙЧАС:', {
+        {/* CRITICAL: Data passing verification */}
+        {console.log('[DashboardTab] 🚀 PASSING DATA TO DASHBOARDTABLE NOW:', {
           effectiveGroupId,
           handleBulkLogRefresh: !!handleBulkLogRefresh,
           staffCount: staffMembersData.length,
@@ -453,10 +491,8 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
           clearLogCache: !!clearLogCache,
           registerTableResetCallback: !!registerTableResetCallback,
           selectedDate: selectedDate?.toLocaleDateString(),
-          // *** NEW: LoadingState передача ***
           loadingState: !!loadingState,
           loadingStepsCount: loadingState?.loadingSteps.length,
-          // *** ДОБАВЛЕНО: Auto Fill функция ***
           handleAutoFillAllAvailable: true,
           sampleCachedLogData: Object.keys(stableCachedLogs).slice(0, 1).map(key => ({
             staffId: key,
@@ -479,12 +515,12 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
           onBulkLogRefresh={handleBulkLogRefresh}
           onLogRefresh={handleLogRefresh}
           onFillStaff={handleFillStaff}
-          onAutoFillAll={handleAutoFillAll} // ИЗМЕНЕНО: передаем новую функцию автозаполнения
+          onAutoFillAll={handleAutoFillAll} // NEW: auto-fill function
           onAutoscheduleToggle={handleAutoscheduleToggle}
           getCachedLogsForStaff={getCachedLogsForStaffMember}
           clearLogCache={clearLogCache}
           registerTableResetCallback={registerTableResetCallback}
-          loadingState={loadingState} // *** NEW: Передаем loadingState ***
+          loadingState={loadingState} // Loading state for synchronization
         />
       </div>
 

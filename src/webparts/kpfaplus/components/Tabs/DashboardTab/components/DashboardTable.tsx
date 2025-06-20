@@ -147,7 +147,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     onBulkLogRefresh,
     onLogRefresh,
     onFillStaff,
-    onAutoFillAll, // ИЗМЕНЕНО: используем новую функцию автозаполнения
+   // onAutoFillAll, // ИЗМЕНЕНО: используем новую функцию автозаполнения
     onAutoscheduleToggle,
     getCachedLogsForStaff,
     clearLogCache,
@@ -573,7 +573,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
   ];
 
   // *** EVENT HANDLERS ***
-  const handleRefreshAll = useCallback(async (): Promise<void> => {
+  /*const handleRefreshAll = useCallback(async (): Promise<void> => {
     if (staffMembersData.length > 0) {
       const staffIds = staffMembersData.map((staff: IStaffMemberWithAutoschedule) => staff.id);
       console.log('[DashboardTable] *** MANUAL REFRESH ALL CLICKED *** for staff IDs:', staffIds);
@@ -587,15 +587,16 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     await onAutoFillAll();
   }, [onAutoFillAll]);
 
-  const handleCloseLogDetails = useCallback((): void => {
-    setLogDetailsDialog({ isOpen: false });
-  }, []);
-
+  
   // Подсчитываем количество staff с включенным autoschedule
   const autoScheduleStaffCount = useMemo(() => {
     return staffMembersData.filter(staff => staff.autoschedule).length;
-  }, [staffMembersData]);
-
+  }, [staffMembersData]); 
+  */
+  
+   const handleCloseLogDetails = useCallback((): void => {
+    setLogDetailsDialog({ isOpen: false });
+  }, []);
   // *** RENDER ***
   return (
     <div style={{ width: '100%', padding: '16px', position: 'relative' }}>
@@ -612,6 +613,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
       )}
 
       {/* HEADER CONTROLS */}
+      {/*
       <div style={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
@@ -628,14 +630,14 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
           <span style={{ color: '#605e5c', fontSize: '14px' }}>
             {formatDate(selectedDate)} • {staffMembersData.length} staff members
           </span>
-          {/* ДОБАВЛЕНО: Информация об autoschedule */}
+          
           <span style={{ color: '#107c10', fontSize: '12px', fontWeight: 500 }}>
             🤖 {autoScheduleStaffCount} with Auto Schedule
           </span>
           <span style={{ color: '#0078d4', fontSize: '12px', fontWeight: 500 }}>
             🔄 Auto-refresh enabled
           </span>
-          {/* *** NEW: Staff loading indicator *** */}
+      
           {loadingState && loadingState.loadingSteps.some(step => 
             step.id === 'fetch-group-members' && step.status === 'loading'
           ) && (
@@ -643,7 +645,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
               ⏳ Loading staff members...
             </span>
           )}
-          {/* *** NEW: Log reloading indicator *** */}
+          
           {isReloadingLogs && (
             <span style={{ color: '#0078d4', fontSize: '12px', fontWeight: 500 }}>
               🔄 Updating logs...
@@ -660,7 +662,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
             }}
             disabled={isLoading || staffMembersData.length === 0 || isReloadingLogs}
           />
-          {/* ИЗМЕНЕНО: Зеленая кнопка теперь для Auto Fill All */}
+          
           <PrimaryButton
             iconProps={{ iconName: 'Robot' }}
             text="Auto Fill All"
@@ -677,7 +679,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
             title={`Automatically fill schedules for ${autoScheduleStaffCount} staff members with Auto Schedule enabled`}
           />
         </div>
-      </div>
+      </div>  */}
 
       {/* LOADING OVERLAY */}
       {isLoading && (

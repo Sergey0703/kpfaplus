@@ -34,7 +34,7 @@ interface IUseDashboardLogicParams {
   managingGroupId?: string;
 }
 
-// *** NEW: AUTO-FILL PROGRESS INTERFACE ***
+// *** NEW: AUTO-FILL PROGRESS INTERFACE WITH TIMER ***
 interface IAutoFillProgress {
   isActive: boolean;
   currentStaffName: string;
@@ -46,6 +46,9 @@ interface IAutoFillProgress {
   errorCount: number;
   isPaused: boolean;
   remainingPauseTime: number; // milliseconds
+  startTime: number; // timestamp when auto-fill started
+  elapsedTime: number; // elapsed time in milliseconds
+  isProcessing: boolean; // is currently processing a staff member (show spinner)
 }
 
 // *** COMPLETE RETURN TYPE ***
@@ -294,9 +297,17 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     return isLoading || isLoadingLogs;
   }, [isLoading, isLoadingLogs]);
 
-  // *** AUTO-HIDE MESSAGES ***
+  // *** AUTO-HIDE MESSAGES (EXCEPT SUCCESS MESSAGES) ***
   useEffect(() => {
     if (infoMessage) {
+      // Don't auto-hide success messages with execution time - let user dismiss manually
+      if (infoMessage.type === MessageBarType.success && 
+          (infoMessage.text.includes('completed in') || infoMessage.text.includes('Auto-fill completed'))) {
+        console.log('[useDashboardLogic] Success message with timing - keeping visible for manual dismissal');
+        return; // Don't set timer for success messages with execution time
+      }
+      
+      // Auto-hide other messages after 5 seconds
       const timer = setTimeout(() => {
         setInfoMessage(undefined);
       }, 5000);
@@ -445,6 +456,8 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
   const performAutoFillAllOperation = useCallback(async (autoScheduleStaff: IStaffMemberWithAutoschedule[]): Promise<void> => {
     console.log(`[useDashboardLogic] 🤖 PERFORMING AUTO-FILL WITHOUT DIALOGS for ${autoScheduleStaff.length} staff members`);
     
+    const startTime = Date.now(); // Record start time
+    
     try {
       setIsLoading(true);
       
@@ -454,7 +467,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
       const processedStaffIds: string[] = [];
       const processResults: string[] = [];
 
-      // *** INITIALIZE AUTO-FILL PROGRESS ***
+      // *** INITIALIZE AUTO-FILL PROGRESS WITH TIMER ***
       setAutoFillProgress({
         isActive: true,
         currentStaffName: autoScheduleStaff[0].name,
@@ -465,8 +478,19 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
         skippedCount: 0,
         errorCount: 0,
         isPaused: false,
-        remainingPauseTime: 0
+        remainingPauseTime: 0,
+        startTime: startTime,
+        elapsedTime: 0,
+        isProcessing: false
       });
+
+      // *** START ELAPSED TIME COUNTER ***
+      const timerInterval = setInterval(() => {
+        setAutoFillProgress(prev => prev ? {
+          ...prev,
+          elapsedTime: Date.now() - startTime
+        } : undefined);
+      }, 1000); // Update every second
 
       // *** SEQUENTIAL PROCESSING OF EACH STAFF MEMBER WITHOUT DIALOGS ***
       for (let i = 0; i < autoScheduleStaff.length; i++) {
@@ -475,13 +499,14 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
         
         console.log(`[useDashboardLogic] 🔄 Auto-processing ${i + 1}/${autoScheduleStaff.length}: ${staff.name} WITHOUT DIALOGS`);
         
-        // *** UPDATE PROGRESS - CURRENT STAFF ***
+        // *** UPDATE PROGRESS - START PROCESSING CURRENT STAFF ***
         setAutoFillProgress(prev => prev ? {
           ...prev,
           currentStaffName: staff.name,
           nextStaffName: nextStaff?.name,
           isPaused: false,
-          remainingPauseTime: 0
+          remainingPauseTime: 0,
+          isProcessing: true // Show spinner during processing
         } : undefined);
         
         try {
@@ -494,11 +519,12 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
             processResults.push(`✓ ${staff.name}: ${result.message}`);
             console.log(`[useDashboardLogic] ✅ Auto-fill completed for ${staff.name}: ${result.message}`);
             
-            // *** UPDATE SUCCESS COUNTER ***
+            // *** UPDATE SUCCESS COUNTER AND STOP PROCESSING SPINNER ***
             setAutoFillProgress(prev => prev ? {
               ...prev,
               completed: i + 1,
-              successCount: processedCount
+              successCount: processedCount,
+              isProcessing: false
             } : undefined);
           } else {
             if (result.message.includes('⚠️') || result.message.includes('Skipped')) {
@@ -506,22 +532,24 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
               processResults.push(`⚠ ${staff.name}: ${result.message}`);
               console.log(`[useDashboardLogic] ⚠️ Auto-fill skipped for ${staff.name}: ${result.message}`);
               
-              // *** UPDATE SKIPPED COUNTER ***
+              // *** UPDATE SKIPPED COUNTER AND STOP PROCESSING SPINNER ***
               setAutoFillProgress(prev => prev ? {
                 ...prev,
                 completed: i + 1,
-                skippedCount: skippedCount
+                skippedCount: skippedCount,
+                isProcessing: false
               } : undefined);
             } else {
               errorCount++;
               processResults.push(`✗ ${staff.name}: ${result.message}`);
               console.error(`[useDashboardLogic] ❌ Auto-fill failed for ${staff.name}: ${result.message}`);
               
-              // *** UPDATE ERROR COUNTER ***
+              // *** UPDATE ERROR COUNTER AND STOP PROCESSING SPINNER ***
               setAutoFillProgress(prev => prev ? {
                 ...prev,
                 completed: i + 1,
-                errorCount: errorCount
+                errorCount: errorCount,
+                isProcessing: false
               } : undefined);
             }
           }
@@ -532,11 +560,12 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
           processResults.push(`✗ ${staff.name}: ${errorMsg}`);
           console.error(`[useDashboardLogic] ❌ Auto-fill error for ${staff.name}:`, error);
           
-          // *** UPDATE ERROR COUNTER ***
+          // *** UPDATE ERROR COUNTER AND STOP PROCESSING SPINNER ***
           setAutoFillProgress(prev => prev ? {
             ...prev,
             completed: i + 1,
-            errorCount: errorCount
+            errorCount: errorCount,
+            isProcessing: false
           } : undefined);
         }
 
@@ -548,7 +577,8 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
           setAutoFillProgress(prev => prev ? {
             ...prev,
             isPaused: true,
-            remainingPauseTime: AUTO_FILL_DELAY
+            remainingPauseTime: AUTO_FILL_DELAY,
+            isProcessing: false
           } : undefined);
           
           // *** ANIMATE REMAINING PAUSE TIME ***
@@ -585,6 +615,13 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
         }
       }
 
+      // *** STOP TIMER AND CALCULATE FINAL TIME ***
+      clearInterval(timerInterval);
+      const totalElapsedTime = Date.now() - startTime;
+      const minutes = Math.floor(totalElapsedTime / 60000);
+      const seconds = Math.floor((totalElapsedTime % 60000) / 1000);
+      const timeString = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+
       // *** COMPLETE PROGRESS ***
       setAutoFillProgress(prev => prev ? {
         ...prev,
@@ -592,22 +629,24 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
         isPaused: false,
         remainingPauseTime: 0,
         currentStaffName: 'Completed',
-        nextStaffName: undefined
+        nextStaffName: undefined,
+        isProcessing: false,
+        elapsedTime: totalElapsedTime
       } : undefined);
 
-      // Show final message
+      // Show final message with execution time (will not auto-hide)
       let resultType: MessageBarType;
       let resultMessage: string;
 
       if (errorCount === 0) {
         resultType = MessageBarType.success;
-        resultMessage = `Auto-fill completed! Processed: ${processedCount}, Skipped: ${skippedCount} of ${autoScheduleStaff.length} staff members.`;
+        resultMessage = `Auto-fill completed in ${timeString}! Processed: ${processedCount}, Skipped: ${skippedCount} of ${autoScheduleStaff.length} staff members.`;
       } else if (processedCount > 0) {
         resultType = MessageBarType.warning;
-        resultMessage = `Auto-fill completed with issues. Processed: ${processedCount}, Skipped: ${skippedCount}, Errors: ${errorCount} of ${autoScheduleStaff.length} staff members.`;
+        resultMessage = `Auto-fill completed in ${timeString} with issues. Processed: ${processedCount}, Skipped: ${skippedCount}, Errors: ${errorCount} of ${autoScheduleStaff.length} staff members.`;
       } else {
         resultType = MessageBarType.error;
-        resultMessage = `Auto-fill failed. No staff members were processed successfully. Errors: ${errorCount}, Skipped: ${skippedCount}.`;
+        resultMessage = `Auto-fill failed after ${timeString}. No staff members were processed successfully. Errors: ${errorCount}, Skipped: ${skippedCount}.`;
       }
 
       setInfoMessage({
@@ -615,11 +654,12 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
         type: resultType
       });
 
-      console.log(`[useDashboardLogic] 🏁 AUTO FILL ALL COMPLETED WITHOUT DIALOGS:`, {
+      console.log(`[useDashboardLogic] 🏁 AUTO FILL ALL COMPLETED IN ${timeString}:`, {
         total: autoScheduleStaff.length,
         processed: processedCount,
         skipped: skippedCount,
         errors: errorCount,
+        executionTime: timeString,
         results: processResults
       });
 
@@ -637,8 +677,13 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
 
     } catch (error) {
       console.error('[useDashboardLogic] Auto-fill all error:', error);
+      const totalElapsedTime = Date.now() - startTime;
+      const minutes = Math.floor(totalElapsedTime / 60000);
+      const seconds = Math.floor((totalElapsedTime % 60000) / 1000);
+      const timeString = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+      
       setInfoMessage({
-        text: `Error in Auto Fill All operation: ${error}`,
+        text: `Error in Auto Fill All operation after ${timeString}: ${error}`,
         type: MessageBarType.error
       });
       
