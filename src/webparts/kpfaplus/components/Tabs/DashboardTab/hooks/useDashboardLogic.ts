@@ -1,5 +1,6 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/hooks/useDashboardLogic.ts
 // ИСПРАВЛЕНО: Добавлена правильная обработка дат с UTC для исправления проблемы "off by 1 day"
+// ДОБАВЛЕНО: Поддержка автозаполнения для staff с включенным autoschedule
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { MessageBarType } from '@fluentui/react';
 import { WebPartContext } from "@microsoft/sp-webpart-base";
@@ -33,7 +34,7 @@ interface IUseDashboardLogicParams {
   managingGroupId?: string;
 }
 
-// ИСПРАВЛЕНО: Добавлен интерфейс для типа возвращаемого значения
+// ИСПРАВЛЕНО: Добавлен интерфейс для типа возвращаемого значения с автозаполнением
 interface IUseDashboardLogicReturn {
   // CORE STATE
   staffMembersData: IStaffMemberWithAutoschedule[];
@@ -52,7 +53,8 @@ interface IUseDashboardLogicReturn {
   
   // FILL OPERATIONS
   handleFillStaff: (staffId: string, staffName: string) => Promise<void>;
-  handleFillAll: () => Promise<void>;
+  handleFillAll: () => Promise<void>; // СОХРАНЕНО: старая функция для совместимости
+  handleAutoFillAll: () => Promise<void>; // ДОБАВЛЕНО: новая функция автозаполнения
   
   // LOG OPERATIONS
   logsService?: ScheduleLogsService;
@@ -71,6 +73,7 @@ interface IUseDashboardLogicReturn {
 
 // Constants
 const DEBOUNCE_DELAY = 300; // 300ms for debounce
+const AUTO_FILL_DELAY = 3000; // 3 seconds delay between auto-fill operations
 
 // Utility functions
 const formatDate = (date?: Date): string => {
@@ -135,7 +138,7 @@ const getSavedSelectedDate = (): Date => {
 export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboardLogicReturn => {
   const { context, currentUserId, managingGroupId } = params;
   
-  console.log('[useDashboardLogic] Main coordinator hook initialized with UTC date handling');
+  console.log('[useDashboardLogic] Main coordinator hook initialized with UTC date handling and Auto Fill support');
 
   // Context data
   const { staffMembers, updateStaffMember } = useDataContext();
@@ -205,6 +208,14 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
       }));
 
     console.log('[useDashboardLogic] Active staff members:', activeStaff.length);
+    
+    // ДОБАВЛЕНО: Логирование staff с включенным autoschedule
+    const autoScheduleStaff = activeStaff.filter(staff => staff.autoschedule);
+    console.log('[useDashboardLogic] Staff with autoschedule enabled:', autoScheduleStaff.length);
+    autoScheduleStaff.forEach(staff => {
+      console.log(`[useDashboardLogic] - ${staff.name} (ID: ${staff.employeeId}): autoschedule=true`);
+    });
+    
     return activeStaff;
   }, [staffMembers]);
 
@@ -429,6 +440,154 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     }
   }, [updateStaffMember, setIsLoading, setInfoMessage]);
 
+  // *** НОВАЯ ФУНКЦИЯ: Автозаполнение для staff с включенным autoschedule ***
+  const handleAutoFillAll = useCallback(async (): Promise<void> => {
+    console.log(`[useDashboardLogic] 🚀 AUTO FILL ALL STARTED for period: ${formatDate(selectedDate)}`);
+    
+    if (!fillService) {
+      setInfoMessage({
+        text: 'Fill service not available',
+        type: MessageBarType.error
+      });
+      return;
+    }
+
+    if (staffMembersData.length === 0) {
+      setInfoMessage({
+        text: 'No active staff members to process',
+        type: MessageBarType.warning
+      });
+      return;
+    }
+
+    // Фильтруем только staff с включенным autoschedule
+    const autoScheduleStaff = staffMembersData.filter(staff => staff.autoschedule);
+    
+    if (autoScheduleStaff.length === 0) {
+      setInfoMessage({
+        text: 'No staff members with Auto Schedule enabled',
+        type: MessageBarType.info
+      });
+      return;
+    }
+
+    console.log(`[useDashboardLogic] Found ${autoScheduleStaff.length} staff members with autoschedule enabled`);
+    autoScheduleStaff.forEach(staff => {
+      console.log(`[useDashboardLogic] - ${staff.name} (ID: ${staff.employeeId})`);
+    });
+
+    try {
+      setIsLoading(true);
+      
+      let processedCount = 0;
+      let skippedCount = 0;
+      let errorCount = 0;
+      const processedStaffIds: string[] = [];
+      const processResults: string[] = [];
+
+      setInfoMessage({
+        text: `Starting auto-fill for ${autoScheduleStaff.length} staff members with Auto Schedule enabled...`,
+        type: MessageBarType.info
+      });
+
+      // Последовательная обработка каждого staff member
+      for (let i = 0; i < autoScheduleStaff.length; i++) {
+        const staff = autoScheduleStaff[i];
+        
+        console.log(`[useDashboardLogic] 🔄 Processing ${i + 1}/${autoScheduleStaff.length}: ${staff.name}`);
+        
+        try {
+          // Используем существующую функцию заполнения из fillHook
+          await fillHook.handleFillStaff(staff.id, staff.name);
+          
+          processedCount++;
+          processedStaffIds.push(staff.id);
+          processResults.push(`✓ ${staff.name}: Processed successfully`);
+          
+          console.log(`[useDashboardLogic] ✅ Auto-fill completed for ${staff.name}`);
+          
+        } catch (error) {
+          errorCount++;
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          processResults.push(`✗ ${staff.name}: ${errorMsg}`);
+          
+          console.error(`[useDashboardLogic] ❌ Auto-fill failed for ${staff.name}:`, error);
+          
+          // Если ошибка связана с обработанными записями, считаем как пропуск
+          if (errorMsg.toLowerCase().includes('processed') || errorMsg.toLowerCase().includes('checked')) {
+            skippedCount++;
+            processResults[processResults.length - 1] = `⚠ ${staff.name}: Skipped (has processed records)`;
+          }
+        }
+
+        // Добавляем задержку между обработками (кроме последнего)
+        if (i < autoScheduleStaff.length - 1) {
+          console.log(`[useDashboardLogic] ⏳ Waiting ${AUTO_FILL_DELAY / 1000} seconds before next staff member...`);
+          
+          // Обновляем сообщение с прогрессом
+          setInfoMessage({
+            text: `Processed ${i + 1}/${autoScheduleStaff.length} staff members. Next: ${autoScheduleStaff[i + 1].name} in ${AUTO_FILL_DELAY / 1000} seconds...`,
+            type: MessageBarType.info
+          });
+          
+          await new Promise(resolve => setTimeout(resolve, AUTO_FILL_DELAY));
+        }
+      }
+
+      // Показываем итоговое сообщение
+      let resultType: MessageBarType;
+      let resultMessage: string;
+
+      if (errorCount === 0) {
+        resultType = MessageBarType.success;
+        resultMessage = `Auto-fill completed! Processed: ${processedCount}, Skipped: ${skippedCount} of ${autoScheduleStaff.length} staff members.`;
+      } else if (processedCount > 0) {
+        resultType = MessageBarType.warning;
+        resultMessage = `Auto-fill completed with issues. Processed: ${processedCount}, Skipped: ${skippedCount}, Errors: ${errorCount} of ${autoScheduleStaff.length} staff members.`;
+      } else {
+        resultType = MessageBarType.error;
+        resultMessage = `Auto-fill failed. No staff members were processed successfully. Errors: ${errorCount}, Skipped: ${skippedCount}.`;
+      }
+
+      setInfoMessage({
+        text: resultMessage,
+        type: resultType
+      });
+
+      console.log(`[useDashboardLogic] 🏁 AUTO FILL ALL COMPLETED:`, {
+        total: autoScheduleStaff.length,
+        processed: processedCount,
+        skipped: skippedCount,
+        errors: errorCount,
+        results: processResults
+      });
+
+      // Обновляем логи для успешно обработанных сотрудников
+      if (processedStaffIds.length > 0) {
+        setTimeout(() => {
+          void logsHook.handleBulkLogRefresh(processedStaffIds);
+        }, 2000);
+      }
+
+    } catch (error) {
+      console.error('[useDashboardLogic] Auto-fill all error:', error);
+      setInfoMessage({
+        text: `Error in Auto Fill All operation: ${error}`,
+        type: MessageBarType.error
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [
+    selectedDate,
+    fillService,
+    staffMembersData,
+    fillHook.handleFillStaff,
+    logsHook.handleBulkLogRefresh,
+    setIsLoading,
+    setInfoMessage
+  ]);
+
   return {
     // *** CORE STATE ***
     staffMembersData,
@@ -445,9 +604,10 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     // *** AUTOSCHEDULE (KEPT IN MAIN HOOK) ***
     handleAutoscheduleToggle,
     
-    // *** FILL OPERATIONS (DELEGATED TO FILL HOOK) ***
+    // *** FILL OPERATIONS ***
     handleFillStaff: fillHook.handleFillStaff,
-    handleFillAll: fillHook.handleFillAll,
+    handleFillAll: fillHook.handleFillAll, // СОХРАНЕНО: для совместимости
+    handleAutoFillAll, // ДОБАВЛЕНО: новая функция автозаполнения
     
     // *** LOG OPERATIONS (DELEGATED TO LOGS HOOK) ***
     logsService,

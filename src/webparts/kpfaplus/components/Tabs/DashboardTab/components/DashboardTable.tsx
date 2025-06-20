@@ -1,5 +1,6 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/components/DashboardTable.tsx
 // ИСПРАВЛЕНО: Добавлена синхронизация с загрузкой staff members, перезагрузка логов и loading состояние
+// ДОБАВЛЕНО: Поддержка автозаполнения для staff с включенным autoschedule
 import * as React from 'react';
 import { useMemo, useRef, useEffect, useState, useCallback } from 'react';
 import { 
@@ -70,7 +71,7 @@ interface IDashboardTableProps {
   onBulkLogRefresh: (staffIds: string[], isInitialLoad?: boolean) => Promise<void>;
   onLogRefresh: (staffId: string) => Promise<void>;
   onFillStaff: (staffId: string, staffName: string) => Promise<void>;
-  onFillAll: () => Promise<void>;
+  onAutoFillAll: () => Promise<void>; // ИЗМЕНЕНО: переименовано с onFillAll на onAutoFillAll
   onAutoscheduleToggle: (staffId: string, checked: boolean) => Promise<void>;
   getCachedLogsForStaff: (staffId: string) => ILogData;
   clearLogCache?: () => void;
@@ -146,7 +147,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     onBulkLogRefresh,
     onLogRefresh,
     onFillStaff,
-    onFillAll,
+    onAutoFillAll, // ИЗМЕНЕНО: используем новую функцию автозаполнения
     onAutoscheduleToggle,
     getCachedLogsForStaff,
     clearLogCache,
@@ -345,7 +346,7 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
       // Extract staff information for logging
       console.log('[DashboardTable] 📋 STAFF MEMBERS BREAKDOWN:');
       staffMembersData.forEach((staff: IStaffMemberWithAutoschedule, index: number) => {
-        console.log(`[DashboardTable] Staff ${index}: ID=${staff.id}, Name="${staff.name}", EmployeeID="${staff.employeeId}", Deleted=${staff.deleted}`);
+        console.log(`[DashboardTable] Staff ${index}: ID=${staff.id}, Name="${staff.name}", EmployeeID="${staff.employeeId}", Deleted=${staff.deleted}, AutoSchedule=${staff.autoschedule}`);
       });
 
       const currentStaffIds = staffMembersData.map((staff: IStaffMemberWithAutoschedule) => staff.id);
@@ -580,9 +581,20 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
     }
   }, [staffMembersData, onBulkLogRefresh]);
 
+  // ДОБАВЛЕНО: Обработчик для кнопки Auto Fill All
+  const handleAutoFillAll = useCallback(async (): Promise<void> => {
+    console.log('[DashboardTable] *** AUTO FILL ALL CLICKED *** - will process staff with autoschedule enabled');
+    await onAutoFillAll();
+  }, [onAutoFillAll]);
+
   const handleCloseLogDetails = useCallback((): void => {
     setLogDetailsDialog({ isOpen: false });
   }, []);
+
+  // Подсчитываем количество staff с включенным autoschedule
+  const autoScheduleStaffCount = useMemo(() => {
+    return staffMembersData.filter(staff => staff.autoschedule).length;
+  }, [staffMembersData]);
 
   // *** RENDER ***
   return (
@@ -616,6 +628,10 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
           <span style={{ color: '#605e5c', fontSize: '14px' }}>
             {formatDate(selectedDate)} • {staffMembersData.length} staff members
           </span>
+          {/* ДОБАВЛЕНО: Информация об autoschedule */}
+          <span style={{ color: '#107c10', fontSize: '12px', fontWeight: 500 }}>
+            🤖 {autoScheduleStaffCount} with Auto Schedule
+          </span>
           <span style={{ color: '#0078d4', fontSize: '12px', fontWeight: 500 }}>
             🔄 Auto-refresh enabled
           </span>
@@ -644,13 +660,21 @@ export const DashboardTable: React.FC<IDashboardTableProps> = (props) => {
             }}
             disabled={isLoading || staffMembersData.length === 0 || isReloadingLogs}
           />
+          {/* ИЗМЕНЕНО: Зеленая кнопка теперь для Auto Fill All */}
           <PrimaryButton
-            iconProps={{ iconName: 'AddToShoppingList' }}
-            text="Fill All"
+            iconProps={{ iconName: 'Robot' }}
+            text="Auto Fill All"
             onClick={(): void => {
-              void onFillAll();
+              void handleAutoFillAll();
             }}
-            disabled={isLoading || staffMembersData.length === 0 || isReloadingLogs}
+            disabled={isLoading || autoScheduleStaffCount === 0 || isReloadingLogs}
+            styles={{
+              root: {
+                backgroundColor: '#107c10', // зеленый цвет
+                borderColor: '#107c10'
+              }
+            }}
+            title={`Automatically fill schedules for ${autoScheduleStaffCount} staff members with Auto Schedule enabled`}
           />
         </div>
       </div>

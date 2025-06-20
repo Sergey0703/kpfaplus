@@ -1,5 +1,5 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/DashboardTab.tsx
-// ИСПРАВЛЕНО: Удалены все элементы кэша, так как кэш не используется
+// ИСПРАВЛЕНО: Интеграция с новой функциональностью автозаполнения
 import * as React from 'react';
 import { useCallback, useMemo } from 'react';
 import { MessageBar } from '@fluentui/react';
@@ -28,7 +28,7 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
   const { selectedDepartmentId, loadingState } = useDataContext();
   const effectiveGroupId = managingGroupId || selectedDepartmentId;
 
-  console.log('[DashboardTab] Rendering with enhanced logging, optimization and Date field support');
+  console.log('[DashboardTab] Rendering with enhanced logging, optimization and Auto Fill support');
   console.log('[DashboardTab] Group ID resolution:', {
     propsGroupId: managingGroupId,
     contextGroupId: selectedDepartmentId,
@@ -47,7 +47,7 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     handleDateChange,
     handleAutoscheduleToggle,
     handleFillStaff,
-    handleFillAll,
+    handleAutoFillAll, // ДОБАВЛЕНО: новая функция автозаполнения
     logsService,
     handleLogRefresh,
     handleBulkLogRefresh,
@@ -93,7 +93,9 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     loadingStateAvailable: !!loadingState,
     isStaffLoading: loadingState?.loadingSteps.some(step => 
       step.id === 'fetch-group-members' && step.status === 'loading'
-    )
+    ),
+    // *** ДОБАВЛЕНО: Auto Fill функция доступна ***
+    handleAutoFillAllAvailable: !!handleAutoFillAll
   });
 
   // Format selected date
@@ -185,6 +187,10 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
               <strong>Logs Service:</strong> Active
             </span>
           )}
+          {/* ДОБАВЛЕНО: Индикатор поддержки автозаполнения */}
+          <span style={{ color: '#107c10', fontWeight: '500' }}>
+            <strong>Auto Fill:</strong> Available
+          </span>
         </div>
       </div>
 
@@ -214,7 +220,7 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
           isLoading={isLoading}
           staffCount={staffMembersData.length}
           onDateChange={handleDateChange}
-          onFillAll={handleFillAll}
+          onAutoFillAll={handleAutoFillAll} // ИЗМЕНЕНО: передаем новую функцию автозаполнения
         />
       </div>
 
@@ -241,6 +247,8 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
           // *** NEW: LoadingState передача ***
           loadingState: !!loadingState,
           loadingStepsCount: loadingState?.loadingSteps.length,
+          // *** ДОБАВЛЕНО: Auto Fill функция ***
+          handleAutoFillAllAvailable: true,
           sampleCachedLogData: Object.keys(stableCachedLogs).slice(0, 1).map(key => ({
             staffId: key,
             hasLog: !!stableCachedLogs[key]?.log,
@@ -262,7 +270,7 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
           onBulkLogRefresh={handleBulkLogRefresh}
           onLogRefresh={handleLogRefresh}
           onFillStaff={handleFillStaff}
-          onFillAll={handleFillAll}
+          onAutoFillAll={handleAutoFillAll} // ИЗМЕНЕНО: передаем новую функцию автозаполнения
           onAutoscheduleToggle={handleAutoscheduleToggle}
           getCachedLogsForStaff={getCachedLogsForStaffMember}
           clearLogCache={clearLogCache}

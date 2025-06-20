@@ -3,21 +3,12 @@ import * as React from 'react';
 import { PrimaryButton, Stack, Spinner } from '@fluentui/react';
 import { CustomDatePicker } from '../../../CustomDatePicker/CustomDatePicker'; // ДОБАВЛЕНО
 
-// УДАЛЕНО: Локализация для DatePicker - теперь используется из CustomDatePicker
-// УДАЛЕНО: const datePickerStringsEN = { ... };
-
-// УДАЛЕНО: Форматирование даты - теперь используется из CustomDatePicker  
-// УДАЛЕНО: const formatDate = (date?: Date): string => { ... };
-
-// УДАЛЕНО: Константа для минимальной ширины календаря - теперь в CustomDatePicker
-// УДАЛЕНО: const calendarMinWidth = '655px';
-
 interface IDashboardControlPanelProps {
   selectedDate: Date;
   isLoading: boolean;
   staffCount: number;
   onDateChange: (date: Date | undefined) => void;
-  onFillAll: () => Promise<void>;
+  onAutoFillAll: () => Promise<void>; // ИЗМЕНЕНО: переименовано с onFillAll на onAutoFillAll
 }
 
 export const DashboardControlPanel: React.FC<IDashboardControlPanelProps> = (props) => {
@@ -26,24 +17,21 @@ export const DashboardControlPanel: React.FC<IDashboardControlPanelProps> = (pro
     isLoading,
     staffCount,
     onDateChange,
-    onFillAll
+    onAutoFillAll // ИЗМЕНЕНО: используем новую функцию автозаполнения
   } = props;
 
-  console.log('[DashboardControlPanel] Rendering with CustomDatePicker and date:', selectedDate?.toLocaleDateString());
+  console.log('[DashboardControlPanel] Rendering with CustomDatePicker and Auto Fill functionality, date:', selectedDate?.toLocaleDateString());
 
-  // УДАЛЕНО: Обработчик закрытия календаря - теперь в CustomDatePicker
-  // УДАЛЕНО: const calendarDismissHandler = (): void => { ... };
-
-  // Обработчик для кнопки Fill in All
-  const handleFillAllClick = (): void => {
-    console.log('[DashboardControlPanel] Fill in All clicked');
+  // ИЗМЕНЕНО: Обработчик для кнопки Auto Fill All
+  const handleAutoFillAllClick = (): void => {
+    console.log('[DashboardControlPanel] Auto Fill All clicked - will process staff with autoschedule enabled');
     // Используем .then().catch() для обработки Promise
-    onFillAll()
+    onAutoFillAll()
       .then(() => {
-        console.log('[DashboardControlPanel] Fill in All completed');
+        console.log('[DashboardControlPanel] Auto Fill All completed');
       })
       .catch(error => {
-        console.error('[DashboardControlPanel] Error in Fill in All:', error);
+        console.error('[DashboardControlPanel] Error in Auto Fill All:', error);
       });
   };
 
@@ -81,9 +69,10 @@ export const DashboardControlPanel: React.FC<IDashboardControlPanelProps> = (pro
       </Stack.Item>
 
       <div>
+        {/* ИЗМЕНЕНО: Кнопка теперь вызывает автозаполнение только для staff с включенным autoschedule */}
         <PrimaryButton 
-          text="Fill in All" 
-          onClick={handleFillAllClick}
+          text="Auto Fill All" 
+          onClick={handleAutoFillAllClick}
           disabled={isLoading || staffCount === 0}
           styles={{
             root: {
@@ -91,6 +80,7 @@ export const DashboardControlPanel: React.FC<IDashboardControlPanelProps> = (pro
               borderColor: '#107c10'
             }
           }}
+          title="Automatically fill schedules for all staff members with Auto Schedule enabled"
         />
       </div>
       
