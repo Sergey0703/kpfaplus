@@ -1,5 +1,6 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/hooks/useDashboardFill.ts
 // ИСПРАВЛЕНО: Удалены неиспользуемые переменные и исправлены ошибки линтера
+// ДОБАВЛЕНО: Поддержка автозаполнения и специальная обработка для staff с autoschedule
 import { useCallback } from 'react';
 import { MessageBarType } from '@fluentui/react';
 import { WebPartContext } from "@microsoft/sp-webpart-base";
@@ -50,6 +51,10 @@ interface IUseDashboardFillReturn {
   handleFillStaff: (staffId: string, staffName: string) => Promise<void>;
   handleFillAll: () => Promise<void>;
   handleAutoscheduleToggle: (staffId: string, checked: boolean) => Promise<void>;
+  // ДОБАВЛЕНО: Функции для автозаполнения
+  processStaffMemberAuto: (staff: IStaffMemberWithAutoschedule) => Promise<{success: boolean, message: string}>;
+  checkAutoFillEligibility: (staff: IStaffMemberWithAutoschedule) => Promise<{eligible: boolean, reason?: string}>;
+  logAutoFillWarning: (staff: IStaffMemberWithAutoschedule, reason: string) => Promise<void>;
 }
 
 // Utility functions
@@ -89,7 +94,7 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
     handleBulkLogRefresh
   } = params;
 
-  console.log('[useDashboardFill] Fill operations hook initialized with Result=3 logging');
+  console.log('[useDashboardFill] Fill operations hook initialized with Auto Fill support and Result=3 logging');
 
   // *** CREATE FILL PARAMETERS ***
   const createFillParams = useCallback((staffMember: IStaffMemberWithAutoschedule): IFillParams | undefined => {
@@ -133,8 +138,7 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
     };
   }, [context, staffMembers, selectedDate, currentUserId, managingGroupId]);
 
-  // *** GET ACTIVE CONTRACT FOR STAFF ***
- // *** ИСПРАВЛЕНО: GET ACTIVE CONTRACT FOR STAFF WITH UTC BOUNDARIES ***
+  // *** GET ACTIVE CONTRACT FOR STAFF WITH UTC BOUNDARIES ***
   const getActiveContractForStaff = useCallback(async (staffMember: IStaffMember): Promise<IContract | undefined> => {
     if (!context) return undefined;
 
@@ -227,6 +231,192 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
       return undefined;
     }
   }, [context, currentUserId, managingGroupId, selectedDate]);
+
+  // *** НОВАЯ ФУНКЦИЯ: Проверка возможности автозаполнения ***
+  const checkAutoFillEligibility = useCallback(async (staff: IStaffMemberWithAutoschedule): Promise<{eligible: boolean, reason?: string}> => {
+    console.log(`[useDashboardFill] 🔍 Checking auto-fill eligibility for ${staff.name}`);
+
+    // Проверка 1: Autoschedule должен быть включен
+    if (!staff.autoschedule) {
+      const reason = 'Auto Schedule is disabled';
+      console.log(`[useDashboardFill] ❌ ${staff.name}: ${reason}`);
+      return { eligible: false, reason };
+    }
+
+    // Проверка 2: Валидация параметров
+    const fillParams = createFillParams(staff);
+    if (!fillParams) {
+      const reason = 'Invalid fill parameters';
+      console.log(`[useDashboardFill] ❌ ${staff.name}: ${reason}`);
+      return { eligible: false, reason };
+    }
+
+    if (!fillService) {
+      const reason = 'Fill service not available';
+      console.log(`[useDashboardFill] ❌ ${staff.name}: ${reason}`);
+      return { eligible: false, reason };
+    }
+
+    try {
+      // Проверка 3: Проверяем существующие записи
+      const checkResult = await fillService.checkScheduleForFill(fillParams);
+      
+      if (!checkResult.requiresDialog) {
+        const reason = checkResult.message;
+        console.log(`[useDashboardFill] ❌ ${staff.name}: ${reason}`);
+        return { eligible: false, reason };
+      }
+
+      // Проверка 4: Получаем активный контракт
+      const activeContract = await getActiveContractForStaff(fillParams.staffMember);
+      if (!activeContract) {
+        const reason = 'No active contract found for selected period';
+        console.log(`[useDashboardFill] ❌ ${staff.name}: ${reason}`);
+        return { eligible: false, reason };
+      }
+
+      // Проверка 5: Анализируем тип диалога
+      const dialogConfig = checkResult.dialogConfig!;
+      
+      if (dialogConfig.type === DialogType.ProcessedRecordsBlock) {
+        // Есть обработанные записи - блокируем
+        const reason = 'Has processed records (Checked>0 or ExportResult>0)';
+        console.log(`[useDashboardFill] ⚠️ ${staff.name}: ${reason} - will be skipped with warning`);
+        return { eligible: false, reason };
+      }
+
+      // EmptySchedule или UnprocessedRecordsReplace - можно обрабатывать
+      console.log(`[useDashboardFill] ✅ ${staff.name}: Eligible for auto-fill (${dialogConfig.type})`);
+      return { eligible: true };
+
+    } catch (error) {
+      const reason = `Error checking eligibility: ${error}`;
+      console.error(`[useDashboardFill] ❌ ${staff.name}: ${reason}`);
+      return { eligible: false, reason };
+    }
+  }, [createFillParams, fillService, getActiveContractForStaff]);
+
+  // *** НОВАЯ ФУНКЦИЯ: Логирование предупреждений для автозаполнения ***
+  const logAutoFillWarning = useCallback(async (staff: IStaffMemberWithAutoschedule, reason: string): Promise<void> => {
+    console.log(`[useDashboardFill] 📝 Logging auto-fill warning for ${staff.name}: ${reason}`);
+
+    if (!fillService) {
+      console.warn('[useDashboardFill] Cannot log warning - fill service not available');
+      return;
+    }
+
+    try {
+      const fillParams = createFillParams(staff);
+      if (!fillParams) {
+        console.warn(`[useDashboardFill] Cannot log warning for ${staff.name} - invalid fill params`);
+        return;
+      }
+
+      // Создаем специальный лог с Result=3 (Warning/Info) для автозаполнения
+      await fillService.logUserRefusal(fillParams, DialogType.ProcessedRecordsBlock, undefined);
+      
+      console.log(`[useDashboardFill] ✓ Warning logged for ${staff.name}: ${reason}`);
+    } catch (error) {
+      console.error(`[useDashboardFill] Error logging warning for ${staff.name}:`, error);
+    }
+  }, [fillService, createFillParams]);
+
+  // *** НОВАЯ ФУНКЦИЯ: Автоматическая обработка одного staff member ***
+  const processStaffMemberAuto = useCallback(async (staff: IStaffMemberWithAutoschedule): Promise<{success: boolean, message: string}> => {
+    console.log(`[useDashboardFill] 🤖 Auto-processing staff member: ${staff.name}`);
+
+    try {
+      // Проверяем возможность автозаполнения
+      const eligibility = await checkAutoFillEligibility(staff);
+      
+      if (!eligibility.eligible) {
+        // Логируем предупреждение для неподходящих staff
+        if (eligibility.reason?.includes('processed')) {
+          await logAutoFillWarning(staff, eligibility.reason);
+          return { 
+            success: false, 
+            message: `⚠️ Skipped (${eligibility.reason}) - warning logged` 
+          };
+        }
+        
+        return { 
+          success: false, 
+          message: `❌ Skipped (${eligibility.reason})` 
+        };
+      }
+
+      // Обрабатываем staff member
+      const fillParams = createFillParams(staff);
+      if (!fillParams || !fillService) {
+        return { 
+          success: false, 
+          message: '❌ Invalid parameters or service unavailable' 
+        };
+      }
+
+      // Получаем активный контракт
+      const activeContract = await getActiveContractForStaff(fillParams.staffMember);
+      if (!activeContract) {
+        return { 
+          success: false, 
+          message: '❌ No active contract' 
+        };
+      }
+
+      // Проверяем тип операции (нужно ли удалять существующие записи)
+      const checkResult = await fillService.checkScheduleForFill(fillParams);
+      const replaceExisting = checkResult.dialogConfig?.type === DialogType.UnprocessedRecordsReplace;
+
+      // Выполняем заполнение БЕЗ диалогов
+      const performParams: IPerformFillParams = {
+        ...fillParams,
+        contractId: activeContract.id,
+        replaceExisting
+      };
+
+      console.log(`[useDashboardFill] 🚀 Executing auto-fill for ${staff.name} (replace existing: ${replaceExisting})`);
+      
+      const result = await fillService.performFillOperation(performParams);
+
+      if (result.success) {
+        console.log(`[useDashboardFill] ✅ Auto-fill successful for ${staff.name}: ${result.createdRecordsCount} records created`);
+        
+        // Обновляем лог через небольшую задержку
+        setTimeout(() => {
+          void handleLogRefresh(staff.id);
+        }, 1000);
+
+        return { 
+          success: true, 
+          message: `✅ Success (${result.createdRecordsCount} records created)` 
+        };
+      } else {
+        console.error(`[useDashboardFill] ❌ Auto-fill failed for ${staff.name}: ${result.message}`);
+        return { 
+          success: false, 
+          message: `❌ Failed (${result.message})` 
+        };
+      }
+
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error(`[useDashboardFill] ❌ Error auto-processing ${staff.name}:`, error);
+      
+      // Если ошибка связана с обработанными записями, логируем как предупреждение
+      if (errorMsg.toLowerCase().includes('processed') || errorMsg.toLowerCase().includes('checked')) {
+        await logAutoFillWarning(staff, errorMsg);
+        return { 
+          success: false, 
+          message: `⚠️ Skipped (${errorMsg}) - warning logged` 
+        };
+      }
+      
+      return { 
+        success: false, 
+        message: `❌ Error (${errorMsg})` 
+      };
+    }
+  }, [checkAutoFillEligibility, createFillParams, fillService, getActiveContractForStaff, logAutoFillWarning, handleLogRefresh]);
 
   // *** SHOW SCHEDULE TAB DIALOG WITH REFUSAL LOGGING ***
   const showScheduleDialog = useCallback((
@@ -471,7 +661,6 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
     let successCount = 0;
     let errorCount = 0;
     let totalCreatedRecords = 0;
-    // ИСПРАВЛЕНО: удалена неиспользуемая переменная totalDeletedRecords
     const processedStaffIds: string[] = [];
 
     console.log(`[useDashboardFill] Performing fill all operation with Schedule tab logic for period: ${formatDate(selectedDate)}`);
@@ -504,7 +693,6 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
         if (result.success) {
           successCount++;
           totalCreatedRecords += result.createdRecordsCount || 0;
-          // ИСПРАВЛЕНО: удалено использование deletedRecordsCount так как переменная totalDeletedRecords удалена
           processedStaffIds.push(staffMember.id);
         } else {
           errorCount++;
@@ -669,6 +857,10 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
   return {
     handleFillStaff,
     handleFillAll,
-    handleAutoscheduleToggle
+    handleAutoscheduleToggle,
+    // ДОБАВЛЕНО: Новые функции для автозаполнения
+    processStaffMemberAuto,
+    checkAutoFillEligibility,
+    logAutoFillWarning
   };
 };

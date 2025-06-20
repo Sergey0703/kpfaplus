@@ -1,5 +1,6 @@
 // src/webparts/kpfaplus/services/CommonFillService.ts - WITH UTC SUPPORT AND ASYNC HANDLING
 // ИСПРАВЛЕНО: Добавлена поддержка UTC и передача RemoteSiteService в генерацию
+// ДОБАВЛЕНО: Поддержка автозаполнения и специальная обработка для staff с autoschedule
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { MessageBarType } from '@fluentui/react';
 import { ContractsService } from './ContractsService';
@@ -40,6 +41,24 @@ export interface IPerformFillParams extends IFillParams {
   replaceExisting: boolean;
 }
 
+// *** НОВЫЕ ИНТЕРФЕЙСЫ ДЛЯ АВТОЗАПОЛНЕНИЯ ***
+export interface IAutoFillEligibilityCheck {
+  eligible: boolean;
+  reason?: string;
+  hasProcessedRecords?: boolean;
+  contractId?: string;
+}
+
+export interface IAutoFillResult {
+  success: boolean;
+  message: string;
+  messageType: MessageBarType;
+  createdRecordsCount?: number;
+  skipped?: boolean;
+  skipReason?: string;
+  logResult: number; // 1=Error, 2=Success, 3=Warning/Skip
+}
+
 // *** ИНТЕРФЕЙС ДЛЯ АНАЛИЗА КОНТРАКТОВ ***
 interface IContractsAnalysis {
   allContracts: IContract[];
@@ -66,7 +85,7 @@ export class CommonFillService {
     this.generationService = new CommonFillGeneration(context);
     this.remoteSiteService = RemoteSiteService.getInstance(context); // *** ИНИЦИАЛИЗАЦИЯ RemoteSiteService ***
     
-    console.log('[CommonFillService] Service initialized with UTC support and timezone handling');
+    console.log('[CommonFillService] Service initialized with UTC support, timezone handling and Auto Fill support');
   }
 
   public static getInstance(context: WebPartContext): CommonFillService {
@@ -87,6 +106,366 @@ export class CommonFillService {
 
   public isContractActiveInMonth(contract: IContract, date: Date): boolean {
     return this.validationService.isContractActiveInMonth(contract, date);
+  }
+
+  /**
+   * *** НОВЫЙ МЕТОД: Проверка возможности автозаполнения для staff member ***
+   */
+  public async checkAutoFillEligibility(params: IFillParams): Promise<IAutoFillEligibilityCheck> {
+    console.log('[CommonFillService] Checking auto-fill eligibility with UTC support for:', params.staffMember.name);
+    console.log('[CommonFillService] Auto-fill parameters:', {
+      currentUserId: params.currentUserId,
+      managingGroupId: params.managingGroupId,
+      selectedDate: params.selectedDate.toISOString(), // *** UTC дата ***
+      autoscheduleEnabled: params.staffMember.autoSchedule || false
+    });
+    
+    try {
+      // Валидация параметров
+      const validation = this.validationService.validateFillParams(params);
+      if (!validation.isValid) {
+        return {
+          eligible: false,
+          reason: `Validation failed: ${validation.errors.join(', ')}`
+        };
+      }
+
+      // *** ДЕТАЛЬНЫЙ АНАЛИЗ КОНТРАКТОВ ***
+      const contractsAnalysis = await this.performContractsAnalysis(params);
+      
+      if (contractsAnalysis.activeContracts.length === 0) {
+        return {
+          eligible: false,
+          reason: 'No active contracts found for this staff member in the selected period'
+        };
+      }
+
+      const selectedContract = contractsAnalysis.activeContracts[0];
+      console.log(`[CommonFillService] Using contract for auto-fill eligibility: ${selectedContract.id} - ${selectedContract.template || 'No name'}`);
+
+      // *** ПРОВЕРЯЕМ ШАБЛОНЫ ***
+      console.log('[CommonFillService] Checking weekly templates availability for auto-fill...');
+      try {
+        const weeklyTemplates = await this.generationService.loadWeeklyTemplates(
+          selectedContract.id,
+          params.dayOfStartWeek || 7,
+          params.currentUserId || '0',
+          params.managingGroupId || '0'
+        );
+        
+        if (weeklyTemplates.length === 0) {
+          return {
+            eligible: false,
+            reason: 'No weekly schedule templates found for the selected contract after filtering'
+          };
+        }
+        
+      } catch (templatesError) {
+        return {
+          eligible: false,
+          reason: `Error checking weekly templates: ${templatesError instanceof Error ? templatesError.message : String(templatesError)}`
+        };
+      }
+
+      // Применение Schedule tab логики для автозаполнения
+      const scheduleLogicResult = await this.validationService.checkExistingRecordsWithScheduleLogic(
+        params, 
+        selectedContract.id
+      );
+
+      console.log('[CommonFillService] Auto-fill schedule logic result:', {
+        dialogType: scheduleLogicResult.dialogConfig.type,
+        recordsCount: scheduleLogicResult.existingRecords.length,
+        canProceed: scheduleLogicResult.canProceed
+      });
+
+      // *** АНАЛИЗИРУЕМ ВОЗМОЖНОСТЬ АВТОЗАПОЛНЕНИЯ ***
+      switch (scheduleLogicResult.dialogConfig.type) {
+        case DialogType.EmptySchedule:
+          // Нет записей - можно автозаполнять
+          return {
+            eligible: true,
+            contractId: selectedContract.id
+          };
+
+        case DialogType.UnprocessedRecordsReplace:
+          // Есть необработанные записи - можно автозаполнять с заменой
+          return {
+            eligible: true,
+            contractId: selectedContract.id,
+            reason: 'Will replace existing unprocessed records'
+          };
+
+        case DialogType.ProcessedRecordsBlock:
+          // Есть обработанные записи - НЕ МОЖЕМ автозаполнять
+          return {
+            eligible: false,
+            reason: 'Has processed records (Checked>0 or ExportResult>0)',
+            hasProcessedRecords: true,
+            contractId: selectedContract.id
+          };
+
+        default:
+          return {
+            eligible: false,
+            reason: `Unknown dialog type: ${scheduleLogicResult.dialogConfig.type}`
+          };
+      }
+
+    } catch (error) {
+      console.error('[CommonFillService] Error checking auto-fill eligibility:', error);
+      return {
+        eligible: false,
+        reason: `Error checking eligibility: ${error instanceof Error ? error.message : String(error)}`
+      };
+    }
+  }
+
+  /**
+   * *** НОВЫЙ МЕТОД: Выполнение автозаполнения БЕЗ диалогов ***
+   */
+  public async performAutoFillOperation(params: IFillParams): Promise<IAutoFillResult> {
+    console.log('[CommonFillService] Performing auto-fill operation with UTC support and timezone handling:', {
+      staffMember: params.staffMember.name,
+      period: params.selectedDate.toISOString(), // *** UTC дата ***
+      currentUserId: params.currentUserId,
+      managingGroupId: params.managingGroupId
+    });
+
+    const operationDetails: string[] = [];
+    
+    try {
+      operationDetails.push('=== AUTO-FILL OPERATION WITH UTC SUPPORT ===');
+      operationDetails.push(`Staff: ${params.staffMember.name} (ID: ${params.staffMember.employeeId})`);
+      operationDetails.push(`Period: ${params.selectedDate.toISOString()}`); // *** UTC дата ***
+      operationDetails.push(`Manager: ${params.currentUserId}`);
+      operationDetails.push(`Staff Group: ${params.managingGroupId}`);
+      operationDetails.push(`Auto Schedule: ${params.staffMember.autoSchedule || false}`);
+      operationDetails.push('');
+
+      // *** ШАГ 1: ПРОВЕРКА ВОЗМОЖНОСТИ АВТОЗАПОЛНЕНИЯ ***
+      operationDetails.push('STEP 1: Checking auto-fill eligibility...');
+      
+      const eligibilityCheck = await this.checkAutoFillEligibility(params);
+      
+      if (!eligibilityCheck.eligible) {
+        const result: IAutoFillResult = {
+          success: false,
+          message: eligibilityCheck.reason || 'Auto-fill not eligible',
+          messageType: eligibilityCheck.hasProcessedRecords ? MessageBarType.warning : MessageBarType.error,
+          skipped: true,
+          skipReason: eligibilityCheck.reason,
+          logResult: eligibilityCheck.hasProcessedRecords ? 3 : 1 // Warning if processed records, Error otherwise
+        };
+        
+        operationDetails.push(`✗ Not eligible: ${eligibilityCheck.reason}`);
+        
+        // Логируем предупреждение для processed records
+        if (eligibilityCheck.hasProcessedRecords) {
+          await this.createAutoFillLog(params, result, eligibilityCheck.contractId, operationDetails.join('\n'));
+        }
+        
+        return result;
+      }
+
+      operationDetails.push(`✓ Eligible for auto-fill`);
+      operationDetails.push(`✓ Contract ID: ${eligibilityCheck.contractId}`);
+
+      // *** ШАГ 2: ОПРЕДЕЛЯЕМ ПАРАМЕТРЫ ЗАПОЛНЕНИЯ ***
+      const scheduleLogicResult = await this.validationService.checkExistingRecordsWithScheduleLogic(
+        params, 
+        eligibilityCheck.contractId!
+      );
+
+      const replaceExisting = scheduleLogicResult.dialogConfig.type === DialogType.UnprocessedRecordsReplace;
+      operationDetails.push(`✓ Replace existing records: ${replaceExisting}`);
+
+      // *** ШАГ 3: ВЫПОЛНЯЕМ АВТОЗАПОЛНЕНИЕ ***
+      operationDetails.push('STEP 2: Executing auto-fill operation...');
+
+      const performParams: IPerformFillParams = {
+        ...params,
+        contractId: eligibilityCheck.contractId!,
+        replaceExisting
+      };
+
+      const fillResult = await this.performFillOperation(performParams);
+
+      // *** ШАГ 4: ФОРМИРУЕМ РЕЗУЛЬТАТ ***
+      const result: IAutoFillResult = {
+        success: fillResult.success,
+        message: fillResult.message,
+        messageType: fillResult.messageType,
+        createdRecordsCount: fillResult.createdRecordsCount,
+        skipped: false,
+        logResult: fillResult.success ? 2 : 1
+      };
+
+      operationDetails.push(`✓ Auto-fill completed: ${fillResult.success ? 'SUCCESS' : 'FAILED'}`);
+      operationDetails.push(`✓ Records created: ${fillResult.createdRecordsCount || 0}`);
+
+      // *** ШАГ 5: СОЗДАЕМ ЛОГ АВТОЗАПОЛНЕНИЯ ***
+      await this.createAutoFillLog(params, result, eligibilityCheck.contractId, operationDetails.join('\n'));
+
+      console.log('[CommonFillService] Auto-fill operation completed:', {
+        success: result.success,
+        created: result.createdRecordsCount,
+        staffMember: params.staffMember.name,
+        period: params.selectedDate.toISOString() // *** UTC дата ***
+      });
+
+      return result;
+
+    } catch (error) {
+      console.error('[CommonFillService] Error during auto-fill operation:', error);
+      
+      operationDetails.push('');
+      operationDetails.push(`CRITICAL ERROR: ${error instanceof Error ? error.message : String(error)}`);
+      
+      const result: IAutoFillResult = {
+        success: false,
+        message: `Error in auto-fill operation: ${error instanceof Error ? error.message : String(error)}`,
+        messageType: MessageBarType.error,
+        skipped: false,
+        logResult: 1
+      };
+      
+      await this.createAutoFillLog(params, result, undefined, operationDetails.join('\n'));
+      return result;
+    }
+  }
+
+  /**
+   * *** НОВЫЙ МЕТОД: Создание лога для автозаполнения ***
+   */
+  private async createAutoFillLog(
+    params: IFillParams, 
+    result: IAutoFillResult, 
+    contractId: string | undefined,
+    operationDetails: string
+  ): Promise<void> {
+    try {
+      let logTitle: string;
+      let logMessage: string;
+
+      if (result.skipped) {
+        logTitle = `Auto-Fill Skipped - ${params.staffMember.name} (${params.selectedDate.toLocaleDateString()})`;
+        logMessage = this.buildAutoFillLogMessage(params, result, contractId, operationDetails, 'SKIPPED');
+      } else if (result.success) {
+        logTitle = `Auto-Fill Success - ${params.staffMember.name} (${params.selectedDate.toLocaleDateString()})`;
+        logMessage = this.buildAutoFillLogMessage(params, result, contractId, operationDetails, 'SUCCESS');
+      } else {
+        logTitle = `Auto-Fill Error - ${params.staffMember.name} (${params.selectedDate.toLocaleDateString()})`;
+        logMessage = this.buildAutoFillLogMessage(params, result, contractId, operationDetails, 'ERROR');
+      }
+      
+      const logParams: ICreateScheduleLogParams = {
+        title: logTitle,
+        result: result.logResult,
+        message: logMessage,
+        date: params.selectedDate
+      };
+
+      // Add optional parameters only if they have valid values
+      if (params.currentUserId && params.currentUserId.trim() !== '' && params.currentUserId !== '0') {
+        logParams.managerId = params.currentUserId;
+      }
+      
+      if (params.staffMember.employeeId && params.staffMember.employeeId.trim() !== '' && params.staffMember.employeeId !== '0') {
+        logParams.staffMemberId = params.staffMember.employeeId;
+      }
+      
+      if (params.managingGroupId && params.managingGroupId.trim() !== '' && params.managingGroupId !== '0') {
+        logParams.staffGroupId = params.managingGroupId;
+      }
+      
+      if (contractId && contractId.trim() !== '' && contractId !== '0') {
+        logParams.weeklyTimeTableId = contractId;
+      }
+
+      const logId = await this.scheduleLogsService.createScheduleLog(logParams);
+      
+      if (logId) {
+        console.log(`[CommonFillService] Auto-fill log created with UTC support, ID: ${logId}, Result: ${logParams.result}`);
+      }
+
+    } catch (error) {
+      console.error('[CommonFillService] Error creating auto-fill log:', error);
+    }
+  }
+
+  /**
+   * *** НОВЫЙ МЕТОД: Формирует сообщение для лога автозаполнения ***
+   */
+  private buildAutoFillLogMessage(
+    params: IFillParams, 
+    result: IAutoFillResult, 
+    contractId: string | undefined,
+    operationDetails: string,
+    status: 'SUCCESS' | 'ERROR' | 'SKIPPED'
+  ): string {
+    const lines: string[] = [];
+    
+    lines.push(`=== AUTO-FILL OPERATION LOG WITH UTC SUPPORT ===`);
+    lines.push(`Date: ${new Date().toISOString()}`); // *** UTC timestamp ***
+    lines.push(`Status: ${status}`);
+    lines.push(`Staff: ${params.staffMember.name} (ID: ${params.staffMember.employeeId})`);
+    lines.push(`Period: ${params.selectedDate.toISOString()}`); // *** UTC дата ***
+    lines.push(`Manager: ${params.currentUserId || 'N/A'}`);
+    lines.push(`Staff Group: ${params.managingGroupId || 'N/A'}`);
+    lines.push(`Auto Schedule: ${params.staffMember.autoSchedule || false}`);
+    lines.push('');
+
+    // *** ДОПОЛНИТЕЛЬНАЯ ИНФОРМАЦИЯ О ПЕРИОДЕ И UTC ОБРАБОТКЕ ***
+    const startOfMonth = new Date(Date.UTC(
+      params.selectedDate.getUTCFullYear(), 
+      params.selectedDate.getUTCMonth(), 
+      1, 
+      0, 0, 0, 0
+    ));
+    const endOfMonth = new Date(Date.UTC(
+      params.selectedDate.getUTCFullYear(), 
+      params.selectedDate.getUTCMonth() + 1, 
+      0, 
+      23, 59, 59, 999
+    ));
+    
+    lines.push(`PERIOD AND UTC PROCESSING DETAILS:`);
+    lines.push(`Selected Date (UTC): ${params.selectedDate.toISOString()}`);
+    lines.push(`Month Range (UTC): ${startOfMonth.toISOString()} - ${endOfMonth.toISOString()}`);
+    lines.push(`Day of Start Week: ${params.dayOfStartWeek || 7}`);
+    lines.push(`UTC Timezone Handling: ENABLED (like Schedule tab)`);
+    lines.push('');
+
+    // *** РЕЗУЛЬТАТ ОПЕРАЦИИ ***
+    lines.push(`AUTO-FILL RESULT: ${status}`);
+    lines.push(`Message: ${result.message}`);
+    
+    if (result.skipped) {
+      lines.push(`Skip Reason: ${result.skipReason || 'Unknown'}`);
+    }
+    
+    if (result.createdRecordsCount !== undefined) {
+      lines.push(`Records Created: ${result.createdRecordsCount}`);
+    }
+    
+    if (contractId) {
+      lines.push(`Contract ID: ${contractId}`);
+    }
+    
+    lines.push(`Log Result Code: ${result.logResult} (${result.logResult === 2 ? 'Success' : result.logResult === 3 ? 'Warning/Skip' : 'Error'})`);
+    lines.push('');
+
+    // *** ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ВКЛЮЧАЯ UTC ОБРАБОТКУ ***
+    if (operationDetails) {
+      lines.push('DETAILED AUTO-FILL OPERATION ANALYSIS:');
+      lines.push(operationDetails);
+      lines.push('');
+    }
+
+    lines.push(`=== END AUTO-FILL LOG ===`);
+    
+    return lines.join('\n');
   }
 
   /**
@@ -577,6 +956,7 @@ export class CommonFillService {
       return result;
     }
   }
+
   /**
    * Логирует отказ пользователя
    */
@@ -771,9 +1151,10 @@ export class CommonFillService {
     };
     utcSupport: boolean;
     timezoneHandling: boolean;
+    autoFillSupport: boolean; // *** НОВОЕ СВОЙСТВО ***
   } {
     return {
-      version: '5.0.0', // *** ВЕРСИЯ С UTC ПОДДЕРЖКОЙ ***
+      version: '6.0.0', // *** ВЕРСИЯ С AUTO-FILL ПОДДЕРЖКОЙ ***
       context: !!this.webPartContext,
       services: {
         contracts: !!this.contractsService,
@@ -783,7 +1164,8 @@ export class CommonFillService {
         remoteSite: !!this.remoteSiteService // *** НОВЫЙ СЕРВИС ***
       },
       utcSupport: true, // *** НОВАЯ ВОЗМОЖНОСТЬ ***
-      timezoneHandling: true // *** НОВАЯ ВОЗМОЖНОСТЬ ***
+      timezoneHandling: true, // *** НОВАЯ ВОЗМОЖНОСТЬ ***
+      autoFillSupport: true // *** НОВАЯ ВОЗМОЖНОСТЬ ***
     };
   }
 
@@ -795,6 +1177,7 @@ export class CommonFillService {
     remoteSite: boolean;
     utcSupport: boolean;
     timezoneHandling: boolean;
+    autoFillSupport: boolean; // *** НОВЫЙ ТЕСТ ***
     errors: string[];
   }> {
     const results = {
@@ -805,6 +1188,7 @@ export class CommonFillService {
       remoteSite: false,
       utcSupport: false,
       timezoneHandling: false,
+      autoFillSupport: false, // *** НОВЫЙ ТЕСТ ***
       errors: [] as string[]
     };
 
@@ -871,7 +1255,19 @@ export class CommonFillService {
       results.errors.push(`Timezone Handling: ${error}`);
     }
 
-    console.log('[CommonFillService] Detailed service test results with UTC support:', results);
+    // *** ТЕСТИРУЕМ AUTO-FILL ПОДДЕРЖКУ ***
+    try {
+      // Проверяем доступность методов автозаполнения
+      const hasAutoFillMethods = typeof this.checkAutoFillEligibility === 'function' && 
+                                 typeof this.performAutoFillOperation === 'function';
+      
+      results.autoFillSupport = hasAutoFillMethods;
+      console.log(`[CommonFillService] Auto-fill support available: ${results.autoFillSupport}`);
+    } catch (error) {
+      results.errors.push(`Auto-Fill Support: ${error}`);
+    }
+
+    console.log('[CommonFillService] Detailed service test results with UTC and Auto-Fill support:', results);
     return results;
   }
 }

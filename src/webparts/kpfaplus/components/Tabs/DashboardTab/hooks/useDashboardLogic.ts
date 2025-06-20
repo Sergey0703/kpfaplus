@@ -476,6 +476,33 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
       console.log(`[useDashboardLogic] - ${staff.name} (ID: ${staff.employeeId})`);
     });
 
+    // *** ПОКАЗЫВАЕМ ЕДИНСТВЕННОЕ ПОДТВЕРЖДЕНИЕ ПЕРЕД НАЧАЛОМ ***
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Auto Fill All Schedules',
+      message: `Do you want to automatically fill schedules for ${autoScheduleStaff.length} staff members with Auto Schedule enabled for ${formatDate(selectedDate)} period?\n\nThis will process each staff member automatically without additional confirmations.`,
+      confirmButtonText: 'Start Auto Fill',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#107c10',
+      onConfirm: async () => {
+        setConfirmDialog((prev: IConfirmDialogState) => ({ ...prev, isOpen: false }));
+        
+        // *** НАЧИНАЕМ АВТОМАТИЧЕСКУЮ ОБРАБОТКУ БЕЗ ДИАЛОГОВ ***
+        await performAutoFillAllOperation(autoScheduleStaff);
+      }
+    });
+  }, [
+    selectedDate,
+    fillService,
+    staffMembersData,
+    setInfoMessage,
+    setConfirmDialog
+  ]);
+
+  // *** НОВАЯ ФУНКЦИЯ: Выполняет автозаполнение БЕЗ ДИАЛОГОВ ***
+  const performAutoFillAllOperation = useCallback(async (autoScheduleStaff: IStaffMemberWithAutoschedule[]): Promise<void> => {
+    console.log(`[useDashboardLogic] 🤖 PERFORMING AUTO-FILL WITHOUT DIALOGS for ${autoScheduleStaff.length} staff members`);
+    
     try {
       setIsLoading(true);
       
@@ -490,34 +517,39 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
         type: MessageBarType.info
       });
 
-      // Последовательная обработка каждого staff member
+      // Последовательная обработка каждого staff member БЕЗ ДИАЛОГОВ
       for (let i = 0; i < autoScheduleStaff.length; i++) {
         const staff = autoScheduleStaff[i];
         
-        console.log(`[useDashboardLogic] 🔄 Processing ${i + 1}/${autoScheduleStaff.length}: ${staff.name}`);
+        console.log(`[useDashboardLogic] 🔄 Auto-processing ${i + 1}/${autoScheduleStaff.length}: ${staff.name} WITHOUT DIALOGS`);
         
         try {
-          // Используем существующую функцию заполнения из fillHook
-          await fillHook.handleFillStaff(staff.id, staff.name);
+          // *** ИСПОЛЬЗУЕМ processStaffMemberAuto ВМЕСТО handleFillStaff ***
+          // Это обходит все диалоги и обрабатывает автоматически
+          const result = await fillHook.processStaffMemberAuto(staff);
           
-          processedCount++;
-          processedStaffIds.push(staff.id);
-          processResults.push(`✓ ${staff.name}: Processed successfully`);
-          
-          console.log(`[useDashboardLogic] ✅ Auto-fill completed for ${staff.name}`);
+          if (result.success) {
+            processedCount++;
+            processedStaffIds.push(staff.id);
+            processResults.push(`✓ ${staff.name}: ${result.message}`);
+            console.log(`[useDashboardLogic] ✅ Auto-fill completed for ${staff.name}: ${result.message}`);
+          } else {
+            if (result.message.includes('⚠️') || result.message.includes('Skipped')) {
+              skippedCount++;
+              processResults.push(`⚠ ${staff.name}: ${result.message}`);
+              console.log(`[useDashboardLogic] ⚠️ Auto-fill skipped for ${staff.name}: ${result.message}`);
+            } else {
+              errorCount++;
+              processResults.push(`✗ ${staff.name}: ${result.message}`);
+              console.error(`[useDashboardLogic] ❌ Auto-fill failed for ${staff.name}: ${result.message}`);
+            }
+          }
           
         } catch (error) {
           errorCount++;
           const errorMsg = error instanceof Error ? error.message : String(error);
           processResults.push(`✗ ${staff.name}: ${errorMsg}`);
-          
-          console.error(`[useDashboardLogic] ❌ Auto-fill failed for ${staff.name}:`, error);
-          
-          // Если ошибка связана с обработанными записями, считаем как пропуск
-          if (errorMsg.toLowerCase().includes('processed') || errorMsg.toLowerCase().includes('checked')) {
-            skippedCount++;
-            processResults[processResults.length - 1] = `⚠ ${staff.name}: Skipped (has processed records)`;
-          }
+          console.error(`[useDashboardLogic] ❌ Auto-fill error for ${staff.name}:`, error);
         }
 
         // Добавляем задержку между обработками (кроме последнего)
@@ -554,7 +586,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
         type: resultType
       });
 
-      console.log(`[useDashboardLogic] 🏁 AUTO FILL ALL COMPLETED:`, {
+      console.log(`[useDashboardLogic] 🏁 AUTO FILL ALL COMPLETED WITHOUT DIALOGS:`, {
         total: autoScheduleStaff.length,
         processed: processedCount,
         skipped: skippedCount,
@@ -579,10 +611,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
       setIsLoading(false);
     }
   }, [
-    selectedDate,
-    fillService,
-    staffMembersData,
-    fillHook.handleFillStaff,
+    fillHook.processStaffMemberAuto,
     logsHook.handleBulkLogRefresh,
     setIsLoading,
     setInfoMessage
