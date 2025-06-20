@@ -1,11 +1,11 @@
 // src/webparts/kpfaplus/services/CommonFillGeneration.ts
-// ИСПРАВЛЕНО: Используем тот же WeeklyTimeTableUtils.formatWeeklyTimeTableData что и в Schedule Tab
+// ИСПРАВЛЕНО: Полностью переходим на числовые поля времени, отказываемся от ShiftDate1/ShiftDate2
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { IStaffRecord, StaffRecordsService } from './StaffRecordsService';
 import { HolidaysService, IHoliday } from './HolidaysService';
 import { DaysOfLeavesService, ILeaveDay } from './DaysOfLeavesService';
 import { WeeklyTimeTableService } from './WeeklyTimeTableService';
-import { WeeklyTimeTableUtils, IFormattedWeeklyTimeRow } from '../models/IWeeklyTimeTable'; // *** ИСПРАВЛЕНО: Используем Schedule Tab утилиты ***
+import { WeeklyTimeTableUtils, IFormattedWeeklyTimeRow } from '../models/IWeeklyTimeTable';
 import { RemoteSiteService } from './RemoteSiteService';
 import { SharePointTimeZoneUtils } from '../utils/SharePointTimeZoneUtils';
 import { IContract } from '../models/IContract';
@@ -103,6 +103,12 @@ interface IWeeklyTimeTableItem {
   };
 }
 
+// *** НОВЫЙ ИНТЕРФЕЙС ДЛЯ ЧИСЛОВЫХ ПОЛЕЙ ВРЕМЕНИ ***
+interface INumericTimeResult {
+  hours: number;
+  minutes: number;
+}
+
 export class CommonFillGeneration {
   private staffRecordsService: StaffRecordsService;
   private holidaysService: HolidaysService;
@@ -122,7 +128,7 @@ export class CommonFillGeneration {
     this.weeklyTimeTableService = new WeeklyTimeTableService(context);
     this.remoteSiteService = RemoteSiteService.getInstance(context);
     
-    console.log('[CommonFillGeneration] Service initialized with SCHEDULE TAB formatting (fixed timezone)');
+    console.log('[CommonFillGeneration] Service initialized with NUMERIC TIME FIELDS ONLY (no more ShiftDate1/ShiftDate2)');
   }
 
   /**
@@ -236,23 +242,18 @@ export class CommonFillGeneration {
   }
 
   /**
-   * *** ИСПРАВЛЕНО: Helper function to create Date object with specified time using UTC + timezone adjustment ***
-   * Копирует логику из Schedule tab (ScheduleTabFillHelpers.createDateWithTime)
+   * *** ОБНОВЛЕНО: Helper function для получения времени с timezone adjustment в числовом формате ***
+   * Вместо создания Date объекта возвращает часы и минуты
    * 
-   * @param baseDate Base date
-   * @param time Object with hours and minutes (может быть undefined)
-   * @returns Date object with set time in UTC с корректировкой часового пояса
+   * @param time Объект с часами и минутами (может быть undefined)
+   * @returns Объект с скорректированными часами и минутами
    */
-  private async createDateWithTime(
-    baseDate: Date, 
+  private async getAdjustedNumericTime(
     time?: { hours: string; minutes: string }
-  ): Promise<Date> {
-    const result = new Date(baseDate);
-    
+  ): Promise<INumericTimeResult> {
     if (!time) {
-      result.setUTCHours(0, 0, 0, 0);
-      console.log(`[CommonFillGeneration] No time provided, set to UTC midnight: ${result.toISOString()}`);
-      return result;
+      console.log(`[CommonFillGeneration] No time provided, returning 0:0`);
+      return { hours: 0, minutes: 0 };
     }
     
     const hours = parseInt(time.hours || '0', 10);
@@ -260,29 +261,33 @@ export class CommonFillGeneration {
     
     if (isNaN(hours) || isNaN(minutes)) {
       console.warn(`[CommonFillGeneration] Invalid time components: hours="${time.hours}", minutes="${time.minutes}"`);
-      result.setUTCHours(0, 0, 0, 0);
-      console.warn(`[CommonFillGeneration] Set to UTC midnight: ${result.toISOString()}`);
-      return result;
+      return { hours: 0, minutes: 0 };
     }
     
-    console.log(`[CommonFillGeneration] *** UTC TIMEZONE ADJUSTMENT LIKE SCHEDULE TAB ***`);
+    console.log(`[CommonFillGeneration] *** NUMERIC TIME TIMEZONE ADJUSTMENT ***`);
     console.log(`[CommonFillGeneration] Input time from template: ${hours}:${minutes}`);
     
-    // *** ИСПРАВЛЕНО: Используем SharePointTimeZoneUtils как в Schedule tab ***
-    const adjustedTime = await SharePointTimeZoneUtils.adjustTimeForSharePointTimeZone(
-      hours, 
-      minutes, 
-      this.remoteSiteService, 
-      baseDate
-    );
-    
-    result.setUTCHours(adjustedTime.hours, adjustedTime.minutes, 0, 0);
-    
-    console.log(`[CommonFillGeneration] *** TIMEZONE ADJUSTMENT COMPLETED ***`);
-    console.log(`[CommonFillGeneration] ${hours}:${minutes} → ${adjustedTime.hours}:${adjustedTime.minutes} UTC`);
-    console.log(`[CommonFillGeneration] Final result: ${result.toISOString()}`);
-    
-    return result;
+    try {
+      // *** ИСПРАВЛЕНО: Используем SharePointTimeZoneUtils для корректировки времени ***
+      const adjustedTime = await SharePointTimeZoneUtils.adjustTimeForSharePointTimeZone(
+        hours, 
+        minutes, 
+        this.remoteSiteService, 
+        new Date() // Используем текущую дату для определения DST
+      );
+      
+      console.log(`[CommonFillGeneration] *** TIMEZONE ADJUSTMENT COMPLETED ***`);
+      console.log(`[CommonFillGeneration] ${hours}:${minutes} → ${adjustedTime.hours}:${adjustedTime.minutes}`);
+      
+      return {
+        hours: adjustedTime.hours,
+        minutes: adjustedTime.minutes
+      };
+    } catch (error) {
+      console.error(`[CommonFillGeneration] Error in timezone adjustment: ${error}`);
+      console.log(`[CommonFillGeneration] Falling back to original time: ${hours}:${minutes}`);
+      return { hours, minutes };
+    }
   }
 
   /**
@@ -488,11 +493,10 @@ export class CommonFillGeneration {
         daysData.forEach(dayInfo => {
           const dayData = dayInfo.dayData;
           
-          // Проверяем что есть время начала и окончания
+          // *** ИСПРАВЛЕНО: Проверяем только наличие данных времени, НЕ исключаем 00:00-00:00 ***
+          // 00:00-00:00 это валидное время для выходных дней или дней без работы
           if (dayData.start && dayData.end && 
-              dayData.start.hours && dayData.end.hours &&
-              !(dayData.start.hours === '00' && dayData.start.minutes === '00' && 
-                dayData.end.hours === '00' && dayData.end.minutes === '00')) {
+              dayData.start.hours !== undefined && dayData.end.hours !== undefined) {
             
             const startTime = `${dayData.start.hours}:${dayData.start.minutes}`;
             const endTime = `${dayData.end.hours}:${dayData.end.minutes}`;
@@ -514,6 +518,16 @@ export class CommonFillGeneration {
             
             console.log(`[CommonFillGeneration] *** SCHEDULE TAB FORMATTED TEMPLATE ***`);
             console.log(`[CommonFillGeneration] ${dayInfo.name}: Week ${numberOfWeek}, Shift ${numberOfShift}, ${startTime}-${endTime}, Lunch: ${timeForLunch}min`);
+            
+            // *** ДОПОЛНИТЕЛЬНОЕ ЛОГИРОВАНИЕ ДЛЯ 00:00-00:00 ДНЕЙ ***
+            if (startTime === '00:00' && endTime === '00:00') {
+              console.log(`[CommonFillGeneration] *** ВКЛЮЧЕН ДЕНЬ С 00:00-00:00 ***`);
+              console.log(`[CommonFillGeneration] ${dayInfo.name}: Week ${numberOfWeek}, Shift ${numberOfShift} - это выходной день или день без работы, но ЗАПИСЬ БУДЕТ СОЗДАНА`);
+            }
+          } else {
+            // Логируем случаи когда данные времени отсутствуют полностью
+            console.log(`[CommonFillGeneration] *** ПРОПУЩЕН ДЕНЬ БЕЗ ДАННЫХ ВРЕМЕНИ ***`);
+            console.log(`[CommonFillGeneration] ${dayInfo.name}: Week ${numberOfWeek}, Shift ${numberOfShift} - отсутствуют данные start/end времени`);
           }
         });
       });
@@ -775,8 +789,8 @@ export class CommonFillGeneration {
   }
 
   /**
-   * *** ПОЛНОСТЬЮ ПЕРЕПИСАННЫЙ МЕТОД: Генерирует записи с правильной логикой чередования недель и UTC ***
-   * ИСПРАВЛЕНО: Теперь использует Schedule Tab форматирование и async/await для timezone adjustment
+   * *** ПОЛНОСТЬЮ ПЕРЕПИСАННЫЙ МЕТОД: Генерирует записи с правильной логикой чередования недель и числовыми полями времени ***
+   * ИСПРАВЛЕНО: Теперь использует только числовые поля времени, отказывается от ShiftDate1/ShiftDate2
    */
   public async generateScheduleRecords(
     params: IFillParams,
@@ -785,8 +799,8 @@ export class CommonFillGeneration {
     leaves: ILeaveDay[],
     weeklyTemplates: IScheduleTemplate[]
   ): Promise<Partial<IStaffRecord>[]> {
-    console.log(`[CommonFillGeneration] *** GENERATING WITH SCHEDULE TAB APPROACH ***`);
-    console.log(`[CommonFillGeneration] Generating schedule records with SCHEDULE TAB formatting for ${params.staffMember.name}`);
+    console.log(`[CommonFillGeneration] *** GENERATING WITH NUMERIC TIME FIELDS ONLY ***`);
+    console.log(`[CommonFillGeneration] Generating schedule records with NUMERIC TIME FIELDS for ${params.staffMember.name}`);
 
     // *** ИСПРАВЛЕННЫЙ РАСЧЕТ ПЕРИОДА МЕСЯЦА С UTC ***
     const startOfMonth = new Date(Date.UTC(
@@ -803,7 +817,7 @@ export class CommonFillGeneration {
       23, 59, 59, 999
     ));
 
-    console.log(`[CommonFillGeneration] SCHEDULE TAB UTC Month period: ${startOfMonth.toISOString()} - ${endOfMonth.toISOString()}`);
+    console.log(`[CommonFillGeneration] NUMERIC FIELDS UTC Month period: ${startOfMonth.toISOString()} - ${endOfMonth.toISOString()}`);
 
     const contractStartDate = contract.startDate;
     const contractFinishDate = contract.finishDate;
@@ -833,11 +847,11 @@ export class CommonFillGeneration {
       lastDay = endOfMonth;
     }
 
-    console.log(`[CommonFillGeneration] SCHEDULE TAB UTC Generation period: ${firstDay.toISOString()} - ${lastDay.toISOString()}`);
+    console.log(`[CommonFillGeneration] NUMERIC FIELDS UTC Generation period: ${firstDay.toISOString()} - ${lastDay.toISOString()}`);
 
     // *** ПРОВЕРЯЕМ КОЛИЧЕСТВО ДНЕЙ ***
     const totalDays = Math.floor((lastDay.getTime() - firstDay.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-    console.log(`[CommonFillGeneration] SCHEDULE TAB Total days in period: ${totalDays}`);
+    console.log(`[CommonFillGeneration] NUMERIC FIELDS Total days in period: ${totalDays}`);
 
     this.initializeGenerationAnalysis(firstDay, lastDay);
 
@@ -902,15 +916,15 @@ export class CommonFillGeneration {
       }
 
       if (templatesForDay.length > 0) {
-        // *** СОЗДАЕМ ЗАПИСИ ДЛЯ ВСЕХ СМЕН КАК В SCHEDULETAB С UTC ***
+        // *** СОЗДАЕМ ЗАПИСИ ДЛЯ ВСЕХ СМЕН КАК В SCHEDULETAB С ЧИСЛОВЫМИ ПОЛЯМИ ***
         console.log(`[CommonFillGeneration] ${dayInfo.date} (${dayInfo.dayName}): Calendar week ${dayInfo.weekNumber}, Template week ${weekAndDay.templateWeekNumber}, Found ${templatesForDay.length} shifts`);
         
-        // *** ОБРАБАТЫВАЕМ КАЖДЫЙ ШАБЛОН АСИНХРОННО С UTC ***
+        // *** ОБРАБАТЫВАЕМ КАЖДЫЙ ШАБЛОН АСИНХРОННО С ЧИСЛОВЫМИ ПОЛЯМИ ***
         for (const template of templatesForDay) {
           console.log(`[CommonFillGeneration] Creating record for shift ${template.NumberOfShift}: ${template.startTime}-${template.endTime}, Lunch: ${template.lunchMinutes}min`);
           
-          // *** ИСПРАВЛЕНО: ИСПОЛЬЗУЕМ ASYNC createStaffRecordFromTemplate ***
-          const record = await this.createStaffRecordFromTemplate(
+          // *** ИСПРАВЛЕНО: ИСПОЛЬЗУЕМ createStaffRecordFromTemplateNumeric С ЧИСЛОВЫМИ ПОЛЯМИ ***
+          const record = await this.createStaffRecordFromTemplateNumeric(
             currentDate, 
             template, 
             contract, 
@@ -942,8 +956,8 @@ export class CommonFillGeneration {
     // *** ЗАВЕРШАЕМ АНАЛИЗ ГЕНЕРАЦИИ ***
     this.finalizeGenerationAnalysis(records.length, holidays.length, leaves.length);
 
-    console.log(`[CommonFillGeneration] *** SCHEDULE TAB APPROACH COMPLETED ***`);
-    console.log(`[CommonFillGeneration] Generated ${records.length} schedule records with SCHEDULE TAB formatting and proper UTC timezone handling`);
+    console.log(`[CommonFillGeneration] *** NUMERIC TIME FIELDS APPROACH COMPLETED ***`);
+    console.log(`[CommonFillGeneration] Generated ${records.length} schedule records with NUMERIC TIME FIELDS ONLY`);
     return records;
   }
 
@@ -992,9 +1006,10 @@ export class CommonFillGeneration {
   }
 
   /**
-   * *** ИСПРАВЛЕННЫЙ МЕТОД: Создает запись расписания из шаблона с UTC ***
+   * *** НОВЫЙ МЕТОД: Создает запись расписания из шаблона с ЧИСЛОВЫМИ ПОЛЯМИ ВРЕМЕНИ ***
+   * ИСПРАВЛЕНО: Полностью отказывается от ShiftDate1/ShiftDate2, использует только числовые поля
    */
-  private async createStaffRecordFromTemplate(
+  private async createStaffRecordFromTemplateNumeric(
     date: Date,
     template: IScheduleTemplate,
     contract: IContract,
@@ -1013,27 +1028,36 @@ export class CommonFillGeneration {
     );
     const isLeave = !!leaveForDay;
 
-    // *** ИСПРАВЛЕНО: Парсим время из шаблона и создаем UTC даты с timezone adjustment ***
+    // *** ИСПРАВЛЕНО: Парсим время из шаблона и получаем числовые поля с timezone adjustment ***
     const startTime = this.parseTimeString(template.startTime);
     const endTime = this.parseTimeString(template.endTime);
     const lunchTime = template.lunchMinutes;
 
-    console.log(`[CommonFillGeneration] *** USING SCHEDULE TAB TIME CREATION ***`);
+    console.log(`[CommonFillGeneration] *** USING NUMERIC TIME FIELDS CREATION ***`);
     console.log(`[CommonFillGeneration] Creating record for ${date.toISOString()}: Shift ${template.NumberOfShift}, ${template.startTime}-${template.endTime}, lunch: ${lunchTime}min, holiday: ${isHoliday}, leave: ${isLeave}`);
 
-    // *** ИСПРАВЛЕНО: Используем async createDateWithTime с timezone adjustment ***
-    const shiftDate1 = await this.createDateWithTime(date, startTime);
-    const shiftDate2 = await this.createDateWithTime(date, endTime);
+    // *** ИСПРАВЛЕНО: Используем getAdjustedNumericTime для получения скорректированного времени ***
+    const adjustedStartTime = await this.getAdjustedNumericTime(startTime);
+    const adjustedEndTime = await this.getAdjustedNumericTime(endTime);
 
-    console.log(`[CommonFillGeneration] *** SCHEDULE TAB UTC SHIFT TIMES CREATED ***`);
-    console.log(`[CommonFillGeneration] ShiftDate1 (start): ${shiftDate1.toISOString()}`);
-    console.log(`[CommonFillGeneration] ShiftDate2 (end): ${shiftDate2.toISOString()}`);
+    console.log(`[CommonFillGeneration] *** NUMERIC TIME FIELDS WITH TIMEZONE ADJUSTMENT ***`);
+    console.log(`[CommonFillGeneration] Start time: ${template.startTime} → ${adjustedStartTime.hours}:${adjustedStartTime.minutes}`);
+    console.log(`[CommonFillGeneration] End time: ${template.endTime} → ${adjustedEndTime.hours}:${adjustedEndTime.minutes}`);
 
     const record: Partial<IStaffRecord> = {
       Title: `Template=${contract.id} Week=${template.NumberOfWeek} Shift=${template.NumberOfShift}`,
       Date: new Date(date), // *** UTC дата ***
-      ShiftDate1: shiftDate1, // *** UTC время с timezone adjustment ***
-      ShiftDate2: shiftDate2, // *** UTC время с timezone adjustment ***
+      
+      // *** ИСПРАВЛЕНО: УДАЛЕНЫ ShiftDate1/ShiftDate2 - НЕ ИСПОЛЬЗУЕМ БОЛЬШЕ ***
+      // ShiftDate1: undefined,
+      // ShiftDate2: undefined,
+      
+      // *** НОВОЕ: ТОЛЬКО ЧИСЛОВЫЕ ПОЛЯ ВРЕМЕНИ С TIMEZONE ADJUSTMENT ***
+      ShiftDate1Hours: adjustedStartTime.hours,
+      ShiftDate1Minutes: adjustedStartTime.minutes,
+      ShiftDate2Hours: adjustedEndTime.hours,
+      ShiftDate2Minutes: adjustedEndTime.minutes,
+      
       TimeForLunch: lunchTime,
       Contract: template.NumberOfShift,  // *** ИСПРАВЛЕНО: используем номер смены вместо total ***
       Holiday: isHoliday ? 1 : 0,
@@ -1048,6 +1072,19 @@ export class CommonFillGeneration {
       record.TypeOfLeaveID = leaveForDay.typeOfLeave;
       console.log(`[CommonFillGeneration] Added leave type ${record.TypeOfLeaveID} for ${date.toISOString()}: ${leaveForDay.title}`);
     }
+
+    console.log(`[CommonFillGeneration] *** FINAL NUMERIC RECORD CREATED ***`);
+    console.log(`[CommonFillGeneration] Record: ${JSON.stringify({
+      Title: record.Title,
+      Date: record.Date?.toISOString(),
+      ShiftDate1Hours: record.ShiftDate1Hours,
+      ShiftDate1Minutes: record.ShiftDate1Minutes,
+      ShiftDate2Hours: record.ShiftDate2Hours,
+      ShiftDate2Minutes: record.ShiftDate2Minutes,
+      TimeForLunch: record.TimeForLunch,
+      Holiday: record.Holiday,
+      TypeOfLeaveID: record.TypeOfLeaveID
+    }, null, 2)}`);
 
     return record;
   }
@@ -1184,11 +1221,11 @@ export class CommonFillGeneration {
   }
 
   /**
-   * *** ОБНОВЛЕННЫЙ МЕТОД: Сохраняет сгенерированные записи в SharePoint ***
+   * *** ОБНОВЛЕННЫЙ МЕТОД: Сохраняет сгенерированные записи в SharePoint с числовыми полями ***
    */
   public async saveGeneratedRecords(records: Partial<IStaffRecord>[], params: IFillParams): Promise<number> {
-    console.log(`[CommonFillGeneration] *** SAVING WITH SCHEDULE TAB APPROACH ***`);
-    console.log(`[CommonFillGeneration] Saving ${records.length} generated records with SCHEDULE TAB UTC timezone handling`);
+    console.log(`[CommonFillGeneration] *** SAVING WITH NUMERIC TIME FIELDS ONLY ***`);
+    console.log(`[CommonFillGeneration] Saving ${records.length} generated records with NUMERIC TIME FIELDS`);
 
     let successCount = 0;
     const errors: string[] = [];
@@ -1210,14 +1247,14 @@ export class CommonFillGeneration {
           continue;
         }
         
-        // *** ЛОГИРУЕМ UTC ВРЕМЕНА ПЕРЕД СОХРАНЕНИЕМ ***
-        if (record.ShiftDate1 && record.ShiftDate2) {
-          console.log(`[CommonFillGeneration] *** SCHEDULE TAB UTC TIMES BEING SAVED ***`);
+        // *** ЛОГИРУЕМ ЧИСЛОВЫЕ ПОЛЯ ВРЕМЕНИ ПЕРЕД СОХРАНЕНИЕМ ***
+        if (record.ShiftDate1Hours !== undefined && record.ShiftDate1Minutes !== undefined && 
+            record.ShiftDate2Hours !== undefined && record.ShiftDate2Minutes !== undefined) {
+          console.log(`[CommonFillGeneration] *** NUMERIC TIME FIELDS BEING SAVED ***`);
           console.log(`[CommonFillGeneration] Date: ${record.Date?.toISOString()}`);
-          console.log(`[CommonFillGeneration] ShiftDate1: ${record.ShiftDate1.toISOString()}`);
-          console.log(`[CommonFillGeneration] ShiftDate2: ${record.ShiftDate2.toISOString()}`);
-          console.log(`[CommonFillGeneration] Local representation - Start: ${record.ShiftDate1.toLocaleString()}`);
-          console.log(`[CommonFillGeneration] Local representation - End: ${record.ShiftDate2.toLocaleString()}`);
+          console.log(`[CommonFillGeneration] Start Time: ${record.ShiftDate1Hours}:${record.ShiftDate1Minutes?.toString().padStart(2, '0')}`);
+          console.log(`[CommonFillGeneration] End Time: ${record.ShiftDate2Hours}:${record.ShiftDate2Minutes?.toString().padStart(2, '0')}`);
+          console.log(`[CommonFillGeneration] Time for Lunch: ${record.TimeForLunch} minutes`);
         }
         
         const newRecordId = await this.staffRecordsService.createStaffRecord(
@@ -1238,8 +1275,9 @@ export class CommonFillGeneration {
             console.log(`[CommonFillGeneration] ✓ Record ${newRecordId} created for holiday`);
           }
           
-          if (record.ShiftDate1 && record.ShiftDate2) {
-            console.log(`[CommonFillGeneration] ✓ Record ${newRecordId} saved with SCHEDULE TAB UTC times - no timezone shift should occur`);
+          if (record.ShiftDate1Hours !== undefined && record.ShiftDate2Hours !== undefined) {
+            console.log(`[CommonFillGeneration] ✓ Record ${newRecordId} saved with NUMERIC TIME FIELDS - no timezone shift should occur`);
+            console.log(`[CommonFillGeneration] ✓ Saved times: ${record.ShiftDate1Hours}:${record.ShiftDate1Minutes?.toString().padStart(2, '0')} - ${record.ShiftDate2Hours}:${record.ShiftDate2Minutes?.toString().padStart(2, '0')}`);
           }
         } else {
           const errorMsg = `Failed to create record for ${record.Date?.toISOString()}: No ID returned`;
@@ -1257,8 +1295,8 @@ export class CommonFillGeneration {
       }
     }
 
-    console.log(`[CommonFillGeneration] *** SCHEDULE TAB SAVE COMPLETED ***`);
-    console.log(`[CommonFillGeneration] Save operation completed with SCHEDULE TAB handling: ${successCount}/${records.length} successful`);
+    console.log(`[CommonFillGeneration] *** NUMERIC FIELDS SAVE COMPLETED ***`);
+    console.log(`[CommonFillGeneration] Save operation completed with NUMERIC TIME FIELDS: ${successCount}/${records.length} successful`);
     
     if (errors.length > 0) {
       console.error(`[CommonFillGeneration] Save errors (${errors.length}):`, errors);
