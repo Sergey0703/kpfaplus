@@ -35,7 +35,7 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     effectiveGroupId
   });
 
-  // Get all functions and data from the hook
+  // *** Get all functions and data from the hook ***
   const {
     staffMembersData,
     selectedDate,
@@ -48,6 +48,7 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
     handleAutoscheduleToggle,
     handleFillStaff,
     handleAutoFillAll, // ДОБАВЛЕНО: новая функция автозаполнения
+    autoFillProgress, // ДОБАВЛЕНО: прогресс автозаполнения
     logsService,
     handleLogRefresh,
     handleBulkLogRefresh,
@@ -141,7 +142,215 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
         justifyContent: 'center',
         alignItems: 'center'
       }}>
-        <LoadingSpinner showDetails={true} />
+        {/* Enhanced Loading Spinner with Auto-Fill Progress */}
+        {autoFillProgress && autoFillProgress.isActive ? (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            padding: '40px',
+            backgroundColor: '#ffffff',
+            borderRadius: '12px',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+            border: '1px solid #e1e5e9',
+            minWidth: '500px',
+            maxWidth: '600px'
+          }}>
+            {/* Progress Header */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              marginBottom: '24px',
+              gap: '12px'
+            }}>
+              <div style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '50%',
+                backgroundColor: '#107c10',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <span style={{ color: 'white', fontSize: '20px', fontWeight: 'bold' }}>🤖</span>
+              </div>
+              <div>
+                <h2 style={{ 
+                  margin: 0, 
+                  color: '#323130', 
+                  fontSize: '20px', 
+                  fontWeight: '600' 
+                }}>
+                  Auto Fill in Progress
+                </h2>
+                <p style={{ 
+                  margin: 0, 
+                  color: '#605e5c', 
+                  fontSize: '14px' 
+                }}>
+                  Processing staff members with Auto Schedule enabled
+                </p>
+              </div>
+            </div>
+
+            {/* Progress Bar */}
+            <div style={{
+              width: '100%',
+              backgroundColor: '#f3f2f1',
+              borderRadius: '8px',
+              height: '12px',
+              marginBottom: '16px',
+              overflow: 'hidden'
+            }}>
+              <div style={{
+                width: `${(autoFillProgress.completed / autoFillProgress.total) * 100}%`,
+                height: '100%',
+                backgroundColor: '#107c10',
+                borderRadius: '8px',
+                transition: 'width 0.3s ease'
+              }} />
+            </div>
+
+            {/* Progress Counter */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              width: '100%',
+              marginBottom: '20px',
+              fontSize: '14px',
+              fontWeight: '500'
+            }}>
+              <span style={{ color: '#323130' }}>
+                Progress: {autoFillProgress.completed} / {autoFillProgress.total}
+              </span>
+              <span style={{ color: '#107c10' }}>
+                {Math.round((autoFillProgress.completed / autoFillProgress.total) * 100)}%
+              </span>
+            </div>
+
+            {/* Current Activity */}
+            <div style={{
+              width: '100%',
+              padding: '16px',
+              backgroundColor: '#f8f9fa',
+              borderRadius: '8px',
+              border: '1px solid #e1e5e9',
+              marginBottom: '20px'
+            }}>
+              {autoFillProgress.isPaused ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    backgroundColor: '#ff8c00',
+                    animation: 'pulse 1.5s infinite'
+                  }} />
+                  <span style={{ color: '#323130', fontWeight: '500' }}>
+                    ⏳ Waiting {Math.ceil(autoFillProgress.remainingPauseTime / 1000)} seconds before processing next staff member...
+                  </span>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    backgroundColor: '#107c10',
+                    animation: 'pulse 1.5s infinite'
+                  }} />
+                  <span style={{ color: '#323130', fontWeight: '500' }}>
+                    🔄 Processing: {autoFillProgress.currentStaffName}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Results Summary */}
+            {autoFillProgress.completed > 0 && (
+              <div style={{
+                width: '100%',
+                display: 'flex',
+                gap: '12px',
+                justifyContent: 'center'
+              }}>
+                {autoFillProgress.successCount > 0 && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '6px 12px',
+                    backgroundColor: '#dff6dd',
+                    borderRadius: '16px',
+                    fontSize: '12px',
+                    fontWeight: '500',
+                    color: '#107c10'
+                  }}>
+                    ✓ {autoFillProgress.successCount} Success
+                  </div>
+                )}
+                {autoFillProgress.skippedCount > 0 && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '6px 12px',
+                    backgroundColor: '#fff4ce',
+                    borderRadius: '16px',
+                    fontSize: '12px',
+                    fontWeight: '500',
+                    color: '#ff8c00'
+                  }}>
+                    ⚠ {autoFillProgress.skippedCount} Skipped
+                  </div>
+                )}
+                {autoFillProgress.errorCount > 0 && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '6px 12px',
+                    backgroundColor: '#fde7e9',
+                    borderRadius: '16px',
+                    fontSize: '12px',
+                    fontWeight: '500',
+                    color: '#d13438'
+                  }}>
+                    ✗ {autoFillProgress.errorCount} Errors
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Next Staff Member Info */}
+            {!autoFillProgress.isPaused && autoFillProgress.nextStaffName && (
+              <div style={{
+                marginTop: '16px',
+                padding: '12px',
+                backgroundColor: '#f0f7ff',
+                borderRadius: '6px',
+                border: '1px solid #b3d7ff',
+                fontSize: '12px',
+                color: '#0078d4',
+                width: '100%',
+                textAlign: 'center'
+              }}>
+                Next: {autoFillProgress.nextStaffName}
+              </div>
+            )}
+
+            {/* CSS Animation */}
+            <style>{`
+              @keyframes pulse {
+                0% { opacity: 1; }
+                50% { opacity: 0.5; }
+                100% { opacity: 1; }
+              }
+            `}</style>
+          </div>
+        ) : (
+          <LoadingSpinner showDetails={true} />
+        )}
       </div>
     );
   }
