@@ -515,7 +515,7 @@ export const DashboardTab: React.FC<ITabProps> = (props) => {
           onBulkLogRefresh={handleBulkLogRefresh}
           onLogRefresh={handleLogRefresh}
           onFillStaff={handleFillStaff}
-          onAutoFillAll={handleAutoFillAll} // NEW: auto-fill function
+     //     onAutoFillAll={handleAutoFillAll} // NEW: auto-fill function
           onAutoscheduleToggle={handleAutoscheduleToggle}
           getCachedLogsForStaff={getCachedLogsForStaffMember}
           clearLogCache={clearLogCache}
