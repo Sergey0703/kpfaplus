@@ -1,6 +1,6 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/hooks/useDashboardLogic.ts
-// ИСПРАВЛЕНО: Добавлена правильная обработка дат с UTC для исправления проблемы "off by 1 day"
-// ДОБАВЛЕНО: Поддержка автозаполнения для staff с включенным autoschedule
+// COMPLETE IMPLEMENTATION: Auto-fill with detailed progress tracking, UTC date handling and timezone support
+// ADDED: Real-time progress with current staff, pause countdown, and success/error counters
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { MessageBarType } from '@fluentui/react';
 import { WebPartContext } from "@microsoft/sp-webpart-base";
@@ -12,7 +12,7 @@ import { ScheduleLogsService } from '../../../../services/ScheduleLogsService';
 import { useDashboardLogs } from './useDashboardLogs';
 import { useDashboardFill } from './useDashboardFill';
 
-// Interfaces
+// *** INTERFACES ***
 interface IInfoMessage {
   text: string;
   type: MessageBarType;
@@ -34,7 +34,21 @@ interface IUseDashboardLogicParams {
   managingGroupId?: string;
 }
 
-// ИСПРАВЛЕНО: Добавлен интерфейс для типа возвращаемого значения с автозаполнением
+// *** NEW: AUTO-FILL PROGRESS INTERFACE ***
+interface IAutoFillProgress {
+  isActive: boolean;
+  currentStaffName: string;
+  nextStaffName?: string;
+  completed: number;
+  total: number;
+  successCount: number;
+  skippedCount: number;
+  errorCount: number;
+  isPaused: boolean;
+  remainingPauseTime: number; // milliseconds
+}
+
+// *** COMPLETE RETURN TYPE ***
 interface IUseDashboardLogicReturn {
   // CORE STATE
   staffMembersData: IStaffMemberWithAutoschedule[];
@@ -53,8 +67,11 @@ interface IUseDashboardLogicReturn {
   
   // FILL OPERATIONS
   handleFillStaff: (staffId: string, staffName: string) => Promise<void>;
-  handleFillAll: () => Promise<void>; // СОХРАНЕНО: старая функция для совместимости
-  handleAutoFillAll: () => Promise<void>; // ДОБАВЛЕНО: новая функция автозаполнения
+  handleFillAll: () => Promise<void>; // LEGACY: for compatibility
+  handleAutoFillAll: () => Promise<void>; // NEW: auto-fill function
+  
+  // AUTO-FILL PROGRESS
+  autoFillProgress?: IAutoFillProgress; // NEW: real-time progress tracking
   
   // LOG OPERATIONS
   logsService?: ScheduleLogsService;
@@ -71,11 +88,11 @@ interface IUseDashboardLogicReturn {
   startInitialLoading: () => void;
 }
 
-// Constants
+// *** CONSTANTS ***
 const DEBOUNCE_DELAY = 300; // 300ms for debounce
 const AUTO_FILL_DELAY = 3000; // 3 seconds delay between auto-fill operations
 
-// Utility functions
+// *** UTILITY FUNCTIONS ***
 const formatDate = (date?: Date): string => {
   if (!date) return '';
   const day = date.getDate().toString().padStart(2, '0');
@@ -84,10 +101,9 @@ const formatDate = (date?: Date): string => {
   return `${day}.${month}.${year}`;
 };
 
-// *** ИСПРАВЛЕНО: Правильная функция для первого дня месяца с UTC ***
+// *** UTC DATE HANDLING FUNCTIONS ***
 const getFirstDayOfCurrentMonth = (): Date => {
   const now = new Date();
-  // *** ИСПОЛЬЗУЕМ UTC для избежания проблем с временными зонами ***
   const result = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0));
   console.log('[useDashboardLogic] *** FIRST DAY OF CURRENT MONTH (UTC) ***');
   console.log('[useDashboardLogic] Current date:', now.toISOString());
@@ -96,7 +112,6 @@ const getFirstDayOfCurrentMonth = (): Date => {
   return result;
 };
 
-// *** ИСПРАВЛЕНО: Правильная функция восстановления даты с UTC нормализацией ***
 const getSavedSelectedDate = (): Date => {
   try {
     const savedDate = sessionStorage.getItem('dashboardTab_selectedDate');
@@ -105,12 +120,11 @@ const getSavedSelectedDate = (): Date => {
       if (!isNaN(parsedDate.getTime())) {
         console.log('[useDashboardLogic] Restoring date from sessionStorage:', savedDate);
         
-        // *** ИСПРАВЛЕНИЕ: Нормализуем дату к правильному первому дню месяца ***
-        // Используем UTC методы для избежания проблем с временными зонами
+        // *** NORMALIZE DATE TO FIRST DAY OF MONTH WITH UTC ***
         const normalizedDate = new Date(Date.UTC(
           parsedDate.getUTCFullYear(),
           parsedDate.getUTCMonth(),
-          1, // Всегда первое число месяца
+          1, // Always first day of month
           0, 0, 0, 0
         ));
         
@@ -119,11 +133,6 @@ const getSavedSelectedDate = (): Date => {
         console.log('[useDashboardLogic] Parsed date:', parsedDate.toISOString());
         console.log('[useDashboardLogic] Normalized to first of month:', normalizedDate.toISOString());
         console.log('[useDashboardLogic] Display format:', formatDate(normalizedDate));
-        console.log('[useDashboardLogic] Year/Month check:', {
-          year: normalizedDate.getUTCFullYear(),
-          month: normalizedDate.getUTCMonth() + 1,
-          monthName: normalizedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-        });
         
         return normalizedDate;
       }
@@ -134,16 +143,16 @@ const getSavedSelectedDate = (): Date => {
   return getFirstDayOfCurrentMonth();
 };
 
-// ИСПРАВЛЕНО: Добавлен явный тип возвращаемого значения
+// *** MAIN HOOK IMPLEMENTATION ***
 export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboardLogicReturn => {
   const { context, currentUserId, managingGroupId } = params;
   
   console.log('[useDashboardLogic] Main coordinator hook initialized with UTC date handling and Auto Fill support');
 
-  // Context data
+  // *** CONTEXT DATA ***
   const { staffMembers, updateStaffMember } = useDataContext();
 
-  // State variables
+  // *** STATE VARIABLES ***
   const [selectedDate, setSelectedDate] = useState<Date>(getSavedSelectedDate());
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isLoadingLogs, setIsLoadingLogs] = useState<boolean>(true);
@@ -157,14 +166,16 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     confirmButtonColor: '#0078d4',
     onConfirm: (): void => {}
   });
+  
+  // *** NEW: AUTO-FILL PROGRESS STATE ***
+  const [autoFillProgress, setAutoFillProgress] = useState<IAutoFillProgress | undefined>(undefined);
 
-  // Refs
+  // *** REFS ***
   const debounceTimerRef = useRef<number | null>(null);
   const lastGroupIdRef = useRef<string>('');
-  // *** NEW: Callback для сброса состояния таблицы ***
   const resetTableStateCallbackRef = useRef<(() => void) | null>(null);
 
-  // *** ЛОГИРОВАНИЕ ВЫБРАННОЙ ДАТЫ ПРИ ИНИЦИАЛИЗАЦИИ ***
+  // *** INITIAL DATE LOGGING ***
   useEffect(() => {
     console.log('[useDashboardLogic] *** INITIAL SELECTED DATE ANALYSIS ***');
     console.log('[useDashboardLogic] Selected date (UTC):', selectedDate.toISOString());
@@ -176,7 +187,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     });
   }, []);
 
-  // Memoized services
+  // *** MEMOIZED SERVICES ***
   const fillService = useMemo(() => {
     if (context) {
       console.log('[useDashboardLogic] Initializing CommonFillService...');
@@ -193,7 +204,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     return undefined;
   }, [context]);
 
-  // Memoized staff data
+  // *** MEMOIZED STAFF DATA ***
   const staffMembersData = useMemo((): IStaffMemberWithAutoschedule[] => {
     console.log('[useDashboardLogic] Processing staff members:', staffMembers.length);
     
@@ -209,7 +220,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
 
     console.log('[useDashboardLogic] Active staff members:', activeStaff.length);
     
-    // ДОБАВЛЕНО: Логирование staff с включенным autoschedule
+    // Log staff with autoschedule enabled
     const autoScheduleStaff = activeStaff.filter(staff => staff.autoschedule);
     console.log('[useDashboardLogic] Staff with autoschedule enabled:', autoScheduleStaff.length);
     autoScheduleStaff.forEach(staff => {
@@ -219,7 +230,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     return activeStaff;
   }, [staffMembers]);
 
-  // *** LOGS HOOK INTEGRATION ***
+  // *** HOOKS INTEGRATION ***
   const logsHook = useDashboardLogs({
     logsService,
     staffMembersData,
@@ -228,7 +239,6 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     managingGroupId
   });
 
-  // *** FILL HOOK INTEGRATION ***
   const fillHook = useDashboardFill({
     context,
     currentUserId,
@@ -244,13 +254,13 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     handleBulkLogRefresh: logsHook.handleBulkLogRefresh
   });
 
-  // *** NEW: Функция для регистрации callback сброса состояния таблицы ***
+  // *** TABLE RESET FUNCTIONALITY ***
   const registerTableResetCallback = useCallback((callback: () => void): void => {
     console.log('[useDashboardLogic] 📝 Registering table reset callback');
     resetTableStateCallbackRef.current = callback;
   }, []);
 
-  // *** NEW: Отслеживание смены группы и сброс состояния таблицы ***
+  // *** GROUP CHANGE TRACKING ***
   useEffect(() => {
     console.log('[useDashboardLogic] 🔍 GROUP CHANGE TRACKING:', {
       currentGroupId: managingGroupId,
@@ -265,29 +275,26 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
         action: 'Will reset table state and clear log data'
       });
       
-      // *** СБРОС СОСТОЯНИЯ ТАБЛИЦЫ - аналогично смене даты ***
       if (resetTableStateCallbackRef.current) {
         console.log('[useDashboardLogic] 🔄 Calling table reset callback');
         resetTableStateCallbackRef.current();
       }
       
-      // *** ОЧИСТКА ДАННЫХ ЛОГОВ - аналогично смене даты ***
       console.log('[useDashboardLogic] 🧹 Clearing log data due to group change');
       logsHook.clearLogData();
     }
     
-    // *** UPDATE REF AFTER PROCESSING ***
     if (managingGroupId) {
       lastGroupIdRef.current = managingGroupId;
     }
   }, [managingGroupId, logsHook]);
 
-  // Combined loading state
+  // *** COMBINED LOADING STATE ***
   const combinedIsLoading = useMemo(() => {
     return isLoading || isLoadingLogs;
   }, [isLoading, isLoadingLogs]);
 
-  // Auto-hide messages
+  // *** AUTO-HIDE MESSAGES ***
   useEffect(() => {
     if (infoMessage) {
       const timer = setTimeout(() => {
@@ -297,7 +304,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     }
   }, [infoMessage]);
 
-  // Initial loading effect
+  // *** INITIAL LOADING EFFECT ***
   useEffect(() => {
     console.log('[useDashboardLogic] 🔄 Initial mount effect');
     setIsLoadingLogs(true);
@@ -313,7 +320,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     };
   }, []);
 
-  // Services ready effect
+  // *** SERVICES READY EFFECT ***
   useEffect(() => {
     if (logsService && staffMembersData.length > 0) {
       console.log('[useDashboardLogic] 📊 Services and staff data are ready');
@@ -323,7 +330,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     }
   }, [logsService, staffMembersData.length, isLoadingLogs]);
 
-  // Cleanup on unmount
+  // *** CLEANUP ON UNMOUNT ***
   useEffect(() => {
     return (): void => {
       if (debounceTimerRef.current) {
@@ -332,7 +339,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     };
   }, []);
 
-  // Helper functions
+  // *** HELPER FUNCTIONS ***
   const setLogLoadingState = useCallback((loading: boolean): void => {
     console.log(`[useDashboardLogic] Setting log loading state: ${loading}`);
     setIsLoadingLogs(loading);
@@ -343,7 +350,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     setIsLoadingLogs(true);
   }, []);
 
-  // *** ИСПРАВЛЕНО: Date change handler с правильной UTC обработкой ***
+  // *** DATE CHANGE HANDLER WITH UTC SUPPORT ***
   const handleDateChange = useCallback((date: Date | undefined): void => {
     if (date) {
       console.log('[useDashboardLogic] Date change requested:', formatDate(date));
@@ -361,11 +368,11 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
         console.log('[useDashboardLogic] Applying debounced date change:', formatDate(date));
         
         try {
-          // *** ИСПРАВЛЕНИЕ: Нормализуем дату перед сохранением ***
+          // *** NORMALIZE DATE BEFORE SAVING ***
           const normalizedDate = new Date(Date.UTC(
             date.getUTCFullYear(),
             date.getUTCMonth(),
-            1, // Всегда первое число месяца
+            1, // Always first day of month
             0, 0, 0, 0
           ));
           
@@ -374,15 +381,9 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
           console.log('[useDashboardLogic] Input display:', formatDate(date));
           console.log('[useDashboardLogic] Normalized date:', normalizedDate.toISOString());
           console.log('[useDashboardLogic] Normalized display:', formatDate(normalizedDate));
-          console.log('[useDashboardLogic] Month check:', {
-            inputMonth: date.getUTCMonth() + 1,
-            normalizedMonth: normalizedDate.getUTCMonth() + 1,
-            inputYear: date.getUTCFullYear(),
-            normalizedYear: normalizedDate.getUTCFullYear()
-          });
           
           sessionStorage.setItem('dashboardTab_selectedDate', normalizedDate.toISOString());
-          setSelectedDate(normalizedDate); // ✅ Используем нормализованную дату
+          setSelectedDate(normalizedDate);
           
           console.log('[useDashboardLogic] *** FINAL SELECTED DATE SET ***');
           console.log('[useDashboardLogic] Final date:', normalizedDate.toISOString());
@@ -395,13 +396,13 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
           console.warn('[useDashboardLogic] Error saving date:', error);
         }
         
-        // *** СБРОС СОСТОЯНИЯ ТАБЛИЦЫ ПРИ СМЕНЕ ДАТЫ ***
+        // *** RESET TABLE STATE ON DATE CHANGE ***
         if (resetTableStateCallbackRef.current) {
           console.log('[useDashboardLogic] 🔄 Calling table reset callback for date change');
           resetTableStateCallbackRef.current();
         }
         
-        // *** ОЧИСТКА ДАННЫХ ПРИ СМЕНЕ ДАТЫ ***
+        // *** CLEAR DATA ON DATE CHANGE ***
         logsHook.clearLogData();
         
         setTimeout((): void => {
@@ -413,7 +414,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     }
   }, [logsHook, setLogLoadingState]);
 
-  // *** ENHANCED AUTOSCHEDULE TOGGLE WITH PROPER SERVICE INTEGRATION ***
+  // *** AUTOSCHEDULE TOGGLE ***
   const handleAutoscheduleToggle = useCallback(async (staffId: string, checked: boolean): Promise<void> => {
     console.log('[useDashboardLogic] Autoschedule toggle:', staffId, checked);
     
@@ -440,66 +441,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     }
   }, [updateStaffMember, setIsLoading, setInfoMessage]);
 
-  // *** НОВАЯ ФУНКЦИЯ: Автозаполнение для staff с включенным autoschedule ***
-  const handleAutoFillAll = useCallback(async (): Promise<void> => {
-    console.log(`[useDashboardLogic] 🚀 AUTO FILL ALL STARTED for period: ${formatDate(selectedDate)}`);
-    
-    if (!fillService) {
-      setInfoMessage({
-        text: 'Fill service not available',
-        type: MessageBarType.error
-      });
-      return;
-    }
-
-    if (staffMembersData.length === 0) {
-      setInfoMessage({
-        text: 'No active staff members to process',
-        type: MessageBarType.warning
-      });
-      return;
-    }
-
-    // Фильтруем только staff с включенным autoschedule
-    const autoScheduleStaff = staffMembersData.filter(staff => staff.autoschedule);
-    
-    if (autoScheduleStaff.length === 0) {
-      setInfoMessage({
-        text: 'No staff members with Auto Schedule enabled',
-        type: MessageBarType.info
-      });
-      return;
-    }
-
-    console.log(`[useDashboardLogic] Found ${autoScheduleStaff.length} staff members with autoschedule enabled`);
-    autoScheduleStaff.forEach(staff => {
-      console.log(`[useDashboardLogic] - ${staff.name} (ID: ${staff.employeeId})`);
-    });
-
-    // *** ПОКАЗЫВАЕМ ЕДИНСТВЕННОЕ ПОДТВЕРЖДЕНИЕ ПЕРЕД НАЧАЛОМ ***
-    setConfirmDialog({
-      isOpen: true,
-      title: 'Auto Fill All Schedules',
-      message: `Do you want to automatically fill schedules for ${autoScheduleStaff.length} staff members with Auto Schedule enabled for ${formatDate(selectedDate)} period?\n\nThis will process each staff member automatically without additional confirmations.`,
-      confirmButtonText: 'Start Auto Fill',
-      cancelButtonText: 'Cancel',
-      confirmButtonColor: '#107c10',
-      onConfirm: async () => {
-        setConfirmDialog((prev: IConfirmDialogState) => ({ ...prev, isOpen: false }));
-        
-        // *** НАЧИНАЕМ АВТОМАТИЧЕСКУЮ ОБРАБОТКУ БЕЗ ДИАЛОГОВ ***
-        await performAutoFillAllOperation(autoScheduleStaff);
-      }
-    });
-  }, [
-    selectedDate,
-    fillService,
-    staffMembersData,
-    setInfoMessage,
-    setConfirmDialog
-  ]);
-
-  // *** НОВАЯ ФУНКЦИЯ: Выполняет автозаполнение БЕЗ ДИАЛОГОВ ***
+  // *** NEW: PERFORM AUTO-FILL OPERATION WITH DETAILED PROGRESS ***
   const performAutoFillAllOperation = useCallback(async (autoScheduleStaff: IStaffMemberWithAutoschedule[]): Promise<void> => {
     console.log(`[useDashboardLogic] 🤖 PERFORMING AUTO-FILL WITHOUT DIALOGS for ${autoScheduleStaff.length} staff members`);
     
@@ -512,20 +454,38 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
       const processedStaffIds: string[] = [];
       const processResults: string[] = [];
 
-      setInfoMessage({
-        text: `Starting auto-fill for ${autoScheduleStaff.length} staff members with Auto Schedule enabled...`,
-        type: MessageBarType.info
+      // *** INITIALIZE AUTO-FILL PROGRESS ***
+      setAutoFillProgress({
+        isActive: true,
+        currentStaffName: autoScheduleStaff[0].name,
+        nextStaffName: autoScheduleStaff.length > 1 ? autoScheduleStaff[1].name : undefined,
+        completed: 0,
+        total: autoScheduleStaff.length,
+        successCount: 0,
+        skippedCount: 0,
+        errorCount: 0,
+        isPaused: false,
+        remainingPauseTime: 0
       });
 
-      // Последовательная обработка каждого staff member БЕЗ ДИАЛОГОВ
+      // *** SEQUENTIAL PROCESSING OF EACH STAFF MEMBER WITHOUT DIALOGS ***
       for (let i = 0; i < autoScheduleStaff.length; i++) {
         const staff = autoScheduleStaff[i];
+        const nextStaff = i < autoScheduleStaff.length - 1 ? autoScheduleStaff[i + 1] : undefined;
         
         console.log(`[useDashboardLogic] 🔄 Auto-processing ${i + 1}/${autoScheduleStaff.length}: ${staff.name} WITHOUT DIALOGS`);
         
+        // *** UPDATE PROGRESS - CURRENT STAFF ***
+        setAutoFillProgress(prev => prev ? {
+          ...prev,
+          currentStaffName: staff.name,
+          nextStaffName: nextStaff?.name,
+          isPaused: false,
+          remainingPauseTime: 0
+        } : undefined);
+        
         try {
-          // *** ИСПОЛЬЗУЕМ processStaffMemberAuto ВМЕСТО handleFillStaff ***
-          // Это обходит все диалоги и обрабатывает автоматически
+          // *** USE processStaffMemberAuto INSTEAD OF handleFillStaff ***
           const result = await fillHook.processStaffMemberAuto(staff);
           
           if (result.success) {
@@ -533,15 +493,36 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
             processedStaffIds.push(staff.id);
             processResults.push(`✓ ${staff.name}: ${result.message}`);
             console.log(`[useDashboardLogic] ✅ Auto-fill completed for ${staff.name}: ${result.message}`);
+            
+            // *** UPDATE SUCCESS COUNTER ***
+            setAutoFillProgress(prev => prev ? {
+              ...prev,
+              completed: i + 1,
+              successCount: processedCount
+            } : undefined);
           } else {
             if (result.message.includes('⚠️') || result.message.includes('Skipped')) {
               skippedCount++;
               processResults.push(`⚠ ${staff.name}: ${result.message}`);
               console.log(`[useDashboardLogic] ⚠️ Auto-fill skipped for ${staff.name}: ${result.message}`);
+              
+              // *** UPDATE SKIPPED COUNTER ***
+              setAutoFillProgress(prev => prev ? {
+                ...prev,
+                completed: i + 1,
+                skippedCount: skippedCount
+              } : undefined);
             } else {
               errorCount++;
               processResults.push(`✗ ${staff.name}: ${result.message}`);
               console.error(`[useDashboardLogic] ❌ Auto-fill failed for ${staff.name}: ${result.message}`);
+              
+              // *** UPDATE ERROR COUNTER ***
+              setAutoFillProgress(prev => prev ? {
+                ...prev,
+                completed: i + 1,
+                errorCount: errorCount
+              } : undefined);
             }
           }
           
@@ -550,23 +531,71 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
           const errorMsg = error instanceof Error ? error.message : String(error);
           processResults.push(`✗ ${staff.name}: ${errorMsg}`);
           console.error(`[useDashboardLogic] ❌ Auto-fill error for ${staff.name}:`, error);
+          
+          // *** UPDATE ERROR COUNTER ***
+          setAutoFillProgress(prev => prev ? {
+            ...prev,
+            completed: i + 1,
+            errorCount: errorCount
+          } : undefined);
         }
 
-        // Добавляем задержку между обработками (кроме последнего)
+        // *** PAUSE BETWEEN PROCESSING WITH DETAILED DISPLAY ***
         if (i < autoScheduleStaff.length - 1) {
           console.log(`[useDashboardLogic] ⏳ Waiting ${AUTO_FILL_DELAY / 1000} seconds before next staff member...`);
           
-          // Обновляем сообщение с прогрессом
-          setInfoMessage({
-            text: `Processed ${i + 1}/${autoScheduleStaff.length} staff members. Next: ${autoScheduleStaff[i + 1].name} in ${AUTO_FILL_DELAY / 1000} seconds...`,
-            type: MessageBarType.info
-          });
+          // *** SHOW PAUSE STATE ***
+          setAutoFillProgress(prev => prev ? {
+            ...prev,
+            isPaused: true,
+            remainingPauseTime: AUTO_FILL_DELAY
+          } : undefined);
           
+          // *** ANIMATE REMAINING PAUSE TIME ***
+          const pauseInterval = setInterval(() => {
+            setAutoFillProgress(prev => {
+              if (!prev || !prev.isPaused) {
+                clearInterval(pauseInterval);
+                return prev;
+              }
+              
+              const newRemainingTime = Math.max(0, prev.remainingPauseTime - 100);
+              
+              if (newRemainingTime <= 0) {
+                clearInterval(pauseInterval);
+                return {
+                  ...prev,
+                  isPaused: false,
+                  remainingPauseTime: 0
+                };
+              }
+              
+              return {
+                ...prev,
+                remainingPauseTime: newRemainingTime
+              };
+            });
+          }, 100); // Update every 100ms for smooth animation
+          
+          // Wait for full delay time
           await new Promise(resolve => setTimeout(resolve, AUTO_FILL_DELAY));
+          
+          // Clear interval just in case
+          clearInterval(pauseInterval);
         }
       }
 
-      // Показываем итоговое сообщение
+      // *** COMPLETE PROGRESS ***
+      setAutoFillProgress(prev => prev ? {
+        ...prev,
+        isActive: false,
+        isPaused: false,
+        remainingPauseTime: 0,
+        currentStaffName: 'Completed',
+        nextStaffName: undefined
+      } : undefined);
+
+      // Show final message
       let resultType: MessageBarType;
       let resultMessage: string;
 
@@ -594,12 +623,17 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
         results: processResults
       });
 
-      // Обновляем логи для успешно обработанных сотрудников
+      // Update logs for successfully processed staff
       if (processedStaffIds.length > 0) {
         setTimeout(() => {
           void logsHook.handleBulkLogRefresh(processedStaffIds);
         }, 2000);
       }
+
+      // *** CLEAR PROGRESS AFTER A SHORT DELAY ***
+      setTimeout(() => {
+        setAutoFillProgress(undefined);
+      }, 3000);
 
     } catch (error) {
       console.error('[useDashboardLogic] Auto-fill all error:', error);
@@ -607,6 +641,9 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
         text: `Error in Auto Fill All operation: ${error}`,
         type: MessageBarType.error
       });
+      
+      // *** CLEAR PROGRESS ON ERROR ***
+      setAutoFillProgress(undefined);
     } finally {
       setIsLoading(false);
     }
@@ -617,6 +654,67 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     setInfoMessage
   ]);
 
+  // *** NEW: AUTO-FILL ALL FUNCTION ***
+  const handleAutoFillAll = useCallback(async (): Promise<void> => {
+    console.log(`[useDashboardLogic] 🚀 AUTO FILL ALL STARTED for period: ${formatDate(selectedDate)}`);
+    
+    if (!fillService) {
+      setInfoMessage({
+        text: 'Fill service not available',
+        type: MessageBarType.error
+      });
+      return;
+    }
+
+    if (staffMembersData.length === 0) {
+      setInfoMessage({
+        text: 'No active staff members to process',
+        type: MessageBarType.warning
+      });
+      return;
+    }
+
+    // Filter only staff with autoschedule enabled
+    const autoScheduleStaff = staffMembersData.filter(staff => staff.autoschedule);
+    
+    if (autoScheduleStaff.length === 0) {
+      setInfoMessage({
+        text: 'No staff members with Auto Schedule enabled',
+        type: MessageBarType.info
+      });
+      return;
+    }
+
+    console.log(`[useDashboardLogic] Found ${autoScheduleStaff.length} staff members with autoschedule enabled`);
+    autoScheduleStaff.forEach(staff => {
+      console.log(`[useDashboardLogic] - ${staff.name} (ID: ${staff.employeeId})`);
+    });
+
+    // *** SHOW SINGLE CONFIRMATION BEFORE STARTING ***
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Auto Fill All Schedules',
+      message: `Do you want to automatically fill schedules for ${autoScheduleStaff.length} staff members with Auto Schedule enabled for ${formatDate(selectedDate)} period?\n\nThis will process each staff member automatically without additional confirmations.`,
+      confirmButtonText: 'Start Auto Fill',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#107c10',
+      onConfirm: async () => {
+        setConfirmDialog((prev: IConfirmDialogState) => ({ ...prev, isOpen: false }));
+        
+        // *** START AUTOMATIC PROCESSING WITHOUT DIALOGS ***
+        await performAutoFillAllOperation(autoScheduleStaff);
+      }
+    });
+  }, [
+    selectedDate,
+    fillService,
+    staffMembersData,
+    setInfoMessage,
+    setConfirmDialog,
+    performAutoFillAllOperation
+  ]);
+
+  // *** RETURN COMPLETE INTERFACE ***
   return {
     // *** CORE STATE ***
     staffMembersData,
@@ -630,13 +728,16 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     // *** DATE HANDLING ***
     handleDateChange,
     
-    // *** AUTOSCHEDULE (KEPT IN MAIN HOOK) ***
+    // *** AUTOSCHEDULE ***
     handleAutoscheduleToggle,
     
     // *** FILL OPERATIONS ***
     handleFillStaff: fillHook.handleFillStaff,
-    handleFillAll: fillHook.handleFillAll, // СОХРАНЕНО: для совместимости
-    handleAutoFillAll, // ДОБАВЛЕНО: новая функция автозаполнения
+    handleFillAll: fillHook.handleFillAll, // LEGACY: for compatibility
+    handleAutoFillAll, // NEW: auto-fill function with progress tracking
+    
+    // *** AUTO-FILL PROGRESS ***
+    autoFillProgress, // NEW: real-time progress tracking
     
     // *** LOG OPERATIONS (DELEGATED TO LOGS HOOK) ***
     logsService,
@@ -646,7 +747,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     getLogCacheStats: logsHook.getLogStats,
     getCachedLogsForStaff: logsHook.getLiveLogsForStaff,
     
-    // *** NEW: TABLE RESET FUNCTIONALITY ***
+    // *** TABLE RESET FUNCTIONALITY ***
     registerTableResetCallback,
     
     // *** UTILITY FUNCTIONS ***
