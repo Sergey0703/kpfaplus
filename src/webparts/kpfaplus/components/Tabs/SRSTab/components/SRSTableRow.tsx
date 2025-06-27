@@ -64,6 +64,8 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   const [localLunch, setLocalLunch] = useState(item.lunch);
   const [localContract, setLocalContract] = useState(item.contract);
   const [localTypeOfLeave, setLocalTypeOfLeave] = useState(item.typeOfLeave);
+  // *** ИСПРАВЛЕНИЕ: Добавляем локальное состояние для timeLeave ***
+  const [localTimeLeave, setLocalTimeLeave] = useState(item.timeLeave);
 
   // Определяем состояние записи: Является ли запись праздничной
   const isHoliday = item.Holiday === 1;
@@ -75,7 +77,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   // Определяем состояние записи: Является ли запись удаленной
   const isDeleted = item.deleted === true;
 
-  console.log(`[SRSTableRow] Rendering row for item ${item.id} with NUMERIC TIME FIELDS integration:`, {
+  console.log(`[SRSTableRow] Rendering row for item ${item.id} with NUMERIC TIME FIELDS integration and FIXED timeLeave support:`, {
     date: item.date.toLocaleDateString(),
     isHoliday: isHoliday,
     holidayValue: item.Holiday,
@@ -87,18 +89,22 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     hasRestoreHandler: !!showRestoreConfirmDialog,
     hasAddShiftHandler: !!showAddShiftConfirmDialog,
     onAddShiftAvailable: !!onAddShift,
-    workingWithNumericFields: true
+    workingWithNumericFields: true,
+    timeLeave: item.timeLeave,
+    localTimeLeave: localTimeLeave,
+    timeLeaveFixed: true
   });
 
-  // Синхронизируем локальное состояние с props при изменении item
+  // *** ИСПРАВЛЕНИЕ: Синхронизируем локальное состояние с props при изменении item (включая timeLeave) ***
   useEffect(() => {
-    console.log('[SRSTableRow] Syncing local state with item (numeric time fields support):', {
+    console.log('[SRSTableRow] Syncing local state with item (numeric time fields + timeLeave support):', {
       itemId: item.id,
       startWork: item.startWork,
       finishWork: item.finishWork,
       lunch: item.lunch,
       contract: item.contract,
       typeOfLeave: item.typeOfLeave,
+      timeLeave: item.timeLeave, // *** ИСПРАВЛЕНИЕ ***
       deleted: item.deleted,
       holiday: item.Holiday
     });
@@ -108,7 +114,9 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     setLocalLunch(item.lunch);
     setLocalContract(item.contract);
     setLocalTypeOfLeave(item.typeOfLeave);
-  }, [item.id, item.startWork, item.finishWork, item.lunch, item.contract, item.typeOfLeave, item.deleted]);
+    // *** ИСПРАВЛЕНИЕ: Синхронизируем timeLeave ***
+    setLocalTimeLeave(item.timeLeave);
+  }, [item.id, item.startWork, item.finishWork, item.lunch, item.contract, item.typeOfLeave, item.timeLeave, item.deleted]);
 
   // *** ОБНОВЛЕНО: Обработчик клика по кнопке "+Shift" с числовыми полями времени ***
   const handleAddShiftClick = useCallback((): void => {
@@ -368,6 +376,22 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     }
   }, [item, contractNumberChangeHandler, localContract]);
 
+  // *** ИСПРАВЛЕНИЕ: Добавляем обработчик изменения Time Leave ***
+  const handleTimeLeaveChange = useCallback((event: React.ChangeEvent<HTMLInputElement>): void => {
+    const value = event.target.value;
+    console.log('[SRSTableRow] *** TIME LEAVE CHANGE ***');
+    console.log('[SRSTableRow] Time leave changing from', localTimeLeave, 'to', value);
+    
+    // Валидация: разрешаем только числа и точку
+    if (value === '' || /^\d*\.?\d*$/.test(value)) {
+      setLocalTimeLeave(value);
+      onItemChange(item, 'timeLeave', value);
+      console.log('[SRSTableRow] Time leave change applied to local state and parent');
+    } else {
+      console.log('[SRSTableRow] Invalid time leave value, ignoring:', value);
+    }
+  }, [item, onItemChange, localTimeLeave]);
+
   // ===============================================
   // РЕАЛЬНЫЕ ОБРАБОТЧИКИ УДАЛЕНИЯ/ВОССТАНОВЛЕНИЯ
   // ===============================================
@@ -487,20 +511,22 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   });
 
   // Логирование текущих отображаемых значений для отладки
-  console.log('[SRSTableRow] Rendering row for item', item.id, 'with display values and NUMERIC time fields:', {
+  console.log('[SRSTableRow] Rendering row for item', item.id, 'with display values, NUMERIC time fields, and FIXED timeLeave:', {
     displayWorkTime,
     localStartWork,
     localFinishWork,
     localLunch,
     localContract,
     localTypeOfLeave,
+    localTimeLeave, // *** ИСПРАВЛЕНИЕ ***
     isTimesEqual,
     isHoliday,
     isDeleted,
     hasRealDeleteIntegration: !!showDeleteConfirmDialog,
     hasRealRestoreIntegration: !!showRestoreConfirmDialog,
     hasAddShiftIntegration: !!showAddShiftConfirmDialog,
-    numericTimeFieldsSupport: true
+    numericTimeFieldsSupport: true,
+    timeLeaveFixed: true // *** НОВОЕ ***
   });
 
   return (
@@ -627,14 +653,15 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
         />
       </td>
 
-      {/* Time Leave cell */}
+      {/* *** ИСПРАВЛЕНО: Time Leave cell с локальным состоянием и правильным обработчиком *** */}
       <td style={cellStyle}>
         <input
           type="text"
-          value={item.timeLeave}
-          onChange={(e) => onItemChange(item, 'timeLeave', e.target.value)}
-          maxLength={4}
+          value={localTimeLeave}
+          onChange={handleTimeLeaveChange}
+          maxLength={6}
           disabled={isDeleted}
+          placeholder="0.00"
           style={{
             width: '70px',
             height: '28px',
@@ -643,7 +670,8 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
             textAlign: 'center',
             borderRadius: '2px',
             backgroundColor: isHoliday ? '#ffe6f0' : (isDeleted ? '#f5f5f5' : 'white'),
-            color: isHoliday ? '#d83b01' : undefined
+            color: isHoliday ? '#d83b01' : (isDeleted ? '#888' : 'inherit'),
+            ...(isDeleted && { textDecoration: 'line-through' })
           }}
         />
       </td>
