@@ -140,8 +140,8 @@ const getSavedDates = (): { fromDate: Date; toDate: Date } => {
 };
 
 /**
- * Функция для рассчета общего количества часов из записей SRS
- * ИСПРАВЛЕНО: Теперь форматирует в часы:минуты (HH:MM)
+ * *** ИСПРАВЛЕНО: Функция для рассчета общего количества часов из записей SRS ***
+ * Правильно парсит различные форматы времени и исключает удаленные записи
  */
 const calculateTotalHours = (records: IStaffRecord[]): string => {
   try {
@@ -151,60 +151,137 @@ const calculateTotalHours = (records: IStaffRecord[]): string => {
     
     let totalMinutes = 0;
     
+    console.log('[calculateTotalHours] *** CALCULATING TOTAL HOURS WITH FIXED LOGIC ***');
+    console.log('[calculateTotalHours] Records to process:', records.length);
+    
     records.forEach((record, index) => {
       try {
-        // Извлекаем рабочее время из поля WorkTime (формат "7.50" или "7:30")
+        // *** ИСПРАВЛЕНО: Проверяем deleted статус - не включаем удаленные записи ***
+        if (record.Deleted === 1) {
+          console.log(`[calculateTotalHours] Record ${index} (ID: ${record.ID}) is deleted, skipping`);
+          return; // Пропускаем удаленные записи
+        }
+
+        let recordMinutes = 0;
+        
+        // *** ПРИОРИТЕТ 1: Используем вычисленное время из поля WorkTime (расчетное поле) ***
         if (record.WorkTime) {
-          const workTimeStr = record.WorkTime.toString();
-          
-          // ИСПРАВЛЕНО: Поддерживаем оба формата - точка и двоеточие
-          let hours = 0;
-          let minutes = 0;
+          const workTimeStr = record.WorkTime.toString().trim();
+          console.log(`[calculateTotalHours] Record ${index} (ID: ${record.ID}) WorkTime:`, workTimeStr);
           
           if (workTimeStr.includes(':')) {
-            // Формат "7:30"
+            // Формат "7:30" (часы:минуты)
             const [hoursStr, minutesStr] = workTimeStr.split(':');
-            hours = parseInt(hoursStr, 10) || 0;
-            minutes = parseInt(minutesStr, 10) || 0;
+            const hours = parseInt(hoursStr, 10) || 0;
+            const minutes = parseInt(minutesStr, 10) || 0;
+            recordMinutes = (hours * 60) + minutes;
+            console.log(`[calculateTotalHours] Parsed H:M format: ${hours}h ${minutes}m = ${recordMinutes} minutes`);
           } else if (workTimeStr.includes('.')) {
-            // Формат "7.50" (где .50 означает 50 минут)
+            // Формат "7.50" (часы.десятичные_минуты)
             const [hoursStr, minutesDecimalStr] = workTimeStr.split('.');
-            hours = parseInt(hoursStr, 10) || 0;
-            const minutesDecimal = parseInt(minutesDecimalStr, 10) || 0;
-            minutes = minutesDecimal; // Прямое преобразование, так как .50 = 50 минут
+            const hours = parseInt(hoursStr, 10) || 0;
+            const minutesDecimal = parseInt(minutesDecimalStr.padEnd(2, '0'), 10) || 0;
+            // Конвертируем десятичные минуты (например, 50 = 50 минут, 25 = 25 минут)
+            recordMinutes = (hours * 60) + minutesDecimal;
+            console.log(`[calculateTotalHours] Parsed decimal format: ${hours}h ${minutesDecimal}m = ${recordMinutes} minutes`);
           } else {
-            // Только часы
-            hours = parseInt(workTimeStr, 10) || 0;
-            minutes = 0;
+            // Только часы "8" или десятичные часы "7.5"
+            const hours = parseFloat(workTimeStr) || 0;
+            recordMinutes = Math.round(hours * 60);
+            console.log(`[calculateTotalHours] Parsed hours only: ${hours}h = ${recordMinutes} minutes`);
           }
-          
-          // Конвертируем в общие минуты
-          const recordMinutes = (hours * 60) + minutes;
-          totalMinutes += recordMinutes;
-          
-          console.log(`[useSRSTabState] Record ${index}: ${workTimeStr} -> ${hours}h ${minutes}m = ${recordMinutes} total minutes`);
         }
         
-        // Альтернативно, используем LeaveTime если WorkTime недоступно
+        // *** ПРИОРИТЕТ 2: Если WorkTime пустое, используем LeaveTime (для отпусков) ***
         else if (record.LeaveTime && record.LeaveTime > 0) {
-          const leaveHours = record.LeaveTime;
-          const leaveMinutes = leaveHours * 60;
-          totalMinutes += leaveMinutes;
-          
-          console.log(`[useSRSTabState] Record ${index}: LeaveTime ${leaveHours}h = ${leaveMinutes} minutes`);
+          const leaveHours = parseFloat(record.LeaveTime.toString()) || 0;
+          recordMinutes = Math.round(leaveHours * 60);
+          console.log(`[calculateTotalHours] Using LeaveTime: ${leaveHours}h = ${recordMinutes} minutes`);
         }
+        
+        // *** ПРИОРИТЕТ 3: Попытка рассчитать время из ShiftDate полей (числовые поля) ***
+        else if (record.ShiftDate1Hours !== undefined && record.ShiftDate2Hours !== undefined) {
+          console.log(`[calculateTotalHours] Calculating from ShiftDate numeric fields for record ${index}`);
+          
+          const startHours = record.ShiftDate1Hours || 0;
+          const startMinutes = record.ShiftDate1Minutes || 0;
+          const endHours = record.ShiftDate2Hours || 0;
+          const endMinutes = record.ShiftDate2Minutes || 0;
+          const lunchMinutes = record.TimeForLunch || 0;
+          
+          const startTotalMinutes = (startHours * 60) + startMinutes;
+          let endTotalMinutes = (endHours * 60) + endMinutes;
+          
+          // Обработка ночных смен
+          if (endTotalMinutes <= startTotalMinutes) {
+            endTotalMinutes += (24 * 60); // Добавляем сутки
+          }
+          
+          const workMinutes = Math.max(0, endTotalMinutes - startTotalMinutes - lunchMinutes);
+          recordMinutes = workMinutes;
+          
+          console.log(`[calculateTotalHours] Calculated from numeric shift fields: ${startHours}:${startMinutes}-${endHours}:${endMinutes}, lunch:${lunchMinutes} = ${recordMinutes} minutes`);
+        }
+        
+        // *** ПРИОРИТЕТ 4: Попытка рассчитать время из ShiftDate полей (Date объекты) ***
+        else if (record.ShiftDate1 && record.ShiftDate2) {
+          console.log(`[calculateTotalHours] Calculating from ShiftDate Date objects for record ${index}`);
+          
+          try {
+            const startDate = new Date(record.ShiftDate1);
+            const endDate = new Date(record.ShiftDate2);
+            const lunchMinutes = record.TimeForLunch || 0;
+            
+            if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+              let diffMinutes = (endDate.getTime() - startDate.getTime()) / (1000 * 60);
+              
+              // Обработка ночных смен
+              if (diffMinutes < 0) {
+                diffMinutes += (24 * 60); // Добавляем сутки
+              }
+              
+              const workMinutes = Math.max(0, diffMinutes - lunchMinutes);
+              recordMinutes = Math.round(workMinutes);
+              
+              console.log(`[calculateTotalHours] Calculated from Date objects: ${startDate.toTimeString()}-${endDate.toTimeString()}, lunch:${lunchMinutes} = ${recordMinutes} minutes`);
+            }
+          } catch (dateError) {
+            console.warn(`[calculateTotalHours] Error parsing Date objects for record ${index}:`, dateError);
+          }
+        }
+        
+        else {
+          console.log(`[calculateTotalHours] Record ${index} (ID: ${record.ID}) has no usable time data, skipping`);
+          return;
+        }
+        
+        // *** ВАЛИДАЦИЯ: Проверяем разумность результата ***
+        if (recordMinutes < 0) {
+          console.warn(`[calculateTotalHours] Record ${index} produced negative minutes (${recordMinutes}), setting to 0`);
+          recordMinutes = 0;
+        } else if (recordMinutes > (24 * 60)) {
+          console.warn(`[calculateTotalHours] Record ${index} produced more than 24 hours (${recordMinutes} minutes), capping at 24h`);
+          recordMinutes = 24 * 60;
+        }
+        
+        totalMinutes += recordMinutes;
+        
+        console.log(`[calculateTotalHours] Record ${index} (ID: ${record.ID}) contributes ${recordMinutes} minutes. Running total: ${totalMinutes} minutes`);
+        
       } catch (recordError) {
-        console.error(`[useSRSTabState] Error processing record ${index}:`, recordError);
+        console.error(`[calculateTotalHours] Error processing record ${index}:`, recordError);
       }
     });
     
-    // ИСПРАВЛЕНО: Конвертируем в часы:минуты формат
+    // *** ИСПРАВЛЕНО: Конвертируем в часы:минуты формат ***
     const totalHours = Math.floor(totalMinutes / 60);
     const remainingMinutes = totalMinutes % 60;
     const formattedHours = `${totalHours}:${remainingMinutes.toString().padStart(2, '0')}`;
     
-    console.log('[useSRSTabState] calculateTotalHours result:', {
-      recordsCount: records.length,
+    console.log('[calculateTotalHours] *** FINAL CALCULATION RESULT ***:', {
+      totalRecords: records.length,
+      processedRecords: records.filter(r => r.Deleted !== 1).length,
+      deletedRecords: records.filter(r => r.Deleted === 1).length,
       totalMinutes,
       totalHours,
       remainingMinutes,
@@ -214,7 +291,7 @@ const calculateTotalHours = (records: IStaffRecord[]): string => {
     return formattedHours;
     
   } catch (error) {
-    console.error('[useSRSTabState] Error calculating total hours:', error);
+    console.error('[calculateTotalHours] *** CRITICAL ERROR calculating total hours ***:', error);
     return '0:00';
   }
 };
@@ -266,14 +343,15 @@ export const useSRSTabState = (): UseSRSTabStateReturn => {
     isInitialized: false
   });
   
-  console.log('[useSRSTabState] State initialized with dates, types of leave, holidays and showDeleted support:', {
+  console.log('[useSRSTabState] State initialized with FIXED TOTAL HOURS CALCULATION:', {
     fromDate: state.fromDate.toISOString(),
     toDate: state.toDate.toISOString(),
     daysInRange: SRSDateUtils.calculateDaysInRange(state.fromDate, state.toDate),
     typesOfLeaveSupport: true,
-    holidaysSupport: true, // *** НОВОЕ ***
-    showDeletedSupport: true, // *** НОВОЕ ***
-    showDeleted: state.showDeleted
+    holidaysSupport: true,
+    showDeletedSupport: true,
+    showDeleted: state.showDeleted,
+    totalHoursCalculationFixed: true
   });
   
   return {
@@ -284,17 +362,20 @@ export const useSRSTabState = (): UseSRSTabStateReturn => {
 
 /**
  * Вспомогательные функции для работы с состоянием SRS Tab
- * ОБНОВЛЕНО: Добавлены функции для работы с типами отпусков, праздниками и showDeleted
+ * ОБНОВЛЕНО: Добавлены функции для работы с типами отпусков, праздниками, showDeleted и ИСПРАВЛЕН расчет часов
  */
 export const SRSTabStateHelpers = {
   
   /**
-   * Обновляет SRS записи и пересчитывает общее количество часов
+   * *** ИСПРАВЛЕНО: Обновляет SRS записи и пересчитывает общее количество часов ***
    */
   updateSRSRecords: (
     setState: React.Dispatch<React.SetStateAction<ISRSTabState>>,
     records: IStaffRecord[]
   ): void => {
+    console.log('[SRSTabStateHelpers] *** UPDATING SRS RECORDS WITH FIXED CALCULATION ***');
+    console.log('[SRSTabStateHelpers] Records count:', records.length);
+    
     const totalHours = calculateTotalHours(records);
     
     setState(prevState => ({
@@ -305,9 +386,11 @@ export const SRSTabStateHelpers = {
       errorSRS: undefined
     }));
     
-    console.log('[SRSTabStateHelpers] updateSRSRecords:', {
+    console.log('[SRSTabStateHelpers] SRS records updated:', {
       recordsCount: records.length,
-      totalHours
+      totalHours,
+      deletedRecords: records.filter(r => r.Deleted === 1).length,
+      activeRecords: records.filter(r => r.Deleted !== 1).length
     });
   },
 
@@ -403,28 +486,14 @@ export const SRSTabStateHelpers = {
     const holidayRecords = state.srsRecords.filter(record => record.Holiday === 1).length;
 
     // Подсчитываем часы по праздничным записям
-    let holidayMinutes = 0;
-    state.srsRecords.forEach(record => {
-      if (record.Holiday === 1 && record.WorkTime) {
-        const workTimeStr = record.WorkTime.toString();
-        if (workTimeStr.includes(':')) {
-          const [hoursStr, minutesStr] = workTimeStr.split(':');
-          const hours = parseInt(hoursStr, 10) || 0;
-          const minutes = parseInt(minutesStr, 10) || 0;
-          holidayMinutes += (hours * 60) + minutes;
-        }
-      }
-    });
-
-    const holidayHours = Math.floor(holidayMinutes / 60);
-    const remainingMinutes = holidayMinutes % 60;
-    const holidayWorkingHours = `${holidayHours}:${remainingMinutes.toString().padStart(2, '0')}`;
+    const holidayRecordsArray = state.srsRecords.filter(record => record.Holiday === 1);
+    const holidayTotalHours = calculateTotalHours(holidayRecordsArray);
 
     const statistics = {
       totalHolidays: state.holidays.length,
       holidaysInPeriod,
       holidayRecords,
-      holidayWorkingHours
+      holidayWorkingHours: holidayTotalHours
     };
 
     console.log('[SRSTabStateHelpers] getHolidaysStatistics:', statistics);
@@ -474,6 +543,45 @@ export const SRSTabStateHelpers = {
 
     console.log('[SRSTabStateHelpers] getDeletedRecordsStatistics:', statistics);
     return statistics;
+  },
+
+  /**
+   * *** НОВАЯ ФУНКЦИЯ: Обновляет только общее количество часов ***
+   * Используется для пересчета без изменения записей
+   */
+  updateTotalHours: (
+    setState: React.Dispatch<React.SetStateAction<ISRSTabState>>,
+    totalHours: string
+  ): void => {
+    setState(prevState => ({
+      ...prevState,
+      totalHours: totalHours
+    }));
+    
+    console.log('[SRSTabStateHelpers] Total hours updated to:', totalHours);
+  },
+
+  /**
+   * *** НОВАЯ ФУНКЦИЯ: Пересчитывает общее время для текущих записей ***
+   * Используется когда нужно пересчитать часы без обновления записей
+   */
+  recalculateTotalHours: (
+    setState: React.Dispatch<React.SetStateAction<ISRSTabState>>
+  ): void => {
+    setState(prevState => {
+      const newTotalHours = calculateTotalHours(prevState.srsRecords);
+      
+      console.log('[SRSTabStateHelpers] Recalculating total hours:', {
+        oldTotal: prevState.totalHours,
+        newTotal: newTotalHours,
+        recordsCount: prevState.srsRecords.length
+      });
+      
+      return {
+        ...prevState,
+        totalHours: newTotalHours
+      };
+    });
   },
   
   /**
@@ -652,6 +760,12 @@ export const SRSTabStateHelpers = {
       isInitialized: false
     });
     
-    console.log('[SRSTabStateHelpers] State reset to initial values with types of leave, holidays and showDeleted support');
+    console.log('[SRSTabStateHelpers] State reset to initial values with FIXED total hours calculation, types of leave, holidays and showDeleted support');
   }
 };
+
+/**
+ * *** ЭКСПОРТИРУЕМ ФУНКЦИЮ РАСЧЕТА ДЛЯ ИСПОЛЬЗОВАНИЯ В ДРУГИХ ФАЙЛАХ ***
+ * Позволяет использовать исправленную логику расчета в useSRSTabLogic.ts
+ */
+export { calculateTotalHours };
