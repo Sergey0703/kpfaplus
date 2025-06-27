@@ -9,7 +9,7 @@ export const SRSFilterControls: React.FC<ISRSFilterControlsProps> = (props) => {
   const {
     fromDate,
     toDate,
-    totalHours,
+    calculatedTotalHours, // *** ИЗМЕНЕНО: calculatedTotalHours вместо totalHours ***
     isLoading,
     onFromDateChange,
     onToDateChange,
@@ -21,13 +21,14 @@ export const SRSFilterControls: React.FC<ISRSFilterControlsProps> = (props) => {
     hasCheckedItems
   } = props;
 
-  console.log('[SRSFilterControls] Rendering with props:', {
+  console.log('[SRSFilterControls] Rendering with REAL-TIME TOTAL HOURS:', {
     fromDate: fromDate.toISOString(),
     toDate: toDate.toISOString(),
-    totalHours,
+    calculatedTotalHours, // *** ИЗМЕНЕНО: calculatedTotalHours вместо totalHours ***
     isLoading,
     hasChanges,
-    hasCheckedItems
+    hasCheckedItems,
+    realTimeCalculation: true // *** НОВОЕ: Индикатор вычисления в реальном времени ***
   });
 
   return (
@@ -128,20 +129,35 @@ export const SRSFilterControls: React.FC<ISRSFilterControlsProps> = (props) => {
         />
       </div>
 
-      {/* Total Hours и кнопки Save */}
+      {/* *** ОБНОВЛЕНО: Total Hours теперь получает вычисленное значение в реальном времени *** */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: '10px' // Reduced from 15px to 10px
       }}>
-        {/* Total Hours */}
+        {/* Total Hours - теперь с real-time вычислением */}
         <div style={{
           color: '#d83b01',
           fontWeight: '600',
-          fontSize: '14px'
+          fontSize: '14px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
         }}>
-          Total Hours: {totalHours}
+          <span>Total Hours: {calculatedTotalHours}</span>
+          {/* *** НОВОЕ: Индикатор real-time вычисления *** */}
+          <span style={{
+            fontSize: '11px',
+            color: '#107c10',
+            fontWeight: 'normal',
+            padding: '2px 6px',
+            backgroundColor: '#f0f9f0',
+            borderRadius: '3px',
+            border: '1px solid #c7e0c7'
+          }}>
+            Real-time
+          </span>
         </div>
 
         {/* Кнопки Save */}

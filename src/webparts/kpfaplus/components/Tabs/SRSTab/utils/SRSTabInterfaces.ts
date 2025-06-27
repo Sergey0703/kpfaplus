@@ -59,12 +59,12 @@ export interface ISRSTableOptions {
 }
 
 /**
- * Пропсы для компонента SRSFilterControls
+ * *** ОБНОВЛЕНО: Пропсы для компонента SRSFilterControls - убран totalHours, добавлен calculatedTotalHours ***
  */
 export interface ISRSFilterControlsProps {
   fromDate: Date;
   toDate: Date;
-  totalHours: string;
+  calculatedTotalHours: string; // *** ИЗМЕНЕНО: calculatedTotalHours вместо totalHours ***
   isLoading: boolean;
   onFromDateChange: (date: Date | undefined) => void;
   onToDateChange: (date: Date | undefined) => void;
@@ -77,9 +77,7 @@ export interface ISRSFilterControlsProps {
 }
 
 /**
- * Пропсы для компонента SRSTable
- * *** ИСПРАВЛЕНО: Добавлены showDeleted и onToggleShowDeleted ***
- * *** НОВОЕ: Добавлен onAddShift ***
+ * *** ОБНОВЛЕНО: Пропсы для компонента SRSTable - убраны дополнительные пропсы для SRSFilterControls ***
  */
 export interface ISRSTableProps {
   items: ISRSRecord[];
@@ -124,14 +122,14 @@ export interface ISRSTableRowProps {
 }
 
 /**
- * Состояние SRS вкладки (для будущего использования)
- * ОБНОВЛЕНО: Добавлены типы отпусков и showDeleted
+ * *** ОБНОВЛЕНО: Состояние SRS вкладки - убрано totalHours ***
+ * Убрано поле totalHours, так как теперь оно вычисляется в реальном времени
  */
 export interface ISRSTabState {
   fromDate: Date;
   toDate: Date;
   srsData: ISRSRecord[];
-  totalHours: string;
+  // *** УБРАНО: totalHours: string; - теперь вычисляется в реальном времени ***
   isLoading: boolean;
   error?: string;
   hasUnsavedChanges: boolean;
@@ -247,8 +245,7 @@ export interface ISRSFilterParams {
 }
 
 /**
- * Расширенные пропсы для главного компонента SRS Tab
- * *** ИСПРАВЛЕНО: Обязательные пропсы для showDeleted ***
+ * *** ОБНОВЛЕНО: Расширенные пропсы для главного компонента SRS Tab - убран totalHours ***
  */
 export interface ISRSTabProps {
   // Основные пропсы
@@ -261,7 +258,7 @@ export interface ISRSTabProps {
   fromDate: Date;
   toDate: Date;
   srsRecords: ISRSRecord[];
-  totalHours: string;
+  // *** УБРАНО: totalHours: string; - теперь вычисляется в реальном времени ***
   
   // Типы отпусков
   typesOfLeave: ISRSTypeOfLeave[];

@@ -8,7 +8,6 @@ import { useTypesOfLeave } from './useTypesOfLeave';
 import { useHolidays } from './useHolidays';
 import { SRSDateUtils } from './SRSDateUtils';
 import { ISRSRecord } from './SRSTabInterfaces';
-import { calculateSRSWorkTime } from './SRSTimeCalculationUtils';
 import { StaffRecordsService, IStaffRecord } from '../../../../services/StaffRecordsService';
 
 // *** ОБНОВЛЕНО: Интерфейс данных для новой смены с числовыми полями времени ***
@@ -27,7 +26,8 @@ export interface INewSRSShiftData {
 }
 
 /**
- * Интерфейс для возвращаемых значений главного хука useSRSTabLogic
+ * *** УПРОЩЕННЫЙ: Интерфейс для возвращаемых значений главного хука useSRSTabLogic ***
+ * Убран totalHours - теперь вычисляется в SRSTable в реальном времени
  */
 export interface UseSRSTabLogicReturn extends ISRSTabState {
   // Обработчики дат
@@ -49,7 +49,7 @@ export interface UseSRSTabLogicReturn extends ISRSTabState {
   onItemCheck: (itemId: string, checked: boolean) => void;
   onSelectAll: (checked: boolean) => void;
   
-  // Обработчики изменения элементов таблицы
+  // *** УПРОЩЕННЫЕ: Обработчики изменения элементов таблицы - убраны пересчеты totalHours ***
   onItemChange: (item: ISRSRecord, field: string, value: string | boolean | { hours: string; minutes: string }) => void;
   onLunchTimeChange: (item: ISRSRecord, value: string) => void;
   onContractNumberChange: (item: ISRSRecord, value: string) => void;
@@ -81,13 +81,14 @@ export interface UseSRSTabLogicReturn extends ISRSTabState {
 }
 
 /**
- * Главный оркестрирующий хук для SRS Tab
- * ОБНОВЛЕНО: Добавлен handleAddShift обработчик с интеграцией числовых полей времени
+ * *** УПРОЩЕННЫЙ: Главный оркестрирующий хук для SRS Tab ***
+ * УБРАНЫ: Проблемные useEffect'ы для totalHours, пересчеты в handleItemChange
+ * СОХРАНЕНЫ: Все реальные операции с сервером (delete/restore/addShift)
  */
 export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   const { selectedStaff, context, currentUserId, managingGroupId } = props;
 
-  console.log('[useSRSTabLogic] Orchestrator hook initialized with NUMERIC TIME FIELDS support:', {
+  console.log('[useSRSTabLogic] *** SIMPLIFIED ORCHESTRATOR HOOK (NO TOTAL HOURS IN STATE) ***:', {
     hasSelectedStaff: !!selectedStaff,
     selectedStaffId: selectedStaff?.id,
     selectedStaffEmployeeId: selectedStaff?.employeeId,
@@ -96,8 +97,10 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     managingGroupId,
     realDeleteRestoreEnabled: true,
     realAddShiftEnabled: true,
-    numericTimeFieldsSupport: true, // *** НОВОЕ ***
-    showDeletedSupport: true
+    numericTimeFieldsSupport: true,
+    showDeletedSupport: true,
+    simplifiedArchitecture: true, // *** НОВОЕ: Упрощенная архитектура ***
+    totalHoursCalculation: 'Real-time in SRSTable' // *** НОВОЕ ***
   });
 
   // Инициализируем состояние SRS Tab
@@ -138,6 +141,10 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     showDeleted: state.showDeleted,
     setState
   });
+
+  // *** УБРАНЫ: Проблемные useEffect'ы для пересчета totalHours ***
+  // Больше нет автоматических пересчетов totalHours при изменении srsRecords или showDeleted
+  // Total Hours теперь вычисляется в реальном времени в SRSTable
 
   // ===============================================
   // *** ОБНОВЛЕНА ФУНКЦИЯ: ДОБАВЛЕНИЕ СМЕНЫ С ЧИСЛОВЫМИ ПОЛЯМИ ВРЕМЕНИ ***
@@ -505,9 +512,10 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   // ===============================================
 
   const handleToggleShowDeleted = useCallback((checked: boolean): void => {
-    console.log('[useSRSTabLogic] *** HANDLE TOGGLE SHOW DELETED ***');
+    console.log('[useSRSTabLogic] *** HANDLE TOGGLE SHOW DELETED (SIMPLIFIED ARCHITECTURE) ***');
     console.log('[useSRSTabLogic] Previous showDeleted state:', state.showDeleted);
     console.log('[useSRSTabLogic] New showDeleted value:', checked);
+    console.log('[useSRSTabLogic] Total Hours will be recalculated in SRSTable automatically');
     
     SRSTabStateHelpers.setShowDeleted(setState, checked);
     
@@ -515,64 +523,26 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     SRSTabStateHelpers.setHasUnsavedChanges(setState, false);
     
     console.log('[useSRSTabLogic] showDeleted state updated, data will be automatically reloaded via useSRSData effect');
-    console.log('[useSRSTabLogic] *** TOGGLE SHOW DELETED COMPLETE ***');
+    console.log('[useSRSTabLogic] *** TOGGLE SHOW DELETED COMPLETE (SIMPLIFIED) ***');
     
   }, [state.showDeleted, setState]);
 
   // ===============================================
-  // ОБРАБОТЧИКИ ИЗМЕНЕНИЯ ЭЛЕМЕНТОВ ТАБЛИЦЫ
+  // *** УПРОЩЕННЫЕ: ОБРАБОТЧИКИ ИЗМЕНЕНИЯ ЭЛЕМЕНТОВ ТАБЛИЦЫ ***
   // ===============================================
 
+  /**
+   * *** УПРОЩЕН: Обработчик изменения элементов без пересчета totalHours ***
+   * Total Hours теперь вычисляется в реальном времени в SRSTable
+   */
   const handleItemChange = useCallback((item: ISRSRecord, field: string, value: string | boolean | { hours: string; minutes: string }): void => {
-    console.log('[useSRSTabLogic] *** HANDLE ITEM CHANGE WITH NUMERIC TIME FIELDS SUPPORT ***');
+    console.log('[useSRSTabLogic] *** SIMPLIFIED ITEM CHANGE (NO TOTAL HOURS RECALC) ***');
     console.log('[useSRSTabLogic] Item ID:', item.id);
     console.log('[useSRSTabLogic] Field:', field);
     console.log('[useSRSTabLogic] Value:', value);
-    console.log('[useSRSTabLogic] Value type:', typeof value);
+    console.log('[useSRSTabLogic] Total Hours will be recalculated in SRSTable automatically');
     
-    const updatedItem = { ...item };
-    
-    if (field === 'startWork' && typeof value === 'object') {
-      updatedItem.startWork = value;
-      console.log('[useSRSTabLogic] Updated startWork (numeric fields):', value);
-    } else if (field === 'finishWork' && typeof value === 'object') {
-      updatedItem.finishWork = value;
-      console.log('[useSRSTabLogic] Updated finishWork (numeric fields):', value);
-    } else if (field === 'relief') {
-      updatedItem.relief = value as boolean;
-      console.log('[useSRSTabLogic] Updated relief (NO time recalculation):', value);
-    } else if (field === 'workingHours') {
-      updatedItem.hours = value as string;
-      console.log('[useSRSTabLogic] Updated workingHours directly (pre-calculated):', value);
-    } else if (field === 'typeOfLeave') {
-      updatedItem.typeOfLeave = value as string;
-      console.log('[useSRSTabLogic] Updated typeOfLeave:', value);
-    } else if (field === 'timeLeave') {
-      updatedItem.timeLeave = value as string;
-      console.log('[useSRSTabLogic] Updated timeLeave:', value);
-    } else {
-      const typedItem = updatedItem as unknown as Record<string, unknown>;
-      typedItem[field] = value;
-      console.log('[useSRSTabLogic] Updated field', field, 'with value:', value);
-    }
-    
-    // Пересчитываем время ТОЛЬКО для временных полей (НЕ для relief, typeOfLeave и workingHours)
-    const timeFields = ['startWork', 'finishWork'];
-    if (timeFields.includes(field)) {
-      const newWorkTime = calculateSRSWorkTime(updatedItem);
-      updatedItem.hours = newWorkTime;
-      console.log('[useSRSTabLogic] *** TIME RECALCULATED WITH NUMERIC FIELDS ***:', {
-        itemId: item.id,
-        field,
-        newValue: value,
-        calculatedTime: newWorkTime,
-        reliefStatus: updatedItem.relief
-      });
-    } else {
-      console.log('[useSRSTabLogic] *** NO TIME RECALCULATION *** for field:', field);
-    }
-    
-    // Сохраняем изменения в локальном состоянии
+    // Сохраняем изменения в локальном состоянии для сохранения
     setModifiedRecords(prev => {
       const newModified = new Map(prev);
       const existingModifications = newModified.get(item.id) || {};
@@ -580,14 +550,14 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       const newModifications: Record<string, unknown> = { ...existingModifications };
       
       if (field === 'startWork') {
-        newModifications.startWork = updatedItem.startWork;
+        newModifications.startWork = value;
       } else if (field === 'finishWork') {
-        newModifications.finishWork = updatedItem.finishWork;
+        newModifications.finishWork = value;
       } else if (field === 'workingHours') {
         newModifications.hours = value as string;
       } else if (field === 'relief') {
         newModifications.relief = value as boolean;
-        console.log('[useSRSTabLogic] Saved relief change without time recalculation');
+        console.log('[useSRSTabLogic] Saved relief change (no time recalculation here)');
       } else if (field === 'typeOfLeave') {
         newModifications.typeOfLeave = value as string;
         console.log('[useSRSTabLogic] Saved typeOfLeave change:', value);
@@ -597,35 +567,30 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
         newModifications[field] = value;
       }
       
-      if (timeFields.includes(field)) {
-        newModifications.hours = updatedItem.hours;
-        console.log('[useSRSTabLogic] Saved recalculated hours:', updatedItem.hours);
-      }
-      
       newModified.set(item.id, newModifications);
       return newModified;
     });
     
     SRSTabStateHelpers.setHasUnsavedChanges(setState, true);
     
-    console.log('[useSRSTabLogic] *** ITEM CHANGE COMPLETE WITH NUMERIC TIME FIELDS ***');
+    console.log('[useSRSTabLogic] *** SIMPLIFIED ITEM CHANGE COMPLETE ***');
     console.log('[useSRSTabLogic] Modified records count:', modifiedRecords.size + 1);
   }, [setState, modifiedRecords.size]);
 
   const handleTypeOfLeaveChange = useCallback((item: ISRSRecord, value: string): void => {
-    console.log('[useSRSTabLogic] *** HANDLE TYPE OF LEAVE CHANGE ***');
+    console.log('[useSRSTabLogic] *** HANDLE TYPE OF LEAVE CHANGE (SIMPLIFIED) ***');
     console.log('[useSRSTabLogic] Item ID:', item.id);
     console.log('[useSRSTabLogic] New type of leave:', value);
     
     handleItemChange(item, 'typeOfLeave', value);
     
-    console.log('[useSRSTabLogic] Type of leave change delegated to handleItemChange');
+    console.log('[useSRSTabLogic] Type of leave change delegated to simplified handleItemChange');
   }, [handleItemChange]);
 
   const handleLunchTimeChange = useCallback((item: ISRSRecord, value: string): void => {
+    console.log('[useSRSTabLogic] *** SIMPLIFIED LUNCH TIME CHANGE ***');
     console.log('[useSRSTabLogic] handleLunchTimeChange:', { itemId: item.id, value });
-    
-    // SRSTable.handleLunchTimeChange уже пересчитал время и вызовет handleItemChange с 'workingHours'
+    console.log('[useSRSTabLogic] Total Hours will be recalculated in SRSTable automatically');
     
     // Сохраняем только изменение времени обеда в локальном состоянии
     setModifiedRecords(prev => {
@@ -634,14 +599,13 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       newModified.set(item.id, {
         ...existingModifications,
         lunch: value
-        // hours будет добавлено отдельным вызовом handleItemChange с 'workingHours'
       });
       return newModified;
     });
     
     SRSTabStateHelpers.setHasUnsavedChanges(setState, true);
     
-    console.log('[useSRSTabLogic] Lunch time change applied, waiting for workingHours update from SRSTable');
+    console.log('[useSRSTabLogic] Simplified lunch time change applied to local state only');
   }, [setState]);
 
   const handleContractNumberChange = useCallback((item: ISRSRecord, value: string): void => {
@@ -667,7 +631,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   // ===============================================
 
   const handleRefreshData = useCallback((): void => {
-    console.log('[useSRSTabLogic] Manual refresh requested (including clearing REAL operations state)');
+    console.log('[useSRSTabLogic] Manual refresh requested (simplified architecture)');
     
     setModifiedRecords(new Map());
     SRSTabStateHelpers.setHasUnsavedChanges(setState, false);
@@ -682,11 +646,12 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   }, [refreshSRSData, setState, loadTypesOfLeave, loadHolidays]);
 
   const handleExportAll = useCallback((): void => {
-    console.log('[useSRSTabLogic] Export all SRS data requested with numeric time fields support');
+    console.log('[useSRSTabLogic] *** EXPORT ALL SRS DATA (SIMPLIFIED ARCHITECTURE) ***');
     console.log('[useSRSTabLogic] Current SRS records count:', state.srsRecords.length);
     console.log('[useSRSTabLogic] Types of leave available:', state.typesOfLeave.length);
     console.log('[useSRSTabLogic] Holidays available:', state.holidays.length);
     console.log('[useSRSTabLogic] Show deleted enabled:', state.showDeleted);
+    console.log('[useSRSTabLogic] Total Hours: Calculated in real-time by SRSTable');
     console.log('[useSRSTabLogic] Numeric time fields support: enabled');
     
     if (state.srsRecords.length === 0) {
@@ -694,26 +659,28 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       return;
     }
 
-    console.log('[useSRSTabLogic] Exporting SRS records with numeric time fields support:', {
+    console.log('[useSRSTabLogic] Exporting SRS records (simplified architecture):', {
       recordsCount: state.srsRecords.length,
-      totalHours: state.totalHours,
       dateRange: `${SRSDateUtils.formatDateForDisplay(state.fromDate)} - ${SRSDateUtils.formatDateForDisplay(state.toDate)}`,
       typesOfLeaveCount: state.typesOfLeave.length,
       holidaysCount: state.holidays.length,
       showDeleted: state.showDeleted,
       deletedRecordsCount: state.srsRecords.filter(r => r.Deleted === 1).length,
-      numericTimeFieldsEnabled: true
+      activeRecordsCount: state.srsRecords.filter(r => r.Deleted !== 1).length,
+      numericTimeFieldsEnabled: true,
+      simplifiedArchitecture: true,
+      totalHoursCalculation: 'Real-time in SRSTable'
     });
 
-    alert(`Export functionality will be implemented. Records to export: ${state.srsRecords.length}, Types of leave: ${state.typesOfLeave.length}, Holidays: ${state.holidays.length}, Show deleted: ${state.showDeleted}, Numeric time fields: enabled`);
-  }, [state.srsRecords, state.totalHours, state.fromDate, state.toDate, state.typesOfLeave, state.holidays, state.showDeleted]);
+    alert(`Export functionality will be implemented. Records to export: ${state.srsRecords.length}, Types of leave: ${state.typesOfLeave.length}, Holidays: ${state.holidays.length}, Show deleted: ${state.showDeleted}, Total Hours: Calculated in real-time, Numeric time fields: enabled`);
+  }, [state.srsRecords, state.fromDate, state.toDate, state.typesOfLeave, state.holidays, state.showDeleted]);
 
   /**
-   * Обработчик сохранения всех изменений
-   * *** РЕАЛИЗОВАНО: Реальное сохранение через StaffRecordsService с числовыми полями времени ***
+   * *** УПРОЩЕН: Обработчик сохранения всех изменений ***
+   * Убраны пересчеты totalHours - Total Hours теперь в SRSTable
    */
   const handleSave = useCallback(async (): Promise<void> => {
-    console.log('[useSRSTabLogic] *** REAL SAVE ALL CHANGES WITH NUMERIC TIME FIELDS ***');
+    console.log('[useSRSTabLogic] *** SIMPLIFIED SAVE ALL CHANGES (NO TOTAL HOURS RECALC) ***');
     
     if (!state.hasUnsavedChanges) {
       console.log('[useSRSTabLogic] No unsaved changes to save');
@@ -725,9 +692,10 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       return;
     }
 
-    console.log('[useSRSTabLogic] Saving changes for modified records with numeric time fields support:', {
+    console.log('[useSRSTabLogic] Saving changes for modified records (simplified architecture):', {
       modifiedRecordsCount: modifiedRecords.size,
-      modifiedIds: Array.from(modifiedRecords.keys())
+      modifiedIds: Array.from(modifiedRecords.keys()),
+      totalHoursHandling: 'Calculated in real-time by SRSTable'
     });
 
     try {
@@ -737,7 +705,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       const errors: string[] = [];
 
       // Сохраняем каждую измененную запись
-     const modifiedEntries = Array.from(modifiedRecords.entries());
+      const modifiedEntries = Array.from(modifiedRecords.entries());
       for (let i = 0; i < modifiedEntries.length; i++) {
         const [itemId, modifications] = modifiedEntries[i];
         try {
@@ -791,6 +759,11 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
             console.log(`[useSRSTabLogic] Setting leave time: ${updateData.LeaveTime}`);
           }
 
+          if ('hours' in modifications) {
+            updateData.WorkTime = modifications.hours as string;
+            console.log(`[useSRSTabLogic] Setting work time: ${updateData.WorkTime}`);
+          }
+
           if ('relief' in modifications) {
             // Relief не сохраняется в StaffRecords, это только UI поле
             console.log(`[useSRSTabLogic] Relief field ignored (UI only): ${modifications.relief}`);
@@ -826,11 +799,12 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
         }
       }
 
-      console.log(`[useSRSTabLogic] *** SAVE OPERATION COMPLETE ***:`, {
+      console.log(`[useSRSTabLogic] *** SIMPLIFIED SAVE OPERATION COMPLETE ***:`, {
         totalRecords: modifiedRecords.size,
         successCount,
         errorCount,
-        errors: errors.length > 0 ? errors : 'None'
+        errors: errors.length > 0 ? errors : 'None',
+        totalHoursHandling: 'Will be recalculated automatically in SRSTable'
       });
 
       if (successCount > 0) {
@@ -848,7 +822,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
         SRSTabStateHelpers.setHasUnsavedChanges(setState, errorCount > 0);
 
         // Обновляем данные с сервера
-        console.log('[useSRSTabLogic] Auto-refreshing data after save to show server changes...');
+        console.log('[useSRSTabLogic] Auto-refreshing data after save (Total Hours will recalculate in SRSTable)...');
         setTimeout(() => {
           void refreshSRSData();
         }, 500);
@@ -860,18 +834,18 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
         SRSTabStateHelpers.setErrorSRS(setState, errorMessage);
       }
 
-      console.log('[useSRSTabLogic] *** REAL SAVE OPERATION WITH NUMERIC TIME FIELDS COMPLETE ***');
+      console.log('[useSRSTabLogic] *** SIMPLIFIED SAVE OPERATION COMPLETE ***');
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('[useSRSTabLogic] Critical error during save operation:', error);
+      console.error('[useSRSTabLogic] Critical error during simplified save operation:', error);
       
       SRSTabStateHelpers.setErrorSRS(setState, `Save operation failed: ${errorMessage}`);
     }
   }, [state.hasUnsavedChanges, modifiedRecords, setState, context, state.srsRecords, refreshSRSData]);
 
   const handleSaveChecked = useCallback((): void => {
-    console.log('[useSRSTabLogic] Save checked items requested');
+    console.log('[useSRSTabLogic] Save checked items requested (simplified architecture)');
     
     if (state.selectedItems.size === 0) {
       console.log('[useSRSTabLogic] No items selected for saving');
@@ -890,7 +864,8 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     
     console.log('[useSRSTabLogic] Selected modifications to save:', {
       selectedCount: selectedIds.length,
-      modifiedSelectedCount: selectedModifications.size
+      modifiedSelectedCount: selectedModifications.size,
+      totalHoursHandling: 'Will be recalculated automatically in SRSTable'
     });
     
     // TODO: Реализовать сохранение выбранных записей
@@ -903,7 +878,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       return newModified;
     });
     
-    console.log('[useSRSTabLogic] Selected records saved successfully (mock)');
+    console.log('[useSRSTabLogic] Selected records saved successfully (mock) - Total Hours will update in SRSTable');
   }, [state.selectedItems, setState, modifiedRecords]);
 
   const handleErrorDismiss = useCallback((): void => {
@@ -953,7 +928,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   }, [deleteOperations.size, restoreOperations.size, addShiftOperations.size]);
 
   // ===============================================
-  // ВОЗВРАЩАЕМЫЙ ОБЪЕКТ С ПОДДЕРЖКОЙ ЧИСЛОВЫХ ПОЛЕЙ ВРЕМЕНИ
+  // *** УПРОЩЕННЫЙ: ВОЗВРАЩАЕМЫЙ ОБЪЕКТ БЕЗ TOTALHOURS ***
   // ===============================================
 
   const hookReturn: UseSRSTabLogicReturn = useMemo(() => ({
@@ -979,7 +954,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     onItemCheck: handleItemCheck,
     onSelectAll: handleSelectAll,
     
-    // Обработчики изменения элементов таблицы
+    // *** УПРОЩЕННЫЕ: Обработчики изменения элементов таблицы ***
     onItemChange: handleItemChange,
     onLunchTimeChange: handleLunchTimeChange,
     onContractNumberChange: handleContractNumberChange,
@@ -1021,7 +996,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     handleTypeOfLeaveChange,
     handleDeleteRecord,
     handleRestoreRecord,
-    handleAddShift, // *** ОБНОВЛЕНО ***
+    handleAddShift,
     handleToggleShowDeleted,
     hasCheckedItems,
     selectedItemsCount,
@@ -1031,9 +1006,9 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     loadHolidays
   ]);
 
-  console.log('[useSRSTabLogic] Hook return object prepared with NUMERIC TIME FIELDS support:', {
+  console.log('[useSRSTabLogic] *** SIMPLIFIED HOOK RETURN OBJECT PREPARED ***:', {
     recordsCount: state.srsRecords.length,
-    totalHours: state.totalHours,
+    // *** УБРАНО: totalHours больше не в состоянии ***
     hasCheckedItems,
     selectedItemsCount,
     isDataValid,
@@ -1049,12 +1024,15 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     hasOngoingOperations,
     realDeleteRestoreIntegration: 'StaffRecordsService.markRecordAsDeleted & restoreDeletedRecord',
     addShiftOperationsCount: addShiftOperations.size,
-    realAddShiftIntegration: 'StaffRecordsService.createStaffRecord WITH NUMERIC TIME FIELDS', // *** ОБНОВЛЕНО ***
+    realAddShiftIntegration: 'StaffRecordsService.createStaffRecord WITH NUMERIC TIME FIELDS',
     showDeleted: state.showDeleted,
     showDeletedSupport: true,
     hasToggleShowDeletedHandler: !!handleToggleShowDeleted,
     hasAddShiftHandler: !!handleAddShift,
-    numericTimeFieldsSupport: true // *** НОВОЕ ***
+    numericTimeFieldsSupport: true,
+    simplifiedArchitecture: true, // *** НОВОЕ ***
+    totalHoursCalculation: 'Real-time in SRSTable', // *** НОВОЕ ***
+    noProblematicUseEffects: true // *** НОВОЕ ***
   });
 
   return hookReturn;

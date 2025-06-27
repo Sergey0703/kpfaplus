@@ -1,7 +1,7 @@
 // src/webparts/kpfaplus/components/Tabs/SRSTab/components/SRSTable.tsx
 
 import * as React from 'react';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Spinner, SpinnerSize, Toggle, Text } from '@fluentui/react';
 import { ISRSTableProps, ISRSRecord } from '../utils/SRSTabInterfaces';
 import { SRSTableRow } from './SRSTableRow';
@@ -13,7 +13,23 @@ import {
 // *** НОВЫЙ ИМПОРТ: Интерфейс данных для новой смены ***
 import { INewSRSShiftData } from './SRSTableRow';
 
-export const SRSTable: React.FC<ISRSTableProps> = (props) => {
+// *** ОБНОВЛЕННЫЙ ИМПОРТ: SRSFilterControls без totalHours ***
+import { SRSFilterControls } from './SRSFilterControls';
+
+export const SRSTable: React.FC<ISRSTableProps & {
+  // *** НОВЫЕ ПРОПСЫ: Для передачи данных в SRSFilterControls ***
+  fromDate: Date;
+  toDate: Date;
+  isLoading: boolean;
+  onFromDateChange: (date: Date | undefined) => void;
+  onToDateChange: (date: Date | undefined) => void;
+  onRefresh: () => void;
+  onExportAll: () => void;
+  onSave: () => void;
+  onSaveChecked: () => void;
+  hasChanges: boolean;
+  hasCheckedItems: boolean;
+}> = (props) => {
   const {
     items,
     options,
@@ -31,7 +47,18 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
     // *** ИСПРАВЛЕНО: Обязательные пропсы для showDeleted ***
     showDeleted,
     onToggleShowDeleted,
-    onAddShift
+    onAddShift,
+    // *** НОВЫЕ ПРОПСЫ: Для SRSFilterControls ***
+    fromDate,
+    toDate,
+    onFromDateChange,
+    onToDateChange,
+    onRefresh,
+    onExportAll,
+    onSave,
+    onSaveChecked,
+    hasChanges,
+    hasCheckedItems
   } = props;
 
   // *** КЛЮЧЕВОЕ ДОБАВЛЕНИЕ: State для вычисленного времени работы ***
@@ -52,24 +79,108 @@ export const SRSTable: React.FC<ISRSTableProps> = (props) => {
     message: ''
   });
 
-  console.log('[SRSTable] Rendering with items count, types of leave support, delete/restore functionality, showDeleted and SIMPLIFIED ADD SHIFT functionality:', {
+  console.log('[SRSTable] Rendering with REAL-TIME TOTAL HOURS CALCULATION:', {
     itemsCount: items.length,
     hasTypeOfLeaveHandler: !!onTypeOfLeaveChange,
     optionsLeaveTypesCount: options.leaveTypes?.length || 0,
     hasDeleteHandler: !!showDeleteConfirmDialog,
     hasRestoreHandler: !!showRestoreConfirmDialog,
-    // *** ИСПРАВЛЕНО: Проверяем обязательные пропсы showDeleted ***
     showDeleted: showDeleted,
     hasToggleShowDeleted: !!onToggleShowDeleted,
     showDeletedIsRequired: showDeleted !== undefined,
     toggleHandlerIsRequired: !!onToggleShowDeleted,
     deletedItemsCount: items.filter(item => item.deleted === true).length,
     activeItemsCount: items.filter(item => item.deleted !== true).length,
-    // *** НОВОЕ: Информация о добавлении смены ***
     hasAddShiftDialog: true,
     addShiftDialogOpen: addShiftConfirmDialog.isOpen,
-    simplifiedDialog: true
+    realTimeTotalHours: true // *** НОВАЯ ФУНКЦИЯ ***
   });
+
+  // *** КЛЮЧЕВАЯ ФУНКЦИЯ: Вычисление общего времени в реальном времени ***
+  const calculateCurrentTotalHours = useMemo((): string => {
+    console.log('[SRSTable] *** CALCULATING REAL-TIME TOTAL HOURS ***');
+    
+    if (!items || items.length === 0) {
+      console.log('[SRSTable] No items, returning 0:00');
+      return '0:00';
+    }
+
+    let totalMinutes = 0;
+    
+    // Фильтруем записи согласно showDeleted
+    const recordsToCount = showDeleted 
+      ? items 
+      : items.filter(item => item.deleted !== true);
+    
+    console.log('[SRSTable] Records to count for total:', {
+      totalItems: items.length,
+      recordsToCount: recordsToCount.length,
+      showDeleted: showDeleted,
+      deletedItems: items.filter(item => item.deleted === true).length
+    });
+
+    recordsToCount.forEach((item, index) => {
+      try {
+        // Получаем актуальное вычисленное время для этой записи
+        const workTime = calculatedWorkTimes[item.id] || item.hours || '0:00';
+        
+        console.log(`[SRSTable] Item ${index} (ID: ${item.id}) work time: ${workTime}`);
+        
+        // Парсим время в формате "H:MM" или "H.MM"
+        let itemMinutes = 0;
+        
+        if (workTime.includes(':')) {
+          // Формат "7:30"
+          const [hoursStr, minutesStr] = workTime.split(':');
+          const hours = parseInt(hoursStr, 10) || 0;
+          const minutes = parseInt(minutesStr, 10) || 0;
+          itemMinutes = (hours * 60) + minutes;
+        } else if (workTime.includes('.')) {
+          // Формат "7.50" 
+          const [hoursStr, minutesDecimalStr] = workTime.split('.');
+          const hours = parseInt(hoursStr, 10) || 0;
+          const minutesDecimal = parseInt(minutesDecimalStr.padEnd(2, '0'), 10) || 0;
+          itemMinutes = (hours * 60) + minutesDecimal;
+        } else {
+          // Только часы "7"
+          const hours = parseFloat(workTime) || 0;
+          itemMinutes = Math.round(hours * 60);
+        }
+        
+        // Валидация
+        if (itemMinutes < 0) {
+          console.warn(`[SRSTable] Item ${index} has negative minutes (${itemMinutes}), setting to 0`);
+          itemMinutes = 0;
+        } else if (itemMinutes > (24 * 60)) {
+          console.warn(`[SRSTable] Item ${index} has more than 24 hours (${itemMinutes} minutes), capping`);
+          itemMinutes = 24 * 60;
+        }
+        
+        totalMinutes += itemMinutes;
+        
+        console.log(`[SRSTable] Item ${index} contributes ${itemMinutes} minutes. Running total: ${totalMinutes}`);
+        
+      } catch (error) {
+        console.error(`[SRSTable] Error processing item ${index}:`, error);
+      }
+    });
+
+    // Конвертируем в часы:минуты
+    const totalHours = Math.floor(totalMinutes / 60);
+    const remainingMinutes = totalMinutes % 60;
+    const result = `${totalHours}:${remainingMinutes.toString().padStart(2, '0')}`;
+    
+    console.log('[SRSTable] *** REAL-TIME TOTAL CALCULATION RESULT ***:', {
+      totalRecords: recordsToCount.length,
+      totalMinutes,
+      totalHours,
+      remainingMinutes,
+      formattedResult: result,
+      showDeleted: showDeleted
+    });
+    
+    return result;
+  }, [items, calculatedWorkTimes, showDeleted]);
 
   // *** ДОБАВЛЕНО: Инициализация вычисленного времени и актуальных значений при загрузке элементов ***
   useEffect(() => {
@@ -288,7 +399,7 @@ const handleAddShiftCancel = useCallback((): void => {
       const newWorkTime = calculateSRSWorkTime(updatedItem);
       console.log(`[SRSTable] *** CALCULATED NEW WORK TIME: ${newWorkTime} ***`);
       
-      // Обновляем локальное состояние вычисленного времени
+      // *** КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Обновляем локальное состояние вычисленного времени ***
       setCalculatedWorkTimes(prev => {
         const newTimes = {
           ...prev,
@@ -296,20 +407,17 @@ const handleAddShiftCancel = useCallback((): void => {
         };
         console.log(`[SRSTable] Updated calculatedWorkTimes for item ${item.id}:`, {
           oldTime: prev[item.id],
-          newTime: newWorkTime
+          newTime: newWorkTime,
+          totalHoursWillRecalculate: true // *** Total Hours пересчитается автоматически! ***
         });
         return newTimes;
       });
       
-      // Вызываем родительский обработчик
+      // Вызываем родительский обработчик БЕЗ принудительного обновления totalHours
       console.log(`[SRSTable] Calling parent onItemChange for field: ${field}`);
       onItemChange(updatedItem, field, value);
       
-      // Также обновляем hours в родительском состоянии
-      console.log(`[SRSTable] Calling parent onItemChange for workingHours: ${newWorkTime}`);
-      onItemChange(updatedItem, 'workingHours', newWorkTime);
-      
-      console.log(`[SRSTable] *** TIME CHANGE COMPLETE ***`);
+      console.log(`[SRSTable] *** TIME CHANGE COMPLETE WITH REAL-TIME TOTAL HOURS ***`);
     }
   }, [calculatedWorkTimes, onItemChange, getCurrentItemValues]);
 
@@ -317,7 +425,7 @@ const handleAddShiftCancel = useCallback((): void => {
   const handleLunchTimeChange = useCallback((item: ISRSRecord, value: string): void => {
     if (item.deleted) { return; }
     
-    console.log(`[SRSTable] *** LUNCH TIME CHANGE WITH ACTUAL VALUES ***`);
+    console.log(`[SRSTable] *** LUNCH TIME CHANGE WITH REAL-TIME TOTAL HOURS ***`);
     console.log(`[SRSTable] handleLunchTimeChange called for item ${item.id}, value: ${value}`);
     
     // *** НОВОЕ: Получаем актуальные значения времени ***
@@ -344,27 +452,27 @@ const handleAddShiftCancel = useCallback((): void => {
     // Пересчитываем время работы с актуальными значениями
     const workTime = calculateSRSWorkTime(updatedItem);
     
-    console.log(`[SRSTable] *** LUNCH RECALCULATION RESULT ***:`, {
+    console.log(`[SRSTable] *** LUNCH RECALCULATION WITH REAL-TIME TOTAL ***:`, {
       itemId: item.id,
       actualStartTime: `${currentValues.startWork.hours}:${currentValues.startWork.minutes}`,
       actualFinishTime: `${currentValues.finishWork.hours}:${currentValues.finishWork.minutes}`,
       newLunchValue: value,
       recalculatedTime: workTime,
-      previousTime: calculatedWorkTimes[item.id]
+      previousTime: calculatedWorkTimes[item.id],
+      totalHoursWillUpdate: true // *** Total Hours обновится автоматически! ***
     });
     
-    // Обновляем локальное состояние вычисленного времени
+    // *** КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Обновляем локальное состояние вычисленного времени ***
     setCalculatedWorkTimes(prev => ({
       ...prev,
       [item.id]: workTime
     }));
     
-    // Вызываем родительские обработчики
+    // Вызываем родительские обработчики БЕЗ принудительного обновления totalHours
     onLunchTimeChange(updatedItem, value);
-    onItemChange(updatedItem, 'workingHours', workTime);
     
-    console.log(`[SRSTable] *** LUNCH TIME CHANGE COMPLETE ***`);
-  }, [calculatedWorkTimes, onItemChange, onLunchTimeChange, getCurrentItemValues]);
+    console.log(`[SRSTable] *** LUNCH TIME CHANGE COMPLETE WITH REAL-TIME TOTAL ***`);
+  }, [calculatedWorkTimes, onLunchTimeChange, getCurrentItemValues]);
 
   // *** НОВЫЙ ОБРАБОТЧИК: Изменение типа отпуска ***
   const handleTypeOfLeaveChange = useCallback((item: ISRSRecord, value: string): void => {
@@ -411,9 +519,10 @@ const handleAddShiftCancel = useCallback((): void => {
 
   // *** ИСПРАВЛЕНО: Обработчик переключения отображения удаленных записей ***
   const handleToggleShowDeleted = useCallback((ev?: React.MouseEvent<HTMLElement>, checked?: boolean): void => {
-    console.log('[SRSTable] *** HANDLE TOGGLE SHOW DELETED ***');
+    console.log('[SRSTable] *** HANDLE TOGGLE SHOW DELETED WITH REAL-TIME TOTAL RECALC ***');
     console.log('[SRSTable] Show deleted toggle changed:', checked);
     console.log('[SRSTable] onToggleShowDeleted handler available:', !!onToggleShowDeleted);
+    console.log('[SRSTable] Total Hours will recalculate automatically based on new filter');
     
     if (checked !== undefined && onToggleShowDeleted) {
       console.log('[SRSTable] Calling parent onToggleShowDeleted handler');
@@ -554,354 +663,383 @@ const handleAddShiftCancel = useCallback((): void => {
   }
 
   return (
-    <div style={{ width: '100%', overflowX: 'auto' }}>
-      {/* *** ИСПРАВЛЕНО: Единственный заголовок с переключателем Show deleted *** */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: '10px 0',
-        borderBottom: '1px solid #edebe9',
-        marginBottom: '10px'
-      }}>
-        {/* *** ИСПРАВЛЕНО: Переключатель Show deleted - Toggle вместо Checkbox *** */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Toggle
-            label="Show deleted"
-            checked={showDeleted}
-            onChange={handleToggleShowDeleted}
-            disabled={isLoading}
-            onText="On"
-            offText="Off"
-            styles={{
-              root: { marginRight: '10px' },
-              label: { fontSize: '14px', fontWeight: '600' }
-            }}
-          />
-          
-          {/* *** ИСПРАВЛЕНО: Статистика записей с учетом обязательного showDeleted *** */}
-          <Text variant="medium" style={{ color: '#666', fontSize: '13px' }}>
-            Showing {recordsStats.visible} of {recordsStats.total} records
-            {recordsStats.deleted > 0 && (
-              <span style={{ color: showDeleted ? '#d83b01' : '#666', marginLeft: '5px' }}>
-                ({recordsStats.active} active, {recordsStats.deleted} deleted)
-              </span>
-            )}
-          </Text>
-        </div>
+    <div style={{ width: '100%' }}>
+      {/* *** КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: SRSFilterControls теперь получает вычисленное значение *** */}
+      <SRSFilterControls
+        fromDate={fromDate}
+        toDate={toDate}
+        calculatedTotalHours={calculateCurrentTotalHours} // *** НОВОЕ: Вычисленное значение вместо totalHours ***
+        isLoading={isLoading}
+        onFromDateChange={onFromDateChange}
+        onToDateChange={onToDateChange}
+        onRefresh={onRefresh}
+        onExportAll={onExportAll}
+        onSave={onSave}
+        onSaveChecked={onSaveChecked}
+        hasChanges={hasChanges}
+        hasCheckedItems={hasCheckedItems}
+      />
 
-        {/* Информация о типах отпусков, праздниках и новом функционале +Shift */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', fontSize: '12px', color: '#666' }}>
-          {options.leaveTypes && options.leaveTypes.length > 1 && (
-            <Text style={{ fontSize: '12px', color: '#107c10' }}>
-              {options.leaveTypes.length - 1} types of leave available
-            </Text>
-          )}
-          <Text style={{ fontSize: '12px', color: '#0078d4' }}>
-            Delete/Restore via StaffRecordsService
-          </Text>
-          {/* *** НОВОЕ: Информация о функционале добавления смены *** */}
-          <Text style={{ fontSize: '12px', color: '#107c10' }}>
-            +Shift: Add new SRS record (00:00-00:00)
-          </Text>
-        </div>
-      </div>
-
-      <table style={{ 
-        borderSpacing: '0', 
-        borderCollapse: 'collapse', 
-        width: '100%', 
-        tableLayout: 'fixed',
-        border: '1px solid #edebe9'
-      }}>
-        <colgroup>
-          <col style={{ width: '100px' }} /> {/* Date */}
-          <col style={{ width: '60px' }} />  {/* Hrs */}
-          <col style={{ width: '60px' }} />  {/* Relief? */}
-          <col style={{ width: '150px' }} /> {/* Start Work */}
-          <col style={{ width: '150px' }} /> {/* Finish Work */}
-          <col style={{ width: '100px' }} /> {/* Lunch */}
-          <col style={{ width: '150px' }} /> {/* Type of Leave */}
-          <col style={{ width: '100px' }} /> {/* Time Leave (h) */}
-          <col style={{ width: '70px' }} />  {/* Shift */}
-          <col style={{ width: '60px' }} />  {/* Contract */}
-          <col style={{ width: '50px' }} />  {/* Check */}
-          <col style={{ width: '50px' }} />  {/* SRS */}
-          {/* *** НОВОЕ: Добавлена колонка для удаления/восстановления *** */}
-          <col style={{ width: '80px' }} />  {/* Delete/Restore + ID */}
-        </colgroup>
-
-        <thead>
-          <tr>
-            <th style={{ 
-              backgroundColor: '#f3f3f3',
-              padding: '8px',
-              textAlign: 'left',
-              fontWeight: '600',
-              fontSize: '12px',
-              border: '1px solid #edebe9'
-            }}>Date</th>
-            <th style={{ 
-              backgroundColor: '#f3f3f3',
-              padding: '8px',
-              textAlign: 'center',
-              fontWeight: '600',
-              fontSize: '12px',
-              border: '1px solid #edebe9'
-            }}>Hours</th>
-            <th style={{ 
-              backgroundColor: '#f3f3f3',
-              padding: '8px',
-              textAlign: 'center',
-              fontWeight: '600',
-              fontSize: '12px',
-              border: '1px solid #edebe9'
-            }}>Relief</th>
-            <th style={{ 
-              backgroundColor: '#f3f3f3',
-              padding: '8px',
-              textAlign: 'center',
-              fontWeight: '600',
-              fontSize: '12px',
-              border: '1px solid #edebe9'
-            }}>Start Work</th>
-            <th style={{ 
-              backgroundColor: '#f3f3f3',
-              padding: '8px',
-              textAlign: 'center',
-              fontWeight: '600',
-              fontSize: '12px',
-              border: '1px solid #edebe9'
-            }}>Finish Work</th>
-            <th style={{ 
-              backgroundColor: '#f3f3f3',
-              padding: '8px',
-              textAlign: 'center',
-              fontWeight: '600',
-              fontSize: '12px',
-              border: '1px solid #edebe9'
-            }}>Lunch</th>
-            <th style={{ 
-              backgroundColor: '#f3f3f3',
-              padding: '8px',
-              textAlign: 'center',
-              fontWeight: '600',
-              fontSize: '12px',
-              border: '1px solid #edebe9'
-            }}>Type of Leave</th>
-            <th style={{ 
-              backgroundColor: '#f3f3f3',
-              padding: '8px',
-              textAlign: 'center',
-              fontWeight: '600',
-              fontSize: '12px',
-              border: '1px solid #edebe9'
-            }}>Time Leave (h)</th>
-            <th style={{ 
-              backgroundColor: '#f3f3f3',
-              padding: '8px',
-              textAlign: 'center',
-              fontWeight: '600',
-              fontSize: '12px',
-              border: '1px solid #edebe9'
-            }}>Shift</th>
-            <th style={{ 
-              backgroundColor: '#f3f3f3',
-              padding: '8px',
-              textAlign: 'center',
-              fontWeight: '600',
-              fontSize: '12px',
-              border: '1px solid #edebe9'
-            }}>Contract</th>
-            <th style={{ 
-              backgroundColor: '#f3f3f3',
-              padding: '8px',
-              textAlign: 'center',
-              fontWeight: '600',
-              fontSize: '12px',
-              border: '1px solid #edebe9'
-            }}>Check</th>
-            <th style={{ 
-              backgroundColor: '#f3f3f3',
-              padding: '8px',
-              textAlign: 'center',
-              fontWeight: '600',
-              fontSize: '12px',
-              border: '1px solid #edebe9'
-            }}>SRS</th>
-            {/* *** НОВОЕ: Заголовок для колонки удаления *** */}
-            <th style={{ 
-              backgroundColor: '#f3f3f3',
-              padding: '8px',
-              textAlign: 'center',
-              fontWeight: '600',
-              fontSize: '12px',
-              border: '1px solid #edebe9'
-            }}>Actions</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {items.length === 0 ? (
-            <tr>
-              <td 
-                colSpan={13} // *** ОБНОВЛЕНО: Увеличено с 12 до 13 колонок ***
-                style={{
-                  textAlign: 'center',
-                  padding: '40px',
-                  fontSize: '14px',
-                  color: '#666',
-                  fontStyle: 'italic',
-                  border: '1px solid #edebe9'
-                }}
-              >
-                No SRS records found for the selected date range.
-                <br />
-                Please adjust the date range and click Refresh.
-                {/* *** НОВОЕ: Информация о типах отпусков *** */}
-                <br />
-                <small style={{ color: '#888', marginTop: '10px', display: 'block' }}>
-                  {options.leaveTypes.length > 0 
-                    ? `${options.leaveTypes.length - 1} types of leave available` 
-                    : 'Loading types of leave...'}
-                </small>
-                {/* *** ИСПРАВЛЕНО: Информация о фильтре удаленных с обязательным showDeleted *** */}
-                <br />
-                <small style={{ color: '#888', marginTop: '5px', display: 'block' }}>
-                  {showDeleted 
-                    ? 'Showing all records including deleted ones' 
-                    : 'Hiding deleted records (use "Show deleted" to see all)'}
-                </small>
-                {/* *** НОВОЕ: Информация о функционале добавления смены *** */}
-                <br />
-                <small style={{ color: '#107c10', marginTop: '5px', display: 'block' }}>
-                  Use +Shift button to add new SRS records 
-                </small>
-              </td>
-            </tr>
-          ) : (
-            items.map((item, index) => (
-              <React.Fragment key={item.id}>
-                {/* Add blue line before rows with new date */}
-                {isFirstRowWithNewDate(items, index) && (
-                  <tr style={{ height: '1px', padding: 0 }}>
-                    <td colSpan={13} style={{ // *** ОБНОВЛЕНО: Увеличено с 12 до 13 колонок ***
-                      backgroundColor: '#0078d4', 
-                      height: '1px',
-                      padding: 0,
-                      border: 'none'
-                    }} />
-                  </tr>
-                )}
-                
-                <SRSTableRow
-                  key={item.id}
-                  item={item}
-                  options={options}
-                  isEven={index % 2 === 0}
-                  rowPositionInDate={getRowPositionInDate(items, index)}
-                  totalTimeForDate={calculateTotalHoursForDate(items, index)}
-                  totalRowsInDate={countTotalRowsInDate(items, index)}
-                  displayWorkTime={getDisplayWorkTime(item)} // *** ПЕРЕДАЕМ ВЫЧИСЛЕННОЕ ВРЕМЯ ***
-                  isTimesEqual={checkSRSStartEndTimeSame(item)}
-                  onItemChange={handleTimeChange} // *** ИСПОЛЬЗУЕМ НАШИ ОБРАБОТЧИКИ С ПРОВЕРКОЙ НА RELIEF ***
-                  onLunchTimeChange={handleLunchTimeChange} // *** ИСПОЛЬЗУЕМ НАШИ ОБРАБОТЧИКИ С АКТУАЛЬНЫМИ ЗНАЧЕНИЯМИ ***
-                  onContractNumberChange={handleContractNumberChange}
-                  // *** НОВОЕ: Передаем обработчик типов отпусков ***
-                  onTypeOfLeaveChange={handleTypeOfLeaveChange}
-                  // *** НОВОЕ: Передаем обработчики удаления/восстановления ***
-                  showDeleteConfirmDialog={showDeleteConfirmDialog}
-                  showRestoreConfirmDialog={showRestoreConfirmDialog}
-                  onDeleteItem={onDeleteItem}
-                  onRestoreItem={onRestoreItem}
-                  // *** НОВОЕ: Передаем обработчик добавления смены ***
-                  showAddShiftConfirmDialog={showAddShiftConfirmDialog}
-                />
-              </React.Fragment>
-            ))
-          )}
-        </tbody>
-      </table>
-
-      {/* *** УПРОЩЕННОЕ: Диалог подтверждения добавления смены по аналогии со Schedule *** */}
-      {addShiftConfirmDialog.isOpen && (
+      {/* Таблица с переключателем Show deleted */}
+      <div style={{ width: '100%', overflowX: 'auto' }}>
+        {/* *** ИСПРАВЛЕНО: Единственный заголовок с переключателем Show deleted *** */}
         <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.4)',
           display: 'flex',
-          justifyContent: 'center',
+          justifyContent: 'space-between',
           alignItems: 'center',
-          zIndex: 1000
+          padding: '10px 0',
+          borderBottom: '1px solid #edebe9',
+          marginBottom: '10px'
         }}>
-          <div style={{
-            backgroundColor: 'white',
-            padding: '24px',
-            borderRadius: '4px',
-            minWidth: '400px',
-            maxWidth: '500px',
-            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)'
-          }}>
-            <h3 style={{ 
-              margin: '0 0 16px 0', 
-              fontSize: '18px', 
-              fontWeight: '600',
-              color: '#323130'
-            }}>
-              {addShiftConfirmDialog.title}
-            </h3>
+          {/* *** ИСПРАВЛЕНО: Переключатель Show deleted - Toggle вместо Checkbox *** */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Toggle
+              label="Show deleted"
+              checked={showDeleted}
+              onChange={handleToggleShowDeleted}
+              disabled={isLoading}
+              onText="On"
+              offText="Off"
+              styles={{
+                root: { marginRight: '10px' },
+                label: { fontSize: '14px', fontWeight: '600' }
+              }}
+            />
             
-            <p style={{ 
-              margin: '0 0 24px 0', 
-              fontSize: '14px', 
-              lineHeight: '1.4',
-              color: '#605e5c'
-            }}>
-              {addShiftConfirmDialog.message}
-            </p>
+            {/* *** ИСПРАВЛЕНО: Статистика записей с учетом обязательного showDeleted *** */}
+            <Text variant="medium" style={{ color: '#666', fontSize: '13px' }}>
+              Showing {recordsStats.visible} of {recordsStats.total} records
+              {recordsStats.deleted > 0 && (
+                <span style={{ color: showDeleted ? '#d83b01' : '#666', marginLeft: '5px' }}>
+                  ({recordsStats.active} active, {recordsStats.deleted} deleted)
+                </span>
+              )}
+            </Text>
 
-            <div style={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: '12px'
-            }}>
-              <button
-                onClick={handleAddShiftCancel}
-                style={{
-                  padding: '8px 16px',
-                  border: '1px solid #d1d1d1',
-                  backgroundColor: 'white',
-                  color: '#323130',
-                  borderRadius: '2px',
-                  cursor: 'pointer',
-                  fontSize: '14px'
-                }}
-              >
-                Cancel
-              </button>
-              
-              <button
-                onClick={handleAddShiftConfirm}
-                style={{
-                  padding: '8px 16px',
-                  border: 'none',
-                  backgroundColor: '#107c10',
-                  color: 'white',
-                  borderRadius: '2px',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: '600'
-                }}
-              >
-                Add Shift
-              </button>
-            </div>
+            {/* *** НОВОЕ: Показываем текущее вычисленное Total Hours для отладки *** */}
+            <Text style={{ fontSize: '12px', color: '#0078d4', fontWeight: '600' }}>
+              Real-time Total: {calculateCurrentTotalHours}
+            </Text>
+          </div>
+
+          {/* Информация о типах отпусков, праздниках и новом функционале +Shift */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px', fontSize: '12px', color: '#666' }}>
+            {options.leaveTypes && options.leaveTypes.length > 1 && (
+              <Text style={{ fontSize: '12px', color: '#107c10' }}>
+                {options.leaveTypes.length - 1} types of leave available
+              </Text>
+            )}
+            <Text style={{ fontSize: '12px', color: '#0078d4' }}>
+              Delete/Restore via StaffRecordsService
+            </Text>
+            {/* *** НОВОЕ: Информация о функционале добавления смены *** */}
+            <Text style={{ fontSize: '12px', color: '#107c10' }}>
+              +Shift: Add new SRS record (00:00-00:00)
+            </Text>
           </div>
         </div>
-      )}
+
+        <table style={{ 
+          borderSpacing: '0', 
+          borderCollapse: 'collapse', 
+          width: '100%', 
+          tableLayout: 'fixed',
+          border: '1px solid #edebe9'
+        }}>
+          <colgroup>
+            <col style={{ width: '100px' }} /> {/* Date */}
+            <col style={{ width: '60px' }} />  {/* Hrs */}
+            <col style={{ width: '60px' }} />  {/* Relief? */}
+            <col style={{ width: '150px' }} /> {/* Start Work */}
+            <col style={{ width: '150px' }} /> {/* Finish Work */}
+            <col style={{ width: '100px' }} /> {/* Lunch */}
+            <col style={{ width: '150px' }} /> {/* Type of Leave */}
+            <col style={{ width: '100px' }} /> {/* Time Leave (h) */}
+            <col style={{ width: '70px' }} />  {/* Shift */}
+            <col style={{ width: '60px' }} />  {/* Contract */}
+            <col style={{ width: '50px' }} />  {/* Check */}
+            <col style={{ width: '50px' }} />  {/* SRS */}
+            {/* *** НОВОЕ: Добавлена колонка для удаления/восстановления *** */}
+            <col style={{ width: '80px' }} />  {/* Delete/Restore + ID */}
+          </colgroup>
+
+          <thead>
+            <tr>
+              <th style={{ 
+                backgroundColor: '#f3f3f3',
+                padding: '8px',
+                textAlign: 'left',
+                fontWeight: '600',
+                fontSize: '12px',
+                border: '1px solid #edebe9'
+              }}>Date</th>
+              <th style={{ 
+                backgroundColor: '#f3f3f3',
+                padding: '8px',
+                textAlign: 'center',
+                fontWeight: '600',
+                fontSize: '12px',
+                border: '1px solid #edebe9'
+              }}>Hours</th>
+              <th style={{ 
+                backgroundColor: '#f3f3f3',
+                padding: '8px',
+                textAlign: 'center',
+                fontWeight: '600',
+                fontSize: '12px',
+                border: '1px solid #edebe9'
+              }}>Relief</th>
+              <th style={{ 
+                backgroundColor: '#f3f3f3',
+                padding: '8px',
+                textAlign: 'center',
+                fontWeight: '600',
+                fontSize: '12px',
+                border: '1px solid #edebe9'
+              }}>Start Work</th>
+              <th style={{ 
+                backgroundColor: '#f3f3f3',
+                padding: '8px',
+                textAlign: 'center',
+                fontWeight: '600',
+                fontSize: '12px',
+                border: '1px solid #edebe9'
+              }}>Finish Work</th>
+              <th style={{ 
+                backgroundColor: '#f3f3f3',
+                padding: '8px',
+                textAlign: 'center',
+                fontWeight: '600',
+                fontSize: '12px',
+                border: '1px solid #edebe9'
+              }}>Lunch</th>
+              <th style={{ 
+                backgroundColor: '#f3f3f3',
+                padding: '8px',
+                textAlign: 'center',
+                fontWeight: '600',
+                fontSize: '12px',
+                border: '1px solid #edebe9'
+              }}>Type of Leave</th>
+              <th style={{ 
+                backgroundColor: '#f3f3f3',
+                padding: '8px',
+                textAlign: 'center',
+                fontWeight: '600',
+                fontSize: '12px',
+                border: '1px solid #edebe9'
+              }}>Time Leave (h)</th>
+              <th style={{ 
+                backgroundColor: '#f3f3f3',
+                padding: '8px',
+                textAlign: 'center',
+                fontWeight: '600',
+                fontSize: '12px',
+                border: '1px solid #edebe9'
+              }}>Shift</th>
+              <th style={{ 
+                backgroundColor: '#f3f3f3',
+                padding: '8px',
+                textAlign: 'center',
+                fontWeight: '600',
+                fontSize: '12px',
+                border: '1px solid #edebe9'
+              }}>Contract</th>
+              <th style={{ 
+                backgroundColor: '#f3f3f3',
+                padding: '8px',
+                textAlign: 'center',
+                fontWeight: '600',
+                fontSize: '12px',
+                border: '1px solid #edebe9'
+              }}>Check</th>
+              <th style={{ 
+                backgroundColor: '#f3f3f3',
+                padding: '8px',
+                textAlign: 'center',
+                fontWeight: '600',
+                fontSize: '12px',
+                border: '1px solid #edebe9'
+              }}>SRS</th>
+              {/* *** НОВОЕ: Заголовок для колонки удаления *** */}
+              <th style={{ 
+                backgroundColor: '#f3f3f3',
+                padding: '8px',
+                textAlign: 'center',
+                fontWeight: '600',
+                fontSize: '12px',
+                border: '1px solid #edebe9'
+              }}>Actions</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {items.length === 0 ? (
+              <tr>
+                <td 
+                  colSpan={13} // *** ОБНОВЛЕНО: Увеличено с 12 до 13 колонок ***
+                  style={{
+                    textAlign: 'center',
+                    padding: '40px',
+                    fontSize: '14px',
+                    color: '#666',
+                    fontStyle: 'italic',
+                    border: '1px solid #edebe9'
+                  }}
+                >
+                  No SRS records found for the selected date range.
+                  <br />
+                  Please adjust the date range and click Refresh.
+                  {/* *** НОВОЕ: Информация о типах отпусков *** */}
+                  <br />
+                  <small style={{ color: '#888', marginTop: '10px', display: 'block' }}>
+                    {options.leaveTypes.length > 0 
+                      ? `${options.leaveTypes.length - 1} types of leave available` 
+                      : 'Loading types of leave...'}
+                  </small>
+                  {/* *** ИСПРАВЛЕНО: Информация о фильтре удаленных с обязательным showDeleted *** */}
+                  <br />
+                  <small style={{ color: '#888', marginTop: '5px', display: 'block' }}>
+                    {showDeleted 
+                      ? 'Showing all records including deleted ones' 
+                      : 'Hiding deleted records (use "Show deleted" to see all)'}
+                  </small>
+                  {/* *** НОВОЕ: Информация о функционале добавления смены *** */}
+                  <br />
+                  <small style={{ color: '#107c10', marginTop: '5px', display: 'block' }}>
+                    Use +Shift button to add new SRS records 
+                  </small>
+                  {/* *** НОВОЕ: Информация о Real-time Total Hours *** */}
+                  <br />
+                  <small style={{ color: '#0078d4', marginTop: '5px', display: 'block' }}>
+                    Total Hours: {calculateCurrentTotalHours} (Real-time calculation)
+                  </small>
+                </td>
+              </tr>
+            ) : (
+              items.map((item, index) => (
+                <React.Fragment key={item.id}>
+                  {/* Add blue line before rows with new date */}
+                  {isFirstRowWithNewDate(items, index) && (
+                    <tr style={{ height: '1px', padding: 0 }}>
+                      <td colSpan={13} style={{ // *** ОБНОВЛЕНО: Увеличено с 12 до 13 колонок ***
+                        backgroundColor: '#0078d4', 
+                        height: '1px',
+                        padding: 0,
+                        border: 'none'
+                      }} />
+                    </tr>
+                  )}
+                  
+                  <SRSTableRow
+                    key={item.id}
+                    item={item}
+                    options={options}
+                    isEven={index % 2 === 0}
+                    rowPositionInDate={getRowPositionInDate(items, index)}
+                    totalTimeForDate={calculateTotalHoursForDate(items, index)}
+                    totalRowsInDate={countTotalRowsInDate(items, index)}
+                    displayWorkTime={getDisplayWorkTime(item)} // *** ПЕРЕДАЕМ ВЫЧИСЛЕННОЕ ВРЕМЯ ***
+                    isTimesEqual={checkSRSStartEndTimeSame(item)}
+                    onItemChange={handleTimeChange} // *** ИСПОЛЬЗУЕМ НАШИ ОБРАБОТЧИКИ С ПРОВЕРКОЙ НА RELIEF ***
+                    onLunchTimeChange={handleLunchTimeChange} // *** ИСПОЛЬЗУЕМ НАШИ ОБРАБОТЧИКИ С АКТУАЛЬНЫМИ ЗНАЧЕНИЯМИ ***
+                    onContractNumberChange={handleContractNumberChange}
+                    // *** НОВОЕ: Передаем обработчик типов отпусков ***
+                    onTypeOfLeaveChange={handleTypeOfLeaveChange}
+                    // *** НОВОЕ: Передаем обработчики удаления/восстановления ***
+                    showDeleteConfirmDialog={showDeleteConfirmDialog}
+                    showRestoreConfirmDialog={showRestoreConfirmDialog}
+                    onDeleteItem={onDeleteItem}
+                    onRestoreItem={onRestoreItem}
+                    // *** НОВОЕ: Передаем обработчик добавления смены ***
+                    showAddShiftConfirmDialog={showAddShiftConfirmDialog}
+                  />
+                </React.Fragment>
+              ))
+            )}
+          </tbody>
+        </table>
+
+        {/* *** УПРОЩЕННОЕ: Диалог подтверждения добавления смены по аналогии со Schedule *** */}
+        {addShiftConfirmDialog.isOpen && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.4)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 1000
+          }}>
+            <div style={{
+              backgroundColor: 'white',
+              padding: '24px',
+              borderRadius: '4px',
+              minWidth: '400px',
+              maxWidth: '500px',
+              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)'
+            }}>
+              <h3 style={{ 
+                margin: '0 0 16px 0', 
+                fontSize: '18px', 
+                fontWeight: '600',
+                color: '#323130'
+              }}>
+                {addShiftConfirmDialog.title}
+              </h3>
+              
+              <p style={{ 
+                margin: '0 0 24px 0', 
+                fontSize: '14px', 
+                lineHeight: '1.4',
+                color: '#605e5c'
+              }}>
+                {addShiftConfirmDialog.message}
+              </p>
+
+              <div style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '12px'
+              }}>
+                <button
+                  onClick={handleAddShiftCancel}
+                  style={{
+                    padding: '8px 16px',
+                    border: '1px solid #d1d1d1',
+                    backgroundColor: 'white',
+                    color: '#323130',
+                    borderRadius: '2px',
+                    cursor: 'pointer',
+                    fontSize: '14px'
+                  }}
+                >
+                  Cancel
+                </button>
+                
+                <button
+                  onClick={handleAddShiftConfirm}
+                  style={{
+                    padding: '8px 16px',
+                    border: 'none',
+                    backgroundColor: '#107c10',
+                    color: 'white',
+                    borderRadius: '2px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '600'
+                  }}
+                >
+                  Add Shift
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

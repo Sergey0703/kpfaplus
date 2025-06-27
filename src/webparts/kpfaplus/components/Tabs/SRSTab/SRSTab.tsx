@@ -4,7 +4,6 @@ import { useCallback, useState } from 'react';
 import { ITabProps } from '../../../models/types';
 
 // Импортируем новые компоненты
-import { SRSFilterControls } from './components/SRSFilterControls';
 import { SRSTable } from './components/SRSTable';
 
 // Импортируем главный хук логики
@@ -20,15 +19,17 @@ import { ConfirmDialog } from '../../ConfirmDialog/ConfirmDialog';
 export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
   const { selectedStaff } = props;
   
-  console.log('[SRSTab] Rendering with props and REAL delete/restore services + showDeleted support:', {
+  console.log('[SRSTab] Rendering with REAL-TIME TOTAL HOURS ARCHITECTURE:', {
     hasSelectedStaff: !!selectedStaff,
     selectedStaffId: selectedStaff?.id,
     selectedStaffName: selectedStaff?.name,
     realDeleteRestoreEnabled: true,
-    showDeletedSupport: true // *** НОВОЕ ***
+    showDeletedSupport: true,
+    realTimeTotalHours: true, // *** НОВАЯ АРХИТЕКТУРА ***
+    srsTableControlsFilterControls: true // *** SRSTable теперь контролирует SRSFilterControls ***
   });
   
-  // *** ИСПРАВЛЕНО: Используем главный хук логики с поддержкой showDeleted ***
+  // *** ИСПРАВЛЕНО: Используем главный хук логики с поддержкой real-time ***
   const srsLogic = useSRSTabLogic(props);
 
   // *** НОВОЕ: Состояние для диалогов подтверждения ***
@@ -48,9 +49,9 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     message: ''
   });
 
-  console.log('[SRSTab] *** SRS Logic state with FIXED showDeleted support ***:', {
+  console.log('[SRSTab] *** SRS Logic state with REAL-TIME TOTAL HOURS ***:', {
     recordsCount: srsLogic.srsRecords.length,
-    totalHours: srsLogic.totalHours,
+    // *** УБРАНО: totalHours больше не в state - вычисляется в SRSTable ***
     fromDate: srsLogic.fromDate.toLocaleDateString(),
     toDate: srsLogic.toDate.toLocaleDateString(),
     isLoading: srsLogic.isLoadingSRS,
@@ -71,7 +72,10 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     // *** ИНФОРМАЦИЯ О РЕАЛЬНЫХ СЕРВИСАХ ***
     hasDeleteSupport: !!srsLogic.onDeleteRecord,
     hasRestoreSupport: !!srsLogic.onRestoreRecord,
-    realDeleteRestoreIntegration: 'StaffRecordsService'
+    realDeleteRestoreIntegration: 'StaffRecordsService',
+    // *** НОВОЕ: Информация о real-time архитектуре ***
+    realTimeTotalHoursCalculation: true,
+    srsTableManagesFilterControls: true
   });
 
   // *** НОВОЕ: Обработчик показа диалога удаления ***
@@ -209,9 +213,6 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     setRestoreConfirmDialog(prev => ({ ...prev, isOpen: false }));
   }, []);
 
-  // *** УДАЛЕНО: Функции-заглушки onDeleteItem и onRestoreItem больше не нужны ***
-  // Теперь используем только РЕАЛЬНЫЕ обработчики из srsLogic
-
   // Создание опций для таблицы с типами отпусков
   const tableOptions: ISRSTableOptions = React.useMemo(() => {
     console.log('[SRSTab] Creating table options with types of leave, holidays, and delete/restore support:', {
@@ -220,7 +221,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       holidaysCount: srsLogic.holidays.length,
       isLoadingHolidays: srsLogic.isLoadingHolidays,
       deleteRestoreSupport: true,
-      showDeletedSupport: true // *** НОВОЕ ***
+      showDeletedSupport: true
     });
 
     // Создаем стандартные опции
@@ -253,7 +254,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       typesOfLeaveAvailable: srsLogic.typesOfLeave.length,
       holidaysAvailable: srsLogic.holidays.length,
       deleteRestoreEnabled: true,
-      showDeleted: srsLogic.showDeleted // *** НОВОЕ ***
+      showDeleted: srsLogic.showDeleted
     });
 
     const mappedRecords = SRSDataMapper.mapStaffRecordsToSRSRecords(srsLogic.srsRecords);
@@ -413,23 +414,16 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         }}>
           ({srsLogic.showDeleted ? 'Including deleted records' : 'Active records only'})
         </span>
+
+        {/* *** НОВОЕ: Информация о real-time архитектуре *** */}
+        <span style={{
+          fontSize: '12px',
+          color: '#107c10',
+          marginLeft: '10px'
+        }}>
+          (Real-time Total Hours)
+        </span>
       </div>
-      
-      {/* Панель управления - передаем данные из srsLogic */}
-      <SRSFilterControls
-        fromDate={srsLogic.fromDate}
-        toDate={srsLogic.toDate}
-        totalHours={srsLogic.totalHours}
-        isLoading={srsLogic.isLoadingSRS || srsLogic.isLoadingTypesOfLeave || srsLogic.isLoadingHolidays}
-        onFromDateChange={srsLogic.onFromDateChange}
-        onToDateChange={srsLogic.onToDateChange}
-        onRefresh={srsLogic.onRefreshData}
-        onExportAll={srsLogic.onExportAll}
-        onSave={srsLogic.onSave}
-        onSaveChecked={srsLogic.onSaveChecked}
-        hasChanges={srsLogic.hasUnsavedChanges}
-        hasCheckedItems={srsLogic.hasCheckedItems}
-      />
       
       {/* Отображение ошибок загрузки (включая праздники) */}
       {srsLogic.errorSRS && (
@@ -446,7 +440,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         </div>
       )}
       
-      {/* *** ИСПРАВЛЕНО: Таблица SRS с ПРАВИЛЬНОЙ передачей showDeleted пропсов *** */}
+      {/* *** КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: SRSTable теперь управляет SRSFilterControls и Total Hours *** */}
       <SRSTable
         items={srsRecordsForTable}
         options={tableOptions}
@@ -463,7 +457,19 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         // *** ИСПРАВЛЕНО: Передаем ОБЯЗАТЕЛЬНЫЕ пропсы для showDeleted из srsLogic ***
         showDeleted={srsLogic.showDeleted}
         onToggleShowDeleted={srsLogic.onToggleShowDeleted}
-        onAddShift={srsLogic.onAddShift} 
+        onAddShift={srsLogic.onAddShift}
+        
+        // *** НОВЫЕ ПРОПСЫ: Для управления SRSFilterControls внутри SRSTable ***
+        fromDate={srsLogic.fromDate}
+        toDate={srsLogic.toDate}
+        onFromDateChange={srsLogic.onFromDateChange}
+        onToDateChange={srsLogic.onToDateChange}
+        onRefresh={srsLogic.onRefreshData}
+        onExportAll={srsLogic.onExportAll}
+        onSave={srsLogic.onSave}
+        onSaveChecked={srsLogic.onSaveChecked}
+        hasChanges={srsLogic.hasUnsavedChanges}
+        hasCheckedItems={srsLogic.hasCheckedItems}
       />
       
       {/* *** НОВОЕ: Диалоги подтверждения удаления и восстановления *** */}
@@ -492,7 +498,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         confirmButtonColor="#107c10" // Green for restore
       />
       
-      {/* *** ИСПРАВЛЕНО: Отладочная информация с showDeleted из srsLogic *** */}
+      {/* *** ИСПРАВЛЕНО: Отладочная информация с real-time архитектурой *** */}
       {process.env.NODE_ENV === 'development' && (
         <div style={{
           marginTop: '20px',
@@ -503,7 +509,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
           fontSize: '11px',
           color: '#666'
         }}>
-          <strong>Debug Info:</strong>
+          <strong>Debug Info (Real-time Total Hours Architecture):</strong>
           <div>SRS Records: {srsRecordsForTable.length}</div>
           <div>Types of Leave: {srsLogic.typesOfLeave.length}</div>
           <div>Loading Types: {srsLogic.isLoadingTypesOfLeave ? 'Yes' : 'No'}</div>
@@ -520,6 +526,10 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
           <div>Show Deleted (srsLogic): {srsLogic.showDeleted ? 'Yes' : 'No'}</div>
           <div>Show Deleted Support: Enabled</div>
           <div>Toggle Handler Available: {!!srsLogic.onToggleShowDeleted ? 'Yes' : 'No'}</div>
+          {/* *** НОВОЕ: Информация о real-time архитектуре *** */}
+          <div>Total Hours Calculation: Real-time (in SRSTable)</div>
+          <div>SRSTable manages SRSFilterControls: Yes</div>
+          <div>Architecture: Simplified (no totalHours in state)</div>
           
           {srsLogic.typesOfLeave.length > 0 && (
             <div>
