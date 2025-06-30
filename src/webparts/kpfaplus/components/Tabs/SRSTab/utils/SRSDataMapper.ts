@@ -7,7 +7,7 @@ import { ISRSRecord } from './SRSTabInterfaces';
  * Утилита для преобразования IStaffRecord в ISRSRecord
  * РЕФАКТОРИНГ: Переход с полей ShiftDate1/ShiftDate2 (Date) на числовые поля времени
  * ОБНОВЛЕНО: Использует ShiftDate1Hours/Minutes и ShiftDate2Hours/Minutes
- * ИСПРАВЛЕНО: Убраны any типы и исправлена нотация доступа к свойствам
+ * *** ИЗМЕНЕНО: Убрано извлечение Holiday поля из StaffRecords - теперь Holiday определяется из списка праздников ***
  */
 export class SRSDataMapper {
 
@@ -15,7 +15,7 @@ export class SRSDataMapper {
    * Преобразует массив IStaffRecord в массив ISRSRecord
    */
   public static mapStaffRecordsToSRSRecords(staffRecords: IStaffRecord[]): ISRSRecord[] {
-    console.log('[SRSDataMapper] Converting', staffRecords.length, 'IStaffRecord to ISRSRecord with NUMERIC TIME FIELDS and Holiday mapping');
+    console.log('[SRSDataMapper] Converting', staffRecords.length, 'IStaffRecord to ISRSRecord with NUMERIC TIME FIELDS and NO Holiday field mapping');
     
     return staffRecords.map((record, index) => {
       try {
@@ -31,9 +31,10 @@ export class SRSDataMapper {
   /**
    * Преобразует одну запись IStaffRecord в ISRSRecord
    * РЕФАКТОРИНГ: Использует числовые поля времени вместо Date объектов
+   * *** ИЗМЕНЕНО: Убрано извлечение Holiday поля - теперь всегда 0 (определяется из списка праздников) ***
    */
   private static mapSingleStaffRecordToSRS(record: IStaffRecord): ISRSRecord {
-    console.log(`[SRSDataMapper] *** MAPPING STAFF RECORD ${record.ID} TO SRS RECORD WITH NUMERIC TIME FIELDS ***`);
+    console.log(`[SRSDataMapper] *** MAPPING STAFF RECORD ${record.ID} TO SRS RECORD WITH NUMERIC TIME FIELDS AND NO HOLIDAY FIELD ***`);
     console.log(`[SRSDataMapper] Record data:`, {
       ID: record.ID,
       Date: record.Date?.toLocaleDateString(),
@@ -46,8 +47,8 @@ export class SRSDataMapper {
       ShiftDate1Minutes: record.ShiftDate1Minutes,
       ShiftDate2Hours: record.ShiftDate2Hours,
       ShiftDate2Minutes: record.ShiftDate2Minutes,
-      Holiday: record.Holiday,
-      HolidayType: typeof record.Holiday
+      // *** ИЗМЕНЕНО: Не логируем Holiday поле, так как оно больше не используется ***
+      HolidayFieldIgnored: 'Holiday field is now determined from holidays list, not from StaffRecords'
     });
 
     // *** РЕФАКТОРИНГ: Извлекаем время начала и окончания работы из числовых полей ***
@@ -74,8 +75,8 @@ export class SRSDataMapper {
     // Рассчитываем рабочие часы
     const hours = record.WorkTime || '0.00';
     
-    // Извлечение поля Holiday
-    const holidayValue = SRSDataMapper.extractHolidayValue(record);
+    // *** ИЗМЕНЕНО: Holiday поле теперь всегда 0 (будет определяться из списка праздников) ***
+    const holidayValue = 0; // Больше не извлекаем из StaffRecords
     
     // Определяем статус
     const status = SRSDataMapper.determineStatus(record);
@@ -98,15 +99,17 @@ export class SRSDataMapper {
       srs: !!typeOfLeaveValue && typeOfLeaveValue !== '',
       checked: false,
       deleted: record.Deleted === 1,
-      Holiday: holidayValue
+      // *** ИЗМЕНЕНО: Holiday всегда 0 - будет определяться из списка праздников ***
+      Holiday: holidayValue // Всегда 0, так как праздники определяются из holidays list
     };
 
-    console.log(`[SRSDataMapper] *** MAPPED SRS RECORD WITH NUMERIC TIME FIELDS ***:`, {
+    console.log(`[SRSDataMapper] *** MAPPED SRS RECORD WITH NUMERIC TIME FIELDS AND NO HOLIDAY FIELD ***:`, {
       id: srsRecord.id,
       date: srsRecord.date.toLocaleDateString(),
       startWork: `${srsRecord.startWork.hours}:${srsRecord.startWork.minutes}`,
       finishWork: `${srsRecord.finishWork.hours}:${srsRecord.finishWork.minutes}`,
-      Holiday: srsRecord.Holiday
+      Holiday: srsRecord.Holiday,
+      HolidayDeterminedBy: 'Holidays list in component, not StaffRecords field'
     });
 
     return srsRecord;
@@ -153,24 +156,9 @@ export class SRSDataMapper {
   }
 
   /**
-   * Извлечение поля Holiday из StaffRecord
+   * *** УДАЛЕНО: extractHolidayValue - больше не используется ***
+   * Holiday поле теперь определяется из списка праздников, а не из StaffRecords
    */
-  private static extractHolidayValue(record: IStaffRecord): number {
-    let holidayValue = 0;
-    
-    if (typeof record.Holiday === 'number') {
-      holidayValue = record.Holiday;
-    } else if (typeof record.Holiday === 'string') {
-      const parsed = parseInt(record.Holiday, 10);
-      if (!isNaN(parsed)) {
-        holidayValue = parsed;
-      }
-    } else if (typeof record.Holiday === 'boolean') {
-      holidayValue = record.Holiday ? 1 : 0;
-    }
-    
-    return holidayValue;
-  }
 
   /**
    * Извлечение TypeOfLeaveID из StaffRecord
@@ -223,6 +211,7 @@ export class SRSDataMapper {
 
   /**
    * Определяет статус записи
+   * *** ИЗМЕНЕНО: Убрана зависимость от Holiday поля из StaffRecords ***
    */
   private static determineStatus(record: IStaffRecord): 'positive' | 'negative' | 'none' {
     if (record.Deleted === 1) {
@@ -234,10 +223,8 @@ export class SRSDataMapper {
       return 'positive';
     }
     
-    const holidayValue = SRSDataMapper.extractHolidayValue(record);
-    if (holidayValue === 1) {
-      return 'positive';
-    }
+    // *** УДАЛЕНО: Проверка holiday поля из StaffRecords ***
+    // Праздники теперь определяются из списка праздников, а не из поля записи
     
     if (record.LeaveTime && record.LeaveTime > 0) {
       return 'positive';
@@ -248,6 +235,7 @@ export class SRSDataMapper {
 
   /**
    * Создает пустую SRS запись в случае ошибки
+   * *** ИЗМЕНЕНО: Holiday всегда 0 ***
    */
   private static createEmptySRSRecord(id: string): ISRSRecord {
     return {
@@ -268,6 +256,7 @@ export class SRSDataMapper {
       srs: false,
       checked: false,
       deleted: false,
+      // *** ИЗМЕНЕНО: Holiday всегда 0 - определяется из списка праздников ***
       Holiday: 0
     };
   }
@@ -275,20 +264,21 @@ export class SRSDataMapper {
   /**
    * Преобразует ISRSRecord обратно в частичный IStaffRecord для сохранения
    * РЕФАКТОРИНГ: Использует числовые поля времени вместо Date объектов
+   * *** ИЗМЕНЕНО: Убрано сохранение Holiday поля - не сохраняем его в StaffRecords ***
    */
   public static mapSRSRecordToStaffRecordUpdate(srsRecord: ISRSRecord): Partial<IStaffRecord> {
-    console.log(`[SRSDataMapper] *** MAPPING SRS RECORD TO STAFF RECORD UPDATE WITH NUMERIC TIME FIELDS ***`);
+    console.log(`[SRSDataMapper] *** MAPPING SRS RECORD TO STAFF RECORD UPDATE WITH NUMERIC TIME FIELDS AND NO HOLIDAY FIELD ***`);
     console.log(`[SRSDataMapper] SRS Record ID: ${srsRecord.id}`);
     console.log(`[SRSDataMapper] Type of leave: "${srsRecord.typeOfLeave}"`);
-    console.log(`[SRSDataMapper] Holiday: ${srsRecord.Holiday}`);
+    console.log(`[SRSDataMapper] Holiday field ignored: Holiday determined from holidays list, not saved to StaffRecords`);
     
     const updateData: Partial<IStaffRecord> = {
       ID: srsRecord.id,
       TimeForLunch: parseInt(srsRecord.lunch) || 0,
       LeaveTime: parseFloat(srsRecord.timeLeave) || 0,
       Contract: parseInt(srsRecord.contract) || 1,
-      Deleted: srsRecord.deleted ? 1 : 0,
-      Holiday: srsRecord.Holiday || 0
+      Deleted: srsRecord.deleted ? 1 : 0
+      // *** УДАЛЕНО: Holiday: srsRecord.Holiday - больше не сохраняем Holiday поле ***
     };
 
     // *** РЕФАКТОРИНГ: Сохранение времени через числовые поля ***
@@ -317,11 +307,12 @@ export class SRSDataMapper {
       updateData.TypeOfLeaveID = '';
     }
 
-    console.log('[SRSDataMapper] *** MAPPED UPDATE DATA WITH NUMERIC TIME FIELDS ***:', {
+    console.log('[SRSDataMapper] *** MAPPED UPDATE DATA WITH NUMERIC TIME FIELDS AND NO HOLIDAY FIELD ***:', {
       originalId: srsRecord.id,
       timeFieldsUsed: 'NUMERIC (Hours/Minutes)',
       startTime: `${updateData.ShiftDate1Hours}:${updateData.ShiftDate1Minutes}`,
-      finishTime: `${updateData.ShiftDate2Hours}:${updateData.ShiftDate2Minutes}`
+      finishTime: `${updateData.ShiftDate2Hours}:${updateData.ShiftDate2Minutes}`,
+      holidayFieldHandling: 'NOT SAVED - determined from holidays list'
     });
 
     return updateData;
@@ -377,33 +368,13 @@ export class SRSDataMapper {
   }
 
   /**
-   * Получение статистики по праздникам
+   * *** УДАЛЕНО: getHolidayStatistics - теперь праздники определяются из списка праздников ***
+   * Используйте getHolidayRecordsStatistics из SRSTabInterfaces вместо этого
    */
-  public static getHolidayStatistics(staffRecords: IStaffRecord[]): {
-    totalRecords: number;
-    holidayRecords: number;
-    regularRecords: number;
-    holidayPercentage: number;
-  } {
-    console.log(`[SRSDataMapper] Analyzing holiday statistics for ${staffRecords.length} records`);
-    
-    const holidayRecords = staffRecords.filter(record => SRSDataMapper.extractHolidayValue(record) === 1);
-    const regularRecords = staffRecords.filter(record => SRSDataMapper.extractHolidayValue(record) === 0);
-    
-    const stats = {
-      totalRecords: staffRecords.length,
-      holidayRecords: holidayRecords.length,
-      regularRecords: regularRecords.length,
-      holidayPercentage: staffRecords.length > 0 ? Math.round((holidayRecords.length / staffRecords.length) * 100) : 0
-    };
-    
-    console.log(`[SRSDataMapper] Holiday statistics:`, stats);
-    
-    return stats;
-  }
 
   /**
    * Отладочная информация о записи
+   * *** ИЗМЕНЕНО: Убрана отладка Holiday поля ***
    */
   public static debugRecordMapping(record: IStaffRecord): void {
     console.log(`[SRSDataMapper] *** DEBUG INFO FOR RECORD ${record.ID} ***`);
@@ -412,8 +383,8 @@ export class SRSDataMapper {
     console.log(`[SRSDataMapper] LeaveTime:`, record.LeaveTime);
     console.log(`[SRSDataMapper] Extracted type of leave:`, SRSDataMapper.extractTypeOfLeaveID(record));
     console.log(`[SRSDataMapper] Is valid SRS record:`, SRSDataMapper.isValidSRSRecord(record));
-    console.log(`[SRSDataMapper] Holiday (direct):`, record.Holiday);
-    console.log(`[SRSDataMapper] Extracted holiday value:`, SRSDataMapper.extractHolidayValue(record));
+    // *** УДАЛЕНО: Отладка Holiday поля ***
+    console.log(`[SRSDataMapper] Holiday handling: Now determined from holidays list, not from StaffRecords field`);
     console.log(`[SRSDataMapper] All record keys:`, Object.keys(record));
   }
 }

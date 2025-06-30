@@ -19,14 +19,15 @@ import { ConfirmDialog } from '../../ConfirmDialog/ConfirmDialog';
 export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
   const { selectedStaff } = props;
   
-  console.log('[SRSTab] Rendering with REAL-TIME TOTAL HOURS ARCHITECTURE:', {
+  console.log('[SRSTab] Rendering with REAL-TIME TOTAL HOURS ARCHITECTURE and HOLIDAYS FROM LIST:', {
     hasSelectedStaff: !!selectedStaff,
     selectedStaffId: selectedStaff?.id,
     selectedStaffName: selectedStaff?.name,
     realDeleteRestoreEnabled: true,
     showDeletedSupport: true,
     realTimeTotalHours: true, // *** НОВАЯ АРХИТЕКТУРА ***
-    srsTableControlsFilterControls: true // *** SRSTable теперь контролирует SRSFilterControls ***
+    srsTableControlsFilterControls: true, // *** SRSTable теперь контролирует SRSFilterControls ***
+    holidaysFromList: true // *** НОВОЕ: Праздники из списка holidays, а не из Holiday поля ***
   });
   
   // *** ИСПРАВЛЕНО: Используем главный хук логики с поддержкой real-time ***
@@ -49,7 +50,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     message: ''
   });
 
-  console.log('[SRSTab] *** SRS Logic state with REAL-TIME TOTAL HOURS ***:', {
+  console.log('[SRSTab] *** SRS Logic state with REAL-TIME TOTAL HOURS and HOLIDAYS FROM LIST ***:', {
     recordsCount: srsLogic.srsRecords.length,
     // *** УБРАНО: totalHours больше не в state - вычисляется в SRSTable ***
     fromDate: srsLogic.fromDate.toLocaleDateString(),
@@ -60,9 +61,10 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     // Информация о типах отпусков
     typesOfLeaveCount: srsLogic.typesOfLeave.length,
     isLoadingTypesOfLeave: srsLogic.isLoadingTypesOfLeave,
-    // Информация о праздниках
+    // *** НОВОЕ: Информация о праздниках из списка ***
     holidaysCount: srsLogic.holidays.length,
     isLoadingHolidays: srsLogic.isLoadingHolidays,
+    holidaysFromList: true, // *** Праздники из списка, а не из Holiday поля ***
     // *** ИСПРАВЛЕНО: Информация о showDeleted из srsLogic ***
     showDeleted: srsLogic.showDeleted,
     hasToggleShowDeletedHandler: !!srsLogic.onToggleShowDeleted,
@@ -75,7 +77,8 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     realDeleteRestoreIntegration: 'StaffRecordsService',
     // *** НОВОЕ: Информация о real-time архитектуре ***
     realTimeTotalHoursCalculation: true,
-    srsTableManagesFilterControls: true
+    srsTableManagesFilterControls: true,
+    holidayDetectionMethod: 'Holidays list date matching, not Holiday field'
   });
 
   // *** НОВОЕ: Обработчик показа диалога удаления ***
@@ -215,13 +218,14 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
 
   // Создание опций для таблицы с типами отпусков
   const tableOptions: ISRSTableOptions = React.useMemo(() => {
-    console.log('[SRSTab] Creating table options with types of leave, holidays, and delete/restore support:', {
+    console.log('[SRSTab] Creating table options with types of leave, holidays from list, and delete/restore support:', {
       typesOfLeaveCount: srsLogic.typesOfLeave.length,
       isLoadingTypesOfLeave: srsLogic.isLoadingTypesOfLeave,
       holidaysCount: srsLogic.holidays.length,
       isLoadingHolidays: srsLogic.isLoadingHolidays,
       deleteRestoreSupport: true,
-      showDeletedSupport: true
+      showDeletedSupport: true,
+      holidaysFromList: true // *** НОВОЕ: Праздники из списка ***
     });
 
     // Создаем стандартные опции
@@ -249,12 +253,13 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
 
   // Преобразуем IStaffRecord[] в ISRSRecord[] для компонентов
   const srsRecordsForTable: ISRSRecord[] = React.useMemo(() => {
-    console.log('[SRSTab] Converting staff records to SRS records with types of leave, holidays, delete support, and showDeleted filter:', {
+    console.log('[SRSTab] Converting staff records to SRS records with types of leave, holidays from list, delete support, and showDeleted filter:', {
       originalCount: srsLogic.srsRecords.length,
       typesOfLeaveAvailable: srsLogic.typesOfLeave.length,
       holidaysAvailable: srsLogic.holidays.length,
       deleteRestoreEnabled: true,
-      showDeleted: srsLogic.showDeleted
+      showDeleted: srsLogic.showDeleted,
+      holidaysFromList: true // *** НОВОЕ: Праздники из списка ***
     });
 
     const mappedRecords = SRSDataMapper.mapStaffRecordsToSRSRecords(srsLogic.srsRecords);
@@ -275,16 +280,24 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       
       console.log('[SRSTab] Types of leave distribution in mapped records:', typeStats);
 
-      // Логируем статистику по праздникам
+      // *** НОВОЕ: Логируем статистику по праздникам из списка вместо Holiday поля ***
       const holidayStats = mappedRecords.reduce((acc, record) => {
-        const isHoliday = record.Holiday === 1;
-        acc[isHoliday ? 'Holiday' : 'Regular'] = (acc[isHoliday ? 'Holiday' : 'Regular'] || 0) + 1;
+        // *** ИЗМЕНЕНО: Используем функцию isHolidayDate для проверки праздников ***
+        const isHoliday = srsLogic.holidays.some(holiday => {
+          const holidayDate = new Date(holiday.date);
+          const recordDate = new Date(record.date);
+          holidayDate.setHours(0, 0, 0, 0);
+          recordDate.setHours(0, 0, 0, 0);
+          return holidayDate.getTime() === recordDate.getTime();
+        });
+        
+        acc[isHoliday ? 'Holiday (from list)' : 'Regular'] = (acc[isHoliday ? 'Holiday (from list)' : 'Regular'] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
       
-      console.log('[SRSTab] Holiday distribution in mapped records:', holidayStats);
+      console.log('[SRSTab] Holiday distribution in mapped records (from holidays list):', holidayStats);
 
-      // *** НОВОЕ: Логируем статистику по удаленным записям ***
+      // *** НОВОЕ: Статистика удаленных записей ***
       const deleteStats = SRSTableOptionsHelper.getDeletedRecordsStatistics(mappedRecords);
       console.log('[SRSTab] Delete statistics in mapped records:', deleteStats);
       
@@ -294,12 +307,13 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         totalRecords: deleteStats.totalRecords,
         activeRecords: deleteStats.activeRecords,
         deletedRecords: deleteStats.deletedRecords,
-        serverFiltering: 'Records already filtered by server based on showDeleted flag'
+        serverFiltering: 'Records already filtered by server based on showDeleted flag',
+        holidayDetection: 'Based on holidays list date matching, not Holiday field'
       });
     }
 
     return mappedRecords;
-  }, [srsLogic.srsRecords, srsLogic.typesOfLeave.length, srsLogic.holidays.length, srsLogic.showDeleted]);
+  }, [srsLogic.srsRecords, srsLogic.typesOfLeave.length, srsLogic.holidays, srsLogic.showDeleted]);
 
   // Обработчик изменения типа отпуска
   const handleTypeOfLeaveChange = React.useCallback((item: ISRSRecord, value: string) => {
@@ -345,7 +359,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       padding: '0',
       position: 'relative'
     }}>
-      {/* Заголовок с информацией о праздниках, функциях удаления и showDeleted */}
+      {/* Заголовок с информацией о праздниках из списка, функциях удаления и showDeleted */}
       <div style={{
         fontSize: '16px',
         fontWeight: '600',
@@ -371,7 +385,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
             color: '#666',
             marginLeft: '10px'
           }}>
-            (Loading holidays...)
+            (Loading holidays from list...)
           </span>
         )}
         
@@ -386,14 +400,14 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
           </span>
         )}
         
-        {/* Информация о праздниках */}
+        {/* *** ОБНОВЛЕНО: Информация о праздниках из списка *** */}
         {srsLogic.holidays.length > 0 && !srsLogic.isLoadingHolidays && (
           <span style={{
             fontSize: '12px',
             color: '#ff69b4',
             marginLeft: '10px'
           }}>
-            ({srsLogic.holidays.length} holidays in period)
+            ({srsLogic.holidays.length} holidays from list)
           </span>
         )}
 
@@ -415,13 +429,13 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
           ({srsLogic.showDeleted ? 'Including deleted records' : 'Active records only'})
         </span>
 
-        {/* *** НОВОЕ: Информация о real-time архитектуре *** */}
+        {/* *** НОВОЕ: Информация о real-time архитектуре и праздниках *** */}
         <span style={{
           fontSize: '12px',
           color: '#107c10',
           marginLeft: '10px'
         }}>
-          (Real-time Total Hours)
+          (Real-time Total Hours, Holidays from List)
         </span>
       </div>
       
@@ -440,10 +454,12 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         </div>
       )}
       
-      {/* *** КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: SRSTable теперь управляет SRSFilterControls и Total Hours *** */}
+      {/* *** КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: SRSTable теперь управляет SRSFilterControls и Total Hours, получает holidays *** */}
       <SRSTable
         items={srsRecordsForTable}
         options={tableOptions}
+        // *** НОВОЕ: Передаем holidays список для определения праздников ***
+        holidays={srsLogic.holidays}
         isLoading={srsLogic.isLoadingSRS || srsLogic.isLoadingTypesOfLeave || srsLogic.isLoadingHolidays}
         onItemChange={srsLogic.onItemChange}
         onLunchTimeChange={srsLogic.onLunchTimeChange}
@@ -498,7 +514,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         confirmButtonColor="#107c10" // Green for restore
       />
       
-      {/* *** ИСПРАВЛЕНО: Отладочная информация с real-time архитектурой *** */}
+      {/* *** ИСПРАВЛЕНО: Отладочная информация с real-time архитектурой и праздниками из списка *** */}
       {process.env.NODE_ENV === 'development' && (
         <div style={{
           marginTop: '20px',
@@ -509,12 +525,14 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
           fontSize: '11px',
           color: '#666'
         }}>
-          <strong>Debug Info (Real-time Total Hours Architecture):</strong>
+          <strong>Debug Info (Real-time Total Hours + Holidays from List):</strong>
           <div>SRS Records: {srsRecordsForTable.length}</div>
           <div>Types of Leave: {srsLogic.typesOfLeave.length}</div>
           <div>Loading Types: {srsLogic.isLoadingTypesOfLeave ? 'Yes' : 'No'}</div>
-          <div>Holidays: {srsLogic.holidays.length}</div>
+          {/* *** ОБНОВЛЕНО: Информация о праздниках из списка *** */}
+          <div>Holidays from List: {srsLogic.holidays.length}</div>
           <div>Loading Holidays: {srsLogic.isLoadingHolidays ? 'Yes' : 'No'}</div>
+          <div>Holiday Detection: Date matching with holidays list (not Holiday field)</div>
           <div>Has Changes: {srsLogic.hasUnsavedChanges ? 'Yes' : 'No'}</div>
           <div>Selected Items: {srsLogic.selectedItemsCount}</div>
           {/* *** НОВОЕ: Отладочная информация о удалении *** */}
@@ -536,16 +554,28 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
               Available Types: {srsLogic.typesOfLeave.map(t => t.title).join(', ')}
             </div>
           )}
+          
+          {/* *** ОБНОВЛЕНО: Показываем праздники из списка *** */}
           {srsLogic.holidays.length > 0 && (
             <div>
-              Holidays in Period: {srsLogic.holidays.map(h => `${h.title} (${new Date(h.date).toLocaleDateString()})`).join(', ')}
+              Holidays from List: {srsLogic.holidays.map(h => `${h.title} (${new Date(h.date).toLocaleDateString()})`).join(', ')}
             </div>
           )}
+          
           {/* *** НОВОЕ: Статистика праздничных и удаленных записей *** */}
           {srsRecordsForTable.length > 0 && (
             <>
+              {/* *** ИЗМЕНЕНО: Подсчет праздничных записей на основе списка праздников *** */}
               <div>
-                Holiday Records: {srsRecordsForTable.filter(r => r.Holiday === 1).length} of {srsRecordsForTable.length}
+                Holiday Records (from list): {srsRecordsForTable.filter(r => {
+                  return srsLogic.holidays.some(holiday => {
+                    const holidayDate = new Date(holiday.date);
+                    const recordDate = new Date(r.date);
+                    holidayDate.setHours(0, 0, 0, 0);
+                    recordDate.setHours(0, 0, 0, 0);
+                    return holidayDate.getTime() === recordDate.getTime();
+                  });
+                }).length} of {srsRecordsForTable.length}
               </div>
               <div>
                 Deleted Records: {srsRecordsForTable.filter(r => r.deleted === true).length} of {srsRecordsForTable.length}
@@ -555,6 +585,9 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
               </div>
               <div>
                 Server Filtering: showDeleted={srsLogic.showDeleted ? 'true' : 'false'}
+              </div>
+              <div>
+                Holiday Detection: Holidays list date matching (not Holiday field)
               </div>
             </>
           )}

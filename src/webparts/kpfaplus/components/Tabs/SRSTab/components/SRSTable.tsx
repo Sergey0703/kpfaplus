@@ -33,6 +33,8 @@ export const SRSTable: React.FC<ISRSTableProps & {
   const {
     items,
     options,
+    // *** НОВОЕ: Получаем holidays prop для определения праздников ***
+    holidays,
     isLoading,
     onItemChange,
     onLunchTimeChange,
@@ -79,8 +81,12 @@ export const SRSTable: React.FC<ISRSTableProps & {
     message: ''
   });
 
-  console.log('[SRSTable] Rendering with REAL-TIME TOTAL HOURS CALCULATION:', {
+  console.log('[SRSTable] Rendering with REAL-TIME TOTAL HOURS CALCULATION AND HOLIDAYS LIST:', {
     itemsCount: items.length,
+    // *** НОВОЕ: Логируем информацию о праздниках ***
+    holidaysCount: holidays.length,
+    holidaysAvailable: holidays.length > 0,
+    holidayDates: holidays.map(h => new Date(h.date).toLocaleDateString()),
     hasTypeOfLeaveHandler: !!onTypeOfLeaveChange,
     optionsLeaveTypesCount: options.leaveTypes?.length || 0,
     hasDeleteHandler: !!showDeleteConfirmDialog,
@@ -93,7 +99,8 @@ export const SRSTable: React.FC<ISRSTableProps & {
     activeItemsCount: items.filter(item => item.deleted !== true).length,
     hasAddShiftDialog: true,
     addShiftDialogOpen: addShiftConfirmDialog.isOpen,
-    realTimeTotalHours: true // *** НОВАЯ ФУНКЦИЯ ***
+    realTimeTotalHours: true, // *** НОВАЯ ФУНКЦИЯ ***
+    holidaysFromList: true // *** НОВАЯ ФУНКЦИЯ: Праздники из списка, а не из поля ***
   });
 
   // *** КЛЮЧЕВАЯ ФУНКЦИЯ: Вычисление общего времени в реальном времени ***
@@ -280,7 +287,8 @@ const handleAddShiftConfirm = useCallback(async (): Promise<void> => {
       contract: item.contract,   // Тот же контракт
       contractNumber: item.contract, // Используем contract как contractNumber
       typeOfLeave: item.typeOfLeave, // Тот же тип отпуска (если есть)
-      Holiday: item.Holiday      // Тот же статус праздника
+      // *** ИЗМЕНЕНО: Holiday определяется из списка праздников, а не передается ***
+      Holiday: 0 // Всегда 0, так как праздники определяются из holidays list
     };
 
     console.log('[SRSTable] Shift data prepared for REAL service call:', {
@@ -290,7 +298,8 @@ const handleAddShiftConfirm = useCallback(async (): Promise<void> => {
       contract: shiftData.contract,
       contractNumber: shiftData.contractNumber,
       typeOfLeave: shiftData.typeOfLeave || 'none',
-      Holiday: shiftData.Holiday
+      Holiday: shiftData.Holiday,
+      holidayDeterminedBy: 'holidays list, not Holiday field'
     });
 
     // *** РЕАЛЬНЫЙ ВЫЗОВ: onAddShift из пропсов ***
@@ -729,6 +738,14 @@ const handleAddShiftCancel = useCallback((): void => {
                 {options.leaveTypes.length - 1} types of leave available
               </Text>
             )}
+            
+            {/* *** НОВОЕ: Информация о праздниках из списка *** */}
+            {holidays.length > 0 && (
+              <Text style={{ fontSize: '12px', color: '#ff69b4' }}>
+                {holidays.length} holidays from list
+              </Text>
+            )}
+            
             <Text style={{ fontSize: '12px', color: '#0078d4' }}>
               Delete/Restore via StaffRecordsService
             </Text>
@@ -897,6 +914,15 @@ const handleAddShiftCancel = useCallback((): void => {
                       ? `${options.leaveTypes.length - 1} types of leave available` 
                       : 'Loading types of leave...'}
                   </small>
+                  
+                  {/* *** НОВОЕ: Информация о праздниках из списка *** */}
+                  <br />
+                  <small style={{ color: '#ff69b4', marginTop: '5px', display: 'block' }}>
+                    {holidays.length > 0 
+                      ? `${holidays.length} holidays loaded from holidays list` 
+                      : 'Loading holidays from list...'}
+                  </small>
+                  
                   {/* *** ИСПРАВЛЕНО: Информация о фильтре удаленных с обязательным showDeleted *** */}
                   <br />
                   <small style={{ color: '#888', marginTop: '5px', display: 'block' }}>
@@ -935,6 +961,8 @@ const handleAddShiftCancel = useCallback((): void => {
                     key={item.id}
                     item={item}
                     options={options}
+                    // *** НОВОЕ: Передаем holidays список для определения праздников ***
+                    holidays={holidays}
                     isEven={index % 2 === 0}
                     rowPositionInDate={getRowPositionInDate(items, index)}
                     totalTimeForDate={calculateTotalHoursForDate(items, index)}

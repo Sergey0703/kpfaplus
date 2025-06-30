@@ -1,10 +1,11 @@
 // src/webparts/kpfaplus/components/Tabs/SRSTab/utils/SRSTabInterfaces.ts
 
 import { IDropdownOption } from '@fluentui/react';
+import { IHoliday } from '../../../../services/HolidaysService';
 
 /**
  * Основной интерфейс для записи SRS
- * ОБНОВЛЕНО: Добавлено поле Holiday для поддержки праздников
+ * ОБНОВЛЕНО: Holiday поле изменено - теперь вычисляется на основе списка праздников, а не поля StaffRecords
  */
 export interface ISRSRecord {
   id: string;
@@ -30,8 +31,8 @@ export interface ISRSRecord {
   srs: boolean; // Отметка SRS
   checked: boolean; // Для массовых операций
   deleted?: boolean; // Для удаленных записей
-  // *** НОВОЕ: Поле для поддержки праздников ***
-  Holiday?: number; // Признак праздника: 1 = праздник, 0 = рабочий день (как в StaffRecords)
+  // *** ИЗМЕНЕНО: Holiday поле теперь вычисляется на основе списка праздников ***
+  Holiday?: number; // DEPRECATED: Больше не используется из StaffRecords, вычисляется из holidays list
 }
 
 /**
@@ -43,7 +44,7 @@ export interface INewSRSShiftData {
   contract: string;
   contractNumber?: string;
   typeOfLeave?: string;
-  Holiday?: number;
+  Holiday?: number; // Устанавливается на основе holidays list, а не пользователем
 }
 
 /**
@@ -77,11 +78,13 @@ export interface ISRSFilterControlsProps {
 }
 
 /**
- * *** ОБНОВЛЕНО: Пропсы для компонента SRSTable - убраны дополнительные пропсы для SRSFilterControls ***
+ * *** ОБНОВЛЕНО: Пропсы для компонента SRSTable - добавлен holidays list для определения праздников ***
  */
 export interface ISRSTableProps {
   items: ISRSRecord[];
   options: ISRSTableOptions;
+  // *** НОВОЕ: Список праздников для определения праздничных дней ***
+  holidays: IHoliday[];
   isLoading: boolean;
   onItemChange: (item: ISRSRecord, field: string, value: string | boolean | { hours: string; minutes: string }) => void;
   onLunchTimeChange: (item: ISRSRecord, value: string) => void;
@@ -102,12 +105,13 @@ export interface ISRSTableProps {
 
 /**
  * Пропсы для компонента SRSTableRow
- * ОБНОВЛЕНО: Добавлены типы отпусков и delete/restore функционал
- * *** НОВОЕ: Добавлен onAddShift ***
+ * ОБНОВЛЕНО: Добавлен holidays list для определения праздников
  */
 export interface ISRSTableRowProps {
   item: ISRSRecord;
   options: ISRSTableOptions;
+  // *** НОВОЕ: Список праздников для определения является ли день праздничным ***
+  holidays: IHoliday[];
   isEven: boolean; // Для чередования цветов строк
   onItemChange: (item: ISRSRecord, field: string, value: string | boolean | { hours: string; minutes: string }) => void;
   // *** НОВОЕ: Дополнительные обработчики ***
@@ -245,7 +249,7 @@ export interface ISRSFilterParams {
 }
 
 /**
- * *** ОБНОВЛЕНО: Расширенные пропсы для главного компонента SRS Tab - убран totalHours ***
+ * *** ОБНОВЛЕНО: Расширенные пропсы для главного компонента SRS Tab - убран totalHours, добавлен holidays ***
  */
 export interface ISRSTabProps {
   // Основные пропсы
@@ -264,8 +268,8 @@ export interface ISRSTabProps {
   typesOfLeave: ISRSTypeOfLeave[];
   isLoadingTypesOfLeave: boolean;
   
-  // *** НОВОЕ: Праздники ***
-  holidays: Array<{ id: string; title: string; date: Date }>; // Упрощенный интерфейс праздников
+  // *** ОБНОВЛЕНО: Праздники - теперь обязательны для определения праздничных дней ***
+  holidays: IHoliday[]; // Список праздников для определения праздничных дней
   isLoadingHolidays: boolean;
   
   // Состояния загрузки
@@ -349,6 +353,82 @@ export interface ISRSRestoreConfirmDialogProps {
   staffName?: string;
   onConfirm: (recordId: string) => void; // *** ИСПРАВЛЕНО: Обязательный обработчик ***
   onCancel: () => void; // *** ИСПРАВЛЕНО: Обязательный обработчик ***
+}
+
+/**
+ * *** НОВЫЕ УТИЛИТЫ: Функции для работы с праздниками на основе списка праздников ***
+ */
+
+/**
+ * Проверяет является ли указанная дата праздником на основе списка праздников
+ */
+export function isHolidayDate(date: Date, holidays: IHoliday[]): boolean {
+  if (!date || !holidays || holidays.length === 0) {
+    return false;
+  }
+
+  const targetDate = new Date(date);
+  targetDate.setHours(0, 0, 0, 0); // Нормализуем к полуночи
+  
+  return holidays.some(holiday => {
+    const holidayDate = new Date(holiday.date);
+    holidayDate.setHours(0, 0, 0, 0); // Нормализуем к полуночи
+    return holidayDate.getTime() === targetDate.getTime();
+  });
+}
+
+/**
+ * Получает информацию о празднике для указанной даты
+ */
+export function getHolidayInfo(date: Date, holidays: IHoliday[]): IHoliday | undefined {
+  if (!date || !holidays || holidays.length === 0) {
+    return undefined;
+  }
+
+  const targetDate = new Date(date);
+  targetDate.setHours(0, 0, 0, 0); // Нормализуем к полуночи
+  
+  return holidays.find(holiday => {
+    const holidayDate = new Date(holiday.date);
+    holidayDate.setHours(0, 0, 0, 0); // Нормализуем к полуночи
+    return holidayDate.getTime() === targetDate.getTime();
+  });
+}
+
+/**
+ * Получает статистику праздников в записях SRS на основе списка праздников
+ */
+export function getHolidayRecordsStatistics(
+  records: ISRSRecord[], 
+  holidays: IHoliday[]
+): {
+  totalRecords: number;
+  holidayRecords: number;
+  regularRecords: number;
+  holidayPercentage: number;
+  holidayDates: string[];
+} {
+  const totalRecords = records.length;
+  
+  const holidayRecords = records.filter(record => 
+    isHolidayDate(record.date, holidays)
+  );
+  
+  const regularRecords = records.filter(record => 
+    !isHolidayDate(record.date, holidays)
+  );
+
+  const holidayDates = holidayRecords.map(record => 
+    record.date.toLocaleDateString()
+  );
+
+  return {
+    totalRecords,
+    holidayRecords: holidayRecords.length,
+    regularRecords: regularRecords.length,
+    holidayPercentage: totalRecords > 0 ? Math.round((holidayRecords.length / totalRecords) * 100) : 0,
+    holidayDates
+  };
 }
 
 /**
@@ -599,6 +679,58 @@ export class SRSTableOptionsHelper {
     return {
       isValid: errors.length === 0,
       errors
+    };
+  }
+
+  /**
+   * *** НОВАЯ ФУНКЦИЯ: Получение праздничной статистики на основе списка праздников ***
+   * Анализирует праздники в SRS записях используя holidays list вместо Holiday поля
+   */
+  public static getHolidayStatisticsFromHolidaysList(
+    records: ISRSRecord[], 
+    holidays: IHoliday[]
+  ): {
+    totalRecords: number;
+    holidayRecords: number;
+    regularRecords: number;
+    holidayPercentage: number;
+    holidaysList: Array<{ title: string; date: string; recordsCount: number }>;
+  } {
+    const totalRecords = records.length;
+    
+    // Подсчитываем записи, которые попадают на праздничные дни
+    const holidayRecords = records.filter(record => 
+      isHolidayDate(record.date, holidays)
+    );
+    
+    const regularRecords = records.filter(record => 
+      !isHolidayDate(record.date, holidays)
+    );
+
+    // Группируем по праздникам с подсчетом записей для каждого праздника
+    const holidaysList = holidays
+      .filter(holiday => {
+        // Только праздники, на которые есть записи
+        return records.some(record => isHolidayDate(record.date, [holiday]));
+      })
+      .map(holiday => {
+        const recordsCount = records.filter(record => 
+          isHolidayDate(record.date, [holiday])
+        ).length;
+        
+        return {
+          title: holiday.title,
+          date: new Date(holiday.date).toLocaleDateString(),
+          recordsCount
+        };
+      });
+
+    return {
+      totalRecords,
+      holidayRecords: holidayRecords.length,
+      regularRecords: regularRecords.length,
+      holidayPercentage: totalRecords > 0 ? Math.round((holidayRecords.length / totalRecords) * 100) : 0,
+      holidaysList
     };
   }
 }
