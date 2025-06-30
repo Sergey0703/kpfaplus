@@ -1,5 +1,6 @@
 // src/webparts/kpfaplus/components/Tabs/ScheduleTab/components/ScheduleTableContent.tsx
 import * as React from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Spinner } from '@fluentui/react';
 import styles from '../ScheduleTab.module.scss';
 import { IScheduleItem, IScheduleOptions, INewShiftData } from './ScheduleTable';
@@ -42,6 +43,9 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
    // We still need to receive onAddShift in props, but we won't pass it to ScheduleTableRow
  } = props;
 
+ // *** НОВОЕ: Состояние для кэширования рассчитанных общих времен по датам ***
+ const [cachedDateTotals, setCachedDateTotals] = useState<Record<string, string>>({});
+
  // Функция для проверки, нужно ли добавлять разделительную линию перед строкой
  const isFirstRowWithNewDate = (items: IScheduleItem[], index: number): boolean => {
    if (index === 0) return true; // Первая строка всегда начинает новую дату
@@ -82,22 +86,27 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
    return position;
  };
 
- // *** ИСПРАВЛЕННАЯ ФУНКЦИЯ calculateTotalTimeForDate С ПОДДЕРЖКОЙ ЧИСЛОВЫХ ПОЛЕЙ ***
- const calculateTotalTimeForDate = (items: IScheduleItem[], index: number): string => {
-   const currentDate = new Date(items[index].date);
+ // *** СОЗДАЕМ КЛЮЧ ДАТЫ ДЛЯ КЭШИРОВАНИЯ ***
+ const createDateKey = useCallback((date: Date): string => {
+   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+ }, []);
+
+ // *** ОБНОВЛЕННАЯ ФУНКЦИЯ calculateTotalTimeForDate С КЭШИРОВАНИЕМ ***
+ const calculateTotalTimeForDate = useCallback((items: IScheduleItem[], targetDate: Date): string => {
+   const dateKey = createDateKey(targetDate);
    
    // Находим все строки с такой же датой
    const sameDataRows = items.filter(item => {
      const itemDate = new Date(item.date);
      return (
-       itemDate.getFullYear() === currentDate.getFullYear() &&
-       itemDate.getMonth() === currentDate.getMonth() &&
-       itemDate.getDate() === currentDate.getDate()
+       itemDate.getFullYear() === targetDate.getFullYear() &&
+       itemDate.getMonth() === targetDate.getMonth() &&
+       itemDate.getDate() === targetDate.getDate()
      );
    });
    
-   console.log(`[ScheduleTableContent] *** CALCULATING TOTAL TIME FOR DATE WITH FIXED NUMERIC FIELDS ***`);
-   console.log(`[ScheduleTableContent] Date: ${currentDate.toLocaleDateString()}, Rows: ${sameDataRows.length}`);
+   console.log(`[ScheduleTableContent] *** CALCULATING TOTAL TIME FOR DATE ${targetDate.toLocaleDateString()} ***`);
+   console.log(`[ScheduleTableContent] Date key: ${dateKey}, Rows: ${sameDataRows.length}`);
    
    // Рассчитываем общее время, складывая время работы только неудаленных смен
    let totalMinutes = 0;
@@ -109,62 +118,17 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
        return;
      }
      
-     // *** ИСПРАВЛЕНО: ПРАВИЛЬНОЕ ИЗВЛЕЧЕНИЕ ВРЕМЕНИ ИЗ ПОЛЕЙ ***
-     let startHours: number, startMinutes: number, finishHours: number, finishMinutes: number;
+     // *** ИСПОЛЬЗУЕМ getDisplayWorkTime ДЛЯ ПОЛУЧЕНИЯ АКТУАЛЬНОГО ВРЕМЕНИ ***
+     const workTimeStr = getDisplayWorkTime(item);
+     console.log(`[ScheduleTableContent] Item ${itemIndex} work time from getDisplayWorkTime: ${workTimeStr}`);
      
-     // Приоритет числовых полей, fallback к строковым
-     if (typeof item.startHours === 'number' && typeof item.startMinutes === 'number' &&
-         typeof item.finishHours === 'number' && typeof item.finishMinutes === 'number') {
-       
-       startHours = item.startHours;
-       startMinutes = item.startMinutes;
-       finishHours = item.finishHours;
-       finishMinutes = item.finishMinutes;
-       
-       console.log(`[ScheduleTableContent] Using numeric fields for item ${itemIndex}: ${startHours}:${startMinutes} - ${finishHours}:${finishMinutes}`);
-     } else {
-       // Fallback к строковым полям с правильным парсингом
-       startHours = parseInt(item.startHour || '0', 10);
-       startMinutes = parseInt(item.startMinute || '0', 10);
-       finishHours = parseInt(item.finishHour || '0', 10);
-       finishMinutes = parseInt(item.finishMinute || '0', 10);
-       
-       console.log(`[ScheduleTableContent] Using string fields for item ${itemIndex}: ${startHours}:${startMinutes} - ${finishHours}:${finishMinutes}`);
-     }
-     
-     // *** ИСПРАВЛЕНО: ПРАВИЛЬНЫЙ РАСЧЕТ РАБОЧЕГО ВРЕМЕНИ ***
-     const startTotalMinutes = startHours * 60 + startMinutes;
-     const finishTotalMinutes = finishHours * 60 + finishMinutes;
-     const lunchMinutes = parseInt(item.lunchTime || '0', 10);
-     
-     let workMinutes = 0;
-     
-     // Проверяем, что время окончания больше времени начала
-     if (finishTotalMinutes > startTotalMinutes) {
-       workMinutes = finishTotalMinutes - startTotalMinutes - lunchMinutes;
-       
-       // Убеждаемся, что рабочее время не отрицательное
-       if (workMinutes < 0) {
-         workMinutes = 0;
-         console.log(`[ScheduleTableContent] Negative work time calculated for item ${itemIndex}, setting to 0`);
-       }
-     } else if (startTotalMinutes === finishTotalMinutes && startTotalMinutes === 0) {
-       // Оба времени равны 00:00 - это нулевая смена
-       workMinutes = 0;
-       console.log(`[ScheduleTableContent] Zero time shift for item ${itemIndex}`);
-     } else {
-       // Время окончания меньше или равно времени начала (но не 00:00)
-       workMinutes = 0;
-       console.log(`[ScheduleTableContent] Invalid time range for item ${itemIndex}: ${startHours}:${startMinutes} - ${finishHours}:${finishMinutes}`);
-     }
+     // Парсим рабочее время в формате "X.XX" в минуты
+     const workTimeFloat = parseFloat(workTimeStr) || 0;
+     const workMinutes = Math.round(workTimeFloat * 60); // Конвертируем часы в минуты
      
      totalMinutes += workMinutes;
      
-     const workHours = Math.floor(workMinutes / 60);
-     const remainingMinutes = workMinutes % 60;
-     
-     console.log(`[ScheduleTableContent] Item ${itemIndex} work time: ${workHours}h ${remainingMinutes}m (${workMinutes} total minutes)`);
-     console.log(`[ScheduleTableContent] Running total: ${totalMinutes} minutes`);
+     console.log(`[ScheduleTableContent] Item ${itemIndex}: ${workTimeStr} -> ${workMinutes} minutes (total: ${totalMinutes})`);
    });
    
    // Переводим общие минуты в часы и минуты
@@ -172,10 +136,65 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
    const remainingMinutes = totalMinutes % 60;
    
    const result = `Total: ${totalHours}h:${remainingMinutes.toString().padStart(2, '0')}m`;
-   console.log(`[ScheduleTableContent] *** FINAL TOTAL TIME FOR ${currentDate.toLocaleDateString()}: ${result} (${totalMinutes} total minutes) ***`);
+   console.log(`[ScheduleTableContent] *** FINAL TOTAL TIME FOR ${targetDate.toLocaleDateString()}: ${result} (${totalMinutes} total minutes) ***`);
    
    return result;
- };
+ }, [getDisplayWorkTime, createDateKey]);
+
+ // *** МЕМОИЗИРОВАННЫЙ РАСЧЕТ ВСЕХ ОБЩИХ ВРЕМЕН ***
+ const allDateTotals = useMemo(() => {
+   console.log(`[ScheduleTableContent] *** RECALCULATING ALL DATE TOTALS ***`);
+   
+   const totals: Record<string, string> = {};
+   
+   // Группируем элементы по датам
+   const dateGroups: Record<string, Date> = {};
+   items.forEach(item => {
+     const dateKey = createDateKey(item.date);
+     if (!dateGroups[dateKey]) {
+       dateGroups[dateKey] = item.date;
+     }
+   });
+   
+   // Рассчитываем общее время для каждой даты
+   Object.keys(dateGroups).forEach(dateKey => {
+     const date = dateGroups[dateKey];
+     const total = calculateTotalTimeForDate(items, date);
+     totals[dateKey] = total;
+     console.log(`[ScheduleTableContent] Calculated total for ${dateKey}: ${total}`);
+   });
+   
+   return totals;
+ }, [items, calculateTotalTimeForDate, createDateKey, getDisplayWorkTime]);
+
+ // *** ОБНОВЛЯЕМ КЭШ КОГДА ПЕРЕСЧИТЫВАЮТСЯ ОБЩИЕ ВРЕМЕНА ***
+ useEffect(() => {
+   console.log(`[ScheduleTableContent] *** UPDATING CACHED DATE TOTALS ***`);
+   setCachedDateTotals(allDateTotals);
+ }, [allDateTotals]);
+
+ // *** ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ ОБЩЕГО ВРЕМЕНИ ДЛЯ ДАТЫ ***
+ const getTotalTimeForDate = useCallback((targetDate: Date): string => {
+   const dateKey = createDateKey(targetDate);
+   const cachedTotal = cachedDateTotals[dateKey];
+   
+   if (cachedTotal) {
+     console.log(`[ScheduleTableContent] Using cached total for ${dateKey}: ${cachedTotal}`);
+     return cachedTotal;
+   }
+   
+   // Если в кэше нет, рассчитываем на лету
+   console.log(`[ScheduleTableContent] Cache miss for ${dateKey}, calculating on-demand`);
+   const calculated = calculateTotalTimeForDate(items, targetDate);
+   
+   // Обновляем кэш
+   setCachedDateTotals(prev => ({
+     ...prev,
+     [dateKey]: calculated
+   }));
+   
+   return calculated;
+ }, [cachedDateTotals, createDateKey, calculateTotalTimeForDate, items]);
 
  // Функция для подсчета всех строк (включая удаленные) в группе с одинаковой датой
  const countTotalRowsInDate = (items: IScheduleItem[], index: number): number => {
@@ -192,6 +211,46 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
      );
    }).length;
  };
+
+ // *** ОБЕРТКА ДЛЯ onItemChange ЧТОБЫ ИНВАЛИДИРОВАТЬ КЭШ ***
+ const handleItemChangeWithCacheInvalidation = useCallback((item: IScheduleItem, field: string, value: string): void => {
+   console.log(`[ScheduleTableContent] *** ITEM CHANGE WITH CACHE INVALIDATION ***`);
+   console.log(`[ScheduleTableContent] Item: ${item.id}, Field: ${field}, Value: ${value}`);
+   
+   // Если изменяется время или обед, инвалидируем кэш для этой даты
+   const timeFields = ['startHour', 'startMinute', 'finishHour', 'finishMinute', 'lunchTime', 'workingHours'];
+   if (timeFields.includes(field)) {
+     const dateKey = createDateKey(item.date);
+     console.log(`[ScheduleTableContent] Time field changed, invalidating cache for date: ${dateKey}`);
+     
+     setCachedDateTotals(prev => {
+       const updated = { ...prev };
+       delete updated[dateKey]; // Удаляем из кэша, чтобы пересчитать
+       return updated;
+     });
+   }
+   
+   // Вызываем оригинальный обработчик
+   onItemChange(item, field, value);
+ }, [onItemChange, createDateKey]);
+
+ // *** ОБЕРТКА ДЛЯ onLunchTimeChange ЧТОБЫ ИНВАЛИДИРОВАТЬ КЭШ ***
+ const handleLunchTimeChangeWithCacheInvalidation = useCallback((item: IScheduleItem, value: string): void => {
+   console.log(`[ScheduleTableContent] *** LUNCH TIME CHANGE WITH CACHE INVALIDATION ***`);
+   console.log(`[ScheduleTableContent] Item: ${item.id}, New lunch time: ${value}`);
+   
+   const dateKey = createDateKey(item.date);
+   console.log(`[ScheduleTableContent] Lunch time changed, invalidating cache for date: ${dateKey}`);
+   
+   setCachedDateTotals(prev => {
+     const updated = { ...prev };
+     delete updated[dateKey]; // Удаляем из кэша, чтобы пересчитать
+     return updated;
+   });
+   
+   // Вызываем оригинальный обработчик
+   onLunchTimeChange(item, value);
+ }, [onLunchTimeChange, createDateKey]);
 
  // Log selected contract for debugging
  if (selectedContract) {
@@ -260,7 +319,7 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
                    item={item}
                    rowIndex={index}
                    rowPositionInDate={getRowPositionInDate(items, index)}
-                   totalTimeForDate={calculateTotalTimeForDate(items, index)}
+                   totalTimeForDate={getTotalTimeForDate(item.date)} {/* *** ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ *** */}
                    totalRowsInDate={countTotalRowsInDate(items, index)}
                    options={options}
                    displayWorkTime={getDisplayWorkTime(item)}
@@ -268,9 +327,9 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
                    showAddShiftConfirmDialog={showAddShiftConfirmDialog}
                    showRestoreConfirmDialog={showRestoreConfirmDialog}
                    onRestoreItem={onRestoreItem}
-                   onItemChange={onItemChange}
+                   onItemChange={handleItemChangeWithCacheInvalidation} {/* *** ИСПОЛЬЗУЕМ ОБЕРТКУ *** */}
                    onContractNumberChange={onContractNumberChange}
-                   onLunchTimeChange={onLunchTimeChange}
+                   onLunchTimeChange={handleLunchTimeChangeWithCacheInvalidation} {/* *** ИСПОЛЬЗУЕМ ОБЕРТКУ *** */}
                  />
                </React.Fragment>
              );

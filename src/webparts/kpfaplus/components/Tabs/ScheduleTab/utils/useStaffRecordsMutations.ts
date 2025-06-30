@@ -156,9 +156,9 @@ export const useStaffRecordsMutations = (
       console.log(`[useStaffRecordsMutations] *** CREATING SHIFT TIMES WITH NUMERIC FIELDS ***`);
       
       // Используем числовые значения напрямую
-      const startHours = 9;
+      const startHours = 0;
       const startMinutes = 0;
-      const finishHours = 17;
+      const finishHours = 0;
       const finishMinutes = 0;
       
       const shiftDate1 = createTimeFromNumericComponents(newDate, startHours, startMinutes);
