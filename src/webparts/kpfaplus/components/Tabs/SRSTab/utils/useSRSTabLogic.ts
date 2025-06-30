@@ -17,7 +17,7 @@ export interface INewSRSShiftData {
   contract: string;
   contractNumber?: string;
   typeOfLeave?: string;
-  Holiday?: number;
+  Holiday?: number; // Всегда 0 - праздники определяются из holidays list
   // *** НОВОЕ: Числовые поля времени для StaffRecordsService ***
   ShiftDate1Hours?: number;
   ShiftDate1Minutes?: number;
@@ -147,16 +147,17 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   // Total Hours теперь вычисляется в реальном времени в SRSTable
 
   // ===============================================
-  // *** ОБНОВЛЕНА ФУНКЦИЯ: ДОБАВЛЕНИЕ СМЕНЫ С ЧИСЛОВЫМИ ПОЛЯМИ ВРЕМЕНИ ***
+  // *** ИСПРАВЛЕНО: ДОБАВЛЕНИЕ СМЕНЫ БЕЗ ПРОВЕРКИ HOLIDAY ПОЛЯ ***
   // ===============================================
 
   /**
-   * *** ОБНОВЛЕНО: Добавление смены SRS с числовыми полями времени ***
-   * Использует метод createStaffRecord из StaffRecordsService с новыми полями
+   * *** ИСПРАВЛЕНО: Добавление смены SRS без проверки Holiday поля ***
+   * Holiday всегда устанавливается в 0, так как праздники определяются из holidays list
    */
   const handleAddShift = useCallback(async (date: Date, shiftData?: INewSRSShiftData): Promise<boolean> => {
-    console.log('[useSRSTabLogic] *** REAL ADD SHIFT OPERATION WITH NUMERIC TIME FIELDS ***');
+    console.log('[useSRSTabLogic] *** REAL ADD SHIFT OPERATION WITHOUT HOLIDAY FIELD CHECK ***');
     console.log('[useSRSTabLogic] Date for new shift:', date.toLocaleDateString());
+    console.log('[useSRSTabLogic] Holiday determination: From holidays list only, not from Holiday field');
     console.log('[useSRSTabLogic] Shift data:', shiftData);
     
     // Проверяем базовые требования
@@ -215,7 +216,9 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       const timeForLunch = shiftData?.timeForLunch ? parseInt(shiftData.timeForLunch, 10) : 30;
       const contract = shiftData?.contract ? parseInt(shiftData.contract, 10) : 1;
       const typeOfLeaveID = shiftData?.typeOfLeave && shiftData.typeOfLeave !== '' ? shiftData.typeOfLeave : '';
-      const holidayFlag = shiftData?.Holiday || 0;
+
+      // *** ИСПРАВЛЕНО: Holiday всегда 0 - не проверяем из shiftData ***
+      const holidayFlag = 0; // Всегда 0, так как праздники определяются из holidays list
 
       // *** СТРУКТУРА ДАННЫХ С ЧИСЛОВЫМИ ПОЛЯМИ ВРЕМЕНИ ***
       const createData: Partial<IStaffRecord> = {
@@ -233,14 +236,15 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
         WeeklyTimeTableID: undefined, // В SRS нет selectedContractId
         TypeOfLeaveID: typeOfLeaveID,
         Title: typeOfLeaveID ? `Leave on ${date.toLocaleDateString()}` : `SRS Shift on ${date.toLocaleDateString()}`,
-        Holiday: holidayFlag
+        // *** ИСПРАВЛЕНО: Holiday всегда 0 ***
+        Holiday: holidayFlag // Всегда 0, праздники определяются из holidays list
       };
 
       const employeeId = selectedStaff.employeeId;
       const currentUserID = currentUserId;
       const staffGroupID = managingGroupId;
 
-      console.log('[useSRSTabLogic] *** CREATING NEW SRS SHIFT WITH NUMERIC TIME FIELDS ***');
+      console.log('[useSRSTabLogic] *** CREATING NEW SRS SHIFT WITH NUMERIC TIME FIELDS AND NO HOLIDAY CHECK ***');
       console.log('[useSRSTabLogic] Numeric time fields:', {
         ShiftDate1Hours: createData.ShiftDate1Hours,
         ShiftDate1Minutes: createData.ShiftDate1Minutes,
@@ -257,10 +261,11 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
         timeForLunch,
         contract,
         typeOfLeaveID,
-        holidayFlag
+        holidayFlag: holidayFlag + ' (always 0 - holidays from list)',
+        holidayLogic: 'Holidays determined from holidays list, not from Holiday field'
       });
       
-      console.log('[useSRSTabLogic] Calling staffRecordsService.createStaffRecord() with NUMERIC TIME FIELDS...');
+      console.log('[useSRSTabLogic] Calling staffRecordsService.createStaffRecord() with NUMERIC TIME FIELDS and Holiday=0...');
       
       // *** РЕАЛЬНЫЙ ВЫЗОВ: createStaffRecord с числовыми полями времени ***
       const newRecordId = await staffRecordsService.createStaffRecord(
@@ -271,13 +276,14 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       );
       
       if (newRecordId && typeof newRecordId === 'string') {
-        console.log('[useSRSTabLogic] *** REAL ADD SHIFT WITH NUMERIC TIME FIELDS SUCCESSFUL ***');
+        console.log('[useSRSTabLogic] *** REAL ADD SHIFT WITHOUT HOLIDAY CHECK SUCCESSFUL ***');
         console.log('[useSRSTabLogic] New SRS record created with ID:', newRecordId);
-        console.log('[useSRSTabLogic] Record contains numeric time fields:', {
+        console.log('[useSRSTabLogic] Record contains numeric time fields and Holiday=0:', {
           ShiftDate1Hours: createData.ShiftDate1Hours,
           ShiftDate1Minutes: createData.ShiftDate1Minutes,
           ShiftDate2Hours: createData.ShiftDate2Hours,
-          ShiftDate2Minutes: createData.ShiftDate2Minutes
+          ShiftDate2Minutes: createData.ShiftDate2Minutes,
+          Holiday: createData.Holiday + ' (holidays from list only)'
         });
         
         // Автоматически обновляем данные, чтобы показать новую запись
@@ -1024,7 +1030,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     hasOngoingOperations,
     realDeleteRestoreIntegration: 'StaffRecordsService.markRecordAsDeleted & restoreDeletedRecord',
     addShiftOperationsCount: addShiftOperations.size,
-    realAddShiftIntegration: 'StaffRecordsService.createStaffRecord WITH NUMERIC TIME FIELDS',
+    realAddShiftIntegration: 'StaffRecordsService.createStaffRecord WITH NUMERIC TIME FIELDS AND NO HOLIDAY CHECK',
     showDeleted: state.showDeleted,
     showDeletedSupport: true,
     hasToggleShowDeletedHandler: !!handleToggleShowDeleted,
@@ -1032,7 +1038,8 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     numericTimeFieldsSupport: true,
     simplifiedArchitecture: true, // *** НОВОЕ ***
     totalHoursCalculation: 'Real-time in SRSTable', // *** НОВОЕ ***
-    noProblematicUseEffects: true // *** НОВОЕ ***
+    noProblematicUseEffects: true, // *** НОВОЕ ***
+    holidayFieldHandling: 'Always 0 - holidays from list only' // *** ИСПРАВЛЕНО ***
   });
 
   return hookReturn;

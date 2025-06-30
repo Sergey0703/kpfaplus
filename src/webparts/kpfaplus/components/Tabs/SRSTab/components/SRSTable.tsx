@@ -10,7 +10,7 @@ import {
   checkSRSStartEndTimeSame
 } from '../utils/SRSTimeCalculationUtils';
 
-// *** НОВЫЙ ИМПОРТ: Интерфейс данных для новой смены ***
+// *** ИСПРАВЛЕНО: Интерфейс данных для новой смены без Holiday поля ***
 import { INewSRSShiftData } from './SRSTableRow';
 
 // *** ОБНОВЛЕННЫЙ ИМПОРТ: SRSFilterControls без totalHours ***
@@ -73,7 +73,7 @@ export const SRSTable: React.FC<ISRSTableProps & {
     lunch: string;
   }>>({});
 
-  // *** УПРОЩЕННОЕ: State для диалога подтверждения добавления смены ***
+  // *** ИСПРАВЛЕНО: State для диалога подтверждения добавления смены без Holiday проверки ***
   const [addShiftConfirmDialog, setAddShiftConfirmDialog] = useState({
     isOpen: false,
     item: null as ISRSRecord | null,
@@ -81,7 +81,7 @@ export const SRSTable: React.FC<ISRSTableProps & {
     message: ''
   });
 
-  console.log('[SRSTable] Rendering with REAL-TIME TOTAL HOURS CALCULATION AND HOLIDAYS LIST:', {
+  console.log('[SRSTable] Rendering with REAL-TIME TOTAL HOURS CALCULATION AND HOLIDAYS LIST WITHOUT HOLIDAY FIELD CHECKS:', {
     itemsCount: items.length,
     // *** НОВОЕ: Логируем информацию о праздниках ***
     holidaysCount: holidays.length,
@@ -100,7 +100,8 @@ export const SRSTable: React.FC<ISRSTableProps & {
     hasAddShiftDialog: true,
     addShiftDialogOpen: addShiftConfirmDialog.isOpen,
     realTimeTotalHours: true, // *** НОВАЯ ФУНКЦИЯ ***
-    holidaysFromList: true // *** НОВАЯ ФУНКЦИЯ: Праздники из списка, а не из поля ***
+    holidaysFromList: true, // *** НОВАЯ ФУНКЦИЯ: Праздники из списка, а не из поля ***
+    addShiftWithoutHolidayCheck: true // *** ИСПРАВЛЕНО: Добавление смены без проверки Holiday поля ***
   });
 
   // *** КЛЮЧЕВАЯ ФУНКЦИЯ: Вычисление общего времени в реальном времени ***
@@ -239,15 +240,17 @@ export const SRSTable: React.FC<ISRSTableProps & {
     };
   }, [currentItemValues]);
 
-  // *** УПРОЩЕННЫЙ ОБРАБОТЧИК: Показ диалога подтверждения добавления смены ***
+  // *** ИСПРАВЛЕНО: Обработчик показа диалога подтверждения добавления смены без Holiday проверки ***
   const showAddShiftConfirmDialog = useCallback((item: ISRSRecord): void => {
-    console.log('[SRSTable] *** SHOW SIMPLIFIED ADD SHIFT CONFIRM DIALOG *** for item:', item.id);
+    console.log('[SRSTable] *** SHOW ADD SHIFT CONFIRM DIALOG WITHOUT HOLIDAY CHECK *** for item:', item.id);
     
     // Проверяем, что запись не удалена
     if (item.deleted) {
       console.warn('[SRSTable] Cannot add shift to deleted record');
       return;
     }
+
+    console.log('[SRSTable] Setting up add shift dialog without Holiday field checks');
 
     setAddShiftConfirmDialog({
       isOpen: true,
@@ -257,91 +260,91 @@ export const SRSTable: React.FC<ISRSTableProps & {
     });
   }, []);
 
-  // *** ИСПРАВЛЕННЫЙ ОБРАБОТЧИК: Подтверждение добавления смены с реальным вызовом onAddShift ***
-const handleAddShiftConfirm = useCallback(async (): Promise<void> => {
-  const { item } = addShiftConfirmDialog;
-  console.log('[SRSTable] *** HANDLE REAL ADD SHIFT CONFIRM ***');
-  console.log('[SRSTable] Item for shift creation:', item?.id);
+  // *** ИСПРАВЛЕНО: Обработчик подтверждения добавления смены без Holiday поля ***
+  const handleAddShiftConfirm = useCallback(async (): Promise<void> => {
+    const { item } = addShiftConfirmDialog;
+    console.log('[SRSTable] *** HANDLE ADD SHIFT CONFIRM WITHOUT HOLIDAY FIELD ***');
+    console.log('[SRSTable] Item for shift creation:', item?.id);
 
-  if (!item) {
-    console.error('[SRSTable] No item selected for shift creation');
-    setAddShiftConfirmDialog(prev => ({ ...prev, isOpen: false, item: null }));
-    return;
-  }
-
-  // *** ПРОВЕРЯЕМ НАЛИЧИЕ onAddShift ПРОПСА ***
-  if (!onAddShift) {
-    console.error('[SRSTable] onAddShift handler not available - cannot create shift');
-    alert('Add Shift functionality is not available. Please check component configuration.');
-    setAddShiftConfirmDialog(prev => ({ ...prev, isOpen: false, item: null }));
-    return;
-  }
-
-  try {
-    console.log('[SRSTable] Preparing shift data for REAL creation...');
-
-    // *** СОЗДАЕМ ДАННЫЕ ДЛЯ НОВОЙ СМЕНЫ С ВРЕМЕНЕМ 00:00 ***
-    const shiftData: INewSRSShiftData = {
-      date: new Date(item.date), // Та же дата
-      timeForLunch: item.lunch,  // Используем время обеда из текущей записи
-      contract: item.contract,   // Тот же контракт
-      contractNumber: item.contract, // Используем contract как contractNumber
-      typeOfLeave: item.typeOfLeave, // Тот же тип отпуска (если есть)
-      // *** ИЗМЕНЕНО: Holiday определяется из списка праздников, а не передается ***
-      Holiday: 0 // Всегда 0, так как праздники определяются из holidays list
-    };
-
-    console.log('[SRSTable] Shift data prepared for REAL service call:', {
-      date: shiftData.date.toISOString(),
-      dateLocal: shiftData.date.toLocaleDateString(),
-      timeForLunch: shiftData.timeForLunch,
-      contract: shiftData.contract,
-      contractNumber: shiftData.contractNumber,
-      typeOfLeave: shiftData.typeOfLeave || 'none',
-      Holiday: shiftData.Holiday,
-      holidayDeterminedBy: 'holidays list, not Holiday field'
-    });
-
-    // *** РЕАЛЬНЫЙ ВЫЗОВ: onAddShift из пропсов ***
-    console.log('[SRSTable] *** CALLING REAL onAddShift HANDLER ***');
-    console.log('[SRSTable] This will trigger StaffRecordsService.createStaffRecord via useSRSTabLogic');
-    
-    const success = await onAddShift(shiftData.date, shiftData);
-    
-    if (success) {
-      console.log('[SRSTable] *** ADD SHIFT OPERATION SUCCESSFUL ***');
-      console.log('[SRSTable] New shift created successfully, data will be auto-refreshed');
-      
-      // Показываем уведомление об успехе (опционально)
-      // alert(`Shift added successfully on ${shiftData.date.toLocaleDateString()}!`);
-      
-    } else {
-      console.error('[SRSTable] *** ADD SHIFT OPERATION FAILED ***');
-      console.error('[SRSTable] onAddShift returned false - shift creation failed');
-      
-      // Показываем ошибку пользователю
-      alert(`Failed to add shift on ${shiftData.date.toLocaleDateString()}. Please try again.`);
+    if (!item) {
+      console.error('[SRSTable] No item selected for shift creation');
+      setAddShiftConfirmDialog(prev => ({ ...prev, isOpen: false, item: null }));
+      return;
     }
 
-    // Закрываем диалог в любом случае
-    setAddShiftConfirmDialog(prev => ({ ...prev, isOpen: false, item: null }));
+    // *** ПРОВЕРЯЕМ НАЛИЧИЕ onAddShift ПРОПСА ***
+    if (!onAddShift) {
+      console.error('[SRSTable] onAddShift handler not available - cannot create shift');
+      alert('Add Shift functionality is not available. Please check component configuration.');
+      setAddShiftConfirmDialog(prev => ({ ...prev, isOpen: false, item: null }));
+      return;
+    }
 
-  } catch (error) {
-    console.error('[SRSTable] Error during REAL add shift operation:', error);
-    
-    // Показываем ошибку пользователю
-    alert(`Error adding shift: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    
-    // Закрываем диалог
-    setAddShiftConfirmDialog(prev => ({ ...prev, isOpen: false, item: null }));
-  }
-}, [addShiftConfirmDialog.item, onAddShift]);
+    try {
+      console.log('[SRSTable] Preparing shift data for creation WITHOUT Holiday field...');
 
-// *** ОБРАБОТЧИК: Отмена добавления смены (без изменений) ***
-const handleAddShiftCancel = useCallback((): void => {
-  console.log('[SRSTable] Add shift dialog cancelled');
-  setAddShiftConfirmDialog(prev => ({ ...prev, isOpen: false, item: null }));
-}, []);
+      // *** ИСПРАВЛЕНО: Создаем данные для новой смены без Holiday поля ***
+      const shiftData: INewSRSShiftData = {
+        date: new Date(item.date), // Та же дата
+        timeForLunch: item.lunch,  // Используем время обеда из текущей записи
+        contract: item.contract,   // Тот же контракт
+        contractNumber: item.contract, // Используем contract как contractNumber
+        typeOfLeave: item.typeOfLeave, // Тот же тип отпуска (если есть)
+        // *** ИСПРАВЛЕНО: Holiday всегда 0 - не передаем значение из item ***
+        Holiday: 0 // Всегда 0, так как праздники определяются из holidays list
+      };
+
+      console.log('[SRSTable] Shift data prepared for service call WITHOUT Holiday field checks:', {
+        date: shiftData.date.toISOString(),
+        dateLocal: shiftData.date.toLocaleDateString(),
+        timeForLunch: shiftData.timeForLunch,
+        contract: shiftData.contract,
+        contractNumber: shiftData.contractNumber,
+        typeOfLeave: shiftData.typeOfLeave || 'none',
+        Holiday: shiftData.Holiday + ' (always 0)',
+        holidayDeterminedBy: 'holidays list, not Holiday field'
+      });
+
+      // *** РЕАЛЬНЫЙ ВЫЗОВ: onAddShift из пропсов ***
+      console.log('[SRSTable] *** CALLING onAddShift HANDLER WITHOUT HOLIDAY CHECKS ***');
+      console.log('[SRSTable] This will trigger StaffRecordsService.createStaffRecord via useSRSTabLogic');
+      
+      const success = await onAddShift(shiftData.date, shiftData);
+      
+      if (success) {
+        console.log('[SRSTable] *** ADD SHIFT OPERATION SUCCESSFUL WITHOUT HOLIDAY CHECKS ***');
+        console.log('[SRSTable] New shift created successfully, data will be auto-refreshed');
+        
+        // Показываем уведомление об успехе (опционально)
+        // alert(`Shift added successfully on ${shiftData.date.toLocaleDateString()}!`);
+        
+      } else {
+        console.error('[SRSTable] *** ADD SHIFT OPERATION FAILED ***');
+        console.error('[SRSTable] onAddShift returned false - shift creation failed');
+        
+        // Показываем ошибку пользователю
+        alert(`Failed to add shift on ${shiftData.date.toLocaleDateString()}. Please try again.`);
+      }
+
+      // Закрываем диалог в любом случае
+      setAddShiftConfirmDialog(prev => ({ ...prev, isOpen: false, item: null }));
+
+    } catch (error) {
+      console.error('[SRSTable] Error during add shift operation:', error);
+      
+      // Показываем ошибку пользователю
+      alert(`Error adding shift: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      
+      // Закрываем диалог
+      setAddShiftConfirmDialog(prev => ({ ...prev, isOpen: false, item: null }));
+    }
+  }, [addShiftConfirmDialog.item, onAddShift]);
+
+  // *** ОБРАБОТЧИК: Отмена добавления смены (без изменений) ***
+  const handleAddShiftCancel = useCallback((): void => {
+    console.log('[SRSTable] Add shift dialog cancelled');
+    setAddShiftConfirmDialog(prev => ({ ...prev, isOpen: false, item: null }));
+  }, []);
 
   // *** ИСПРАВЛЕНО: Обработчик изменения времени с обновлением актуальных значений ***
   const handleTimeChange = useCallback((item: ISRSRecord, field: string, value: string | { hours: string; minutes: string }): void => {
@@ -749,9 +752,9 @@ const handleAddShiftCancel = useCallback((): void => {
             <Text style={{ fontSize: '12px', color: '#0078d4' }}>
               Delete/Restore via StaffRecordsService
             </Text>
-            {/* *** НОВОЕ: Информация о функционале добавления смены *** */}
+            {/* *** ИСПРАВЛЕНО: Информация о функционале добавления смены без Holiday проверки *** */}
             <Text style={{ fontSize: '12px', color: '#107c10' }}>
-              +Shift: Add new SRS record (00:00-00:00)
+              +Shift: Add new SRS record (no Holiday checks)
             </Text>
           </div>
         </div>
@@ -930,10 +933,10 @@ const handleAddShiftCancel = useCallback((): void => {
                       ? 'Showing all records including deleted ones' 
                       : 'Hiding deleted records (use "Show deleted" to see all)'}
                   </small>
-                  {/* *** НОВОЕ: Информация о функционале добавления смены *** */}
+                  {/* *** ИСПРАВЛЕНО: Информация о функционале добавления смены без Holiday проверки *** */}
                   <br />
                   <small style={{ color: '#107c10', marginTop: '5px', display: 'block' }}>
-                    Use +Shift button to add new SRS records 
+                    Use +Shift button to add new SRS records (no Holiday field checks)
                   </small>
                   {/* *** НОВОЕ: Информация о Real-time Total Hours *** */}
                   <br />
@@ -979,7 +982,7 @@ const handleAddShiftCancel = useCallback((): void => {
                     showRestoreConfirmDialog={showRestoreConfirmDialog}
                     onDeleteItem={onDeleteItem}
                     onRestoreItem={onRestoreItem}
-                    // *** НОВОЕ: Передаем обработчик добавления смены ***
+                    // *** ИСПРАВЛЕНО: Передаем обработчик добавления смены без Holiday проверки ***
                     showAddShiftConfirmDialog={showAddShiftConfirmDialog}
                   />
                 </React.Fragment>
@@ -988,7 +991,7 @@ const handleAddShiftCancel = useCallback((): void => {
           </tbody>
         </table>
 
-        {/* *** УПРОЩЕННОЕ: Диалог подтверждения добавления смены по аналогии со Schedule *** */}
+        {/* *** ИСПРАВЛЕНО: Диалог подтверждения добавления смены без Holiday проверки *** */}
         {addShiftConfirmDialog.isOpen && (
           <div style={{
             position: 'fixed',
@@ -1026,6 +1029,11 @@ const handleAddShiftCancel = useCallback((): void => {
                 color: '#605e5c'
               }}>
                 {addShiftConfirmDialog.message}
+                {/* *** ИСПРАВЛЕНО: Дополнительная информация о создании без Holiday проверки *** */}
+                <br />
+                <small style={{ color: '#888', marginTop: '8px', display: 'block' }}>
+                  New shift will be created with 00:00-00:00 time and Holiday=0. Holidays are determined automatically from holidays list.
+                </small>
               </p>
 
               <div style={{

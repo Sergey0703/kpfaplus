@@ -36,7 +36,7 @@ export interface ISRSRecord {
 }
 
 /**
- * *** НОВЫЙ ИНТЕРФЕЙС: Данные для новой смены (аналог из Schedule) ***
+ * *** ИСПРАВЛЕНО: Интерфейс данных для новой смены без проверки Holiday поля ***
  */
 export interface INewSRSShiftData {
   date: Date;
@@ -44,7 +44,7 @@ export interface INewSRSShiftData {
   contract: string;
   contractNumber?: string;
   typeOfLeave?: string;
-  Holiday?: number; // Устанавливается на основе holidays list, а не пользователем
+  Holiday?: number; // *** ИСПРАВЛЕНО: Всегда 0 - праздники определяются из holidays list, не устанавливается пользователем ***
 }
 
 /**
@@ -99,7 +99,7 @@ export interface ISRSTableProps {
   // *** ИСПРАВЛЕНО: Добавлены пропсы для showDeleted ***
   showDeleted: boolean; // Флаг отображения удаленных записей
   onToggleShowDeleted: (checked: boolean) => void; // Обработчик переключения флага
-  // *** НОВОЕ: Добавлен обработчик добавления смены ***
+  // *** ИСПРАВЛЕНО: Добавлен обработчик добавления смены без Holiday проверки ***
   onAddShift?: (date: Date, shiftData?: INewSRSShiftData) => Promise<boolean>;
 }
 
@@ -121,7 +121,7 @@ export interface ISRSTableRowProps {
   showRestoreConfirmDialog?: (id: string) => void;
   onDeleteItem?: (id: string) => Promise<boolean>;
   onRestoreItem?: (id: string) => Promise<boolean>;
-  // *** НОВОЕ: Добавлен обработчик добавления смены ***
+  // *** ИСПРАВЛЕНО: Добавлен обработчик добавления смены без Holiday проверки ***
   onAddShift?: (date: Date, shiftData?: INewSRSShiftData) => Promise<boolean>;
 }
 
@@ -310,7 +310,7 @@ export interface ISRSTabProps {
   // *** ИСПРАВЛЕНО: Обязательный обработчик showDeleted ***
   onToggleShowDeleted: (checked: boolean) => void; // *** ИСПРАВЛЕНО: Убран optional, сделан обязательным ***
   
-  // *** НОВОЕ: Добавлен обработчик добавления смены ***
+  // *** ИСПРАВЛЕНО: Добавлен обработчик добавления смены без Holiday проверки ***
   onAddShift: (date: Date, shiftData?: INewSRSShiftData) => Promise<boolean>;
 }
 
@@ -635,7 +635,7 @@ export class SRSTableOptionsHelper {
   }
 
   /**
-   * *** НОВАЯ ФУНКЦИЯ: Создание параметров фильтрации ***
+   * *** ИСПРАВЛЕНО: Создание параметров фильтрации без Holiday проверки ***
    * Создает объект параметров фильтрации с правильными типами
    */
   public static createFilterParams(
@@ -731,6 +731,112 @@ export class SRSTableOptionsHelper {
       regularRecords: regularRecords.length,
       holidayPercentage: totalRecords > 0 ? Math.round((holidayRecords.length / totalRecords) * 100) : 0,
       holidaysList
+    };
+  }
+
+  /**
+   * *** ИСПРАВЛЕНО: Создание данных для новой смены без Holiday проверки ***
+   * Подготавливает данные для создания новой SRS смены
+   */
+  public static createNewShiftData(
+    date: Date,
+    timeForLunch: string = '30',
+    contract: string = '1',
+    typeOfLeave?: string
+  ): INewSRSShiftData {
+    return {
+      date,
+      timeForLunch,
+      contract,
+      contractNumber: contract,
+      typeOfLeave: typeOfLeave || '',
+      Holiday: 0 // *** ИСПРАВЛЕНО: Всегда 0 - праздники определяются из holidays list ***
+    };
+  }
+
+  /**
+   * *** ИСПРАВЛЕНО: Валидация данных новой смены без Holiday проверки ***
+   * Проверяет корректность данных для создания новой смены
+   */
+  public static validateNewShiftData(shiftData: INewSRSShiftData): {
+    isValid: boolean;
+    errors: string[];
+    warnings: string[];
+  } {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    // Проверяем дату
+    if (!shiftData.date || isNaN(shiftData.date.getTime())) {
+      errors.push('Valid date is required');
+    }
+
+    // Проверяем время обеда
+    const lunchTime = parseInt(shiftData.timeForLunch, 10);
+    if (isNaN(lunchTime) || lunchTime < 0 || lunchTime > 120) {
+      errors.push('Lunch time must be between 0 and 120 minutes');
+    }
+
+    // Проверяем контракт
+    const contract = parseInt(shiftData.contract, 10);
+    if (isNaN(contract) || contract < 1 || contract > 3) {
+      errors.push('Contract must be 1, 2, or 3');
+    }
+
+    // *** ИСПРАВЛЕНО: НЕ проверяем Holiday поле - оно всегда должно быть 0 ***
+    if (shiftData.Holiday !== undefined && shiftData.Holiday !== 0) {
+      warnings.push('Holiday field will be ignored - holidays are determined from holidays list');
+    }
+
+    // Проверяем тип отпуска (необязательно)
+    if (shiftData.typeOfLeave && shiftData.typeOfLeave.trim() === '') {
+      warnings.push('Empty type of leave will be treated as no leave type');
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      warnings
+    };
+  }
+
+  /**
+   * *** ИСПРАВЛЕНО: Подготовка данных смены для отправки на сервер без Holiday поля ***
+   * Конвертирует INewSRSShiftData в формат для StaffRecordsService
+   */
+  public static prepareShiftDataForServer(
+    shiftData: INewSRSShiftData,
+    defaultStartHours: number = 0,
+    defaultStartMinutes: number = 0,
+    defaultEndHours: number = 0,
+    defaultEndMinutes: number = 0
+  ): {
+    Date: Date;
+    ShiftDate1Hours: number;
+    ShiftDate1Minutes: number;
+    ShiftDate2Hours: number;
+    ShiftDate2Minutes: number;
+    TimeForLunch: number;
+    Contract: number;
+    TypeOfLeaveID: string;
+    Holiday: number; // Всегда 0
+    Title: string;
+  } {
+    const timeForLunch = parseInt(shiftData.timeForLunch, 10) || 30;
+    const contract = parseInt(shiftData.contract, 10) || 1;
+    const typeOfLeaveID = shiftData.typeOfLeave && shiftData.typeOfLeave !== '' ? shiftData.typeOfLeave : '';
+
+    return {
+      Date: new Date(shiftData.date),
+      ShiftDate1Hours: defaultStartHours,
+      ShiftDate1Minutes: defaultStartMinutes,
+      ShiftDate2Hours: defaultEndHours,
+      ShiftDate2Minutes: defaultEndMinutes,
+      TimeForLunch: timeForLunch,
+      Contract: contract,
+      TypeOfLeaveID: typeOfLeaveID,
+      Holiday: 0, // *** ИСПРАВЛЕНО: Всегда 0 - праздники определяются из holidays list ***
+      Title: typeOfLeaveID ? `Leave on ${shiftData.date.toLocaleDateString()}` : `SRS Shift on ${shiftData.date.toLocaleDateString()}`
     };
   }
 }

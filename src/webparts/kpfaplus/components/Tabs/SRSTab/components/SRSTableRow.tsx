@@ -6,7 +6,7 @@ import { Checkbox, Dropdown, DefaultButton, IconButton, IDropdownOption, Tooltip
 import { ISRSTableRowProps, ISRSRecord, isHolidayDate, getHolidayInfo } from '../utils/SRSTabInterfaces';
 import { calculateSRSWorkTime } from '../utils/SRSTimeCalculationUtils';
 
-// *** ОБНОВЛЕНО: Интерфейс данных для новой смены с числовыми полями времени ***
+// *** ОБНОВЛЕНО: Интерфейс данных для новой смены без проверки Holiday поля ***
 export interface INewSRSShiftData {
   date: Date;
   timeForLunch: string;
@@ -122,16 +122,16 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     setLocalTimeLeave(item.timeLeave);
   }, [item.id, item.startWork, item.finishWork, item.lunch, item.contract, item.typeOfLeave, item.timeLeave, item.deleted, isHoliday, holidayInfo]);
 
-  // *** ОБНОВЛЕНО: Обработчик клика по кнопке "+Shift" с числовыми полями времени ***
+  // *** ИСПРАВЛЕНО: Обработчик клика по кнопке "+Shift" без проверки Holiday поля ***
   const handleAddShiftClick = useCallback((): void => {
-    console.log(`[SRSTableRow] *** ADD SHIFT CLICK WITH NUMERIC TIME FIELDS AND HOLIDAY FROM LIST *** for item ${item.id} on date: ${item.date.toLocaleDateString()}`);
+    console.log(`[SRSTableRow] *** ADD SHIFT CLICK WITHOUT HOLIDAY FIELD CHECK *** for item ${item.id} on date: ${item.date.toLocaleDateString()}`);
     
     if (!showAddShiftConfirmDialog) {
       console.error('[SRSTableRow] showAddShiftConfirmDialog handler not available - cannot show confirmation dialog');
       return;
     }
 
-    console.log('[SRSTableRow] Calling showAddShiftConfirmDialog with item data for NUMERIC time fields creation');
+    console.log('[SRSTableRow] Calling showAddShiftConfirmDialog with item data for NUMERIC time fields creation WITHOUT holiday check');
     console.log('[SRSTableRow] Item data for shift creation:', {
       id: item.id,
       date: item.date.toISOString(),
@@ -139,10 +139,8 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
       contract: item.contract,
       contractNumber: item.contract, // Используем contract как contractNumber
       typeOfLeave: item.typeOfLeave,
-      // *** ИЗМЕНЕНО: Праздник определяется из списка, не передается как Holiday поле ***
-      holidayFromField: item.Holiday, // Старое значение (игнорируется)
-      holidayFromList: isHoliday, // Новое определение на основе списка
-      holidayTitle: holidayInfo?.title || 'Not a holiday',
+      // *** ИСПРАВЛЕНО: Убрана передача информации о праздниках ***
+      holidayHandling: 'Always 0 - determined from holidays list, not passed to creation',
       // *** НОВОЕ: Логируем текущие числовые значения времени для будущей смены ***
       currentStartWork: `${item.startWork.hours}:${item.startWork.minutes}`,
       currentFinishWork: `${item.finishWork.hours}:${item.finishWork.minutes}`,
@@ -152,7 +150,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     // Передаем весь item в диалог подтверждения
     showAddShiftConfirmDialog(item);
     
-  }, [item, showAddShiftConfirmDialog, isHoliday, holidayInfo]);
+  }, [item, showAddShiftConfirmDialog]);
 
   // *** ОБНОВЛЕНО: Holiday cell style - колонко-специфичная стилизация на основе списка праздников ***
   const getHolidayCellStyle = (columnType: 'date' | 'hours' | 'other'): React.CSSProperties => {
@@ -557,7 +555,8 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     hasAddShiftIntegration: !!showAddShiftConfirmDialog,
     numericTimeFieldsSupport: true,
     timeLeaveFixed: true,
-    holidayDetectionMethod: 'Holidays list date matching' // *** НОВОЕ ***
+    holidayDetectionMethod: 'Holidays list date matching', // *** НОВОЕ ***
+    addShiftWithoutHolidayCheck: true // *** ИСПРАВЛЕНО ***
   });
 
   return (
@@ -710,7 +709,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
         />
       </td>
 
-      {/* +Shift button - FIXED: Always green, no holiday condition */}
+      {/* *** ИСПРАВЛЕНО: +Shift button - всегда зеленый, без проверки праздников *** */}
       <td style={getCellStyle('other')}>
         <DefaultButton
           text="+Shift"
@@ -718,7 +717,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
           disabled={isDeleted}
           styles={{ 
             root: { 
-              backgroundColor: '#107c10', // *** FIXED: Always green, no holiday condition ***
+              backgroundColor: '#107c10', // *** ИСПРАВЛЕНО: Всегда зеленый, без проверки праздников ***
               color: 'white',
               border: 'none',
               minWidth: '60px',
@@ -732,7 +731,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
               })
             },
             rootHovered: !isDeleted ? {
-              backgroundColor: '#0b5a0b' // *** FIXED: Always dark green hover, no holiday condition ***
+              backgroundColor: '#0b5a0b' // *** ИСПРАВЛЕНО: Всегда темно-зеленый hover, без проверки праздников ***
             } : undefined
           }}
         />
@@ -759,7 +758,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
       <td style={getCellStyle('other')}>
         {item.srs && (
           <span style={{
-            // *** IZМЕНЕНО: Праздничный цвет на основе isHoliday из списка ***
+            // *** ИЗМЕНЕНО: Праздничный цвет на основе isHoliday из списка ***
             color: isHoliday ? '#ff69b4' : '#0078d4',
             fontWeight: '600',
             fontSize: '12px'
