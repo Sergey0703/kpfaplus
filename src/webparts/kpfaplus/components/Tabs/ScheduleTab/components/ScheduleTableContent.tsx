@@ -319,7 +319,7 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
                    item={item}
                    rowIndex={index}
                    rowPositionInDate={getRowPositionInDate(items, index)}
-                   totalTimeForDate={getTotalTimeForDate(item.date)} {/* *** ИСПОЛЬЗУЕМ НОВУЮ ФУНКЦИЮ *** */}
+                   totalTimeForDate={getTotalTimeForDate(item.date)}
                    totalRowsInDate={countTotalRowsInDate(items, index)}
                    options={options}
                    displayWorkTime={getDisplayWorkTime(item)}
@@ -327,9 +327,9 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
                    showAddShiftConfirmDialog={showAddShiftConfirmDialog}
                    showRestoreConfirmDialog={showRestoreConfirmDialog}
                    onRestoreItem={onRestoreItem}
-                   onItemChange={handleItemChangeWithCacheInvalidation} {/* *** ИСПОЛЬЗУЕМ ОБЕРТКУ *** */}
+                   onItemChange={handleItemChangeWithCacheInvalidation}
                    onContractNumberChange={onContractNumberChange}
-                   onLunchTimeChange={handleLunchTimeChangeWithCacheInvalidation} {/* *** ИСПОЛЬЗУЕМ ОБЕРТКУ *** */}
+                   onLunchTimeChange={handleLunchTimeChangeWithCacheInvalidation}
                  />
                </React.Fragment>
              );
