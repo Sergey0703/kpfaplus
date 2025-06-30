@@ -82,7 +82,7 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
    return position;
  };
 
- // *** ОБНОВЛЕННАЯ ФУНКЦИЯ calculateTotalTimeForDate С ПОДДЕРЖКОЙ ЧИСЛОВЫХ ПОЛЕЙ ***
+ // *** ИСПРАВЛЕННАЯ ФУНКЦИЯ calculateTotalTimeForDate С ПОДДЕРЖКОЙ ЧИСЛОВЫХ ПОЛЕЙ ***
  const calculateTotalTimeForDate = (items: IScheduleItem[], index: number): string => {
    const currentDate = new Date(items[index].date);
    
@@ -96,11 +96,10 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
      );
    });
    
-   console.log(`[ScheduleTableContent] *** CALCULATING TOTAL TIME FOR DATE WITH NUMERIC FIELDS ***`);
+   console.log(`[ScheduleTableContent] *** CALCULATING TOTAL TIME FOR DATE WITH FIXED NUMERIC FIELDS ***`);
    console.log(`[ScheduleTableContent] Date: ${currentDate.toLocaleDateString()}, Rows: ${sameDataRows.length}`);
    
    // Рассчитываем общее время, складывая время работы только неудаленных смен
-   let totalHours = 0;
    let totalMinutes = 0;
    
    sameDataRows.forEach((item, itemIndex) => {
@@ -110,10 +109,10 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
        return;
      }
      
-     // *** ПРИОРИТЕТ ЧИСЛОВЫХ ПОЛЕЙ ДЛЯ РАСЧЕТА ВРЕМЕНИ ***
+     // *** ИСПРАВЛЕНО: ПРАВИЛЬНОЕ ИЗВЛЕЧЕНИЕ ВРЕМЕНИ ИЗ ПОЛЕЙ ***
      let startHours: number, startMinutes: number, finishHours: number, finishMinutes: number;
      
-     // Используем числовые поля если доступны, иначе парсим строковые
+     // Приоритет числовых полей, fallback к строковым
      if (typeof item.startHours === 'number' && typeof item.startMinutes === 'number' &&
          typeof item.finishHours === 'number' && typeof item.finishMinutes === 'number') {
        
@@ -124,44 +123,56 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
        
        console.log(`[ScheduleTableContent] Using numeric fields for item ${itemIndex}: ${startHours}:${startMinutes} - ${finishHours}:${finishMinutes}`);
      } else {
-       // Fallback к строковым полям
-       startHours = parseInt(item.startHour, 10) || 0;
-       startMinutes = parseInt(item.startMinute, 10) || 0;
-       finishHours = parseInt(item.finishHour, 10) || 0;
-       finishMinutes = parseInt(item.finishMinute, 10) || 0;
+       // Fallback к строковым полям с правильным парсингом
+       startHours = parseInt(item.startHour || '0', 10);
+       startMinutes = parseInt(item.startMinute || '0', 10);
+       finishHours = parseInt(item.finishHour || '0', 10);
+       finishMinutes = parseInt(item.finishMinute || '0', 10);
        
        console.log(`[ScheduleTableContent] Using string fields for item ${itemIndex}: ${startHours}:${startMinutes} - ${finishHours}:${finishMinutes}`);
      }
      
-     // Рассчитываем время работы для этой смены
+     // *** ИСПРАВЛЕНО: ПРАВИЛЬНЫЙ РАСЧЕТ РАБОЧЕГО ВРЕМЕНИ ***
      const startTotalMinutes = startHours * 60 + startMinutes;
      const finishTotalMinutes = finishHours * 60 + finishMinutes;
-     const lunchMinutes = parseInt(item.lunchTime, 10) || 0;
+     const lunchMinutes = parseInt(item.lunchTime || '0', 10);
      
      let workMinutes = 0;
+     
+     // Проверяем, что время окончания больше времени начала
      if (finishTotalMinutes > startTotalMinutes) {
        workMinutes = finishTotalMinutes - startTotalMinutes - lunchMinutes;
+       
+       // Убеждаемся, что рабочее время не отрицательное
+       if (workMinutes < 0) {
+         workMinutes = 0;
+         console.log(`[ScheduleTableContent] Negative work time calculated for item ${itemIndex}, setting to 0`);
+       }
+     } else if (startTotalMinutes === finishTotalMinutes && startTotalMinutes === 0) {
+       // Оба времени равны 00:00 - это нулевая смена
+       workMinutes = 0;
+       console.log(`[ScheduleTableContent] Zero time shift for item ${itemIndex}`);
+     } else {
+       // Время окончания меньше или равно времени начала (но не 00:00)
+       workMinutes = 0;
+       console.log(`[ScheduleTableContent] Invalid time range for item ${itemIndex}: ${startHours}:${startMinutes} - ${finishHours}:${finishMinutes}`);
      }
      
-     if (workMinutes > 0) {
-       const workHours = Math.floor(workMinutes / 60);
-       const remainingMinutes = workMinutes % 60;
-       
-       totalHours += workHours;
-       totalMinutes += remainingMinutes;
-       
-       console.log(`[ScheduleTableContent] Item ${itemIndex} work time: ${workHours}h ${remainingMinutes}m (total so far: ${totalHours}h ${totalMinutes}m)`);
-     }
+     totalMinutes += workMinutes;
+     
+     const workHours = Math.floor(workMinutes / 60);
+     const remainingMinutes = workMinutes % 60;
+     
+     console.log(`[ScheduleTableContent] Item ${itemIndex} work time: ${workHours}h ${remainingMinutes}m (${workMinutes} total minutes)`);
+     console.log(`[ScheduleTableContent] Running total: ${totalMinutes} minutes`);
    });
    
-   // Переводим лишние минуты в часы
-   if (totalMinutes >= 60) {
-     totalHours += Math.floor(totalMinutes / 60);
-     totalMinutes = totalMinutes % 60;
-   }
+   // Переводим общие минуты в часы и минуты
+   const totalHours = Math.floor(totalMinutes / 60);
+   const remainingMinutes = totalMinutes % 60;
    
-   const result = `Total: ${totalHours}h:${totalMinutes.toString().padStart(2, '0')}m`;
-   console.log(`[ScheduleTableContent] *** FINAL TOTAL TIME FOR ${currentDate.toLocaleDateString()}: ${result} ***`);
+   const result = `Total: ${totalHours}h:${remainingMinutes.toString().padStart(2, '0')}m`;
+   console.log(`[ScheduleTableContent] *** FINAL TOTAL TIME FOR ${currentDate.toLocaleDateString()}: ${result} (${totalMinutes} total minutes) ***`);
    
    return result;
  };
@@ -231,26 +242,6 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
            </tr>
          ) : (
            items.map((item, index) => {
-             // *** ФУНКЦИЯ checkTimesEqual ЗАКОММЕНТИРОВАНА - НЕ ИСПОЛЬЗУЕТСЯ ***
-             // const checkTimesEqual = (): boolean => {
-             //   // Используем числовые поля если доступны
-             //   if (typeof item.startHours === 'number' && typeof item.startMinutes === 'number' &&
-             //       typeof item.finishHours === 'number' && typeof item.finishMinutes === 'number') {
-             //     
-             //     const startTotal = item.startHours * 60 + item.startMinutes;
-             //     const finishTotal = item.finishHours * 60 + item.finishMinutes;
-             //     
-             //     const isEqual = startTotal === finishTotal && startTotal !== 0;
-             //     console.log(`[ScheduleTableContent] Time equality check (numeric): ${item.startHours}:${item.startMinutes} = ${item.finishHours}:${item.finishMinutes} → ${isEqual}`);
-             //     return isEqual;
-             //   } else {
-             //     // Fallback к старой логике со строковыми полями
-             //     const isEqual = checkStartEndTimeSame(item);
-             //     console.log(`[ScheduleTableContent] Time equality check (string): ${item.startHour}:${item.startMinute} = ${item.finishHour}:${item.finishMinute} → ${isEqual}`);
-             //     return isEqual;
-             //   }
-             // };
-
              return (
                <React.Fragment key={item.id}>
                  {/* Добавляем синюю линию перед строками с новой датой */}
@@ -273,7 +264,6 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
                    totalRowsInDate={countTotalRowsInDate(items, index)}
                    options={options}
                    displayWorkTime={getDisplayWorkTime(item)}
-                   // isTimesEqual={checkTimesEqual()} // Закомментировано - не используется
                    showDeleteConfirmDialog={showDeleteConfirmDialog}
                    showAddShiftConfirmDialog={showAddShiftConfirmDialog}
                    showRestoreConfirmDialog={showRestoreConfirmDialog}

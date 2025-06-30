@@ -143,12 +143,70 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
  const pendingActionItemIdRef = useRef<string | undefined>(undefined);
  const pendingShiftDataRef = useRef<INewShiftData | undefined>(undefined);
 
+ // *** ИСПРАВЛЕНО: ПРАВИЛЬНАЯ ИНИЦИАЛИЗАЦИЯ calculatedWorkTimes ДЛЯ ВСЕХ ЭЛЕМЕНТОВ ***
  useEffect(() => {
-   console.log('[ScheduleTable] Effect: items array changed. Initializing calculated work times and resetting selection.');
+   console.log('[ScheduleTable] *** FIXED: Initializing calculated work times for ALL items ***');
+   console.log('[ScheduleTable] Items count:', items.length);
+   
    const initialWorkTimes: Record<string, string> = {};
-   items.forEach(item => {
-     initialWorkTimes[item.id] = item.workingHours;
+   
+   items.forEach((item, index) => {
+     console.log(`[ScheduleTable] *** CALCULATING WORK TIME FOR ITEM ${index + 1}/${items.length} ***`);
+     console.log(`[ScheduleTable] Item ID: ${item.id}`);
+     
+     // *** ПРИОРИТЕТ ЧИСЛОВЫХ ПОЛЕЙ ДЛЯ РАСЧЕТА ***
+     let calculatedTime: string;
+     
+     if (typeof item.startHours === 'number' && typeof item.startMinutes === 'number' &&
+         typeof item.finishHours === 'number' && typeof item.finishMinutes === 'number') {
+       
+       console.log(`[ScheduleTable] Using numeric fields: ${item.startHours}:${item.startMinutes} - ${item.finishHours}:${item.finishMinutes}`);
+       
+       // Создаем временный объект с числовыми значениями для расчета
+       const tempItem = {
+         ...item,
+         startHour: item.startHours.toString().padStart(2, '0'),
+         startMinute: item.startMinutes.toString().padStart(2, '0'),
+         finishHour: item.finishHours.toString().padStart(2, '0'),
+         finishMinute: item.finishMinutes.toString().padStart(2, '0')
+       };
+       
+       calculatedTime = calculateItemWorkTime(tempItem);
+       console.log(`[ScheduleTable] Calculated from numeric fields: ${calculatedTime}`);
+       
+     } else {
+       console.log(`[ScheduleTable] Using string fields: ${item.startHour}:${item.startMinute} - ${item.finishHour}:${item.finishMinute}`);
+       calculatedTime = calculateItemWorkTime(item);
+       console.log(`[ScheduleTable] Calculated from string fields: ${calculatedTime}`);
+     }
+     
+     // *** ВАЖНО: Всегда устанавливаем рассчитанное время, даже если оно 0.00 ***
+     initialWorkTimes[item.id] = calculatedTime;
+     
+     console.log(`[ScheduleTable] Set calculated time for item ${item.id}: ${calculatedTime}`);
+     
+     // Логируем детали для первых нескольких элементов
+     if (index < 3) {
+       console.log(`[ScheduleTable] Item ${index + 1} details:`, {
+         id: item.id,
+         originalWorkingHours: item.workingHours,
+         calculatedWorkTime: calculatedTime,
+         startTime: `${item.startHour || item.startHours}:${item.startMinute || item.startMinutes}`,
+         finishTime: `${item.finishHour || item.finishHours}:${item.finishMinute || item.finishMinutes}`,
+         lunchTime: item.lunchTime,
+         deleted: item.deleted
+       });
+     }
    });
+   
+   console.log(`[ScheduleTable] *** INITIALIZATION COMPLETE: Set work times for ${Object.keys(initialWorkTimes).length} items ***`);
+   
+   // Логируем несколько примеров для проверки
+   const sampleIds = Object.keys(initialWorkTimes).slice(0, 3);
+   sampleIds.forEach(id => {
+     console.log(`[ScheduleTable] Sample: ${id} -> ${initialWorkTimes[id]}`);
+   });
+   
    setCalculatedWorkTimes(initialWorkTimes);
 
    setSelectAllRows(false);
@@ -383,11 +441,44 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
    });
  }, [selectedRows, onBulkDeleteItems, onDeleteItem, onRefreshData]);
 
+ // *** ИСПРАВЛЕНО: getDisplayWorkTime теперь всегда возвращает правильное значение ***
  const getDisplayWorkTime = useCallback((item: IScheduleItem): string => {
-   if (calculatedWorkTimes[item.id]) {
+   // Сначала проверяем, есть ли рассчитанное время для этого элемента
+   if (calculatedWorkTimes[item.id] !== undefined) {
+     console.log(`[ScheduleTable] getDisplayWorkTime for ${item.id}: using calculated time ${calculatedWorkTimes[item.id]}`);
      return calculatedWorkTimes[item.id];
    }
-   return item.workingHours;
+   
+   // Если рассчитанного времени нет, рассчитываем его сейчас
+   console.log(`[ScheduleTable] getDisplayWorkTime for ${item.id}: calculating on-demand`);
+   
+   let calculatedTime: string;
+   
+   if (typeof item.startHours === 'number' && typeof item.startMinutes === 'number' &&
+       typeof item.finishHours === 'number' && typeof item.finishMinutes === 'number') {
+     
+     // Создаем временный объект с числовыми значениями для расчета
+     const tempItem = {
+       ...item,
+       startHour: item.startHours.toString().padStart(2, '0'),
+       startMinute: item.startMinutes.toString().padStart(2, '0'),
+       finishHour: item.finishHours.toString().padStart(2, '0'),
+       finishMinute: item.finishMinutes.toString().padStart(2, '0')
+     };
+     
+     calculatedTime = calculateItemWorkTime(tempItem);
+   } else {
+     calculatedTime = calculateItemWorkTime(item);
+   }
+   
+   // Сохраняем рассчитанное время для будущих вызовов
+   setCalculatedWorkTimes(prev => ({
+     ...prev,
+     [item.id]: calculatedTime
+   }));
+   
+   console.log(`[ScheduleTable] On-demand calculated time for ${item.id}: ${calculatedTime}`);
+   return calculatedTime;
  }, [calculatedWorkTimes]);
 
  const handleDismissDialog = useCallback((): void => {
@@ -400,7 +491,7 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
  const handleTimeChange = useCallback((item: IScheduleItem, field: string, value: string): void => {
    if (item.deleted) { return; }
    
-   console.log(`[ScheduleTable] *** TIME CHANGE WITH NUMERIC FIELDS SUPPORT ***`);
+   console.log(`[ScheduleTable] *** TIME CHANGE WITH IMMEDIATE WORK TIME RECALCULATION ***`);
    console.log(`[ScheduleTable] Field: ${field}, Value: ${value}, Item ID: ${item.id}`);
    
    // *** СОЗДАЕМ ОБНОВЛЕННЫЙ ЭЛЕМЕНТ С СИНХРОНИЗАЦИЕЙ ПОЛЕЙ ***
@@ -448,18 +539,23 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
      }
    }
    
-   // *** ПЕРЕСЧИТЫВАЕМ РАБОЧЕЕ ВРЕМЯ ***
+   // *** НЕМЕДЛЕННО ПЕРЕСЧИТЫВАЕМ РАБОЧЕЕ ВРЕМЯ ***
    const workTime = calculateItemWorkTime(updatedItem);
    updatedItem.workingHours = workTime;
 
-   console.log(`[ScheduleTable] *** CALCULATED WORK TIME: ${workTime} ***`);
+   console.log(`[ScheduleTable] *** IMMEDIATE WORK TIME RECALCULATION: ${workTime} ***`);
    console.log(`[ScheduleTable] Time components: ${updatedItem.startHour}:${updatedItem.startMinute} - ${updatedItem.finishHour}:${updatedItem.finishMinute}`);
    console.log(`[ScheduleTable] Numeric fields: start(${updatedItem.startHours}:${updatedItem.startMinutes}) - finish(${updatedItem.finishHours}:${updatedItem.finishMinutes})`);
 
-   setCalculatedWorkTimes(prev => ({
-     ...prev,
-     [item.id]: workTime
-   }));
+   // *** НЕМЕДЛЕННО ОБНОВЛЯЕМ calculatedWorkTimes ДЛЯ ЭТОГО ЭЛЕМЕНТА ***
+   setCalculatedWorkTimes(prev => {
+     const updated = {
+       ...prev,
+       [item.id]: workTime
+     };
+     console.log(`[ScheduleTable] Updated calculatedWorkTimes for ${item.id}: ${workTime}`);
+     return updated;
+   });
    
    // *** УВЕДОМЛЯЕМ РОДИТЕЛЬСКИЙ КОМПОНЕНТ О ВСЕХ ИЗМЕНЕНИЯХ ***
    onItemChange(updatedItem, field, value);
@@ -492,12 +588,19 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
  const handleLunchTimeChange = useCallback((item: IScheduleItem, value: string): void => {
    if (item.deleted) { return; }
    const updatedItem = { ...item, lunchTime: value };
+   
+   // *** НЕМЕДЛЕННО ПЕРЕСЧИТЫВАЕМ РАБОЧЕЕ ВРЕМЯ ПРИ ИЗМЕНЕНИИ ОБЕДА ***
    const workTime = calculateItemWorkTime(updatedItem);
 
+   console.log(`[ScheduleTable] *** LUNCH TIME CHANGED - RECALCULATING WORK TIME ***`);
+   console.log(`[ScheduleTable] New lunch time: ${value}, New work time: ${workTime}`);
+
+   // *** ОБНОВЛЯЕМ calculatedWorkTimes ***
    setCalculatedWorkTimes(prev => ({
      ...prev,
      [item.id]: workTime
    }));
+   
    onItemChange(updatedItem, 'lunchTime', value);
    onItemChange(updatedItem, 'workingHours', workTime);
  }, [calculatedWorkTimes, onItemChange]);
