@@ -1,5 +1,5 @@
 // src/webparts/kpfaplus/components/Tabs/TimetableTab/useTimetableLogic.ts
-// ФИНАЛЬНАЯ АВТОНОМНАЯ ВЕРСИЯ БЕЗ ВНЕШНИХ ХУКОВ
+// ФИНАЛЬНАЯ АВТОНОМНАЯ ВЕРСИЯ С ПОДДЕРЖКОЙ HOLIDAYS SERVICE
 
 import { useEffect, useMemo, useCallback, useState } from 'react';
 import * as ExcelJS from 'exceljs';
@@ -7,6 +7,7 @@ import { ITabProps } from '../../../models/types';
 import { useDataContext } from '../../../context';
 import { StaffRecordsService } from '../../../services/StaffRecordsService';
 import { TypeOfLeaveService, ITypeOfLeave } from '../../../services/TypeOfLeaveService';
+import { HolidaysService, IHoliday } from '../../../services/HolidaysService';
 import { 
   IWeekInfo, 
   IWeekCalculationParams,
@@ -33,6 +34,8 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
   setState: ReturnType<typeof useTimetableTabState>['setState'];
   typesOfLeave: ITypeOfLeave[];
   isLoadingTypesOfLeave: boolean;
+  holidays: IHoliday[];
+  isLoadingHolidays: boolean;
   getLeaveTypeColor: (typeOfLeaveId: string) => string | undefined;
   weeks: IWeekInfo[];
   refreshTimetableData: () => Promise<void>;
@@ -71,6 +74,10 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
   const [typesOfLeave, setTypesOfLeave] = useState<ITypeOfLeave[]>([]);
   const [isLoadingTypesOfLeave, setIsLoadingTypesOfLeave] = useState<boolean>(false);
   
+  // *** НОВОЕ: Состояние для holidays ***
+  const [holidays, setHolidays] = useState<IHoliday[]>([]);
+  const [isLoadingHolidays, setIsLoadingHolidays] = useState<boolean>(false);
+  
   // ПРОСТАЯ СИСТЕМА ПРЕДОТВРАЩЕНИЯ ПЕРЕЗАГРУЗОК
   const [dataLoadKey, setDataLoadKey] = useState<string>('');
   const [isManualLoading, setIsManualLoading] = useState<boolean>(false);
@@ -89,6 +96,15 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
     return undefined;
   }, [context]);
 
+  // *** НОВОЕ: Holidays Service ***
+  const holidaysService = useMemo(() => {
+    if (context) {
+      return HolidaysService.getInstance(context);
+    }
+    return undefined;
+  }, [context]);
+
+  // *** ЗАГРУЗКА TYPES OF LEAVE ***
   useEffect(() => {
     const loadTypesOfLeave = async (): Promise<void> => {
       if (!typeOfLeaveService) return;
@@ -105,6 +121,32 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
     };
     loadTypesOfLeave().catch((error: unknown) => console.error('[useTimetableLogic] Failed to load types of leave:', error));
   }, [typeOfLeaveService]);
+
+  // *** НОВОЕ: ЗАГРУЗКА HOLIDAYS ПО МЕСЯЦУ ***
+  useEffect(() => {
+    const loadHolidays = async (): Promise<void> => {
+      if (!holidaysService) return;
+      try {
+        setIsLoadingHolidays(true);
+        console.log('[useTimetableLogic] Loading holidays for month:', state.selectedDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }));
+        
+        // Загружаем holidays для выбранного месяца
+        const monthHolidays = await holidaysService.getHolidaysByMonthAndYear(state.selectedDate);
+        setHolidays(monthHolidays);
+        
+        console.log('[useTimetableLogic] Loaded holidays:', {
+          count: monthHolidays.length,
+          holidays: monthHolidays.map(h => ({ title: h.title, date: h.date.toLocaleDateString() }))
+        });
+      } catch (error) {
+        console.error('[useTimetableLogic] Error loading holidays:', error);
+        setHolidays([]);
+      } finally {
+        setIsLoadingHolidays(false);
+      }
+    };
+    loadHolidays().catch((error: unknown) => console.error('[useTimetableLogic] Failed to load holidays:', error));
+  }, [holidaysService, state.selectedDate]);
 
   const getLeaveTypeColor = useCallback((typeOfLeaveId: string): string | undefined => {
     if (!typeOfLeaveId || !typesOfLeave.length) {
@@ -161,10 +203,10 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
     }
   }, [weeks, state.weeks, setWeeks]);
 
-  // ЕДИНСТВЕННАЯ ФУНКЦИЯ ЗАГРУЗКИ ДАННЫХ
+  // *** ОБНОВЛЕННАЯ ФУНКЦИЯ ЗАГРУЗКИ ДАННЫХ С HOLIDAYS ***
   const loadDataInternal = useCallback(async (forceReload = false): Promise<void> => {
-    // Создаем уникальный ключ для текущего состояния
-    const currentKey = `${state.selectedDate.getTime()}-${managingGroupId}-${weeks.length}-${staffMembers.length}`;
+    // Создаем уникальный ключ для текущего состояния (включая holidays)
+    const currentKey = `${state.selectedDate.getTime()}-${managingGroupId}-${weeks.length}-${staffMembers.length}-${holidays.length}`;
     
     // Проверяем, нужна ли загрузка
     if (!forceReload && currentKey === dataLoadKey) {
@@ -172,13 +214,19 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
       return;
     }
 
-    // Проверяем обязательные условия
+    // Проверяем обязательные условия (добавлена проверка holidays загружены)
     if (!context || !staffRecordsService || !managingGroupId || !currentUserId || weeks.length === 0 || staffMembers.length === 0) {
       console.log('[useTimetableLogic] *** CLEARING DATA - MISSING REQUIREMENTS ***');
       setStaffRecords([]);
       setWeeksData([]);
       setIsLoadingStaffRecords(false);
       setErrorStaffRecords(undefined);
+      return;
+    }
+
+    // Ждем загрузки holidays перед обработкой данных
+    if (isLoadingHolidays) {
+      console.log('[useTimetableLogic] *** WAITING FOR HOLIDAYS TO LOAD ***');
       return;
     }
 
@@ -192,10 +240,11 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
       setIsLoadingStaffRecords(true);
       setErrorStaffRecords(undefined);
       
-      console.log('[useTimetableLogic] *** LOADING DATA ***', {
+      console.log('[useTimetableLogic] *** LOADING DATA WITH HOLIDAYS ***', {
         selectedMonth: state.selectedDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }),
         weeksCount: weeks.length,
         staffMembersCount: staffMembers.length,
+        holidaysCount: holidays.length,
         currentKey,
         forceReload
       });
@@ -243,13 +292,15 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
 
       setStaffRecords(filteredRecords);
 
-      // Обрабатываем данные
+      // *** ОБНОВЛЕНО: Передаем holidays в обработку данных ***
       const weeksData = TimetableDataProcessor.processDataByWeeks({
         staffRecords: filteredRecords,
         staffMembers: activeStaffMembers,
         weeks: weeks,
         getLeaveTypeColor,
-        holidayColor: TIMETABLE_COLORS.HOLIDAY
+        holidayColor: TIMETABLE_COLORS.HOLIDAY,
+        holidays: holidays, // *** НОВОЕ: Передаем holidays ***
+        holidaysService: holidaysService // *** НОВОЕ: Передаем service для проверки ***
       });
 
       // Обогащаем данные названиями типов отпусков
@@ -304,9 +355,10 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
       setWeeksData(enhancedWeeksData);
       setDataLoadKey(currentKey);
 
-      console.log('[useTimetableLogic] *** DATA LOADED SUCCESSFULLY ***', {
+      console.log('[useTimetableLogic] *** DATA LOADED SUCCESSFULLY WITH HOLIDAYS ***', {
         recordsCount: filteredRecords.length,
         weeksDataCount: enhancedWeeksData.length,
+        holidaysUsed: holidays.length,
         currentKey
       });
 
@@ -325,27 +377,32 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
     managingGroupId,
     weeks,
     staffMembers,
+    holidays, // *** НОВОЕ: Добавлена зависимость от holidays ***
     dataLoadKey,
     context,
     staffRecordsService,
     currentUserId,
     isManualLoading,
+    isLoadingHolidays, // *** НОВОЕ: Добавлена зависимость от загрузки holidays ***
     getLeaveTypeColor,
     getLeaveTypeTitle,
+    holidaysService, // *** НОВОЕ: Добавлена зависимость от service ***
     setStaffRecords,
     setWeeksData,
     setIsLoadingStaffRecords,
     setErrorStaffRecords
   ]);
 
-  // АВТОМАТИЧЕСКИЙ ТРИГГЕР ЗАГРУЗКИ
+  // *** ОБНОВЛЕННЫЙ АВТОМАТИЧЕСКИЙ ТРИГГЕР ЗАГРУЗКИ ***
   useEffect(() => {
-    const currentKey = `${state.selectedDate.getTime()}-${managingGroupId}-${weeks.length}-${staffMembers.length}`;
+    const currentKey = `${state.selectedDate.getTime()}-${managingGroupId}-${weeks.length}-${staffMembers.length}-${holidays.length}`;
     
-    if (currentKey !== dataLoadKey && weeks.length > 0 && staffMembers.length > 0 && !isManualLoading) {
-      console.log('[useTimetableLogic] *** AUTO TRIGGER DATA LOAD ***', {
+    // Добавлена проверка что holidays загружены
+    if (currentKey !== dataLoadKey && weeks.length > 0 && staffMembers.length > 0 && !isManualLoading && !isLoadingHolidays) {
+      console.log('[useTimetableLogic] *** AUTO TRIGGER DATA LOAD WITH HOLIDAYS ***', {
         currentKey,
         dataLoadKey,
+        holidaysCount: holidays.length,
         selectedMonth: state.selectedDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
       });
       
@@ -359,7 +416,7 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
         window.clearTimeout(timeoutId);
       };
     }
-  }, [state.selectedDate, managingGroupId, weeks.length, staffMembers.length, dataLoadKey, isManualLoading, loadDataInternal]);
+  }, [state.selectedDate, managingGroupId, weeks.length, staffMembers.length, holidays.length, dataLoadKey, isManualLoading, isLoadingHolidays, loadDataInternal]);
 
   // ПУБЛИЧНЫЕ ФУНКЦИИ
   const refreshTimetableData = useCallback(async (): Promise<void> => {
@@ -383,10 +440,11 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
       }));
       
       // НЕ сбрасываем dataLoadKey здесь - пусть useEffect сработает автоматически
+      // Holidays загрузятся автоматически по изменению selectedDate
     }
   }, [setState]);
 
-  // *** ДИАГНОСТИЧЕСКАЯ ВЕРСИЯ EXCEL ЭКСПОРТА ***
+  // *** ОБНОВЛЕННАЯ ФУНКЦИЯ EXCEL ЭКСПОРТА С HOLIDAYS ***
   const handleExportToExcel = async (): Promise<void> => {
     try {
       if (state.weeksData.length === 0) {
@@ -397,12 +455,15 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
       const department = departments.find(d => d.ID.toString() === managingGroupId);
       const groupName = department?.Title || `Group ${managingGroupId}`;
       
+      // *** ОБНОВЛЕНО: Передаем holidays в Excel export ***
       const excelWeeksData = TimetableDataProcessor.processDataForExcelExport({
         staffRecords: state.staffRecords,
         staffMembers: staffMembers.filter(sm => sm.deleted !== 1),
         weeks: weeks,
         getLeaveTypeColor,
-        holidayColor: TIMETABLE_COLORS.HOLIDAY
+        holidayColor: TIMETABLE_COLORS.HOLIDAY,
+        holidays: holidays, // *** НОВОЕ: Передаем holidays ***
+        holidaysService: holidaysService // *** НОВОЕ: Передаем service ***
       });
 
       const workbook = new ExcelJS.Workbook();
@@ -467,45 +528,8 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
           orderedDays.forEach((dayNum, dayIndex) => {
             const dayData = staffRow.weekData.days[dayNum];
             
-            // *** ДИАГНОСТИЧЕСКИЙ КОД - НАЧАЛО ***
-            console.log('=== ДИАГНОСТИКА EXCEL ЯЧЕЙКИ ===');
-            console.log(`Сотрудник: ${staffRow.staffName}, День: ${dayNum}`);
-            
-            // ВАРИАНТ 1: Простая замена на "22-22"
-        //    const cellContent = "22-22";
-         //   console.log(`Устанавливаем в ячейку: "${cellContent}"`);
-            
-             /*
-            // ВАРИАНТ 2: Обрезка до 5 символов (раскомментировать для тестирования)
-            const originalContent = formatDayCellWithMarkers(dayData, typesOfLeave);
-            const cellContent = originalContent.substring(0, 5);
-            console.log(`Оригинал: "${originalContent}" (${originalContent.length} символов)`);
-            console.log(`Обрезано: "${cellContent}"`);
-            */
-            
-            
-            // ВАРИАНТ 3: Показать длинное содержимое (раскомментировать для тестирования)
-         // ВАРИАНТ 3: Показать длинное содержимое (раскомментировать для тестирования)
-// ВАРИАНТ 6: Пошаговое тестирование содержимого
-// ВАРИАНТ 7: Принудительное создание проблемных строк
-const cellContent = formatDayCellWithMarkers(dayData, typesOfLeave);
-            /* 
-            // ВАРИАНТ 4: Постепенное тестирование (раскомментировать для тестирования)
-            let cellContent = "";
-            if (dayData && dayData.hasData) {
-              cellContent = "HAS_DATA";
-            } else if (dayData && dayData.hasHoliday) {
-              cellContent = "HOLIDAY";
-            } else if (dayData && dayData.hasLeave) {
-              cellContent = "LEAVE";
-            } else {
-              cellContent = "EMPTY";
-            }
-            */
-            
-            console.log(`Финальное содержимое: "${cellContent}"`);
-            console.log('================================');
-            // *** ДИАГНОСТИЧЕСКИЙ КОД - КОНЕЦ ***
+            // Excel cell content с поддержкой holidays
+            const cellContent = formatDayCellWithMarkers(dayData, typesOfLeave);
             
             const dayCell = worksheet.getCell(currentRow, dayIndex + 2);
             dayCell.value = cellContent;
@@ -540,9 +564,10 @@ const cellContent = formatDayCellWithMarkers(dayData, typesOfLeave);
 
       const fileName = generateFileName(groupName, excelWeeksData);
       
-      console.log('=== СОЗДАНИЕ EXCEL ФАЙЛА ===');
+      console.log('=== СОЗДАНИЕ EXCEL ФАЙЛА С HOLIDAYS ===');
       console.log(`Имя файла: ${fileName}`);
       console.log(`Всего строк: ${currentRow}`);
+      console.log(`Holidays используемые: ${holidays.length}`);
       console.log('============================');
       
       const buffer = await workbook.xlsx.writeBuffer();
@@ -556,7 +581,7 @@ const cellContent = formatDayCellWithMarkers(dayData, typesOfLeave);
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
       
-      console.log('Excel файл создан и загружен');
+      console.log('Excel файл создан и загружен с holidays поддержкой');
       
     } catch (error) {
       console.error('[useTimetableLogic] Excel export failed:', error);
@@ -592,6 +617,8 @@ const cellContent = formatDayCellWithMarkers(dayData, typesOfLeave);
     setState,
     typesOfLeave,
     isLoadingTypesOfLeave,
+    holidays, // *** НОВОЕ: Возвращаем holidays ***
+    isLoadingHolidays, // *** НОВОЕ: Возвращаем состояние загрузки holidays ***
     getLeaveTypeColor,
     weeks,
     refreshTimetableData,

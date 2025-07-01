@@ -1,5 +1,6 @@
 // src/webparts/kpfaplus/components/Tabs/TimetableTab/interfaces/TimetableInterfaces.ts
 import { IStaffRecord } from '../../../../services/StaffRecordsService';
+import { IHoliday, HolidaysService } from '../../../../services/HolidaysService';
 
 /**
  * Интерфейс для информации о неделе
@@ -161,6 +162,7 @@ export interface IStaffMember {
 }
 
 /**
+ * *** ОБНОВЛЕННЫЙ ИНТЕРФЕЙС: Добавлена поддержка holidays ***
  * Интерфейс для параметров обработки данных
  */
 export interface ITimetableDataParams {
@@ -173,6 +175,10 @@ export interface ITimetableDataParams {
   
   getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined;
   holidayColor?: string;
+  
+  // *** НОВЫЕ ПОЛЯ ДЛЯ HOLIDAYS ***
+  holidays?: IHoliday[];
+  holidaysService?: HolidaysService;
 }
 
 /**
@@ -194,6 +200,7 @@ export interface IShiftCalculationResult {
 }
 
 /**
+ * *** ОБНОВЛЕННЫЙ ИНТЕРФЕЙС: Добавлена поддержка holidays ***
  * Интерфейс для параметров расчета смены
  */
 export interface IShiftCalculationParams {
@@ -211,6 +218,11 @@ export interface IShiftCalculationParams {
   // Информация о празднике из StaffRecord
   isHoliday?: boolean;
   holidayColor?: string;
+  
+  // *** НОВЫЕ ПОЛЯ ДЛЯ HOLIDAYS ***
+  recordDate?: Date; // Дата записи для проверки holidays
+  holidays?: IHoliday[]; // Список holidays для проверки
+  holidaysService?: HolidaysService; // Service для проверки holidays
 }
 
 /**
