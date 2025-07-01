@@ -307,7 +307,7 @@ console.log('[ScheduleTabContent] *** COMPONENT RENDER WITH NUMERIC FIELDS SUPPO
      // Логируем несколько примеров для проверки
      console.log('[ScheduleTabContent] Sample converted items:');
      baseItems.slice(0, 3).forEach(item => {
-       console.log(`- Item ${item.id}: date=${item.date.toLocaleDateString()}, typeOfLeave="${item.typeOfLeave}", Holiday=${item.Holiday}, deleted=${item.deleted}`);
+       console.log(`- Item ${item.id}: date=${item.date.toLocaleDateString()}, typeOfLeave="${item.typeOfLeave}", deleted=${item.deleted}`);
        console.log(`  String time: ${item.startHour}:${item.startMinute}-${item.finishHour}:${item.finishMinute}`);
        console.log(`  Numeric time: ${item.startHours}:${item.startMinutes}-${item.finishHours}:${item.finishMinutes}`);
      });
@@ -865,6 +865,7 @@ const itemsForTable = getScheduleItemsWithModifications();
              {/* *** ОБНОВЛЕНО: Таблица расписания теперь поддерживает числовые поля времени *** */}
              {/* TypeOfLeave берется из StaffRecords.TypeOfLeaveID, а НЕ из DaysOfLeaves */}
              {/* ВАЖНО: БЕЗ КЛИЕНТСКОЙ ФИЛЬТРАЦИИ - сервер уже отфильтровал данные */}
+             {/* *** ИСПРАВЛЕНО: Передаем holidays в ScheduleTable *** */}
              <ScheduleTable
                key={`${currentPage}-${itemsPerPage}-${showDeleted}`} 
                items={itemsForTable}
@@ -874,6 +875,7 @@ const itemsForTable = getScheduleItemsWithModifications();
                isLoading={false}
                showDeleted={showDeleted}
                onToggleShowDeleted={onToggleShowDeleted}
+               holidays={holidays} // *** НОВЫЙ ПРОПС: Передаем holidays массив ***
                onItemChange={handleItemChange}
                onAddShift={onAddShift}
                onDeleteItem={onDeleteStaffRecord!}

@@ -6,6 +6,7 @@ import { ScheduleTableHeader } from './ScheduleTableHeader';
 import { ScheduleTableContent } from './ScheduleTableContent';
 import { ScheduleTableDialogs } from './ScheduleTableDialogs';
 import { calculateItemWorkTime } from './ScheduleTableUtils';
+import { IHoliday } from '../../../../services/HolidaysService';
 
 import {
  IDropdownOption,
@@ -14,7 +15,7 @@ import {
  DefaultButton,
 } from '@fluentui/react';
 
-// *** ОБНОВЛЕННЫЙ ИНТЕРФЕЙС IScheduleItem С ЧИСЛОВЫМИ ПОЛЯМИ ВРЕМЕНИ ***
+// *** ОБНОВЛЕННЫЙ ИНТЕРФЕЙС IScheduleItem БЕЗ ПОЛЯ Holiday ***
 export interface IScheduleItem {
  id: string;
  date: Date;
@@ -40,7 +41,7 @@ export interface IScheduleItem {
  contractId: string;
  contractNumber?: string;
  deleted?: boolean;
- Holiday?: number;
+ // *** УДАЛЕНО: Holiday?: number; - больше не используем поле Holiday из StaffRecords ***
 }
 
 export interface INewShiftData {
@@ -49,7 +50,7 @@ export interface INewShiftData {
  contract: string;
  contractNumber?: string;
  typeOfLeave?: string;
- Holiday?: number;
+ // *** УДАЛЕНО: Holiday?: number; - больше не используем поле Holiday ***
 }
 
 export interface IScheduleOptions {
@@ -69,6 +70,9 @@ export interface IScheduleTableProps {
  isLoading: boolean;
  showDeleted: boolean;
  onToggleShowDeleted: (checked: boolean) => void;
+ 
+ // *** НОВЫЙ ПРОПС: Массив праздников для определения праздничных дней ***
+ holidays: IHoliday[];
  
  // *** ОБНОВЛЕНО: onItemChange теперь работает с числовыми полями ***
  onItemChange: (item: IScheduleItem, field: string, value: string | number) => void;
@@ -103,6 +107,7 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
    selectedContract,
    showDeleted,
    onToggleShowDeleted,
+   holidays, // *** НОВЫЙ ПРОПС: Получаем holidays для передачи дальше ***
    onItemChange,
    onAddShift,
    onDeleteItem,
@@ -270,8 +275,8 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
      timeForLunch: item.lunchTime,
      contract: item.contract,
      contractNumber: item.contractNumber,
-     typeOfLeave: item.typeOfLeave,
-     Holiday: item.Holiday
+     typeOfLeave: item.typeOfLeave
+     // *** УДАЛЕНО: Holiday: item.Holiday - больше не используем поле Holiday ***
    };
 
    setConfirmDialogProps({
@@ -650,6 +655,9 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
    calculation: `(${currentPage} * ${itemsPerPage}) < ${totalItemCount} = ${currentPage * itemsPerPage} < ${totalItemCount} = ${calculatedHasNextPage}`
  });
 
+ // *** ОТЛАДОЧНОЕ ЛОГИРОВАНИЕ ДЛЯ ПРАЗДНИКОВ ***
+ console.log(`[ScheduleTable] Rendering with ${holidays.length} holidays for holiday detection`);
+
  return (
    <div className={styles.scheduleTab}>
      <ScheduleTableHeader
@@ -662,11 +670,13 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
        saveChangesButton={saveChangesButton}
      />
 
+     {/* *** ОБНОВЛЕНО: Передаем holidays в ScheduleTableContent *** */}
      <ScheduleTableContent
        items={items}
        options={options}
        isLoading={isLoading}
        selectedContract={selectedContract}
+       holidays={holidays} // *** НОВЫЙ ПРОПС: Передаем holidays массив ***
        showDeleteConfirmDialog={showDeleteConfirmDialog}
        showAddShiftConfirmDialog={showAddShiftConfirmDialog}
        showRestoreConfirmDialog={showRestoreConfirmDialog}

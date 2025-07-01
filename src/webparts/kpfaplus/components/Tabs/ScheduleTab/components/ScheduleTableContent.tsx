@@ -6,12 +6,15 @@ import styles from '../ScheduleTab.module.scss';
 import { IScheduleItem, IScheduleOptions, INewShiftData } from './ScheduleTable';
 // import { checkStartEndTimeSame } from './ScheduleTableUtils'; // Закомментировано - не используется
 import { ScheduleTableRow } from './ScheduleTableRow';
+import { IHoliday } from '../../../../services/HolidaysService';
 
 export interface IScheduleTableContentProps {
  items: IScheduleItem[];
  options: IScheduleOptions;
  isLoading: boolean;
  selectedContract?: { id: string; name: string }; // Add selectedContract prop
+ // *** НОВЫЙ ПРОПС: Массив праздников для передачи в ScheduleTableRow ***
+ holidays: IHoliday[];
  showDeleteConfirmDialog: (id: string) => void;
  showAddShiftConfirmDialog: (item: IScheduleItem) => void; // Changed to accept full item
  showRestoreConfirmDialog: (id: string) => void;
@@ -32,6 +35,7 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
    options,
    isLoading,
    selectedContract,
+   holidays, // *** НОВЫЙ ПРОПС: Получаем holidays для передачи в ScheduleTableRow ***
    showDeleteConfirmDialog,
    showAddShiftConfirmDialog,
    showRestoreConfirmDialog,
@@ -257,6 +261,9 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
    console.log(`[ScheduleTableContent] Selected contract: ${selectedContract.name} (ID: ${selectedContract.id})`);
  }
 
+ // *** ОТЛАДОЧНОЕ ЛОГИРОВАНИЕ ДЛЯ ПРАЗДНИКОВ ***
+ console.log(`[ScheduleTableContent] Rendering with ${holidays.length} holidays for holiday detection`);
+
  return (
    <div className={styles.tableContainer} style={{ width: '100%' }}>
      <table style={{ borderSpacing: '0', borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed' }}>
@@ -315,6 +322,7 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
                    </tr>
                  )}
                  
+                 {/* *** ОБНОВЛЕНО: Передаем holidays в ScheduleTableRow *** */}
                  <ScheduleTableRow 
                    item={item}
                    rowIndex={index}
@@ -323,6 +331,7 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
                    totalRowsInDate={countTotalRowsInDate(items, index)}
                    options={options}
                    displayWorkTime={getDisplayWorkTime(item)}
+                   holidays={holidays} // *** НОВЫЙ ПРОПС: Передаем holidays массив ***
                    showDeleteConfirmDialog={showDeleteConfirmDialog}
                    showAddShiftConfirmDialog={showAddShiftConfirmDialog}
                    showRestoreConfirmDialog={showRestoreConfirmDialog}

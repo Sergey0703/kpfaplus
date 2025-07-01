@@ -9,6 +9,7 @@ import {
 import styles from '../ScheduleTab.module.scss';
 import { IScheduleItem, IScheduleOptions } from './ScheduleTable';
 import { formatDate } from './ScheduleTableUtils';
+import { IHoliday } from '../../../../services/HolidaysService';
 
 export interface IScheduleTableRowProps {
   item: IScheduleItem;
@@ -18,7 +19,8 @@ export interface IScheduleTableRowProps {
   totalRowsInDate: number; // Общее количество строк в дате (включая удаленные)
   options: IScheduleOptions;
   displayWorkTime: string;
-  // isTimesEqual: boolean; // Закомментировано - не используется после удаления UI индикаторов
+  // *** НОВЫЙ ПРОПС: Массив праздников для проверки даты ***
+  holidays: IHoliday[];
   showDeleteConfirmDialog: (id: string) => void;
   showAddShiftConfirmDialog: (item: IScheduleItem) => void; // Changed to pass the entire item
   showRestoreConfirmDialog: (id: string) => void;
@@ -39,8 +41,8 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
     totalTimeForDate,
     totalRowsInDate,
     options, 
-    displayWorkTime, 
-    // isTimesEqual, // Закомментировано - не используется
+    displayWorkTime,
+    holidays, // *** НОВЫЙ ПРОПС: Используем holidays вместо item.Holiday ***
     showDeleteConfirmDialog,
     showAddShiftConfirmDialog,
     showRestoreConfirmDialog,
@@ -53,15 +55,39 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
   // Определяем, удалена ли запись
   const isDeleted = item.deleted === true;
   
-  // Определяем, является ли день праздником
-  const isHoliday = item.Holiday === 1;
+  // *** ИСПРАВЛЕНО: Определяем праздник через holidays массив, а НЕ через item.Holiday ***
+  const isHoliday = React.useMemo(() => {
+    if (!holidays || holidays.length === 0) {
+      return false;
+    }
+    
+    // Проверяем, есть ли дата в списке праздников
+    return holidays.some(holiday => {
+      const holidayDate = new Date(holiday.date);
+      const itemDate = new Date(item.date);
+      
+      // Сравниваем только год, месяц и день (игнорируем время)
+      return (
+        holidayDate.getFullYear() === itemDate.getFullYear() &&
+        holidayDate.getMonth() === itemDate.getMonth() &&
+        holidayDate.getDate() === itemDate.getDate()
+      );
+    });
+  }, [holidays, item.date]);
+
+  // *** ОТЛАДОЧНОЕ ЛОГИРОВАНИЕ ДЛЯ ПРОВЕРКИ ПРАЗДНИКОВ ***
+  React.useEffect(() => {
+    if (isHoliday) {
+      console.log(`[ScheduleTableRow] Holiday detected for ${item.date.toLocaleDateString()} via holidays list (not StaffRecords.Holiday field)`);
+    }
+  }, [isHoliday, item.date]);
   
   // Определяем цвет фона для строки и классы
   const isEvenRow = rowIndex % 2 === 0;
   let backgroundColor = isEvenRow ? '#f9f9f9' : '#ffffff';
   let rowClassName = '';
   
-  // Определяем цвета для праздничных ячеек (inline-стили)
+  // *** ОБНОВЛЕНО: Определяем цвета для праздничных ячеек через holidays список ***
   const getHolidayCellStyle = (isFirstTwoCells: boolean = false): React.CSSProperties => {
     if (isHoliday && !isDeleted && isFirstTwoCells) {
       return {
@@ -75,8 +101,6 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
     backgroundColor = '#f5f5f5';
     rowClassName = styles.deletedRow;
   }
-
-
 
   // Стили для dropdown при удаленных записях
   const getDropdownStyles = (isError = false): Partial<IDropdownStyles> => ({
@@ -175,7 +199,7 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
     { key: '3', text: '3' }
   ];
 
-  // Определяем содержимое ячейки с датой в зависимости от позиции строки
+  // *** ОБНОВЛЕНО: Отображение ячейки с датой использует holidays список для определения праздника ***
   const renderDateCell = (): JSX.Element => {
     // Если это первая строка даты, отображаем дату и день недели
     if (rowPositionInDate === 0) {
@@ -186,6 +210,7 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
           </div>
           <div style={{ fontWeight: 'normal', fontSize: '12px' }} className={isDeleted ? styles.deletedText : ''}>
             {item.dayOfWeek}
+            {/* *** ОБНОВЛЕНО: Праздник определяется через holidays список *** */}
             {isHoliday && !isDeleted && (
               <div style={{ color: '#e81123', fontSize: '10px', fontWeight: 'bold', marginTop: '2px' }}>
                 Holiday
@@ -217,6 +242,7 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
       return (
         <div>
           {isDeleted && <span style={{ color: '#d83b01', fontSize: '10px', textDecoration: 'none' }}>(Deleted)</span>}
+          {/* *** ОБНОВЛЕНО: Праздник определяется через holidays список *** */}
           {isHoliday && !isDeleted && (
             <div style={{ color: '#e81123', fontSize: '10px', fontWeight: 'bold' }}>
               Holiday
@@ -252,21 +278,21 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
       }}
       className={rowClassName}
     >
-      {/* Ячейка с датой */}
+      {/* *** ОБНОВЛЕНО: Ячейка с датой использует getHolidayCellStyle на основе holidays списка *** */}
       <td style={{ 
         padding: '8px 0 8px 8px',
-        ...getHolidayCellStyle(true) // Применяем розовый фон для праздничных дней
+        ...getHolidayCellStyle(true) // Применяем розовый фон для праздничных дней (из holidays списка)
       }}>
         {renderDateCell()}
       </td>
       
-      {/* Ячейка с рабочими часами */}
+      {/* *** ОБНОВЛЕНО: Ячейка с рабочими часами использует getHolidayCellStyle на основе holidays списка *** */}
       <td style={{ 
         textAlign: 'center',
         fontWeight: 'bold',
         whiteSpace: 'nowrap',
         color: displayWorkTime === '0.00' ? '#666' : 'inherit',
-        ...getHolidayCellStyle(true) // Применяем розовый фон для праздничных дней
+        ...getHolidayCellStyle(true) // Применяем розовый фон для праздничных дней (из holidays списка)
       }}
       className={isDeleted ? styles.deletedText : ''}>
         <span className={isDeleted ? styles.deletedText : ''}>

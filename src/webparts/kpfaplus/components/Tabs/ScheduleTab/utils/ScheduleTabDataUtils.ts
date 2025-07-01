@@ -45,6 +45,7 @@ export const createTimeFromScheduleItem = (baseDate: Date, hourStr: string, minu
 /**
  * Преобразует данные записей расписания в формат для отображения в таблице
  * ОБНОВЛЕНО: Приоритет отдается числовым полям времени, fallback на ShiftDate1/ShiftDate2
+ * ИСПРАВЛЕНО: Больше НЕ копирует поле Holiday из StaffRecords
  */
 export const convertStaffRecordsToScheduleItems = (
   records: IStaffRecord[] | undefined, 
@@ -55,6 +56,7 @@ export const convertStaffRecordsToScheduleItems = (
   }
 
   console.log(`[ScheduleTabDataUtils] Converting ${records.length} staff records to schedule items`);
+  console.log(`[ScheduleTabDataUtils] *** IMPORTANT: Holiday field is NO LONGER copied from StaffRecords ***`);
 
   return records.map((record, index) => {
     // ИСПРАВЛЕНО: Нормализуем основную дату записи к UTC полуночи для консистентности
@@ -110,7 +112,7 @@ export const convertStaffRecordsToScheduleItems = (
       typeOfLeaveValue = String(record.TypeOfLeaveID);
     }
     
-    // Формирование объекта IScheduleItem с нормализованной датой
+    // *** ИСПРАВЛЕНО: Формирование объекта IScheduleItem БЕЗ поля Holiday ***
     const scheduleItem: IScheduleItem = {
       id: record.ID,
       date: normalizedDate, // ИСПРАВЛЕНО: используем нормализованную дату
@@ -126,8 +128,8 @@ export const convertStaffRecordsToScheduleItems = (
       contract: record.WeeklyTimeTableTitle || selectedContract?.template || '',
       contractId: record.WeeklyTimeTableID || selectedContract?.id || '',
       contractNumber: record.Contract.toString(),
-      deleted: record.Deleted === 1, // Добавляем флаг deleted
-      Holiday: record.Holiday // ИСПРАВЛЕНО: используется ТОЛЬКО значение из StaffRecords
+      deleted: record.Deleted === 1 // Добавляем флаг deleted
+      // *** УДАЛЕНО: Holiday: record.Holiday - больше НЕ копируем поле Holiday из StaffRecords ***
     };
     
     // Дополнительное логирование для октября 2024
@@ -139,8 +141,8 @@ export const convertStaffRecordsToScheduleItems = (
         dayOfWeek: scheduleItem.dayOfWeek,
         startTime: `${scheduleItem.startHour}:${scheduleItem.startMinute}`,
         finishTime: `${scheduleItem.finishHour}:${scheduleItem.finishMinute}`,
-        deleted: scheduleItem.deleted,
-        Holiday: scheduleItem.Holiday
+        deleted: scheduleItem.deleted
+        // *** УДАЛЕНО: Holiday: scheduleItem.Holiday - больше НЕ логируем поле Holiday ***
       });
     }
     
@@ -151,10 +153,12 @@ export const convertStaffRecordsToScheduleItems = (
 /**
  * Форматирует объект IStaffRecord для обновления из IScheduleItem
  * ОБНОВЛЕНО: Заполняет как числовые поля времени, так и ShiftDate1/ShiftDate2 для совместимости
+ * ИСПРАВЛЕНО: Больше НЕ включает поле Holiday в данные для обновления
  */
 export const formatItemForUpdate = (recordId: string, scheduleItem: IScheduleItem): Partial<IStaffRecord> => {
   console.log(`[ScheduleTabDataUtils] formatItemForUpdate for record ID: ${recordId}`);
   console.log(`[ScheduleTabDataUtils] Input schedule item date: ${scheduleItem.date.toISOString()}`);
+  console.log(`[ScheduleTabDataUtils] *** IMPORTANT: Holiday field is NO LONGER included in update data ***`);
   
   // *** ИСПРАВЛЕНИЕ: Создаем дату с местной полуночью для поля Date ***
   const localMidnightDate = new Date(
@@ -184,6 +188,7 @@ export const formatItemForUpdate = (recordId: string, scheduleItem: IScheduleIte
   const shiftDate1 = createTimeFromScheduleItem(scheduleItem.date, scheduleItem.startHour, scheduleItem.startMinute);
   const shiftDate2 = createTimeFromScheduleItem(scheduleItem.date, scheduleItem.finishHour, scheduleItem.finishMinute);
 
+  // *** ИСПРАВЛЕНО: updateData БЕЗ поля Holiday ***
   const updateData: Partial<IStaffRecord> = {
     // *** ИСПРАВЛЕНИЕ: Используем местную полночь для поля Date ***
     Date: localMidnightDate,
@@ -206,11 +211,29 @@ export const formatItemForUpdate = (recordId: string, scheduleItem: IScheduleIte
     TypeOfLeaveID: scheduleItem.typeOfLeave || '',
     
     // Work time as calculated
-    WorkTime: scheduleItem.workingHours,
+    WorkTime: scheduleItem.workingHours
     
-    // Holiday status
-    Holiday: scheduleItem.Holiday
+    // *** УДАЛЕНО: Holiday: scheduleItem.Holiday - больше НЕ включаем поле Holiday ***
   };
+  
+  console.log(`[ScheduleTabDataUtils] *** UPDATE DATA WITHOUT HOLIDAY FIELD ***`);
+  console.log(`[ScheduleTabDataUtils] Numeric time fields:`, {
+    ShiftDate1Hours: updateData.ShiftDate1Hours,
+    ShiftDate1Minutes: updateData.ShiftDate1Minutes,
+    ShiftDate2Hours: updateData.ShiftDate2Hours,
+    ShiftDate2Minutes: updateData.ShiftDate2Minutes
+  });
+  console.log(`[ScheduleTabDataUtils] DateTime fields:`, {
+    ShiftDate1: updateData.ShiftDate1?.toISOString(),
+    ShiftDate2: updateData.ShiftDate2?.toISOString()
+  });
+  console.log(`[ScheduleTabDataUtils] Other fields (NO Holiday):`, {
+    Date: updateData.Date?.toISOString(),
+    TimeForLunch: updateData.TimeForLunch,
+    Contract: updateData.Contract,
+    TypeOfLeaveID: updateData.TypeOfLeaveID,
+    WorkTime: updateData.WorkTime
+  });
   
   return updateData;
 };
@@ -248,6 +271,7 @@ export const isOctober1st2024 = (date: Date): boolean => {
 /**
  * НОВАЯ ФУНКЦИЯ: Логирует детальную информацию о преобразовании записи
  * Полезно для отладки проблем с датами
+ * ИСПРАВЛЕНО: Больше НЕ логирует поле Holiday
  */
 export const logScheduleItemConversion = (record: IStaffRecord, scheduleItem: IScheduleItem): void => {
   console.log(`[ScheduleTabDataUtils] *** SCHEDULE ITEM CONVERSION LOG ***`);
@@ -262,13 +286,13 @@ export const logScheduleItemConversion = (record: IStaffRecord, scheduleItem: IS
   console.log(`Working Hours: ${scheduleItem.workingHours}`);
   console.log(`Day of Week: ${scheduleItem.dayOfWeek}`);
   console.log(`Deleted Status: ${scheduleItem.deleted}`);
-  console.log(`Holiday Status: ${scheduleItem.Holiday}`);
   console.log(`Type of Leave: ${scheduleItem.typeOfLeave || 'none'}`);
   console.log(`Start Time: ${scheduleItem.startHour}:${scheduleItem.startMinute}`);
   console.log(`Finish Time: ${scheduleItem.finishHour}:${scheduleItem.finishMinute}`);
   console.log(`Lunch Time: ${scheduleItem.lunchTime} minutes`);
   console.log(`Contract: ${scheduleItem.contract} (ID: ${scheduleItem.contractId})`);
   console.log(`Contract Number: ${scheduleItem.contractNumber}`);
+  // *** УДАЛЕНО: Holiday Status логирование ***
   
   // Проверяем на октябрь 2024
   if (isOctober1st2024(scheduleItem.date)) {
@@ -375,6 +399,7 @@ export const validateScheduleItems = (scheduleItems: IScheduleItem[]): {
 
 /**
  * ОТЛАДОЧНАЯ ФУНКЦИЯ: Выводит статистику по датам в коллекции ScheduleItem
+ * ИСПРАВЛЕНО: Больше НЕ включает статистику по Holiday полю
  */
 export const logScheduleItemsDateStatistics = (scheduleItems: IScheduleItem[]): void => {
   console.log(`[ScheduleTabDataUtils] *** SCHEDULE ITEMS DATE STATISTICS ***`);
@@ -400,7 +425,8 @@ export const logScheduleItemsDateStatistics = (scheduleItems: IScheduleItem[]): 
   if (dateGroups[oct1Key]) {
     console.log(`*** OCTOBER 1st 2024 FOUND: ${dateGroups[oct1Key].length} items ***`);
     dateGroups[oct1Key].forEach(item => {
-      console.log(`  - ID: ${item.id}, deleted: ${item.deleted}, holiday: ${item.Holiday}, time: ${item.startHour}:${item.startMinute}-${item.finishHour}:${item.finishMinute}`);
+      console.log(`  - ID: ${item.id}, deleted: ${item.deleted}, time: ${item.startHour}:${item.startMinute}-${item.finishHour}:${item.finishMinute}`);
+      // *** УДАЛЕНО: holiday: ${item.Holiday} - больше НЕ логируем поле Holiday ***
     });
   } else {
     console.log(`*** OCTOBER 1st 2024 NOT FOUND in schedule items ***`);
@@ -421,16 +447,15 @@ export const logScheduleItemsDateStatistics = (scheduleItems: IScheduleItem[]): 
     console.log(`  ${month}: ${count} items`);
   });
   
-  // Статистика по статусам
+  // Статистика по статусам (БЕЗ holiday)
   const deletedCount = scheduleItems.filter(item => item.deleted).length;
-  const holidayCount = scheduleItems.filter(item => item.Holiday === 1).length;
   const leaveCount = scheduleItems.filter(item => item.typeOfLeave && item.typeOfLeave !== '').length;
   
-  console.log('Status statistics:');
+  console.log('Status statistics (Holiday field NO LONGER tracked):');
   console.log(`  Active items: ${scheduleItems.length - deletedCount}`);
   console.log(`  Deleted items: ${deletedCount}`);
-  console.log(`  Holiday items: ${holidayCount}`);
   console.log(`  Leave items: ${leaveCount}`);
+  // *** УДАЛЕНО: Holiday items статистика ***
   
   // Статистика времени (только для первых нескольких для экономии)
   console.log('Time statistics (first 5 items):');
