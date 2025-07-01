@@ -6,6 +6,7 @@ import {
   ColorPriority
 } from '../interfaces/TimetableInterfaces';
 import { IStaffRecord } from '../../../../services/StaffRecordsService';
+import { IHoliday, HolidaysService } from '../../../../services/HolidaysService';
 
 // Импортируем разделенные модули
 import { TimetableShiftCalculatorCore } from './TimetableShiftCalculatorCore';
@@ -91,15 +92,17 @@ export class TimetableShiftCalculator {
   /**
    * Получает все смены для конкретного дня недели из записей
    */
-  public static getShiftsForDay(
+ public static getShiftsForDay(
     records: IStaffRecord[],
     dayNumber: number,
     weekStart: Date,
     weekEnd: Date,
-    getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined
+    getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined,
+    holidays?: IHoliday[],
+    holidaysService?: HolidaysService
   ): IShiftInfo[] {
     return TimetableShiftCalculatorCore.getShiftsForDay(
-      records, dayNumber, weekStart, weekEnd, getLeaveTypeColor
+      records, dayNumber, weekStart, weekEnd, getLeaveTypeColor, holidays, holidaysService
     );
   }
 

@@ -9,18 +9,23 @@ import {
 import { TimetableShiftCalculator } from './TimetableShiftCalculator';
 import { TimetableDataUtils } from './TimetableDataUtils';
 import { IStaffRecord } from '../../../../services/StaffRecordsService';
+import { IHoliday, HolidaysService } from '../../../../services/HolidaysService';
 
 import { TimetableDataProcessorLeaveTypes } from './TimetableDataProcessorLeaveTypes';
-import { TimetableDataProcessorHolidays } from './TimetableDataProcessorHolidays';
 import { TimetableDataProcessorUtils } from './TimetableDataProcessorUtils';
 
 export class TimetableDataProcessorCore {
 
+  /**
+   * *** ОБНОВЛЕНО: Добавлена поддержка holidays ***
+   */
   public static processWeekDataWithLeaveColorsAndHolidays(
     staffRecords: IStaffRecord[],
     week: IWeekInfo,
     getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined,
-    holidayColor?: string
+    holidayColor?: string,
+    holidays?: IHoliday[],
+    holidaysService?: HolidaysService
   ): IWeeklyStaffData {
     const weeklyData: IWeeklyStaffData = {
       weekNum: week.weekNum,
@@ -40,7 +45,9 @@ export class TimetableDataProcessorCore {
         week.weekStart,
         week.weekEnd,
         getLeaveTypeColor,
-        holidayColor
+        holidayColor,
+        holidays,
+        holidaysService
       );
       weeklyData.days[dayNum] = dayInfo;
       weeklyData.totalWeekMinutes += dayInfo.totalMinutes;
@@ -51,11 +58,16 @@ export class TimetableDataProcessorCore {
     return weeklyData;
   }
 
+  /**
+   * *** ОБНОВЛЕНО: Добавлена поддержка holidays ***
+   */
   public static processWeekDataWithLeaveColorsAndHolidaysIncludingNonWorkDays(
     staffRecords: IStaffRecord[],
     week: IWeekInfo,
     getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined,
-    holidayColor?: string
+    holidayColor?: string,
+    holidays?: IHoliday[],
+    holidaysService?: HolidaysService
   ): IWeeklyStaffData {
     const weeklyData: IWeeklyStaffData = {
       weekNum: week.weekNum,
@@ -75,7 +87,9 @@ export class TimetableDataProcessorCore {
         week.weekStart,
         week.weekEnd,
         getLeaveTypeColor,
-        holidayColor
+        holidayColor,
+        holidays,
+        holidaysService
       );
       weeklyData.days[dayNum] = dayInfo;
       weeklyData.totalWeekMinutes += dayInfo.totalMinutes;
@@ -86,11 +100,16 @@ export class TimetableDataProcessorCore {
     return weeklyData;
   }
 
+  /**
+   * *** ОБНОВЛЕНО: Добавлена поддержка holidays ***
+   */
   public static processWeekDataForExcelWithFullMarkers(
     staffRecords: IStaffRecord[],
     week: IWeekInfo,
     getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined,
-    holidayColor?: string
+    holidayColor?: string,
+    holidays?: IHoliday[],
+    holidaysService?: HolidaysService
   ): IWeeklyStaffData {
     const weeklyData: IWeeklyStaffData = {
       weekNum: week.weekNum,
@@ -110,7 +129,9 @@ export class TimetableDataProcessorCore {
         week.weekStart,
         week.weekEnd,
         getLeaveTypeColor,
-        holidayColor
+        holidayColor,
+        holidays,
+        holidaysService
       );
       weeklyData.days[dayNum] = dayInfo;
       weeklyData.totalWeekMinutes += dayInfo.totalMinutes;
@@ -121,22 +142,30 @@ export class TimetableDataProcessorCore {
     return weeklyData;
   }
 
+  /**
+   * *** ОБНОВЛЕНО: Заменена логика holidays с поля Holiday на HolidaysService ***
+   */
   private static processDayDataWithLeaveColorsAndHolidays(
     weekRecords: IStaffRecord[],
     dayNumber: number,
     weekStart: Date,
     weekEnd: Date,
     getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined,
-    holidayColor?: string
+    holidayColor?: string,
+    holidays?: IHoliday[],
+    holidaysService?: HolidaysService
   ): IDayInfo {
     const dayDate = TimetableDataUtils.getDateForDayInWeek(weekStart, dayNumber);
     
+    // *** ОБНОВЛЕНО: Передаем holidays в getShiftsForDay ***
     const shifts = TimetableShiftCalculator.getShiftsForDay(
       weekRecords,
       dayNumber,
       weekStart,
       weekEnd,
-      getLeaveTypeColor
+      getLeaveTypeColor,
+      holidays,
+      holidaysService
     );
 
     const totalMinutes = shifts.reduce((sum, shift) => sum + shift.workMinutes, 0);
@@ -156,9 +185,13 @@ export class TimetableDataProcessorCore {
     }
 
     const hasLeave = TimetableShiftCalculator.hasLeaveTypes(shifts) || leaveAnalysis.hasNonWorkLeave;
+    
+    // *** ОБНОВЛЕНО: Используем HolidaysService вместо поля Holiday ***
     const hasHoliday = TimetableShiftCalculator.hasHolidays ? 
       TimetableShiftCalculator.hasHolidays(shifts) : 
-      shifts.some(s => s.isHoliday);
+      shifts.some(s => s.isHoliday) ||
+      this.isDateHoliday(dayDate, holidays, holidaysService);
+    
     const holidayColorFinal = holidayColor || TIMETABLE_COLORS.HOLIDAY;
 
     if (shifts.length === 0) {
@@ -192,34 +225,44 @@ export class TimetableDataProcessorCore {
     };
   }
 
+  /**
+   * *** ОБНОВЛЕНО: Заменена логика holidays с поля Holiday на HolidaysService ***
+   */
   private static processDayDataIncludingNonWorkDays(
     weekRecords: IStaffRecord[],
     dayNumber: number,
     weekStart: Date,
     weekEnd: Date,
     getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined,
-    holidayColor?: string
+    holidayColor?: string,
+    holidays?: IHoliday[],
+    holidaysService?: HolidaysService
   ): IDayInfo {
     const dayDate = TimetableDataUtils.getDateForDayInWeek(weekStart, dayNumber);
     
     const allDayRecords = TimetableDataProcessorUtils.getAllRecordsForDayEnhanced(weekRecords, dayNumber, weekStart, weekEnd);
 
+    // *** ОБНОВЛЕНО: Передаем holidays в getShiftsForDay ***
     const shifts = TimetableShiftCalculator.getShiftsForDay(
       weekRecords,
       dayNumber,
       weekStart,
       weekEnd,
-      getLeaveTypeColor
+      getLeaveTypeColor,
+      holidays,
+      holidaysService
     );
 
     const leaveInfo = TimetableDataProcessorLeaveTypes.analyzeLeaveInfoFromRecordsEnhanced(allDayRecords, getLeaveTypeColor);
-    const holidayInfo = TimetableDataProcessorHolidays.analyzeHolidayInfoFromRecords(allDayRecords);
+    
+    // *** ОБНОВЛЕНО: Используем HolidaysService вместо поля Holiday ***
+    const holidayInfo = this.analyzeHolidayInfoFromDate(dayDate, holidays, holidaysService);
 
     const totalMinutes = shifts.reduce((sum, shift) => sum + shift.workMinutes, 0);
     let formattedContent = TimetableShiftCalculator.formatDayContent(shifts);
 
     if (!shifts.length) {
-      if (holidayInfo.hasNonWorkHoliday) {
+      if (holidayInfo.hasHoliday) {
         formattedContent = "Holiday";
       } else if (leaveInfo.hasNonWorkLeave && leaveInfo.leaveTypeTitle) {
         formattedContent = leaveInfo.leaveTypeTitle;
@@ -232,7 +275,7 @@ export class TimetableDataProcessorCore {
       TimetableShiftCalculator.hasHolidays(shifts) : 
       shifts.some(s => s.isHoliday);
 
-    const hasHoliday = hasWorkShiftsHoliday || holidayInfo.hasNonWorkHoliday;
+    const hasHoliday = hasWorkShiftsHoliday || holidayInfo.hasHoliday;
     const hasLeave = hasWorkShiftsLeave || leaveInfo.hasNonWorkLeave;
     const holidayColorFinal = holidayColor || TIMETABLE_COLORS.HOLIDAY;
 
@@ -254,7 +297,7 @@ export class TimetableDataProcessorCore {
       shifts,
       totalMinutes,
       formattedContent,
-      hasData: shifts.length > 0 || holidayInfo.hasNonWorkHoliday || leaveInfo.hasNonWorkLeave,
+      hasData: shifts.length > 0 || holidayInfo.hasHoliday || leaveInfo.hasNonWorkLeave,
       leaveTypeColor,
       hasLeave,
       hasHoliday,
@@ -263,27 +306,37 @@ export class TimetableDataProcessorCore {
     };
   }
 
+  /**
+   * *** ОБНОВЛЕНО: Заменена логика holidays с поля Holiday на HolidaysService ***
+   */
   private static processDayDataForExcel(
     weekRecords: IStaffRecord[],
     dayNumber: number,
     weekStart: Date,
     weekEnd: Date,
     getLeaveTypeColor?: (typeOfLeaveId: string) => string | undefined,
-    holidayColor?: string
+    holidayColor?: string,
+    holidays?: IHoliday[],
+    holidaysService?: HolidaysService
   ): IDayInfo {
     const dayDate = TimetableDataUtils.getDateForDayInWeek(weekStart, dayNumber);
     
+    // *** ОБНОВЛЕНО: Передаем holidays в getShiftsForDay ***
     const shifts = TimetableShiftCalculator.getShiftsForDay(
       weekRecords,
       dayNumber,
       weekStart,
       weekEnd,
-      getLeaveTypeColor
+      getLeaveTypeColor,
+      holidays,
+      holidaysService
     );
 
     const allDayRecords = TimetableDataProcessorUtils.getAllRecordsForDayEnhanced(weekRecords, dayNumber, weekStart, weekEnd);
     const leaveInfo = TimetableDataProcessorLeaveTypes.analyzeLeaveInfoFromRecordsEnhanced(allDayRecords, getLeaveTypeColor);
-    const holidayInfo = TimetableDataProcessorHolidays.analyzeHolidayInfoFromRecords(allDayRecords);
+    
+    // *** ОБНОВЛЕНО: Используем HolidaysService вместо поля Holiday ***
+    const holidayInfo = this.analyzeHolidayInfoFromDate(dayDate, holidays, holidaysService);
 
     const totalMinutes = shifts.reduce((sum, shift) => {
       return shift.workMinutes > 0 ? sum + shift.workMinutes : sum;
@@ -292,7 +345,7 @@ export class TimetableDataProcessorCore {
     let formattedContent = TimetableShiftCalculator.formatDayContent(shifts);
 
     if (shifts.length === 0) {
-      if (holidayInfo.hasNonWorkHoliday) {
+      if (holidayInfo.hasHoliday) {
         formattedContent = 'Holiday';
       } else if (leaveInfo.hasNonWorkLeave && leaveInfo.leaveTypeTitle) {
         formattedContent = leaveInfo.leaveTypeTitle;
@@ -301,14 +354,14 @@ export class TimetableDataProcessorCore {
 
     const hasHolidayInWorkShifts = shifts.some(s => s.isHoliday && s.workMinutes > 0);
     const hasLeaveInWorkShifts = shifts.some(s => s.typeOfLeaveId && s.workMinutes > 0);
-    const hasHolidayMarkers = shifts.some(s => s.isHoliday && s.workMinutes === 0) || holidayInfo.hasNonWorkHoliday;
+    const hasHolidayMarkers = shifts.some(s => s.isHoliday && s.workMinutes === 0) || holidayInfo.hasHoliday;
     const hasLeaveMarkers = shifts.some(s => s.typeOfLeaveId && s.workMinutes === 0) || leaveInfo.hasNonWorkLeave;
 
     const leaveTypeColor = TimetableShiftCalculator.getDominantLeaveColorSmart(shifts, getLeaveTypeColor) || leaveInfo.leaveTypeColor;
     const hasLeave = TimetableShiftCalculator.hasLeaveTypes(shifts) || leaveInfo.hasNonWorkLeave;
     const hasHoliday = TimetableShiftCalculator.hasHolidays ?
       TimetableShiftCalculator.hasHolidays(shifts) :
-      shifts.some(s => s.isHoliday) || holidayInfo.hasNonWorkHoliday;
+      shifts.some(s => s.isHoliday) || holidayInfo.hasHoliday;
     const holidayColorFinal = holidayColor || TIMETABLE_COLORS.HOLIDAY;
 
     let finalCellColor: string | undefined = undefined;
@@ -324,13 +377,68 @@ export class TimetableDataProcessorCore {
       shifts,
       totalMinutes,
       formattedContent,
-      hasData: shifts.length > 0 || leaveInfo.hasNonWorkLeave || holidayInfo.hasNonWorkHoliday,
+      hasData: shifts.length > 0 || leaveInfo.hasNonWorkLeave || holidayInfo.hasHoliday,
       leaveTypeColor,
       hasLeave: hasLeave || hasLeaveMarkers || hasLeaveInWorkShifts || leaveInfo.hasNonWorkLeave,
       hasHoliday: hasHoliday || hasHolidayMarkers || hasHolidayInWorkShifts,
       holidayColor: (hasHoliday || hasHolidayMarkers || hasHolidayInWorkShifts) ? holidayColorFinal : undefined,
       finalCellColor
     };
+  }
+
+  /**
+   * *** НОВЫЙ МЕТОД: Проверяет является ли дата праздником через HolidaysService ***
+   */
+  private static isDateHoliday(
+    date: Date, 
+    holidays?: IHoliday[], 
+    holidaysService?: HolidaysService
+  ): boolean {
+    if (!holidays || holidays.length === 0) {
+      return false;
+    }
+
+    // Используем HolidaysService для проверки если доступен
+    if (holidaysService) {
+      return holidaysService.isHoliday(date, holidays);
+    }
+
+    // Fallback: простая проверка по дате
+    const dateString = this.formatDateForComparison(date);
+    return holidays.some(holiday => 
+      this.formatDateForComparison(holiday.date) === dateString
+    );
+  }
+
+  /**
+   * *** НОВЫЙ МЕТОД: Анализирует информацию о празднике для даты ***
+   */
+  private static analyzeHolidayInfoFromDate(
+    date: Date,
+    holidays?: IHoliday[],
+    holidaysService?: HolidaysService
+  ): {
+    hasHoliday: boolean;
+    holidayInfo?: IHoliday;
+  } {
+    const hasHoliday = this.isDateHoliday(date, holidays, holidaysService);
+    
+    let holidayInfo: IHoliday | undefined = undefined;
+    if (hasHoliday && holidays && holidaysService) {
+      holidayInfo = holidaysService.getHolidayInfo(date, holidays);
+    }
+
+    return {
+      hasHoliday,
+      holidayInfo
+    };
+  }
+
+  /**
+   * *** НОВЫЙ МЕТОД: Форматирует дату для сравнения ***
+   */
+  private static formatDateForComparison(date: Date): string {
+    return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
   }
 
   public static sortStaffRows(rows: ITimetableRow[]): ITimetableRow[] {
