@@ -10,12 +10,13 @@ import { IHoliday, HolidaysService } from '../../../../services/HolidaysService'
 
 /**
  * Основные функции расчета смен и времени
- * ОБНОВЛЕНО: Переход от поля Holiday к использованию HolidaysService
+ * ИСПРАВЛЕНО: Удален fallback на поле Holiday - используется только HolidaysService
  */
 export class TimetableShiftCalculatorCore {
 
   /**
    * Рассчитывает рабочие минуты для одной смены
+   * ИСПРАВЛЕНО: Удален fallback на isHoliday параметр
    */
   public static calculateShiftMinutes(params: IShiftCalculationParams): IShiftCalculationResult {
     const { 
@@ -27,9 +28,8 @@ export class TimetableShiftCalculatorCore {
       typeOfLeaveId, 
       typeOfLeaveTitle, 
       typeOfLeaveColor,
-      isHoliday,
       holidayColor,
-      // *** НОВЫЕ ПАРАМЕТРЫ ДЛЯ HOLIDAYS ***
+      // *** ОБЯЗАТЕЛЬНЫЕ ПАРАМЕТРЫ ДЛЯ HOLIDAYS ***
       recordDate,
       holidays,
       holidaysService
@@ -43,9 +43,9 @@ export class TimetableShiftCalculatorCore {
     const isStartZero = startHour === 0 && startMinute === 0;
     const isEndZero = endHour === 0 && endMinute === 0;
 
-    // *** ОБНОВЛЕНО: Определяем isHoliday через HolidaysService если не задано ***
-    let finalIsHoliday = isHoliday || false;
-    if (!finalIsHoliday && recordDate && holidays && holidaysService) {
+    // *** ИСПРАВЛЕНО: Определяем isHoliday ТОЛЬКО через HolidaysService ***
+    let finalIsHoliday = false;
+    if (recordDate && holidays && holidaysService) {
       finalIsHoliday = holidaysService.isHoliday(recordDate, holidays);
     }
 
@@ -196,9 +196,9 @@ export class TimetableShiftCalculatorCore {
   }
 
   /**
-   * *** ОБНОВЛЕНО: Добавлена поддержка holidays ***
+   * ИСПРАВЛЕНО: Удален fallback на поле Holiday
    * Обрабатывает записи StaffRecord в IShiftInfo
-   * ОБНОВЛЕНО: Использует HolidaysService вместо поля Holiday
+   * Использует ТОЛЬКО HolidaysService для определения праздников
    */
   public static processStaffRecordsToShifts(
     records: IStaffRecord[],
@@ -206,7 +206,7 @@ export class TimetableShiftCalculatorCore {
     holidays?: IHoliday[],
     holidaysService?: HolidaysService
   ): IShiftInfo[] {
-    console.log(`[TimetableShiftCalculatorCore] *** PROCESSING RECORDS WITH HOLIDAYS SERVICE ***`);
+    console.log(`[TimetableShiftCalculatorCore] *** PROCESSING RECORDS WITH HOLIDAYS SERVICE ONLY ***`);
     console.log(`[TimetableShiftCalculatorCore] Processing ${records.length} records with ${holidays?.length || 0} holidays`);
     
     if (records.length === 0) {
@@ -252,9 +252,9 @@ export class TimetableShiftCalculatorCore {
   }
 
   /**
-   * *** ОБНОВЛЕНО: Добавлена поддержка holidays ***
+   * ИСПРАВЛЕНО: Удален fallback на поле Holiday
    * Создает смены из отсортированных записей
-   * ОБНОВЛЕНО: Использует HolidaysService вместо поля Holiday
+   * Использует ТОЛЬКО HolidaysService для определения праздников
    */
   private static createShiftsFromRecords(
     sortedRecords: IStaffRecord[],
@@ -262,10 +262,10 @@ export class TimetableShiftCalculatorCore {
     holidays?: IHoliday[],
     holidaysService?: HolidaysService
   ): IShiftInfo[] {
-    console.log(`[TimetableShiftCalculatorCore] *** CREATING SHIFTS WITH HOLIDAYS SERVICE ***`);
+    console.log(`[TimetableShiftCalculatorCore] *** CREATING SHIFTS WITH HOLIDAYS SERVICE ONLY ***`);
     
     const shifts: IShiftInfo[] = sortedRecords.map(record => {
-      console.log(`[TimetableShiftCalculatorCore] Processing record ${record.ID} with holidays support`);
+      console.log(`[TimetableShiftCalculatorCore] Processing record ${record.ID} with holidays service only`);
       
       // *** ИЗВЛЕКАЕМ ВРЕМЯ ИЗ ЧИСЛОВЫХ ПОЛЕЙ ***
       const timeData = this.extractTimeFromRecord(record);
@@ -308,7 +308,7 @@ export class TimetableShiftCalculatorCore {
         }
       }
 
-      // *** ОБНОВЛЕНО: Используем HolidaysService вместо record.Holiday ***
+      // *** ИСПРАВЛЕНО: Используем ТОЛЬКО HolidaysService - никаких fallback ***
       let isHoliday = false;
       let holidayColor: string | undefined = undefined;
 
@@ -318,6 +318,8 @@ export class TimetableShiftCalculatorCore {
           holidayColor = TIMETABLE_COLORS.HOLIDAY;
           console.log(`[TimetableShiftCalculatorCore] *** HOLIDAY DETECTED via HolidaysService for record ${record.ID} on ${baseDate.toLocaleDateString()} ***`);
         }
+      } else {
+        console.log(`[TimetableShiftCalculatorCore] No holidays service or data available for record ${record.ID}`);
       }
 
       const calculation = this.calculateShiftMinutes({
@@ -329,9 +331,8 @@ export class TimetableShiftCalculatorCore {
         typeOfLeaveId,
         typeOfLeaveTitle,
         typeOfLeaveColor,
-        isHoliday,
         holidayColor,
-        // *** НОВОЕ: Передаем holidays данные ***
+        // *** ОБЯЗАТЕЛЬНЫЕ: Передаем holidays данные ***
         recordDate: baseDate,
         holidays,
         holidaysService
@@ -353,7 +354,7 @@ export class TimetableShiftCalculatorCore {
         holidayColor: calculation.holidayColor
       };
 
-      console.log(`[TimetableShiftCalculatorCore] Created shift with holidays support:`, {
+      console.log(`[TimetableShiftCalculatorCore] Created shift with holidays service only:`, {
         recordId: record.ID,
         time: `${startHours}:${startMinutes} - ${endHours}:${endMinutes}`,
         workMinutes: calculation.workMinutes,
@@ -365,7 +366,7 @@ export class TimetableShiftCalculatorCore {
       return shift;
     });
     
-    console.log(`[TimetableShiftCalculatorCore] *** CREATED ${shifts.length} SHIFTS WITH HOLIDAYS SERVICE ***`);
+    console.log(`[TimetableShiftCalculatorCore] *** CREATED ${shifts.length} SHIFTS WITH HOLIDAYS SERVICE ONLY ***`);
     return shifts;
   }
 
@@ -450,8 +451,9 @@ export class TimetableShiftCalculatorCore {
   }
 
   /**
-   * *** ОБНОВЛЕНО: Добавлена поддержка holidays ***
+   * ИСПРАВЛЕНО: Удален fallback на поле Holiday
    * Получает все смены для конкретного дня недели из записей
+   * Использует ТОЛЬКО HolidaysService для определения праздников
    */
   public static getShiftsForDay(
     records: IStaffRecord[],
@@ -525,9 +527,9 @@ export class TimetableShiftCalculatorCore {
   }
 
   /**
-   * *** ОБНОВЛЕНО: Используем HolidaysService ***
+   * ИСПРАВЛЕНО: Удален fallback на поле Holiday
    * Извлекает информацию о типе отпуска из записей дня без рабочего времени
-   * ОБНОВЛЕНО: Проверяет holidays через HolidaysService
+   * Использует ТОЛЬКО HolidaysService для определения праздников
    */
   public static extractLeaveInfoFromNonWorkRecords(
     allDayRecords: IStaffRecord[],
