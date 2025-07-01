@@ -22,7 +22,7 @@ export class TimetableDataProcessor {
    * Основной метод обработки данных
    */
   public static processData(params: ITimetableDataParams): ITimetableRow[] {
-    const { staffRecords, staffMembers, weeks, getLeaveTypeColor, holidayColor } = params;
+    const { staffRecords, staffMembers, weeks, getLeaveTypeColor, holidayColor, holidays, holidaysService } = params;
 
     const rows: ITimetableRow[] = [];
     const recordsIndex = TimetableDataUtils.createStaffRecordsIndex(staffRecords);
@@ -43,7 +43,9 @@ export class TimetableDataProcessor {
             staffStaffRecords,
             week,
             getLeaveTypeColor,
-            holidayColor
+            holidayColor,
+            holidays,
+            holidaysService
         );
         row.weeks[week.weekNum] = weeklyData;
       });
@@ -58,7 +60,7 @@ export class TimetableDataProcessor {
    * Обработка данных с группировкой по неделям
    */
   public static processDataByWeeks(params: ITimetableDataParams): IWeekGroup[] {
-    const { staffRecords, staffMembers, weeks, getLeaveTypeColor, holidayColor } = params;
+    const { staffRecords, staffMembers, weeks, getLeaveTypeColor, holidayColor, holidays, holidaysService } = params;
 
     if (!staffRecords.length || !staffMembers.length || !weeks.length) {
       return [];
@@ -79,7 +81,9 @@ export class TimetableDataProcessor {
           staffWeekRecords,
           week,
           getLeaveTypeColor,
-          holidayColor
+          holidayColor,
+          holidays,
+          holidaysService
         );
 
         const staffAnalysis = TimetableDataAnalytics.analyzeStaffWeekData(weeklyData);
@@ -112,7 +116,7 @@ export class TimetableDataProcessor {
    * Специальная обработка данных для экспорта в Excel
    */
   public static processDataForExcelExport(params: ITimetableDataParams): IWeekGroup[] {
-    const { staffRecords, staffMembers, weeks, getLeaveTypeColor, holidayColor } = params;
+    const { staffRecords, staffMembers, weeks, getLeaveTypeColor, holidayColor, holidays, holidaysService } = params;
 
     if (!staffRecords.length || !staffMembers.length || !weeks.length) {
       return [];
@@ -133,7 +137,9 @@ export class TimetableDataProcessor {
           staffWeekRecords,
           week,
           getLeaveTypeColor,
-          holidayColor
+          holidayColor,
+          holidays,
+          holidaysService
         );
 
         const staffAnalysis = TimetableDataAnalytics.analyzeStaffWeekData(weeklyData);
