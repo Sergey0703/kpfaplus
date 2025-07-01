@@ -507,7 +507,7 @@ async function generateScheduleRecords(
           
           TimeForLunch: parseInt(template.lunch || '30', 10),
           Contract: parseInt(template.total || '1', 10),
-          Holiday: dayData.isHoliday ? 1 : 0,
+         // Holiday: dayData.isHoliday ? 1 : 0,
           WeeklyTimeTableID: selectedContractId,
           WeeklyTimeTableTitle: selectedContract.template || ''
         };

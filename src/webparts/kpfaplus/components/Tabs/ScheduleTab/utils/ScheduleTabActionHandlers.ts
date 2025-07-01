@@ -47,13 +47,14 @@ const createTimeFromScheduleItem = (baseDate: Date, hour: number, minute: number
 };
 
 /**
- * *** ОБНОВЛЕННАЯ ФУНКЦИЯ formatItemForUpdate С ПОДДЕРЖКОЙ ЧИСЛОВЫХ ПОЛЕЙ ***
+ * *** ОБНОВЛЕННАЯ ФУНКЦИЯ formatItemForUpdate С ПОДДЕРЖКОЙ ЧИСЛОВЫХ ПОЛЕЙ И БЕЗ HOLIDAY ***
  * Приоритет числовых полей при формировании данных для обновления
  */
 export const formatItemForUpdate = (recordId: string, scheduleItem: IScheduleItem): Partial<IStaffRecord> => {
   console.log(`[ScheduleTabActionHandlers] *** formatItemForUpdate WITH NUMERIC FIELDS PRIORITY ***`);
   console.log(`[ScheduleTabActionHandlers] formatItemForUpdate for record ID: ${recordId}`);
   console.log(`[ScheduleTabActionHandlers] Input schedule item date: ${scheduleItem.date.toISOString()}`);
+  console.log(`[ScheduleTabActionHandlers] *** IMPORTANT: Holiday field is NO LONGER included in update data ***`);
 
   // *** ИСПРАВЛЕНИЕ: Создаем дату с местной полуночью для поля Date ***
   const localMidnightDate = new Date(
@@ -120,13 +121,12 @@ export const formatItemForUpdate = (recordId: string, scheduleItem: IScheduleIte
     TypeOfLeaveID: scheduleItem.typeOfLeave || '',
     
     // Work time as calculated
-    WorkTime: scheduleItem.workingHours,
+    WorkTime: scheduleItem.workingHours
     
-    // Holiday status
-    Holiday: scheduleItem.Holiday
+    // *** ИСПРАВЛЕНО: Holiday field REMOVED - holidays are now determined from holidays array ***
   };
 
-  console.log(`[ScheduleTabActionHandlers] *** FINAL UPDATE DATA ***`);
+  console.log(`[ScheduleTabActionHandlers] *** FINAL UPDATE DATA WITHOUT HOLIDAY FIELD ***`);
   console.log(`[ScheduleTabActionHandlers] Numeric fields:`, {
     ShiftDate1Hours: updateData.ShiftDate1Hours,
     ShiftDate1Minutes: updateData.ShiftDate1Minutes,
@@ -137,13 +137,12 @@ export const formatItemForUpdate = (recordId: string, scheduleItem: IScheduleIte
     ShiftDate1: updateData.ShiftDate1?.toISOString(),
     ShiftDate2: updateData.ShiftDate2?.toISOString()
   });
-  console.log(`[ScheduleTabActionHandlers] Other fields:`, {
+  console.log(`[ScheduleTabActionHandlers] Other fields (NO Holiday):`, {
     Date: updateData.Date?.toISOString(),
     TimeForLunch: updateData.TimeForLunch,
     Contract: updateData.Contract,
     TypeOfLeaveID: updateData.TypeOfLeaveID,
-    WorkTime: updateData.WorkTime,
-    Holiday: updateData.Holiday
+    WorkTime: updateData.WorkTime
   });
 
   return updateData;

@@ -186,7 +186,7 @@ export const useStaffRecordsMutations = (
         WeeklyTimeTableID: selectedContractId, // Use the currently selected contract ID from state/props
         TypeOfLeaveID: shiftData?.typeOfLeave || '', // Use TypeOfLeaveID from shiftData
         Title: shiftData?.typeOfLeave ? `Leave on ${date.toLocaleDateString()}` : `Shift on ${date.toLocaleDateString()}`, // Dynamic title
-        Holiday: shiftData?.Holiday || 0 // <-- ИСПРАВЛЕНО: используем shiftData.Holiday (с большой)
+        Holiday: 0 // <-- ИСПРАВЛЕНО: используем shiftData.Holiday (с большой)
       };
 
       const employeeId = selectedStaff.employeeId;
