@@ -81,12 +81,12 @@ export const SRSTable: React.FC<ISRSTableProps & {
     message: ''
   });
 
-  console.log('[SRSTable] Rendering with REAL-TIME TOTAL HOURS CALCULATION AND HOLIDAYS LIST WITHOUT HOLIDAY FIELD CHECKS:', {
+  console.log('[SRSTable] Rendering with REAL-TIME TOTAL HOURS CALCULATION AND HOLIDAYS LIST WITHOUT HOLIDAY FIELD CHECKS (Date-only):', {
     itemsCount: items.length,
-    // *** НОВОЕ: Логируем информацию о праздниках ***
+    // *** НОВОЕ: Логируем информацию о праздниках Date-only ***
     holidaysCount: holidays.length,
     holidaysAvailable: holidays.length > 0,
-    holidayDates: holidays.map(h => new Date(h.date).toLocaleDateString()),
+    holidayDates: holidays.map(h => h.date.toLocaleDateString()),
     hasTypeOfLeaveHandler: !!onTypeOfLeaveChange,
     optionsLeaveTypesCount: options.leaveTypes?.length || 0,
     hasDeleteHandler: !!showDeleteConfirmDialog,
@@ -100,7 +100,7 @@ export const SRSTable: React.FC<ISRSTableProps & {
     hasAddShiftDialog: true,
     addShiftDialogOpen: addShiftConfirmDialog.isOpen,
     realTimeTotalHours: true, // *** НОВАЯ ФУНКЦИЯ ***
-    holidaysFromList: true, // *** НОВАЯ ФУНКЦИЯ: Праздники из списка, а не из поля ***
+    holidaysFromList: true, // *** НОВАЯ ФУНКЦИЯ: Праздники из списка Date-only, а не из поля ***
     addShiftWithoutHolidayCheck: true // *** ИСПРАВЛЕНО: Добавление смены без проверки Holiday поля ***
   });
 
@@ -291,10 +291,10 @@ export const SRSTable: React.FC<ISRSTableProps & {
         contractNumber: item.contract, // Используем contract как contractNumber
         typeOfLeave: item.typeOfLeave, // Тот же тип отпуска (если есть)
         // *** ИСПРАВЛЕНО: Holiday всегда 0 - не передаем значение из item ***
-        Holiday: 0 // Всегда 0, так как праздники определяются из holidays list
+        Holiday: 0 // Всегда 0, так как праздники определяются из holidays list Date-only
       };
 
-      console.log('[SRSTable] Shift data prepared for service call WITHOUT Holiday field checks:', {
+      console.log('[SRSTable] Shift data prepared for service call WITHOUT Holiday field checks (Date-only):', {
         date: shiftData.date.toISOString(),
         dateLocal: shiftData.date.toLocaleDateString(),
         timeForLunch: shiftData.timeForLunch,
@@ -302,7 +302,7 @@ export const SRSTable: React.FC<ISRSTableProps & {
         contractNumber: shiftData.contractNumber,
         typeOfLeave: shiftData.typeOfLeave || 'none',
         Holiday: shiftData.Holiday + ' (always 0)',
-        holidayDeterminedBy: 'holidays list, not Holiday field'
+        holidayDeterminedBy: 'holidays list Date-only, not Holiday field'
       });
 
       // *** РЕАЛЬНЫЙ ВЫЗОВ: onAddShift из пропсов ***
@@ -548,11 +548,11 @@ export const SRSTable: React.FC<ISRSTableProps & {
   const isFirstRowWithNewDate = (items: typeof props.items, index: number): boolean => {
     if (index === 0) return true; // First row always starts a new date
     
-    // Compare dates of current and previous row
-    const currentDate = new Date(items[index].date);
-    const previousDate = new Date(items[index - 1].date);
+    // *** УПРОЩЕНО: Сравниваем даты без нормализации времени для Date-only формата ***
+    const currentDate = items[index].date;
+    const previousDate = items[index - 1].date;
     
-    // Compare only year, month and day
+    // Сравниваем только компоненты даты (год, месяц, день)
     return (
       currentDate.getFullYear() !== previousDate.getFullYear() ||
       currentDate.getMonth() !== previousDate.getMonth() ||
@@ -564,14 +564,14 @@ export const SRSTable: React.FC<ISRSTableProps & {
   const getRowPositionInDate = (items: typeof props.items, index: number): number => {
     if (index === 0) return 0; // First row always has position 0
     
-    const currentDate = new Date(items[index].date);
+    const currentDate = items[index].date;
     let position = 0;
     
     // Count how many rows with the same date were before current one (including deleted)
     for (let i = 0; i < index; i++) {
-      const itemDate = new Date(items[i].date);
+      const itemDate = items[i].date;
       
-      // If dates match, increase position
+      // *** УПРОЩЕНО: Сравниваем компоненты даты без нормализации для Date-only формата ***
       if (
         itemDate.getFullYear() === currentDate.getFullYear() &&
         itemDate.getMonth() === currentDate.getMonth() &&
@@ -586,11 +586,12 @@ export const SRSTable: React.FC<ISRSTableProps & {
 
   // Helper function to calculate total hours for date (only for non-deleted rows)
   const calculateTotalHoursForDate = (items: typeof props.items, index: number): string => {
-    const currentDate = new Date(items[index].date);
+    const currentDate = items[index].date;
     
     // Find all rows with the same date
     const sameDateRows = items.filter(item => {
-      const itemDate = new Date(item.date);
+      const itemDate = item.date;
+      // *** УПРОЩЕНО: Сравниваем компоненты даты для Date-only формата ***
       return (
         itemDate.getFullYear() === currentDate.getFullYear() &&
         itemDate.getMonth() === currentDate.getMonth() &&
@@ -630,12 +631,13 @@ export const SRSTable: React.FC<ISRSTableProps & {
 
   // Helper function to count total rows (including deleted) in date group
   const countTotalRowsInDate = (items: typeof props.items, index: number): number => {
-    const currentDate = new Date(items[index].date);
+    const currentDate = items[index].date;
     
     // Count all rows with the same date
     return items.filter(item => {
-      const itemDate = new Date(item.date);
+      const itemDate = item.date;
       
+      // *** УПРОЩЕНО: Сравниваем компоненты даты для Date-only формата ***
       return (
         itemDate.getFullYear() === currentDate.getFullYear() &&
         itemDate.getMonth() === currentDate.getMonth() &&
@@ -742,10 +744,10 @@ export const SRSTable: React.FC<ISRSTableProps & {
               </Text>
             )}
             
-            {/* *** НОВОЕ: Информация о праздниках из списка *** */}
+            {/* *** НОВОЕ: Информация о праздниках из списка Date-only *** */}
             {holidays.length > 0 && (
               <Text style={{ fontSize: '12px', color: '#ff69b4' }}>
-                {holidays.length} holidays from list
+                {holidays.length} holidays from list (Date-only)
               </Text>
             )}
             
@@ -754,7 +756,7 @@ export const SRSTable: React.FC<ISRSTableProps & {
             </Text>
             {/* *** ИСПРАВЛЕНО: Информация о функционале добавления смены без Holiday проверки *** */}
             <Text style={{ fontSize: '12px', color: '#107c10' }}>
-              +Shift: Add new SRS record (no Holiday checks)
+              +Shift: Add new SRS record (no Holiday checks, Date-only)
             </Text>
           </div>
         </div>
@@ -918,11 +920,11 @@ export const SRSTable: React.FC<ISRSTableProps & {
                       : 'Loading types of leave...'}
                   </small>
                   
-                  {/* *** НОВОЕ: Информация о праздниках из списка *** */}
+                  {/* *** НОВОЕ: Информация о праздниках из списка Date-only *** */}
                   <br />
                   <small style={{ color: '#ff69b4', marginTop: '5px', display: 'block' }}>
                     {holidays.length > 0 
-                      ? `${holidays.length} holidays loaded from holidays list` 
+                      ? `${holidays.length} holidays loaded from holidays list (Date-only)` 
                       : 'Loading holidays from list...'}
                   </small>
                   
@@ -936,7 +938,7 @@ export const SRSTable: React.FC<ISRSTableProps & {
                   {/* *** ИСПРАВЛЕНО: Информация о функционале добавления смены без Holiday проверки *** */}
                   <br />
                   <small style={{ color: '#107c10', marginTop: '5px', display: 'block' }}>
-                    Use +Shift button to add new SRS records (no Holiday field checks)
+                    Use +Shift button to add new SRS records (no Holiday field checks, Date-only)
                   </small>
                   {/* *** НОВОЕ: Информация о Real-time Total Hours *** */}
                   <br />
@@ -964,7 +966,7 @@ export const SRSTable: React.FC<ISRSTableProps & {
                     key={item.id}
                     item={item}
                     options={options}
-                    // *** НОВОЕ: Передаем holidays список для определения праздников ***
+                    // *** НОВОЕ: Передаем holidays список для определения праздников Date-only ***
                     holidays={holidays}
                     isEven={index % 2 === 0}
                     rowPositionInDate={getRowPositionInDate(items, index)}
@@ -1032,7 +1034,7 @@ export const SRSTable: React.FC<ISRSTableProps & {
                 {/* *** ИСПРАВЛЕНО: Дополнительная информация о создании без Holiday проверки *** */}
                 <br />
                 <small style={{ color: '#888', marginTop: '8px', display: 'block' }}>
-                  New shift will be created with 00:00-00:00 time and Holiday=0. Holidays are determined automatically from holidays list.
+                  New shift will be created with 00:00-00:00 time and Holiday=0. Holidays are determined automatically from holidays list (Date-only).
                 </small>
               </p>
 

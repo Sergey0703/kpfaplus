@@ -20,11 +20,12 @@ interface UseHolidaysReturn {
  * Custom hook для загрузки праздников в SRS Tab
  * Адаптирован из Schedule Tab для работы с SRS состоянием и диапазоном дат
  * КЛЮЧЕВОЕ ОТЛИЧИЕ: Использует fromDate-toDate вместо месяца/года
+ * *** ОБНОВЛЕНО: Упрощена работа с датами для Date-only формата ***
  */
 export const useHolidays = (props: UseHolidaysProps): UseHolidaysReturn => {
   const { context, fromDate, toDate, setState } = props;
 
-  console.log('[SRS useHolidays] Hook initialized with date range:', {
+  console.log('[SRS useHolidays] Hook initialized with date range (Date-only format):', {
     fromDate: fromDate.toISOString(),
     toDate: toDate.toISOString(),
     hasContext: !!context
@@ -51,9 +52,10 @@ export const useHolidays = (props: UseHolidaysProps): UseHolidaysReturn => {
   /**
    * Загружает праздники для диапазона дат SRS
    * ОТЛИЧИЕ от Schedule: использует fromDate-toDate вместо месяца/года
+   * *** ОБНОВЛЕНО: Упрощена логика фильтрации для Date-only формата ***
    */
   const loadHolidays = useCallback(async (): Promise<void> => {
-    console.log('[SRS useHolidays] loadHolidays called for date range:', {
+    console.log('[SRS useHolidays] loadHolidays called for date range (Date-only):', {
       fromDate: fromDate.toLocaleDateString(),
       toDate: toDate.toLocaleDateString()
     });
@@ -96,19 +98,13 @@ export const useHolidays = (props: UseHolidaysProps): UseHolidaysReturn => {
         }
       }
       
-      // *** КЛЮЧЕВАЯ ФИЛЬТРАЦИЯ: Оставляем только праздники в точном диапазоне дат ***
+      // *** УПРОЩЕНО: Фильтрация праздников в точном диапазоне дат для Date-only формата ***
       const filteredHolidays = allHolidays.filter(holiday => {
-        const holidayDate = new Date(holiday.date);
-        const isInRange = holidayDate >= fromDate && holidayDate <= toDate;
-        
-        if (!isInRange) {
-          console.log(`[SRS useHolidays] Holiday ${holiday.title} (${holidayDate.toLocaleDateString()}) is outside SRS date range, filtering out`);
-        }
-        
-        return isInRange;
+        // Упрощенное сравнение без нормализации времени
+        return holiday.date >= fromDate && holiday.date <= toDate;
       });
 
-      console.log('[SRS useHolidays] Holidays loaded and filtered:', {
+      console.log('[SRS useHolidays] Holidays loaded and filtered (Date-only):', {
         totalLoaded: allHolidays.length,
         filteredCount: filteredHolidays.length,
         dateRange: `${fromDate.toLocaleDateString()} - ${toDate.toLocaleDateString()}`
@@ -116,9 +112,9 @@ export const useHolidays = (props: UseHolidaysProps): UseHolidaysReturn => {
 
       // Логируем найденные праздники для отладки
       if (filteredHolidays.length > 0) {
-        console.log('[SRS useHolidays] Found holidays in SRS date range:');
+        console.log('[SRS useHolidays] Found holidays in SRS date range (Date-only):');
         filteredHolidays.forEach(holiday => {
-          console.log(`  - ${holiday.title}: ${new Date(holiday.date).toLocaleDateString()}`);
+          console.log(`  - ${holiday.title}: ${holiday.date.toLocaleDateString()}`);
         });
       } else {
         console.log('[SRS useHolidays] No holidays found in the specified SRS date range');
@@ -173,7 +169,7 @@ function getMonthsInDateRange(fromDate: Date, toDate: Date): Array<{ month: numb
   const startDate = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1);
   const endDate = new Date(toDate.getFullYear(), toDate.getMonth(), 1);
   
-  console.log('[getMonthsInDateRange] Calculating months for SRS range:', {
+  console.log('[getMonthsInDateRange] Calculating months for SRS range (Date-only):', {
     originalFrom: fromDate.toISOString(),
     originalTo: toDate.toISOString(),
     normalizedStart: startDate.toISOString(),
@@ -206,34 +202,38 @@ function getMonthsInDateRange(fromDate: Date, toDate: Date): Array<{ month: numb
 }
 
 /**
- * *** ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ: Проверка является ли дата праздником ***
- * Для использования в компонентах SRS
+ * *** УПРОЩЕНО: Проверка является ли дата праздником ***
+ * Упрощена для Date-only формата - убрана нормализация времени
  */
 export function isHolidayDate(date: Date, holidays: IHoliday[]): boolean {
-  const targetDate = new Date(date);
-  targetDate.setHours(0, 0, 0, 0); // Нормализуем к полуночи
+  // УПРОЩЕНО: Прямое сравнение компонентов даты без нормализации времени
+  const targetYear = date.getFullYear();
+  const targetMonth = date.getMonth();
+  const targetDay = date.getDate();
   
   const isHoliday = holidays.some(holiday => {
-    const holidayDate = new Date(holiday.date);
-    holidayDate.setHours(0, 0, 0, 0); // Нормализуем к полуночи
-    return holidayDate.getTime() === targetDate.getTime();
+    return holiday.date.getFullYear() === targetYear &&
+           holiday.date.getMonth() === targetMonth &&
+           holiday.date.getDate() === targetDay;
   });
   
   return isHoliday;
 }
 
 /**
- * *** ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ: Получение информации о празднике ***
- * Возвращает объект праздника для указанной даты
+ * *** УПРОЩЕНО: Получение информации о празднике ***
+ * Упрощена для Date-only формата - убрана нормализация времени
  */
 export function getHolidayInfo(date: Date, holidays: IHoliday[]): IHoliday | undefined {
-  const targetDate = new Date(date);
-  targetDate.setHours(0, 0, 0, 0); // Нормализуем к полуночи
+  // УПРОЩЕНО: Прямое сравнение компонентов даты без нормализации времени
+  const targetYear = date.getFullYear();
+  const targetMonth = date.getMonth();
+  const targetDay = date.getDate();
   
   const holiday = holidays.find(holiday => {
-    const holidayDate = new Date(holiday.date);
-    holidayDate.setHours(0, 0, 0, 0); // Нормализуем к полуночи
-    return holidayDate.getTime() === targetDate.getTime();
+    return holiday.date.getFullYear() === targetYear &&
+           holiday.date.getMonth() === targetMonth &&
+           holiday.date.getDate() === targetDay;
   });
   
   return holiday;
@@ -242,6 +242,7 @@ export function getHolidayInfo(date: Date, holidays: IHoliday[]): IHoliday | und
 /**
  * *** НОВАЯ ФУНКЦИЯ: Получение статистики праздников для SRS периода ***
  * Анализирует распределение праздников в выбранном диапазоне
+ * *** УПРОЩЕНО: Для Date-only формата ***
  */
 export function getHolidaysStatistics(
   holidays: IHoliday[], 
@@ -253,32 +254,30 @@ export function getHolidaysStatistics(
   holidaysByMonth: Record<string, number>;
   holidaysList: Array<{ title: string; date: string; dayOfWeek: string }>;
 } {
-  console.log('[getHolidaysStatistics] Analyzing holidays for SRS period:', {
+  console.log('[getHolidaysStatistics] Analyzing holidays for SRS period (Date-only):', {
     totalHolidays: holidays.length,
     fromDate: fromDate.toLocaleDateString(),
     toDate: toDate.toLocaleDateString()
   });
 
+  // УПРОЩЕНО: Фильтрация без нормализации времени
   const holidaysInRange = holidays.filter(holiday => {
-    const holidayDate = new Date(holiday.date);
-    return holidayDate >= fromDate && holidayDate <= toDate;
+    return holiday.date >= fromDate && holiday.date <= toDate;
   });
 
   const holidaysByMonth = holidaysInRange.reduce((acc, holiday) => {
-    const holidayDate = new Date(holiday.date);
-    const monthKey = `${holidayDate.getFullYear()}-${(holidayDate.getMonth() + 1).toString().padStart(2, '0')}`;
+    const monthKey = `${holiday.date.getFullYear()}-${(holiday.date.getMonth() + 1).toString().padStart(2, '0')}`;
     acc[monthKey] = (acc[monthKey] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
   const holidaysList = holidaysInRange.map(holiday => {
-    const holidayDate = new Date(holiday.date);
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     
     return {
       title: holiday.title,
-      date: holidayDate.toLocaleDateString(),
-      dayOfWeek: dayNames[holidayDate.getDay()]
+      date: holiday.date.toLocaleDateString(),
+      dayOfWeek: dayNames[holiday.date.getDay()]
     };
   });
 
@@ -289,13 +288,14 @@ export function getHolidaysStatistics(
     holidaysList
   };
 
-  console.log('[getHolidaysStatistics] SRS holidays statistics:', statistics);
+  console.log('[getHolidaysStatistics] SRS holidays statistics (Date-only):', statistics);
   return statistics;
 }
 
 /**
- * *** НОВАЯ ФУНКЦИЯ: Проверка пересечения праздников с рабочими днями ***
+ * *** УПРОЩЕНО: Проверка пересечения праздников с рабочими днями ***
  * Определяет какие праздники выпадают на рабочие дни в SRS записях
+ * Упрощена для Date-only формата
  */
 export function checkHolidayWorkdayOverlap(
   holidays: IHoliday[],
@@ -312,18 +312,15 @@ export function checkHolidayWorkdayOverlap(
   }> = [];
 
   holidays.forEach(holiday => {
-    const holidayDate = new Date(holiday.date);
-    
-    // Ищем совпадения с рабочими днями
+    // УПРОЩЕНО: Ищем совпадения без нормализации времени
     const matchingWorkDate = workDates.find(workDate => {
-      const workDateNormalized = new Date(workDate);
-      workDateNormalized.setHours(0, 0, 0, 0);
-      holidayDate.setHours(0, 0, 0, 0);
-      return workDateNormalized.getTime() === holidayDate.getTime();
+      return workDate.getFullYear() === holiday.date.getFullYear() &&
+             workDate.getMonth() === holiday.date.getMonth() &&
+             workDate.getDate() === holiday.date.getDate();
     });
 
     if (matchingWorkDate) {
-      const isWeekend = holidayDate.getDay() === 0 || holidayDate.getDay() === 6; // Sunday = 0, Saturday = 6
+      const isWeekend = holiday.date.getDay() === 0 || holiday.date.getDay() === 6; // Sunday = 0, Saturday = 6
       
       overlaps.push({
         holiday,
@@ -331,10 +328,10 @@ export function checkHolidayWorkdayOverlap(
         isWeekend
       });
 
-      console.log(`[checkHolidayWorkdayOverlap] Found overlap: ${holiday.title} on ${holidayDate.toLocaleDateString()} (${isWeekend ? 'Weekend' : 'Weekday'})`);
+      console.log(`[checkHolidayWorkdayOverlap] Found overlap (Date-only): ${holiday.title} on ${holiday.date.toLocaleDateString()} (${isWeekend ? 'Weekend' : 'Weekday'})`);
     }
   });
 
-  console.log(`[checkHolidayWorkdayOverlap] Found ${overlaps.length} holiday-workday overlaps`);
+  console.log(`[checkHolidayWorkdayOverlap] Found ${overlaps.length} holiday-workday overlaps (Date-only)`);
   return overlaps;
 }

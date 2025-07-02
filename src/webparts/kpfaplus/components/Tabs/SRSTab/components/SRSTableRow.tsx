@@ -68,16 +68,16 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   const [localTypeOfLeave, setLocalTypeOfLeave] = useState(item.typeOfLeave);
   const [localTimeLeave, setLocalTimeLeave] = useState(item.timeLeave);
 
-  // *** КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Определение праздника на основе списка праздников вместо Holiday поля ***
+  // *** УПРОЩЕНО: Определение праздника на основе списка праздников без нормализации времени ***
   const isHoliday = isHolidayDate(item.date, holidays);
   const holidayInfo = getHolidayInfo(item.date, holidays);
 
   // Определяем состояние записи: Является ли запись удаленной
   const isDeleted = item.deleted === true;
 
-  console.log(`[SRSTableRow] Rendering row for item ${item.id} with HOLIDAY FROM HOLIDAYS LIST:`, {
+  console.log(`[SRSTableRow] Rendering row for item ${item.id} with HOLIDAY FROM HOLIDAYS LIST (Date-only):`, {
     date: item.date.toLocaleDateString(),
-    // *** ИЗМЕНЕНО: Логируем праздник на основе списка, а не Holiday поля ***
+    // *** ИЗМЕНЕНО: Логируем праздник на основе списка с Date-only форматом ***
     isHoliday: isHoliday,
     holidayFromList: !!holidayInfo,
     holidayTitle: holidayInfo?.title || 'Not a holiday',
@@ -94,12 +94,12 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     workingWithNumericFields: true,
     timeLeave: item.timeLeave,
     localTimeLeave: localTimeLeave,
-    holidayDetectionMethod: 'Holidays list date matching, not Holiday field' // *** НОВОЕ ***
+    holidayDetectionMethod: 'Holidays list date matching (Date-only), not Holiday field' // *** НОВОЕ ***
   });
 
   // Синхронизируем локальное состояние с props при изменении item
   useEffect(() => {
-    console.log('[SRSTableRow] Syncing local state with item (numeric time fields + timeLeave + holiday from list):', {
+    console.log('[SRSTableRow] Syncing local state with item (numeric time fields + timeLeave + holiday from list Date-only):', {
       itemId: item.id,
       startWork: item.startWork,
       finishWork: item.finishWork,
@@ -108,7 +108,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
       typeOfLeave: item.typeOfLeave,
       timeLeave: item.timeLeave,
       deleted: item.deleted,
-      // *** ИЗМЕНЕНО: Логируем праздник из списка, а не из поля ***
+      // *** ИЗМЕНЕНО: Логируем праздник из списка Date-only, а не из поля ***
       holidayFromField: item.Holiday,
       holidayFromList: isHoliday,
       holidayTitle: holidayInfo?.title || 'Not a holiday'
@@ -140,11 +140,11 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
       contractNumber: item.contract, // Используем contract как contractNumber
       typeOfLeave: item.typeOfLeave,
       // *** ИСПРАВЛЕНО: Убрана передача информации о праздниках ***
-      holidayHandling: 'Always 0 - determined from holidays list, not passed to creation',
+      holidayHandling: 'Always 0 - determined from holidays list (Date-only), not passed to creation',
       // *** НОВОЕ: Логируем текущие числовые значения времени для будущей смены ***
       currentStartWork: `${item.startWork.hours}:${item.startWork.minutes}`,
       currentFinishWork: `${item.finishWork.hours}:${item.finishWork.minutes}`,
-      willCreateWith: 'Numeric time fields (00:00-00:00 by default), Holiday=0 (determined from holidays list)'
+      willCreateWith: 'Numeric time fields (00:00-00:00 by default), Holiday=0 (determined from holidays list Date-only)'
     });
     
     // Передаем весь item в диалог подтверждения
@@ -152,9 +152,9 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     
   }, [item, showAddShiftConfirmDialog]);
 
-  // *** ОБНОВЛЕНО: Holiday cell style - колонко-специфичная стилизация на основе списка праздников ***
+  // *** ОБНОВЛЕНО: Holiday cell style - колонко-специфичная стилизация на основе списка праздников Date-only ***
   const getHolidayCellStyle = (columnType: 'date' | 'hours' | 'other'): React.CSSProperties => {
-    // *** ИЗМЕНЕНО: Используем isHoliday из списка праздников вместо item.Holiday ***
+    // *** ИЗМЕНЕНО: Используем isHoliday из списка праздников Date-only вместо item.Holiday ***
     if (!isHoliday) {
       return {};
     }
@@ -171,7 +171,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     return {};
   };
 
-  // *** ОБНОВЛЕНО: Базовые стили ячеек с колонко-специфичным праздничным стилем на основе списка ***
+  // *** ОБНОВЛЕНО: Базовые стили ячеек с колонко-специфичным праздничным стилем на основе списка Date-only ***
   const getCellStyle = (columnType: 'date' | 'hours' | 'other'): React.CSSProperties => {
     return {
       border: '1px solid #edebe9',
@@ -179,7 +179,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
       textAlign: columnType === 'date' ? 'left' : 'center',
       fontSize: '12px',
       verticalAlign: 'middle',
-      ...getHolidayCellStyle(columnType) // *** ПРИМЕНЯЕМ ПРАЗДНИЧНЫЙ СТИЛЬ ПО КОЛОНКАМ НА ОСНОВЕ СПИСКА ***
+      ...getHolidayCellStyle(columnType) // *** ПРИМЕНЯЕМ ПРАЗДНИЧНЫЙ СТИЛЬ ПО КОЛОНКАМ НА ОСНОВЕ СПИСКА Date-only ***
     };
   };
 
@@ -205,7 +205,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   // Получение дня недели
   const dayOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][item.date.getDay()];
 
-  // *** ОБНОВЛЕНО: Рендер ячейки даты - с праздниками из списка ***
+  // *** ОБНОВЛЕНО: Рендер ячейки даты - с праздниками из списка Date-only ***
   const renderDateCell = (): JSX.Element => {
     if (rowPositionInDate === 0) {
       return (
@@ -213,7 +213,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
           <div style={{ 
             fontWeight: '600',
             fontSize: '12px',
-            // *** ИЗМЕНЕНО: Цвет на основе isHoliday из списка ***
+            // *** ИЗМЕНЕНО: Цвет на основе isHoliday из списка Date-only ***
             color: isHoliday ? '#d83b01' : (isDeleted ? '#888' : 'inherit'),
             ...(isDeleted && { textDecoration: 'line-through' })
           }}>
@@ -221,13 +221,13 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
           </div>
           <div style={{ 
             fontSize: '11px', 
-            // *** ИЗМЕНЕНО: Цвет на основе isHoliday из списка ***
+            // *** ИЗМЕНЕНО: Цвет на основе isHoliday из списка Date-only ***
             color: isHoliday ? '#d83b01' : '#666',
             marginTop: '2px',
             ...(isDeleted && { color: '#aaa', textDecoration: 'line-through' })
           }}>
             {dayOfWeek}
-            {/* *** ОБНОВЛЕНО: Индикатор праздника на основе списка с названием праздника *** */}
+            {/* *** ОБНОВЛЕНО: Индикатор праздника на основе списка Date-only с названием праздника *** */}
             {isHoliday && !isDeleted && (
               <div style={{ 
                 color: '#d83b01', 
@@ -248,7 +248,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
         <div style={{ 
           fontWeight: 'bold', 
           fontSize: '12px', 
-          // *** ИЗМЕНЕНО: Цвет на основе isHoliday из списка ***
+          // *** ИЗМЕНЕНО: Цвет на основе isHoliday из списка Date-only ***
           color: isHoliday ? '#ff69b4' : '#0078d4',
           textAlign: 'center',
           marginTop: '8px',
@@ -263,7 +263,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
       return (
         <div>
           {isDeleted && <span style={{ color: '#d83b01', fontSize: '10px', textDecoration: 'none' }}>(Deleted)</span>}
-          {/* *** ОБНОВЛЕНО: Праздничный индикатор на основе списка с названием *** */}
+          {/* *** ОБНОВЛЕНО: Праздничный индикатор на основе списка Date-only с названием *** */}
           {isHoliday && !isDeleted && (
             <div style={{ color: '#e81123', fontSize: '10px', fontWeight: 'bold' }}>
               {holidayInfo?.title || 'Holiday'}
@@ -322,11 +322,11 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
 
   const handleLunchChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
     if (option) {
-      console.log('[SRSTableRow] *** LUNCH CHANGE WITH CURRENT LOCAL VALUES AND HOLIDAY FROM LIST ***');
+      console.log('[SRSTableRow] *** LUNCH CHANGE WITH CURRENT LOCAL VALUES AND HOLIDAY FROM LIST Date-only ***');
       console.log('[SRSTableRow] Lunch time changing from', localLunch, 'to', option.key);
       console.log('[SRSTableRow] Current local start work:', localStartWork);
       console.log('[SRSTableRow] Current local finish work:', localFinishWork);
-      console.log('[SRSTableRow] Holiday status from list:', isHoliday, holidayInfo?.title || 'Not a holiday');
+      console.log('[SRSTableRow] Holiday status from list (Date-only):', isHoliday, holidayInfo?.title || 'Not a holiday');
       
       const updatedItemWithCurrentTimes: ISRSRecord = {
         ...item,
@@ -344,7 +344,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
       
       const recalculatedWorkTime = calculateSRSWorkTime(updatedItemWithCurrentTimes);
       
-      console.log('[SRSTableRow] *** RECALCULATED WORK TIME WITH CURRENT VALUES AND HOLIDAY FROM LIST ***:', {
+      console.log('[SRSTableRow] *** RECALCULATED WORK TIME WITH CURRENT VALUES AND HOLIDAY FROM LIST Date-only ***:', {
         oldWorkTime: displayWorkTime,
         newWorkTime: recalculatedWorkTime,
         startTime: `${localStartWork.hours}:${localStartWork.minutes}`,
@@ -456,7 +456,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     },
     title: {
       fontSize: '12px',
-      // *** ИЗМЕНЕНО: Праздничный цвет текста на основе isHoliday из списка ***
+      // *** ИЗМЕНЕНО: Праздничный цвет текста на основе isHoliday из списка Date-only ***
       color: isHoliday ? '#d83b01' : undefined,
       ...(isDeleted && {
         color: '#888',
@@ -464,7 +464,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
       })
     },
     caretDown: {
-      // *** ИЗМЕНЕНО: Праздничный цвет на основе isHoliday из списка ***
+      // *** ИЗМЕНЕНО: Праздничный цвет на основе isHoliday из списка Date-only ***
       color: isHoliday ? '#d83b01' : undefined,
       ...(isDeleted && {
         color: '#aaa'
@@ -484,7 +484,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     },
     title: {
       fontSize: '12px',
-      // *** ИЗМЕНЕНО: Праздничный цвет на основе isHoliday из списка ***
+      // *** ИЗМЕНЕНО: Праздничный цвет на основе isHoliday из списка Date-only ***
       color: isHoliday ? '#d83b01' : undefined,
       ...(isDeleted && {
         color: '#888',
@@ -505,7 +505,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     },
     title: {
       fontSize: '12px',
-      // *** ИЗМЕНЕНО: Праздничный цвет на основе isHoliday из списка ***
+      // *** ИЗМЕНЕНО: Праздничный цвет на основе isHoliday из списка Date-only ***
       color: isHoliday ? '#d83b01' : undefined,
       ...(isDeleted && {
         color: '#888',
@@ -526,7 +526,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     },
     title: {
       fontSize: '12px',
-      // *** ИЗМЕНЕНО: Праздничный цвет на основе isHoliday из списка ***
+      // *** ИЗМЕНЕНО: Праздничный цвет на основе isHoliday из списка Date-only ***
       color: isHoliday ? '#d83b01' : undefined,
       ...(isDeleted && {
         color: '#888',
@@ -536,7 +536,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   });
 
   // Логирование текущих отображаемых значений для отладки
-  console.log('[SRSTableRow] Rendering row for item', item.id, 'with HOLIDAY FROM HOLIDAYS LIST and FIXED timeLeave:', {
+  console.log('[SRSTableRow] Rendering row for item', item.id, 'with HOLIDAY FROM HOLIDAYS LIST Date-only and FIXED timeLeave:', {
     displayWorkTime,
     localStartWork,
     localFinishWork,
@@ -545,7 +545,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     localTypeOfLeave,
     localTimeLeave,
     isTimesEqual,
-    // *** ИЗМЕНЕНО: Логируем праздник из списка ***
+    // *** ИЗМЕНЕНО: Логируем праздник из списка Date-only ***
     isHolidayFromList: isHoliday,
     holidayTitle: holidayInfo?.title || 'Not a holiday',
     originalHolidayField: item.Holiday, // Для сравнения
@@ -555,25 +555,25 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     hasAddShiftIntegration: !!showAddShiftConfirmDialog,
     numericTimeFieldsSupport: true,
     timeLeaveFixed: true,
-    holidayDetectionMethod: 'Holidays list date matching', // *** НОВОЕ ***
+    holidayDetectionMethod: 'Holidays list date matching (Date-only)', // *** НОВОЕ ***
     addShiftWithoutHolidayCheck: true // *** ИСПРАВЛЕНО ***
   });
 
   return (
     <tr style={rowStyle}>
-      {/* *** ОБНОВЛЕНО: Ячейка даты с праздничным фоном на основе списка *** */}
+      {/* *** ОБНОВЛЕНО: Ячейка даты с праздничным фоном на основе списка Date-only *** */}
       <td style={getCellStyle('date')}>
         {renderDateCell()}
       </td>
 
-      {/* *** ОБНОВЛЕНО: Ячейка часов с праздничным фоном на основе списка *** */}
+      {/* *** ОБНОВЛЕНО: Ячейка часов с праздничным фоном на основе списка Date-only *** */}
       <td style={{ 
         ...getCellStyle('hours'), 
         fontWeight: 'bold',
         color: isTimesEqual 
           ? '#a4262c' 
           : isHoliday 
-            ? '#d83b01'  // *** ИЗМЕНЕНО: Праздничный цвет на основе isHoliday из списка ***
+            ? '#d83b01'  // *** ИЗМЕНЕНО: Праздничный цвет на основе isHoliday из списка Date-only ***
             : (displayWorkTime === '0:00' ? '#666' : 'inherit'),
         ...(isDeleted && { color: '#888', textDecoration: 'line-through' })
       }}>
@@ -586,7 +586,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
         ) : (
           <span>{displayWorkTime}</span>
         )}
-        {/* *** ОБНОВЛЕНО: Индикатор праздника на основе списка с названием *** */}
+        {/* *** ОБНОВЛЕНО: Индикатор праздника на основе списка Date-only с названием *** */}
         {isHoliday && !isDeleted && (
           <div style={{ 
             fontSize: '10px', 
@@ -702,7 +702,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
             textAlign: 'center',
             borderRadius: '2px',
             backgroundColor: isDeleted ? '#f5f5f5' : 'white', 
-            // *** ИЗМЕНЕНО: Праздничный цвет на основе isHoliday из списка ***
+            // *** ИЗМЕНЕНО: Праздничный цвет на основе isHoliday из списка Date-only ***
             color: isHoliday ? '#d83b01' : (isDeleted ? '#888' : 'inherit'),
             ...(isDeleted && { textDecoration: 'line-through' })
           }}
@@ -758,7 +758,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
       <td style={getCellStyle('other')}>
         {item.srs && (
           <span style={{
-            // *** ИЗМЕНЕНО: Праздничный цвет на основе isHoliday из списка ***
+            // *** ИЗМЕНЕНО: Праздничный цвет на основе isHoliday из списка Date-only ***
             color: isHoliday ? '#ff69b4' : '#0078d4',
             fontWeight: '600',
             fontSize: '12px'
