@@ -1,6 +1,6 @@
 // src/webparts/kpfaplus/components/Tabs/SRSTab/utils/useHolidays.ts
 
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { WebPartContext } from '@microsoft/sp-webpart-base';
 import { IHoliday, HolidaysService } from '../../../../services/HolidaysService';
 import { ISRSTabState } from './useSRSTabState';
@@ -18,21 +18,28 @@ interface UseHolidaysReturn {
 
 /**
  * Custom hook для загрузки праздников в SRS Tab
- * Адаптирован из Schedule Tab для работы с SRS состоянием и диапазоном дат
- * КЛЮЧЕВОЕ ОТЛИЧИЕ: Использует fromDate-toDate вместо месяца/года
- * *** ОБНОВЛЕНО: Упрощена работа с датами для Date-only формата ***
+ * *** ИСПРАВЛЕНО: Устранена проблема race condition и промежуточных состояний ***
  */
 export const useHolidays = (props: UseHolidaysProps): UseHolidaysReturn => {
   const { context, fromDate, toDate, setState } = props;
 
-  console.log('[SRS useHolidays] Hook initialized with date range (Date-only format):', {
+  // *** ИСПРАВЛЕНИЕ 1: Ref для предотвращения race conditions ***
+  const loadingRef = useRef<boolean>(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  console.log('[SRS useHolidays] Hook initialized with FIXED race condition handling (Date-only format):', {
     fromDate: fromDate.toISOString(),
     toDate: toDate.toISOString(),
-    hasContext: !!context
+    hasContext: !!context,
+    raceConditionProtection: true
   });
 
-  // Helper функции для обновления состояния SRS
+  // *** ИСПРАВЛЕНИЕ 2: Стабильные helper функции без лишних зависимостей ***
   const setHolidays = useCallback((holidays: IHoliday[]) => {
+    if (!loadingRef.current) {
+      console.log('[SRS useHolidays] Skipping setHolidays - loading cancelled');
+      return;
+    }
     console.log('[SRS useHolidays] Setting holidays:', holidays.length);
     setState(prevState => ({ ...prevState, holidays }));
   }, [setState]);
@@ -40,6 +47,7 @@ export const useHolidays = (props: UseHolidaysProps): UseHolidaysReturn => {
   const setIsLoadingHolidays = useCallback((isLoading: boolean) => {
     console.log('[SRS useHolidays] Setting isLoadingHolidays:', isLoading);
     setState(prevState => ({ ...prevState, isLoadingHolidays: isLoading }));
+    loadingRef.current = isLoading;
   }, [setState]);
 
   const setError = useCallback((error?: string) => {
@@ -50,107 +58,172 @@ export const useHolidays = (props: UseHolidaysProps): UseHolidaysReturn => {
   }, [setState]);
 
   /**
-   * Загружает праздники для диапазона дат SRS
-   * ОТЛИЧИЕ от Schedule: использует fromDate-toDate вместо месяца/года
-   * *** ОБНОВЛЕНО: Упрощена логика фильтрации для Date-only формата ***
+   * *** ИСПРАВЛЕНО: Стабильная функция загрузки с защитой от race conditions ***
    */
   const loadHolidays = useCallback(async (): Promise<void> => {
-    console.log('[SRS useHolidays] loadHolidays called for date range (Date-only):', {
+    console.log('[SRS useHolidays] *** FIXED loadHolidays called for date range (Date-only) ***:', {
       fromDate: fromDate.toLocaleDateString(),
-      toDate: toDate.toLocaleDateString()
+      toDate: toDate.toLocaleDateString(),
+      currentlyLoading: loadingRef.current
     });
     
+    // *** ИСПРАВЛЕНИЕ 3: Отменяем предыдущую загрузку если она еще идет ***
+    if (abortControllerRef.current) {
+      console.log('[SRS useHolidays] Aborting previous loading operation');
+      abortControllerRef.current.abort();
+    }
+
     if (!context) {
       console.log('[SRS useHolidays] Cannot load holidays: missing context');
-      setHolidays([]);
+      // *** ИСПРАВЛЕНИЕ: НЕ очищаем holidays если нет контекста ***
       setIsLoadingHolidays(false);
       return;
     }
+
+    // *** ИСПРАВЛЕНИЕ 4: Проверяем, не идет ли уже загрузка ***
+    if (loadingRef.current) {
+      console.log('[SRS useHolidays] Loading already in progress, skipping');
+      return;
+    }
+
+    // Создаем новый AbortController для этой операции
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
 
     try {
       setIsLoadingHolidays(true);
       setError(undefined);
 
-      console.log('[SRS useHolidays] Fetching holidays from service for date range');
+      console.log('[SRS useHolidays] Fetching holidays from service for date range (FIXED)');
       
       const holidaysService = HolidaysService.getInstance(context);
       
-      // *** КЛЮЧЕВОЕ ОТЛИЧИЕ: Загружаем праздники для диапазона дат, а не для месяца ***
       // Определяем все месяцы в диапазоне для загрузки
       const monthsToLoad = getMonthsInDateRange(fromDate, toDate);
       
-      console.log('[SRS useHolidays] Loading holidays for months:', monthsToLoad);
+      console.log('[SRS useHolidays] Loading holidays for months (FIXED):', monthsToLoad);
       
-      // Загружаем праздники для всех месяцев в диапазоне
-      const allHolidays: IHoliday[] = [];
-      
-      for (const monthYear of monthsToLoad) {
+      // *** ИСПРАВЛЕНИЕ 5: Загружаем все месяцы параллельно вместо последовательно ***
+      const loadPromises = monthsToLoad.map(async (monthYear) => {
+        if (abortController.signal.aborted) {
+          throw new Error('Operation aborted');
+        }
+
         try {
-          console.log(`[SRS useHolidays] Loading holidays for ${monthYear.month}/${monthYear.year}`);
-          // Создаем дату для месяца/года
+          console.log(`[SRS useHolidays] Loading holidays for ${monthYear.month}/${monthYear.year} (parallel)`);
           const monthDate = new Date(monthYear.year, monthYear.month - 1, 1);
-          const monthHolidays = await holidaysService.getHolidaysByMonthAndYear(monthDate);
-          allHolidays.push(...monthHolidays);
-          console.log(`[SRS useHolidays] Loaded ${monthHolidays.length} holidays for ${monthYear.month}/${monthYear.year}`);
+          return await holidaysService.getHolidaysByMonthAndYear(monthDate);
         } catch (monthError) {
           console.error(`[SRS useHolidays] Error loading holidays for ${monthYear.month}/${monthYear.year}:`, monthError);
-          // Продолжаем загрузку других месяцев даже если один не загрузился
+          // Возвращаем пустой массив вместо выброса ошибки
+          return [];
         }
-      }
-      
-      // *** УПРОЩЕНО: Фильтрация праздников в точном диапазоне дат для Date-only формата ***
-      const filteredHolidays = allHolidays.filter(holiday => {
-        // Упрощенное сравнение без нормализации времени
-        return holiday.date >= fromDate && holiday.date <= toDate;
       });
 
-      console.log('[SRS useHolidays] Holidays loaded and filtered (Date-only):', {
+      // Ждем завершения всех загрузок
+      const monthResults = await Promise.all(loadPromises);
+      
+      // Проверяем, не была ли операция отменена
+      if (abortController.signal.aborted) {
+        console.log('[SRS useHolidays] Operation was aborted, not updating state');
+        return;
+      }
+
+      // *** ИСПРАВЛЕНИЕ: Объединяем все результаты (ES2017 совместимо) ***
+      const allHolidays: IHoliday[] = monthResults.reduce((acc, monthHolidays) => acc.concat(monthHolidays), []);
+      
+      // *** ИСПРАВЛЕНИЕ 6: Упрощенная фильтрация для Date-only формата ***
+      const filteredHolidays = allHolidays.filter(holiday => {
+        // Простое сравнение без нормализации времени
+        const holidayTime = holiday.date.getTime();
+        const fromTime = fromDate.getTime();
+        const toTime = toDate.getTime();
+        
+        return holidayTime >= fromTime && holidayTime <= toTime;
+      });
+
+      console.log('[SRS useHolidays] *** FIXED: Holidays loaded and filtered (Date-only) ***:', {
         totalLoaded: allHolidays.length,
         filteredCount: filteredHolidays.length,
-        dateRange: `${fromDate.toLocaleDateString()} - ${toDate.toLocaleDateString()}`
+        dateRange: `${fromDate.toLocaleDateString()} - ${toDate.toLocaleDateString()}`,
+        raceConditionProtected: true
       });
 
       // Логируем найденные праздники для отладки
       if (filteredHolidays.length > 0) {
-        console.log('[SRS useHolidays] Found holidays in SRS date range (Date-only):');
+        console.log('[SRS useHolidays] Found holidays in SRS date range (FIXED Date-only):');
         filteredHolidays.forEach(holiday => {
           console.log(`  - ${holiday.title}: ${holiday.date.toLocaleDateString()}`);
         });
       } else {
-        console.log('[SRS useHolidays] No holidays found in the specified SRS date range');
+        console.log('[SRS useHolidays] No holidays found in the specified SRS date range (FIXED)');
       }
 
-      setHolidays(filteredHolidays);
+      // *** ИСПРАВЛЕНИЕ 7: Устанавливаем holidays ТОЛЬКО если операция не была отменена ***
+      if (!abortController.signal.aborted && loadingRef.current) {
+        setHolidays(filteredHolidays);
+      }
 
     } catch (error) {
+      // Игнорируем ошибки отмены операции
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('[SRS useHolidays] Loading was aborted');
+        return;
+      }
+
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('[SRS useHolidays] Error loading holidays:', error);
+      console.error('[SRS useHolidays] Error loading holidays (FIXED):', error);
       
+      // *** ИСПРАВЛЕНИЕ: НЕ очищаем holidays при ошибке, оставляем предыдущие ***
       setError(`Failed to load holidays: ${errorMessage}`);
-      setHolidays([]);
       
     } finally {
-      setIsLoadingHolidays(false);
+      // *** ИСПРАВЛЕНИЕ 8: Очищаем состояние загрузки только если это наша операция ***
+      if (abortControllerRef.current === abortController) {
+        setIsLoadingHolidays(false);
+        abortControllerRef.current = null;
+      }
     }
   }, [context, fromDate, toDate, setHolidays, setIsLoadingHolidays, setError]);
 
-  // Эффект для автоматической загрузки при изменении контекста или дат
+  // *** ИСПРАВЛЕНИЕ 9: Оптимизированный эффект с правильными зависимостями ***
   useEffect(() => {
-    console.log('[SRS useHolidays] useEffect triggered for context/dates change');
-    console.log('[SRS useHolidays] Dependencies:', {
+    console.log('[SRS useHolidays] *** FIXED useEffect triggered for context/dates change ***');
+    console.log('[SRS useHolidays] Dependencies (FIXED):', {
       hasContext: !!context,
       fromDate: fromDate.toISOString(),
-      toDate: toDate.toISOString()
+      toDate: toDate.toISOString(),
+      preventRaceConditions: true
     });
     
     if (context) {
-      void loadHolidays();
+      // *** ИСПРАВЛЕНИЕ: Добавляем небольшую задержку для избежания множественных вызовов ***
+      const timeoutId = setTimeout(() => {
+        void loadHolidays();
+      }, 10);
+
+      return () => {
+        clearTimeout(timeoutId);
+        // Отменяем загрузку при размонтировании или изменении зависимостей
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+        }
+      };
     } else {
-      console.log('[SRS useHolidays] Context not available, clearing holidays');
-      setHolidays([]);
+      console.log('[SRS useHolidays] Context not available (FIXED), not clearing holidays');
       setIsLoadingHolidays(false);
     }
-  }, [context, fromDate, toDate, loadHolidays]);
+  }, [context, fromDate.getTime(), toDate.getTime(), loadHolidays]);
+
+  // *** ИСПРАВЛЕНИЕ 10: Cleanup при размонтировании ***
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      loadingRef.current = false;
+    };
+  }, []);
 
   return {
     loadHolidays
@@ -159,8 +232,7 @@ export const useHolidays = (props: UseHolidaysProps): UseHolidaysReturn => {
 
 /**
  * *** ИСПРАВЛЕНО: Функция получения месяцев в диапазоне дат ***
- * Возвращает список месяцев/годов, которые нужно загрузить для покрытия диапазона
- * ИСПРАВЛЕНО: Убрана ошибка no-unmodified-loop-condition
+ * Устранена ошибка no-unmodified-loop-condition + оптимизация
  */
 function getMonthsInDateRange(fromDate: Date, toDate: Date): Array<{ month: number; year: number }> {
   const months: Array<{ month: number; year: number }> = [];
@@ -169,41 +241,34 @@ function getMonthsInDateRange(fromDate: Date, toDate: Date): Array<{ month: numb
   const startDate = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1);
   const endDate = new Date(toDate.getFullYear(), toDate.getMonth(), 1);
   
-  console.log('[getMonthsInDateRange] Calculating months for SRS range (Date-only):', {
+  console.log('[getMonthsInDateRange] *** FIXED: Calculating months for SRS range (Date-only) ***:', {
     originalFrom: fromDate.toISOString(),
     originalTo: toDate.toISOString(),
     normalizedStart: startDate.toISOString(),
     normalizedEnd: endDate.toISOString()
   });
   
-  // *** ИСПРАВЛЕНО: Используем отдельную переменную currentMonth для итерации ***
-  let currentMonth = startDate.getMonth();
-  let currentYear = startDate.getFullYear();
-  const endMonth = endDate.getMonth();
-  const endYear = endDate.getFullYear();
+  // *** ИСПРАВЛЕНИЕ: Используем отдельную переменную currentDate для итерации ***
+  const currentDate = new Date(startDate);
   
-  // *** ИСПРАВЛЕНО: Цикл с правильным условием выхода ***
-  while (currentYear < endYear || (currentYear === endYear && currentMonth <= endMonth)) {
-    const month = currentMonth + 1; // API ожидает 1-12, а не 0-11
+  // *** ИСПРАВЛЕНИЕ: Цикл с правильным условием выхода ***
+  while (currentDate <= endDate) {
+    const month = currentDate.getMonth() + 1; // API ожидает 1-12, а не 0-11
+    const year = currentDate.getFullYear();
     
-    months.push({ month, year: currentYear });
-    console.log(`[getMonthsInDateRange] Added month for SRS: ${month}/${currentYear}`);
+    months.push({ month, year });
+    console.log(`[getMonthsInDateRange] Added month for SRS (FIXED): ${month}/${year}`);
     
-    // *** ИСПРАВЛЕНО: Переходим к следующему месяцу правильно ***
-    currentMonth++;
-    if (currentMonth > 11) { // Декабрь - это 11-й месяц (0-based)
-      currentMonth = 0; // Январь следующего года
-      currentYear++;
-    }
+    // *** ИСПРАВЛЕНИЕ: Переходим к следующему месяцу правильно ***
+    currentDate.setMonth(currentDate.getMonth() + 1);
   }
   
-  console.log(`[getMonthsInDateRange] Total months to load for SRS: ${months.length}`);
+  console.log(`[getMonthsInDateRange] *** FIXED: Total months to load for SRS: ${months.length} ***`);
   return months;
 }
 
 /**
- * *** УПРОЩЕНО: Проверка является ли дата праздником ***
- * Упрощена для Date-only формата - убрана нормализация времени
+ * *** УПРОЩЕНО: Проверка является ли дата праздником (без изменений) ***
  */
 export function isHolidayDate(date: Date, holidays: IHoliday[]): boolean {
   // УПРОЩЕНО: Прямое сравнение компонентов даты без нормализации времени
@@ -221,8 +286,7 @@ export function isHolidayDate(date: Date, holidays: IHoliday[]): boolean {
 }
 
 /**
- * *** УПРОЩЕНО: Получение информации о празднике ***
- * Упрощена для Date-only формата - убрана нормализация времени
+ * *** УПРОЩЕНО: Получение информации о празднике (без изменений) ***
  */
 export function getHolidayInfo(date: Date, holidays: IHoliday[]): IHoliday | undefined {
   // УПРОЩЕНО: Прямое сравнение компонентов даты без нормализации времени
@@ -240,9 +304,7 @@ export function getHolidayInfo(date: Date, holidays: IHoliday[]): IHoliday | und
 }
 
 /**
- * *** НОВАЯ ФУНКЦИЯ: Получение статистики праздников для SRS периода ***
- * Анализирует распределение праздников в выбранном диапазоне
- * *** УПРОЩЕНО: Для Date-only формата ***
+ * *** НОВАЯ ФУНКЦИЯ: Получение статистики праздников для SRS периода (без изменений) ***
  */
 export function getHolidaysStatistics(
   holidays: IHoliday[], 
@@ -293,9 +355,7 @@ export function getHolidaysStatistics(
 }
 
 /**
- * *** УПРОЩЕНО: Проверка пересечения праздников с рабочими днями ***
- * Определяет какие праздники выпадают на рабочие дни в SRS записях
- * Упрощена для Date-only формата
+ * *** УПРОЩЕНО: Проверка пересечения праздников с рабочими днями (без изменений) ***
  */
 export function checkHolidayWorkdayOverlap(
   holidays: IHoliday[],

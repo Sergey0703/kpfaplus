@@ -1,6 +1,6 @@
 // src/webparts/kpfaplus/components/Tabs/SRSTab/utils/useSRSTabLogic.ts
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import { ITabProps } from '../../../../models/types';
 import { ISRSTabState, useSRSTabState, SRSTabStateHelpers } from './useSRSTabState';
 import { useSRSData } from './useSRSData';
@@ -81,26 +81,26 @@ export interface UseSRSTabLogicReturn extends ISRSTabState {
 }
 
 /**
- * *** УПРОЩЕННЫЙ: Главный оркестрирующий хук для SRS Tab ***
- * УБРАНЫ: Проблемные useEffect'ы для totalHours, пересчеты в handleItemChange
- * СОХРАНЕНЫ: Все реальные операции с сервером (delete/restore/addShift)
+ * *** ИСПРАВЛЕНО: Главный оркестрирующий хук для SRS Tab с ПРАВИЛЬНЫМ ПОРЯДКОМ ЗАГРУЗКИ ***
+ * ПОРЯДОК: 1) Holidays, 2) TypesOfLeave, 3) StaffRecords
  */
 export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   const { selectedStaff, context, currentUserId, managingGroupId } = props;
 
-  console.log('[useSRSTabLogic] *** SIMPLIFIED ORCHESTRATOR HOOK (NO TOTAL HOURS IN STATE) ***:', {
+  console.log('[useSRSTabLogic] *** FIXED DATA LOADING ORDER: Holidays -> TypesOfLeave -> StaffRecords ***:', {
     hasSelectedStaff: !!selectedStaff,
     selectedStaffId: selectedStaff?.id,
     selectedStaffEmployeeId: selectedStaff?.employeeId,
     hasContext: !!context,
     currentUserId,
     managingGroupId,
+    loadingOrder: '1) Holidays, 2) TypesOfLeave, 3) StaffRecords',
     realDeleteRestoreEnabled: true,
     realAddShiftEnabled: true,
     numericTimeFieldsSupport: true,
     showDeletedSupport: true,
-    simplifiedArchitecture: true, // *** НОВОЕ: Упрощенная архитектура ***
-    totalHoursCalculation: 'Real-time in SRSTable' // *** НОВОЕ ***
+    simplifiedArchitecture: true,
+    totalHoursCalculation: 'Real-time in SRSTable'
   });
 
   // Инициализируем состояние SRS Tab
@@ -116,13 +116,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   // НОВОЕ СОСТОЯНИЕ: Локальное состояние для операций добавления смены
   const [addShiftOperations, setAddShiftOperations] = useState<Map<string, boolean>>(new Map());
 
-  // Инициализируем хук загрузки типов отпусков
-  const { loadTypesOfLeave } = useTypesOfLeave({
-    context,
-    setState
-  });
-
-  // Инициализируем хук загрузки праздников
+  // *** ИСПРАВЛЕНО: ПОРЯДОК 1 - Инициализируем хук загрузки праздников ПЕРВЫМ ***
   const { loadHolidays } = useHolidays({
     context,
     fromDate: state.fromDate,
@@ -130,7 +124,14 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     setState
   });
 
-  // Инициализируем хук загрузки SRS данных с правильной передачей showDeleted
+  // *** ИСПРАВЛЕНО: ПОРЯДОК 2 - Инициализируем хук загрузки типов отпусков ВТОРЫМ ***
+  const { loadTypesOfLeave } = useTypesOfLeave({
+    context,
+    setState
+  });
+
+  // *** ИСПРАВЛЕНО: ПОРЯДОК 3 - Инициализируем хук загрузки SRS данных ПОСЛЕДНИМ ***
+  // Загрузка SRS данных будет заблокирована пока не загружены holidays и typesOfLeave
   const { loadSRSData, refreshSRSData, isDataValid } = useSRSData({
     context,
     selectedStaff,
@@ -142,9 +143,87 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     setState
   });
 
-  // *** УБРАНЫ: Проблемные useEffect'ы для пересчета totalHours ***
-  // Больше нет автоматических пересчетов totalHours при изменении srsRecords или showDeleted
-  // Total Hours теперь вычисляется в реальном времени в SRSTable
+  // *** ИСПРАВЛЕНО: Вычисляемое свойство - готовность зависимостей для загрузки SRS ***
+  const areDependenciesReady = useMemo((): boolean => {
+    const holidaysReady = !state.isLoadingHolidays;
+    const typesOfLeaveReady = !state.isLoadingTypesOfLeave;
+    
+    console.log('[useSRSTabLogic] Checking dependencies readiness:', {
+      holidaysReady,
+      typesOfLeaveReady,
+      holidaysCount: state.holidays.length,
+      typesOfLeaveCount: state.typesOfLeave.length,
+      canLoadSRSData: holidaysReady && typesOfLeaveReady
+    });
+    
+    return holidaysReady && typesOfLeaveReady;
+  }, [state.isLoadingHolidays, state.isLoadingTypesOfLeave, state.holidays.length, state.typesOfLeave.length]);
+
+  // *** ИСПРАВЛЕНО: ЭФФЕКТ 1 - Загружаем ПРАЗДНИКИ при изменении контекста/дат ***
+  useEffect(() => {
+    console.log('[useSRSTabLogic] *** STEP 1: Loading HOLIDAYS first ***');
+    console.log('[useSRSTabLogic] Context available:', !!context);
+    console.log('[useSRSTabLogic] Date range:', {
+      fromDate: state.fromDate.toLocaleDateString(),
+      toDate: state.toDate.toLocaleDateString()
+    });
+    
+    if (context) {
+      console.log('[useSRSTabLogic] Triggering holidays load (PRIORITY 1)');
+      loadHolidays();
+    } else {
+      console.log('[useSRSTabLogic] No context for holidays load');
+    }
+  }, [context, state.fromDate, state.toDate, loadHolidays]);
+
+  // *** ИСПРАВЛЕНО: ЭФФЕКТ 2 - Загружаем ТИПЫ ОТПУСКОВ после контекста ***
+  useEffect(() => {
+    console.log('[useSRSTabLogic] *** STEP 2: Loading TYPES OF LEAVE second ***');
+    console.log('[useSRSTabLogic] Context available:', !!context);
+    
+    if (context) {
+      console.log('[useSRSTabLogic] Triggering types of leave load (PRIORITY 2)');
+      loadTypesOfLeave();
+    } else {
+      console.log('[useSRSTabLogic] No context for types of leave load');
+    }
+  }, [context, loadTypesOfLeave]);
+
+  // *** ИСПРАВЛЕНО: ЭФФЕКТ 3 - Загружаем SRS ДАННЫЕ только когда зависимости готовы ***
+  useEffect(() => {
+    console.log('[useSRSTabLogic] *** STEP 3: Loading SRS DATA last (when dependencies ready) ***');
+    console.log('[useSRSTabLogic] Dependencies check:', {
+      hasContext: !!context,
+      hasSelectedStaff: !!selectedStaff?.employeeId,
+      areDependenciesReady,
+      holidaysLoaded: !state.isLoadingHolidays,
+      typesOfLeaveLoaded: !state.isLoadingTypesOfLeave,
+      holidaysCount: state.holidays.length,
+      typesOfLeaveCount: state.typesOfLeave.length,
+      isDataValid: isDataValid
+    });
+    
+    if (context && selectedStaff?.employeeId && areDependenciesReady && isDataValid) {
+      console.log('[useSRSTabLogic] *** ALL DEPENDENCIES READY - LOADING SRS DATA ***');
+      void loadSRSData();
+    } else {
+      console.log('[useSRSTabLogic] SRS data load blocked - waiting for dependencies:', {
+        needContext: !context,
+        needSelectedStaff: !selectedStaff?.employeeId,
+        needDependencies: !areDependenciesReady,
+        needValidData: !isDataValid
+      });
+    }
+  }, [
+    context, 
+    selectedStaff?.employeeId, 
+    areDependenciesReady, 
+    isDataValid, 
+    state.fromDate, 
+    state.toDate, 
+    state.showDeleted, 
+    loadSRSData
+  ]);
 
   // ===============================================
   // *** ИСПРАВЛЕНО: ДОБАВЛЕНИЕ СМЕНЫ БЕЗ ПРОВЕРКИ HOLIDAY ПОЛЯ ***
@@ -481,9 +560,9 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     SRSTabStateHelpers.setHasUnsavedChanges(setState, false);
     setAddShiftOperations(new Map());
 
-    console.log('[useSRSTabLogic] Triggering holidays reload due to fromDate change');
-    loadHolidays();
-  }, [state.toDate, setState, loadHolidays]);
+    // *** ИСПРАВЛЕНО: Праздники загрузятся автоматически через useEffect ***
+    console.log('[useSRSTabLogic] Date changed - holidays will reload automatically via useEffect');
+  }, [state.toDate, setState]);
 
   const handleToDateChange = useCallback((date: Date | undefined): void => {
     console.log('[useSRSTabLogic] handleToDateChange called with date:', date?.toISOString());
@@ -509,16 +588,16 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     SRSTabStateHelpers.setHasUnsavedChanges(setState, false);
     setAddShiftOperations(new Map());
 
-    console.log('[useSRSTabLogic] Triggering holidays reload due to toDate change');
-    loadHolidays();
-  }, [state.fromDate, setState, loadHolidays]);
+    // *** ИСПРАВЛЕНО: Праздники загрузятся автоматически через useEffect ***
+    console.log('[useSRSTabLogic] Date changed - holidays will reload automatically via useEffect');
+  }, [state.fromDate, setState]);
 
   // ===============================================
   // ОБРАБОТЧИК ПЕРЕКЛЮЧЕНИЯ ОТОБРАЖЕНИЯ УДАЛЕННЫХ ЗАПИСЕЙ
   // ===============================================
 
   const handleToggleShowDeleted = useCallback((checked: boolean): void => {
-    console.log('[useSRSTabLogic] *** HANDLE TOGGLE SHOW DELETED (SIMPLIFIED ARCHITECTURE) ***');
+    console.log('[useSRSTabLogic] *** HANDLE TOGGLE SHOW DELETED (FIXED LOADING ORDER) ***');
     console.log('[useSRSTabLogic] Previous showDeleted state:', state.showDeleted);
     console.log('[useSRSTabLogic] New showDeleted value:', checked);
     console.log('[useSRSTabLogic] Total Hours will be recalculated in SRSTable automatically');
@@ -528,8 +607,9 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     setModifiedRecords(new Map());
     SRSTabStateHelpers.setHasUnsavedChanges(setState, false);
     
-    console.log('[useSRSTabLogic] showDeleted state updated, data will be automatically reloaded via useSRSData effect');
-    console.log('[useSRSTabLogic] *** TOGGLE SHOW DELETED COMPLETE (SIMPLIFIED) ***');
+    // *** ИСПРАВЛЕНО: SRS данные перезагрузятся автоматически через useEffect ***
+    console.log('[useSRSTabLogic] showDeleted state updated, SRS data will be automatically reloaded via useSRSData effect');
+    console.log('[useSRSTabLogic] *** TOGGLE SHOW DELETED COMPLETE (FIXED LOADING ORDER) ***');
     
   }, [state.showDeleted, setState]);
 
@@ -637,7 +717,8 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   // ===============================================
 
   const handleRefreshData = useCallback((): void => {
-    console.log('[useSRSTabLogic] Manual refresh requested (simplified architecture)');
+    console.log('[useSRSTabLogic] *** MANUAL REFRESH REQUESTED (FIXED LOADING ORDER) ***');
+    console.log('[useSRSTabLogic] Will reload: 1) Holidays, 2) TypesOfLeave, 3) SRS Data');
     
     setModifiedRecords(new Map());
     SRSTabStateHelpers.setHasUnsavedChanges(setState, false);
@@ -646,26 +727,32 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     setRestoreOperations(new Map());
     setAddShiftOperations(new Map());
     
-    void refreshSRSData();
-    loadTypesOfLeave();
+    // *** ИСПРАВЛЕНО: Запускаем загрузку в правильном порядке ***
+    console.log('[useSRSTabLogic] Step 1: Refreshing holidays...');
     loadHolidays();
-  }, [refreshSRSData, setState, loadTypesOfLeave, loadHolidays]);
+    
+    console.log('[useSRSTabLogic] Step 2: Refreshing types of leave...');
+    loadTypesOfLeave();
+    
+    // SRS данные обновятся автоматически когда holidays и typesOfLeave будут готовы
+    console.log('[useSRSTabLogic] Step 3: SRS data will refresh automatically when dependencies are ready');
+  }, [setState, loadTypesOfLeave, loadHolidays]);
 
   const handleExportAll = useCallback((): void => {
-    console.log('[useSRSTabLogic] *** EXPORT ALL SRS DATA (SIMPLIFIED ARCHITECTURE) ***');
+    console.log('[useSRSTabLogic] *** EXPORT ALL SRS DATA (FIXED LOADING ORDER) ***');
     console.log('[useSRSTabLogic] Current SRS records count:', state.srsRecords.length);
     console.log('[useSRSTabLogic] Types of leave available:', state.typesOfLeave.length);
     console.log('[useSRSTabLogic] Holidays available:', state.holidays.length);
     console.log('[useSRSTabLogic] Show deleted enabled:', state.showDeleted);
     console.log('[useSRSTabLogic] Total Hours: Calculated in real-time by SRSTable');
-    console.log('[useSRSTabLogic] Numeric time fields support: enabled');
+    console.log('[useSRSTabLogic] Data loading order: Holidays -> TypesOfLeave -> StaffRecords');
     
     if (state.srsRecords.length === 0) {
       console.warn('[useSRSTabLogic] No SRS records to export');
       return;
     }
 
-    console.log('[useSRSTabLogic] Exporting SRS records (simplified architecture):', {
+    console.log('[useSRSTabLogic] Exporting SRS records (fixed loading order):', {
       recordsCount: state.srsRecords.length,
       dateRange: `${SRSDateUtils.formatDateForDisplay(state.fromDate)} - ${SRSDateUtils.formatDateForDisplay(state.toDate)}`,
       typesOfLeaveCount: state.typesOfLeave.length,
@@ -674,11 +761,11 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       deletedRecordsCount: state.srsRecords.filter(r => r.Deleted === 1).length,
       activeRecordsCount: state.srsRecords.filter(r => r.Deleted !== 1).length,
       numericTimeFieldsEnabled: true,
-      simplifiedArchitecture: true,
+      fixedLoadingOrder: true,
       totalHoursCalculation: 'Real-time in SRSTable'
     });
 
-    alert(`Export functionality will be implemented. Records to export: ${state.srsRecords.length}, Types of leave: ${state.typesOfLeave.length}, Holidays: ${state.holidays.length}, Show deleted: ${state.showDeleted}, Total Hours: Calculated in real-time, Numeric time fields: enabled`);
+    alert(`Export functionality will be implemented. Records to export: ${state.srsRecords.length}, Types of leave: ${state.typesOfLeave.length}, Holidays: ${state.holidays.length}, Show deleted: ${state.showDeleted}, Total Hours: Calculated in real-time, Loading order: Fixed (Dependencies first)`);
   }, [state.srsRecords, state.fromDate, state.toDate, state.typesOfLeave, state.holidays, state.showDeleted]);
 
   /**
@@ -934,7 +1021,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   }, [deleteOperations.size, restoreOperations.size, addShiftOperations.size]);
 
   // ===============================================
-  // *** УПРОЩЕННЫЙ: ВОЗВРАЩАЕМЫЙ ОБЪЕКТ БЕЗ TOTALHOURS ***
+  // *** ИСПРАВЛЕНО: ВОЗВРАЩАЕМЫЙ ОБЪЕКТ С ПРАВИЛЬНЫМ ПОРЯДКОМ ЗАГРУЗКИ ***
   // ===============================================
 
   const hookReturn: UseSRSTabLogicReturn = useMemo(() => ({
@@ -1012,34 +1099,39 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     loadHolidays
   ]);
 
-  console.log('[useSRSTabLogic] *** SIMPLIFIED HOOK RETURN OBJECT PREPARED ***:', {
+  console.log('[useSRSTabLogic] *** FIXED DATA LOADING ORDER HOOK RETURN OBJECT PREPARED ***:', {
     recordsCount: state.srsRecords.length,
-    // *** УБРАНО: totalHours больше не в состоянии ***
     hasCheckedItems,
     selectedItemsCount,
     isDataValid,
     hasUnsavedChanges: state.hasUnsavedChanges,
     isLoading: state.isLoadingSRS,
     modifiedRecordsCount: modifiedRecords.size,
+    // Dependencies status
     typesOfLeaveCount: state.typesOfLeave.length,
     isLoadingTypesOfLeave: state.isLoadingTypesOfLeave,
     holidaysCount: state.holidays.length,
     isLoadingHolidays: state.isLoadingHolidays,
+    areDependenciesReady,
+    // Operations
     deleteOperationsCount: deleteOperations.size,
     restoreOperationsCount: restoreOperations.size,
     hasOngoingOperations,
-    realDeleteRestoreIntegration: 'StaffRecordsService.markRecordAsDeleted & restoreDeletedRecord',
     addShiftOperationsCount: addShiftOperations.size,
-    realAddShiftIntegration: 'StaffRecordsService.createStaffRecord WITH NUMERIC TIME FIELDS AND NO HOLIDAY CHECK',
+    // Features
     showDeleted: state.showDeleted,
     showDeletedSupport: true,
     hasToggleShowDeletedHandler: !!handleToggleShowDeleted,
     hasAddShiftHandler: !!handleAddShift,
     numericTimeFieldsSupport: true,
-    simplifiedArchitecture: true, // *** НОВОЕ ***
-    totalHoursCalculation: 'Real-time in SRSTable', // *** НОВОЕ ***
-    noProblematicUseEffects: true, // *** НОВОЕ ***
-    holidayFieldHandling: 'Always 0 - holidays from list only' // *** ИСПРАВЛЕНО ***
+    // Architecture
+    fixedLoadingOrder: 'Holidays -> TypesOfLeave -> StaffRecords',
+    realDeleteRestoreIntegration: 'StaffRecordsService.markRecordAsDeleted & restoreDeletedRecord',
+    realAddShiftIntegration: 'StaffRecordsService.createStaffRecord WITH NUMERIC TIME FIELDS AND NO HOLIDAY CHECK',
+    simplifiedArchitecture: true,
+    totalHoursCalculation: 'Real-time in SRSTable',
+    noProblematicUseEffects: true,
+    holidayFieldHandling: 'Always 0 - holidays from list only'
   });
 
   return hookReturn;
