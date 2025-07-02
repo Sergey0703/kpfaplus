@@ -5,6 +5,54 @@ import { IContract } from "../../../../models/IContract";
 import { DateUtils } from '../../../CustomDatePicker/CustomDatePicker';
 
 /**
+ * *** НОВАЯ ФУНКЦИЯ: Date-only форматирование для совместимости с HolidaysService ***
+ * Создает строку даты в формате YYYY-MM-DD для консистентного сравнения
+ * Совместимо с Date-only форматом из SharePoint Holidays list
+ */
+export const formatDateForComparison = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const day = date.getDate().toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+/**
+ * *** НОВАЯ ФУНКЦИЯ: Date-only совместимое сравнение дат ***
+ * Сравнивает две даты только по компонентам года, месяца и дня
+ * Игнорирует время и часовые пояса
+ */
+export const isDateEqual = (date1: Date, date2: Date): boolean => {
+  return date1.getFullYear() === date2.getFullYear() &&
+         date1.getMonth() === date2.getMonth() &&
+         date1.getDate() === date2.getDate();
+};
+
+/**
+ * *** НОВАЯ ФУНКЦИЯ: Создание Date-only строки ***
+ * Альтернативное название для formatDateForComparison для ясности
+ */
+export const formatDateOnly = (date: Date): string => {
+  return formatDateForComparison(date);
+};
+
+/**
+ * *** НОВАЯ ФУНКЦИЯ: Проверка является ли дата праздником (Date-only совместимо) ***
+ * Использует Date-only сравнение для совместимости с новым форматом Holidays list
+ */
+export const isHolidayDate = (date: Date, holidays: Array<{ date: Date; title: string }>): boolean => {
+  if (!holidays || holidays.length === 0) {
+    return false;
+  }
+  
+  const targetDateString = formatDateForComparison(date);
+  
+  return holidays.some(holiday => {
+    const holidayDateString = formatDateForComparison(holiday.date);
+    return holidayDateString === targetDateString;
+  });
+};
+
+/**
  * Вспомогательная функция для создания Date из часов и минут
  * ИСПРАВЛЕНО: Использует прямое создание времени БЕЗ DateUtils.createShiftDateTime
  * для избежания любой потенциальной корректировки часового пояса
@@ -57,6 +105,7 @@ export const convertStaffRecordsToScheduleItems = (
 
   console.log(`[ScheduleTabDataUtils] Converting ${records.length} staff records to schedule items`);
   console.log(`[ScheduleTabDataUtils] *** IMPORTANT: Holiday field is NO LONGER copied from StaffRecords ***`);
+  console.log(`[ScheduleTabDataUtils] *** Date-only compatibility: ENABLED for holiday detection ***`);
 
   return records.map((record, index) => {
     // ИСПРАВЛЕНО: Нормализуем основную дату записи к UTC полуночи для консистентности
@@ -70,6 +119,7 @@ export const convertStaffRecordsToScheduleItems = (
       console.log(`[ScheduleTabDataUtils] Record ID: ${record.ID}`);
       console.log(`[ScheduleTabDataUtils] Original Date: ${record.Date.toISOString()}`);
       console.log(`[ScheduleTabDataUtils] Normalized Date: ${normalizedDate.toISOString()}`);
+      console.log(`[ScheduleTabDataUtils] Date-only format: ${formatDateForComparison(normalizedDate)}`);
     }
     
     // Форматирование дня недели
@@ -122,6 +172,13 @@ export const convertStaffRecordsToScheduleItems = (
       startMinute,
       finishHour,
       finishMinute,
+      
+      // *** НОВОЕ: Добавляем числовые поля времени если они есть ***
+      startHours: record.ShiftDate1Hours,
+      startMinutes: record.ShiftDate1Minutes,
+      finishHours: record.ShiftDate2Hours,
+      finishMinutes: record.ShiftDate2Minutes,
+      
       lunchTime: record.TimeForLunch.toString(),
       typeOfLeave: typeOfLeaveValue, // ИСПРАВЛЕНО: используется ТОЛЬКО значение из StaffRecords
       shift: 1, // По умолчанию 1
@@ -138,9 +195,11 @@ export const convertStaffRecordsToScheduleItems = (
       console.log(`[ScheduleTabDataUtils] Schedule Item:`, {
         id: scheduleItem.id,
         date: scheduleItem.date.toISOString(),
+        dateOnly: formatDateForComparison(scheduleItem.date),
         dayOfWeek: scheduleItem.dayOfWeek,
         startTime: `${scheduleItem.startHour}:${scheduleItem.startMinute}`,
         finishTime: `${scheduleItem.finishHour}:${scheduleItem.finishMinute}`,
+        numericTime: scheduleItem.startHours !== undefined ? `${scheduleItem.startHours}:${scheduleItem.startMinutes}-${scheduleItem.finishHours}:${scheduleItem.finishMinutes}` : 'N/A',
         deleted: scheduleItem.deleted
         // *** УДАЛЕНО: Holiday: scheduleItem.Holiday - больше НЕ логируем поле Holiday ***
       });
@@ -158,6 +217,7 @@ export const convertStaffRecordsToScheduleItems = (
 export const formatItemForUpdate = (recordId: string, scheduleItem: IScheduleItem): Partial<IStaffRecord> => {
   console.log(`[ScheduleTabDataUtils] formatItemForUpdate for record ID: ${recordId}`);
   console.log(`[ScheduleTabDataUtils] Input schedule item date: ${scheduleItem.date.toISOString()}`);
+  console.log(`[ScheduleTabDataUtils] Input schedule item date-only: ${formatDateForComparison(scheduleItem.date)}`);
   console.log(`[ScheduleTabDataUtils] *** IMPORTANT: Holiday field is NO LONGER included in update data ***`);
   
   // *** ИСПРАВЛЕНИЕ: Создаем дату с местной полуночью для поля Date ***
@@ -175,18 +235,38 @@ export const formatItemForUpdate = (recordId: string, scheduleItem: IScheduleIte
     console.log(`[ScheduleTabDataUtils] *** FORMATTING OCTOBER 1st ITEM FOR UPDATE ***`);
     console.log(`[ScheduleTabDataUtils] Record ID: ${recordId}`);
     console.log(`[ScheduleTabDataUtils] Original item date: ${scheduleItem.date.toISOString()}`);
+    console.log(`[ScheduleTabDataUtils] Original item date-only: ${formatDateForComparison(scheduleItem.date)}`);
     console.log(`[ScheduleTabDataUtils] Local midnight date: ${localMidnightDate.toISOString()}`);
   }
   
-  // *** НОВОЕ: Парсим числовые значения времени ***
-  const startHour = parseInt(scheduleItem.startHour, 10) || 0;
-  const startMinute = parseInt(scheduleItem.startMinute, 10) || 0;
-  const finishHour = parseInt(scheduleItem.finishHour, 10) || 0;
-  const finishMinute = parseInt(scheduleItem.finishMinute, 10) || 0;
+  // *** ПРИОРИТЕТ ЧИСЛОВЫХ ПОЛЕЙ ДЛЯ ВРЕМЕНИ ***
+  let startHour: number, startMinute: number, finishHour: number, finishMinute: number;
+
+  // Проверяем наличие числовых полей (ПРИОРИТЕТ)
+  if (typeof scheduleItem.startHours === 'number' && typeof scheduleItem.startMinutes === 'number' &&
+      typeof scheduleItem.finishHours === 'number' && typeof scheduleItem.finishMinutes === 'number') {
+    
+    console.log(`[ScheduleTabDataUtils] *** USING NUMERIC FIELDS (PRIORITY) ***`);
+    startHour = scheduleItem.startHours;
+    startMinute = scheduleItem.startMinutes;
+    finishHour = scheduleItem.finishHours;
+    finishMinute = scheduleItem.finishMinutes;
+    
+    console.log(`[ScheduleTabDataUtils] Numeric time values: ${startHour}:${startMinute} - ${finishHour}:${finishMinute}`);
+  } else {
+    // Fallback к строковым полям
+    console.log(`[ScheduleTabDataUtils] *** FALLBACK TO STRING FIELDS ***`);
+    startHour = parseInt(scheduleItem.startHour, 10) || 0;
+    startMinute = parseInt(scheduleItem.startMinute, 10) || 0;
+    finishHour = parseInt(scheduleItem.finishHour, 10) || 0;
+    finishMinute = parseInt(scheduleItem.finishMinute, 10) || 0;
+    
+    console.log(`[ScheduleTabDataUtils] Parsed string time values: ${startHour}:${startMinute} - ${finishHour}:${finishMinute}`);
+  }
   
   // *** ИСПРАВЛЕНО: Используем createTimeFromScheduleItem с прямым созданием времени ***
-  const shiftDate1 = createTimeFromScheduleItem(scheduleItem.date, scheduleItem.startHour, scheduleItem.startMinute);
-  const shiftDate2 = createTimeFromScheduleItem(scheduleItem.date, scheduleItem.finishHour, scheduleItem.finishMinute);
+  const shiftDate1 = createTimeFromScheduleItem(scheduleItem.date, startHour.toString().padStart(2, '0'), startMinute.toString().padStart(2, '0'));
+  const shiftDate2 = createTimeFromScheduleItem(scheduleItem.date, finishHour.toString().padStart(2, '0'), finishMinute.toString().padStart(2, '0'));
 
   // *** ИСПРАВЛЕНО: updateData БЕЗ поля Holiday ***
   const updateData: Partial<IStaffRecord> = {
@@ -247,7 +327,8 @@ export const createNormalizedScheduleDate = (inputDate: Date): Date => {
   
   console.log(`[ScheduleTabDataUtils] createNormalizedScheduleDate:
     Input: ${inputDate.toISOString()}
-    Output: ${normalizedDate.toISOString()}`);
+    Output: ${normalizedDate.toISOString()}
+    Date-only: ${formatDateForComparison(normalizedDate)}`);
   
   return normalizedDate;
 };
@@ -262,7 +343,7 @@ export const isOctober1st2024 = (date: Date): boolean => {
                    date.getUTCDate() === 1;
                    
   if (isOct1st) {
-    console.log(`[ScheduleTabDataUtils] *** DETECTED OCTOBER 1st 2024 DATE: ${date.toISOString()} ***`);
+    console.log(`[ScheduleTabDataUtils] *** DETECTED OCTOBER 1st 2024 DATE: ${date.toISOString()} (Date-only: ${formatDateForComparison(date)}) ***`);
   }
   
   return isOct1st;
@@ -278,6 +359,7 @@ export const logScheduleItemConversion = (record: IStaffRecord, scheduleItem: IS
   console.log(`Record ID: ${record.ID}`);
   console.log(`Original StaffRecord Date: ${record.Date.toISOString()}`);
   console.log(`Converted ScheduleItem Date: ${scheduleItem.date.toISOString()}`);
+  console.log(`Date-only format: ${formatDateForComparison(scheduleItem.date)}`);
   console.log(`Date components match: ${
     record.Date.getUTCFullYear() === scheduleItem.date.getUTCFullYear() &&
     record.Date.getUTCMonth() === scheduleItem.date.getUTCMonth() &&
@@ -289,6 +371,9 @@ export const logScheduleItemConversion = (record: IStaffRecord, scheduleItem: IS
   console.log(`Type of Leave: ${scheduleItem.typeOfLeave || 'none'}`);
   console.log(`Start Time: ${scheduleItem.startHour}:${scheduleItem.startMinute}`);
   console.log(`Finish Time: ${scheduleItem.finishHour}:${scheduleItem.finishMinute}`);
+  if (scheduleItem.startHours !== undefined) {
+    console.log(`Numeric Time: ${scheduleItem.startHours}:${scheduleItem.startMinutes} - ${scheduleItem.finishHours}:${scheduleItem.finishMinutes}`);
+  }
   console.log(`Lunch Time: ${scheduleItem.lunchTime} minutes`);
   console.log(`Contract: ${scheduleItem.contract} (ID: ${scheduleItem.contractId})`);
   console.log(`Contract Number: ${scheduleItem.contractNumber}`);
@@ -297,6 +382,7 @@ export const logScheduleItemConversion = (record: IStaffRecord, scheduleItem: IS
   // Проверяем на октябрь 2024
   if (isOctober1st2024(scheduleItem.date)) {
     console.log(`[ScheduleTabDataUtils] *** THIS IS AN OCTOBER 1st 2024 RECORD - SHOULD BE VISIBLE IN SCHEDULE ***`);
+    console.log(`[ScheduleTabDataUtils] *** Date-only format: ${formatDateForComparison(scheduleItem.date)} ***`);
   }
 };
 
@@ -402,12 +488,12 @@ export const validateScheduleItems = (scheduleItems: IScheduleItem[]): {
  * ИСПРАВЛЕНО: Больше НЕ включает статистику по Holiday полю
  */
 export const logScheduleItemsDateStatistics = (scheduleItems: IScheduleItem[]): void => {
-  console.log(`[ScheduleTabDataUtils] *** SCHEDULE ITEMS DATE STATISTICS ***`);
+  console.log(`[ScheduleTabDataUtils] *** SCHEDULE ITEMS DATE STATISTICS WITH DATE-ONLY COMPATIBILITY ***`);
   console.log(`Total items: ${scheduleItems.length}`);
   
-  // Группируем по дням
+  // Группируем по дням используя Date-only формат
   const dateGroups = scheduleItems.reduce((groups, item) => {
-    const dateKey = item.date.toISOString().split('T')[0]; // YYYY-MM-DD
+    const dateKey = formatDateForComparison(item.date);
     if (!groups[dateKey]) {
       groups[dateKey] = [];
     }
@@ -450,16 +536,30 @@ export const logScheduleItemsDateStatistics = (scheduleItems: IScheduleItem[]): 
   // Статистика по статусам (БЕЗ holiday)
   const deletedCount = scheduleItems.filter(item => item.deleted).length;
   const leaveCount = scheduleItems.filter(item => item.typeOfLeave && item.typeOfLeave !== '').length;
+  const numericFieldsCount = scheduleItems.filter(item => 
+    typeof item.startHours === 'number' && typeof item.startMinutes === 'number'
+  ).length;
   
   console.log('Status statistics (Holiday field NO LONGER tracked):');
   console.log(`  Active items: ${scheduleItems.length - deletedCount}`);
   console.log(`  Deleted items: ${deletedCount}`);
   console.log(`  Leave items: ${leaveCount}`);
+  console.log(`  Items with numeric time fields: ${numericFieldsCount}`);
   // *** УДАЛЕНО: Holiday items статистика ***
   
   // Статистика времени (только для первых нескольких для экономии)
   console.log('Time statistics (first 5 items):');
   scheduleItems.slice(0, 5).forEach((item, index) => {
-    console.log(`  ${index + 1}. ID ${item.id}: ${item.startHour}:${item.startMinute}-${item.finishHour}:${item.finishMinute} (${item.workingHours})`);
+    const numericTime = item.startHours !== undefined ? 
+      `${item.startHours}:${item.startMinutes}-${item.finishHours}:${item.finishMinutes}` : 
+      'N/A';
+    console.log(`  ${index + 1}. ID ${item.id}: ${item.startHour}:${item.startMinute}-${item.finishHour}:${item.finishMinute} (${item.workingHours}) [Numeric: ${numericTime}]`);
+  });
+  
+  // Date-only format статистика
+  console.log('Date-only format samples (first 3 dates):');
+  sortedDateKeys.slice(0, 3).forEach(dateKey => {
+    const itemsForDate = dateGroups[dateKey];
+    console.log(`  ${dateKey}: ${itemsForDate.length} items`);
   });
 };
