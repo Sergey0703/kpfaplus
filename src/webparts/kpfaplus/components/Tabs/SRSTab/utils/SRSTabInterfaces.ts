@@ -356,47 +356,60 @@ export interface ISRSRestoreConfirmDialogProps {
 }
 
 /**
- * *** НОВЫЕ УТИЛИТЫ: Функции для работы с праздниками на основе списка праздников ***
+ * *** ОБНОВЛЕНО: Функции для работы с праздниками на основе списка праздников и Date-only формата ***
  */
 
 /**
- * Проверяет является ли указанная дата праздником на основе списка праздников
+ * УПРОЩЕНО: Проверяет является ли указанная дата праздником на основе списка праздников
+ * Убрана нормализация времени - теперь сравниваем только даты
  */
 export function isHolidayDate(date: Date, holidays: IHoliday[]): boolean {
   if (!date || !holidays || holidays.length === 0) {
     return false;
   }
 
-  const targetDate = new Date(date);
-  targetDate.setHours(0, 0, 0, 0); // Нормализуем к полуночи
+  // УПРОЩЕНО: Получаем компоненты даты напрямую без нормализации времени
+  const targetYear = date.getFullYear();
+  const targetMonth = date.getMonth();
+  const targetDay = date.getDate();
   
   return holidays.some(holiday => {
-    const holidayDate = new Date(holiday.date);
-    holidayDate.setHours(0, 0, 0, 0); // Нормализуем к полуночи
-    return holidayDate.getTime() === targetDate.getTime();
+    const holidayDate = holiday.date;
+    
+    // Сравниваем только компоненты даты (год, месяц, день)
+    return holidayDate.getFullYear() === targetYear &&
+           holidayDate.getMonth() === targetMonth &&
+           holidayDate.getDate() === targetDay;
   });
 }
 
 /**
- * Получает информацию о празднике для указанной даты
+ * УПРОЩЕНО: Получает информацию о празднике для указанной даты
+ * Убрана нормализация времени - теперь сравниваем только даты
  */
 export function getHolidayInfo(date: Date, holidays: IHoliday[]): IHoliday | undefined {
   if (!date || !holidays || holidays.length === 0) {
     return undefined;
   }
 
-  const targetDate = new Date(date);
-  targetDate.setHours(0, 0, 0, 0); // Нормализуем к полуночи
+  // УПРОЩЕНО: Получаем компоненты даты напрямую без нормализации времени
+  const targetYear = date.getFullYear();
+  const targetMonth = date.getMonth();
+  const targetDay = date.getDate();
   
   return holidays.find(holiday => {
-    const holidayDate = new Date(holiday.date);
-    holidayDate.setHours(0, 0, 0, 0); // Нормализуем к полуночи
-    return holidayDate.getTime() === targetDate.getTime();
+    const holidayDate = holiday.date;
+    
+    // Сравниваем только компоненты даты (год, месяц, день)
+    return holidayDate.getFullYear() === targetYear &&
+           holidayDate.getMonth() === targetMonth &&
+           holidayDate.getDate() === targetDay;
   });
 }
 
 /**
- * Получает статистику праздников в записях SRS на основе списка праздников
+ * УПРОЩЕНО: Получает статистику праздников в записях SRS на основе списка праздников
+ * Упрощена логика сравнения дат для Date-only формата
  */
 export function getHolidayRecordsStatistics(
   records: ISRSRecord[], 
@@ -683,7 +696,7 @@ export class SRSTableOptionsHelper {
   }
 
   /**
-   * *** НОВАЯ ФУНКЦИЯ: Получение праздничной статистики на основе списка праздников ***
+   * *** ОБНОВЛЕНО: Получение праздничной статистики на основе списка праздников и Date-only формата ***
    * Анализирует праздники в SRS записях используя holidays list вместо Holiday поля
    */
   public static getHolidayStatisticsFromHolidaysList(
@@ -720,7 +733,7 @@ export class SRSTableOptionsHelper {
         
         return {
           title: holiday.title,
-          date: new Date(holiday.date).toLocaleDateString(),
+          date: holiday.date.toLocaleDateString(),
           recordsCount
         };
       });
