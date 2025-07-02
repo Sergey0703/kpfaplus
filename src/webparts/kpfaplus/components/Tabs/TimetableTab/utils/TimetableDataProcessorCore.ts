@@ -14,10 +14,14 @@ import { IHoliday, HolidaysService } from '../../../../services/HolidaysService'
 import { TimetableDataProcessorLeaveTypes } from './TimetableDataProcessorLeaveTypes';
 import { TimetableDataProcessorUtils } from './TimetableDataProcessorUtils';
 
+/**
+ * ОБНОВЛЕНО: Поддержка Date-only Holiday формата
+ * Удалена зависимость от поля Holiday в StaffRecord - используется только HolidaysService
+ */
 export class TimetableDataProcessorCore {
 
   /**
-   * *** ОБНОВЛЕНО: Добавлена поддержка holidays ***
+   * ОБНОВЛЕНО: Добавлена поддержка Date-only holidays
    */
   public static processWeekDataWithLeaveColorsAndHolidays(
     staffRecords: IStaffRecord[],
@@ -27,6 +31,14 @@ export class TimetableDataProcessorCore {
     holidays?: IHoliday[],
     holidaysService?: HolidaysService
   ): IWeeklyStaffData {
+    console.log('[TimetableDataProcessorCore] *** PROCESSING WEEK DATA WITH DATE-ONLY HOLIDAYS ***', {
+      weekNum: week.weekNum,
+      weekStart: week.weekStart.toLocaleDateString(),
+      weekEnd: week.weekEnd.toLocaleDateString(),
+      recordsCount: staffRecords.length,
+      holidaysCount: holidays?.length || 0
+    });
+
     const weeklyData: IWeeklyStaffData = {
       weekNum: week.weekNum,
       weekStart: week.weekStart,
@@ -55,11 +67,17 @@ export class TimetableDataProcessorCore {
 
     weeklyData.formattedWeekTotal = TimetableShiftCalculator.formatMinutesToHours(weeklyData.totalWeekMinutes);
     
+    console.log('[TimetableDataProcessorCore] *** WEEK DATA PROCESSED WITH DATE-ONLY HOLIDAYS ***', {
+      weekNum: week.weekNum,
+      totalMinutes: weeklyData.totalWeekMinutes,
+      formattedTotal: weeklyData.formattedWeekTotal
+    });
+    
     return weeklyData;
   }
 
   /**
-   * *** ОБНОВЛЕНО: Добавлена поддержка holidays ***
+   * ОБНОВЛЕНО: Добавлена поддержка Date-only holidays включая дни без смен
    */
   public static processWeekDataWithLeaveColorsAndHolidaysIncludingNonWorkDays(
     staffRecords: IStaffRecord[],
@@ -69,6 +87,8 @@ export class TimetableDataProcessorCore {
     holidays?: IHoliday[],
     holidaysService?: HolidaysService
   ): IWeeklyStaffData {
+    console.log('[TimetableDataProcessorCore] *** PROCESSING WEEK DATA INCLUDING NON-WORK DAYS WITH DATE-ONLY HOLIDAYS ***');
+
     const weeklyData: IWeeklyStaffData = {
       weekNum: week.weekNum,
       weekStart: week.weekStart,
@@ -101,7 +121,7 @@ export class TimetableDataProcessorCore {
   }
 
   /**
-   * *** ОБНОВЛЕНО: Добавлена поддержка holidays ***
+   * ОБНОВЛЕНО: Специальная обработка для Excel экспорта с полными отметками Date-only holidays
    */
   public static processWeekDataForExcelWithFullMarkers(
     staffRecords: IStaffRecord[],
@@ -111,6 +131,8 @@ export class TimetableDataProcessorCore {
     holidays?: IHoliday[],
     holidaysService?: HolidaysService
   ): IWeeklyStaffData {
+    console.log('[TimetableDataProcessorCore] *** PROCESSING WEEK DATA FOR EXCEL WITH DATE-ONLY HOLIDAYS ***');
+
     const weeklyData: IWeeklyStaffData = {
       weekNum: week.weekNum,
       weekStart: week.weekStart,
@@ -143,7 +165,7 @@ export class TimetableDataProcessorCore {
   }
 
   /**
-   * *** ОБНОВЛЕНО: Заменена логика holidays с поля Holiday на HolidaysService ***
+   * ИСПРАВЛЕНО: Основной метод обработки дня с Date-only Holiday поддержкой
    */
   private static processDayDataWithLeaveColorsAndHolidays(
     weekRecords: IStaffRecord[],
@@ -157,7 +179,14 @@ export class TimetableDataProcessorCore {
   ): IDayInfo {
     const dayDate = TimetableDataUtils.getDateForDayInWeek(weekStart, dayNumber);
     
-    // *** ОБНОВЛЕНО: Передаем holidays в getShiftsForDay ***
+    console.log('[TimetableDataProcessorCore] *** PROCESSING DAY WITH DATE-ONLY HOLIDAYS ***', {
+      dayNumber,
+      dayDate: dayDate.toLocaleDateString(),
+      dayDateISO: dayDate.toISOString(),
+      holidaysAvailable: holidays?.length || 0
+    });
+    
+    // Получаем смены для дня с Date-only Holiday поддержкой
     const shifts = TimetableShiftCalculator.getShiftsForDay(
       weekRecords,
       dayNumber,
@@ -186,11 +215,9 @@ export class TimetableDataProcessorCore {
 
     const hasLeave = TimetableShiftCalculator.hasLeaveTypes(shifts) || leaveAnalysis.hasNonWorkLeave;
     
-    // *** ОБНОВЛЕНО: Используем HolidaysService вместо поля Holiday ***
-    const hasHoliday = TimetableShiftCalculator.hasHolidays ? 
-      TimetableShiftCalculator.hasHolidays(shifts) : 
-      shifts.some(s => s.isHoliday) ||
-      this.isDateHoliday(dayDate, holidays, holidaysService);
+    // ИСПРАВЛЕНО: Используем Date-only Holiday detection
+    const hasHoliday = this.isDateHolidayDateOnly(dayDate, holidays, holidaysService) ||
+      (TimetableShiftCalculator.hasHolidays ? TimetableShiftCalculator.hasHolidays(shifts) : shifts.some(s => s.isHoliday));
     
     const holidayColorFinal = holidayColor || TIMETABLE_COLORS.HOLIDAY;
 
@@ -210,7 +237,7 @@ export class TimetableDataProcessorCore {
       finalCellColor = leaveTypeColor;
     }
 
-    return {
+    const dayInfo: IDayInfo = {
       dayNumber,
       date: dayDate,
       shifts,
@@ -223,10 +250,21 @@ export class TimetableDataProcessorCore {
       holidayColor: hasHoliday ? holidayColorFinal : undefined,
       finalCellColor
     };
+
+    console.log('[TimetableDataProcessorCore] *** DAY PROCESSED WITH DATE-ONLY HOLIDAYS ***', {
+      dayNumber,
+      hasData: dayInfo.hasData,
+      hasHoliday: dayInfo.hasHoliday,
+      hasLeave: dayInfo.hasLeave,
+      shiftsCount: shifts.length,
+      formattedContent: dayInfo.formattedContent
+    });
+
+    return dayInfo;
   }
 
   /**
-   * *** ОБНОВЛЕНО: Заменена логика holidays с поля Holiday на HolidaysService ***
+   * ИСПРАВЛЕНО: Обработка дня включая дни без смен с Date-only Holiday поддержкой
    */
   private static processDayDataIncludingNonWorkDays(
     weekRecords: IStaffRecord[],
@@ -242,7 +280,7 @@ export class TimetableDataProcessorCore {
     
     const allDayRecords = TimetableDataProcessorUtils.getAllRecordsForDayEnhanced(weekRecords, dayNumber, weekStart, weekEnd);
 
-    // *** ОБНОВЛЕНО: Передаем holidays в getShiftsForDay ***
+    // Получаем смены с Date-only Holiday поддержкой
     const shifts = TimetableShiftCalculator.getShiftsForDay(
       weekRecords,
       dayNumber,
@@ -255,8 +293,8 @@ export class TimetableDataProcessorCore {
 
     const leaveInfo = TimetableDataProcessorLeaveTypes.analyzeLeaveInfoFromRecordsEnhanced(allDayRecords, getLeaveTypeColor);
     
-    // *** ОБНОВЛЕНО: Используем HolidaysService вместо поля Holiday ***
-    const holidayInfo = this.analyzeHolidayInfoFromDate(dayDate, holidays, holidaysService);
+    // ИСПРАВЛЕНО: Date-only Holiday анализ
+    const holidayInfo = this.analyzeHolidayInfoFromDateOnly(dayDate, holidays, holidaysService);
 
     const totalMinutes = shifts.reduce((sum, shift) => sum + shift.workMinutes, 0);
     let formattedContent = TimetableShiftCalculator.formatDayContent(shifts);
@@ -307,7 +345,7 @@ export class TimetableDataProcessorCore {
   }
 
   /**
-   * *** ОБНОВЛЕНО: Заменена логика holidays с поля Holiday на HolidaysService ***
+   * ИСПРАВЛЕНО: Специальная обработка для Excel с полными отметками Date-only holidays
    */
   private static processDayDataForExcel(
     weekRecords: IStaffRecord[],
@@ -321,7 +359,7 @@ export class TimetableDataProcessorCore {
   ): IDayInfo {
     const dayDate = TimetableDataUtils.getDateForDayInWeek(weekStart, dayNumber);
     
-    // *** ОБНОВЛЕНО: Передаем holidays в getShiftsForDay ***
+    // Получаем смены с Date-only Holiday поддержкой
     const shifts = TimetableShiftCalculator.getShiftsForDay(
       weekRecords,
       dayNumber,
@@ -335,8 +373,8 @@ export class TimetableDataProcessorCore {
     const allDayRecords = TimetableDataProcessorUtils.getAllRecordsForDayEnhanced(weekRecords, dayNumber, weekStart, weekEnd);
     const leaveInfo = TimetableDataProcessorLeaveTypes.analyzeLeaveInfoFromRecordsEnhanced(allDayRecords, getLeaveTypeColor);
     
-    // *** ОБНОВЛЕНО: Используем HolidaysService вместо поля Holiday ***
-    const holidayInfo = this.analyzeHolidayInfoFromDate(dayDate, holidays, holidaysService);
+    // ИСПРАВЛЕНО: Date-only Holiday анализ для Excel
+    const holidayInfo = this.analyzeHolidayInfoFromDateOnly(dayDate, holidays, holidaysService);
 
     const totalMinutes = shifts.reduce((sum, shift) => {
       return shift.workMinutes > 0 ? sum + shift.workMinutes : sum;
@@ -387,33 +425,64 @@ export class TimetableDataProcessorCore {
   }
 
   /**
-   * *** НОВЫЙ МЕТОД: Проверяет является ли дата праздником через HolidaysService ***
+   * НОВЫЙ МЕТОД: Проверяет является ли дата праздником используя Date-only формат
    */
-  private static isDateHoliday(
+  private static isDateHolidayDateOnly(
     date: Date, 
     holidays?: IHoliday[], 
     holidaysService?: HolidaysService
   ): boolean {
     if (!holidays || holidays.length === 0) {
+      console.log('[TimetableDataProcessorCore] No holidays available for check');
       return false;
     }
 
+    console.log('[TimetableDataProcessorCore] *** CHECKING DATE-ONLY HOLIDAY ***', {
+      checkDate: date.toLocaleDateString(),
+      checkDateISO: date.toISOString(),
+      holidaysCount: holidays.length
+    });
+
     // Используем HolidaysService для проверки если доступен
     if (holidaysService) {
-      return holidaysService.isHoliday(date, holidays);
+      const isHoliday = holidaysService.isHoliday(date, holidays);
+      console.log('[TimetableDataProcessorCore] Holiday check via service:', {
+        date: date.toLocaleDateString(),
+        isHoliday
+      });
+      return isHoliday;
     }
 
-    // Fallback: простая проверка по дате
-    const dateString = this.formatDateForComparison(date);
-    return holidays.some(holiday => 
-      this.formatDateForComparison(holiday.date) === dateString
-    );
+    // Fallback: Date-only сравнение без времени
+    const checkDateStr = this.formatDateForComparisonDateOnly(date);
+    const isHoliday = holidays.some(holiday => {
+      const holidayDateStr = this.formatDateForComparisonDateOnly(holiday.date);
+      const matches = holidayDateStr === checkDateStr;
+      
+      if (matches) {
+        console.log('[TimetableDataProcessorCore] Holiday match found:', {
+          checkDate: checkDateStr,
+          holidayDate: holidayDateStr,
+          holidayTitle: holiday.title
+        });
+      }
+      
+      return matches;
+    });
+
+    console.log('[TimetableDataProcessorCore] Date-only holiday check result:', {
+      date: checkDateStr,
+      isHoliday,
+      holidaysChecked: holidays.length
+    });
+
+    return isHoliday;
   }
 
   /**
-   * *** НОВЫЙ МЕТОД: Анализирует информацию о празднике для даты ***
+   * НОВЫЙ МЕТОД: Анализирует информацию о празднике для Date-only формата
    */
-  private static analyzeHolidayInfoFromDate(
+  private static analyzeHolidayInfoFromDateOnly(
     date: Date,
     holidays?: IHoliday[],
     holidaysService?: HolidaysService
@@ -421,11 +490,17 @@ export class TimetableDataProcessorCore {
     hasHoliday: boolean;
     holidayInfo?: IHoliday;
   } {
-    const hasHoliday = this.isDateHoliday(date, holidays, holidaysService);
+    const hasHoliday = this.isDateHolidayDateOnly(date, holidays, holidaysService);
     
     let holidayInfo: IHoliday | undefined = undefined;
     if (hasHoliday && holidays && holidaysService) {
       holidayInfo = holidaysService.getHolidayInfo(date, holidays);
+    } else if (hasHoliday && holidays) {
+      // Fallback поиск без service
+      const dateStr = this.formatDateForComparisonDateOnly(date);
+      holidayInfo = holidays.find(h => 
+        this.formatDateForComparisonDateOnly(h.date) === dateStr
+      );
     }
 
     return {
@@ -435,12 +510,20 @@ export class TimetableDataProcessorCore {
   }
 
   /**
-   * *** НОВЫЙ МЕТОД: Форматирует дату для сравнения ***
+   * НОВЫЙ МЕТОД: Форматирует дату для Date-only сравнения
    */
-  private static formatDateForComparison(date: Date): string {
-    return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+  private static formatDateForComparisonDateOnly(date: Date): string {
+    // ИСПРАВЛЕНО: Используем локальные компоненты даты без часовых поясов
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    
+    return `${year}-${month}-${day}`;
   }
 
+  /**
+   * Сортирует строки сотрудников
+   */
   public static sortStaffRows(rows: ITimetableRow[]): ITimetableRow[] {
     return rows.sort((a, b) => {
       if (a.isDeleted !== b.isDeleted) {
@@ -453,6 +536,9 @@ export class TimetableDataProcessorCore {
     });
   }
 
+  /**
+   * Подсчитывает праздники в недельных данных
+   */
   public static countHolidaysInWeekData(weeklyData: IWeeklyStaffData): number {
     return TimetableDataProcessorUtils.countHolidaysInWeekData(weeklyData);
   }
