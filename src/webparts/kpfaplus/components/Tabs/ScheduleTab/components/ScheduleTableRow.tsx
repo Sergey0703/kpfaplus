@@ -55,39 +55,68 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
   // Определяем, удалена ли запись
   const isDeleted = item.deleted === true;
   
-  // *** ИСПРАВЛЕНО: Определяем праздник через holidays массив, а НЕ через item.Holiday ***
+  // *** ИСПРАВЛЕНО: Определяем праздник через holidays массив с Date-only format совместимостью ***
   const isHoliday = React.useMemo(() => {
     if (!holidays || holidays.length === 0) {
       return false;
     }
     
-    // Проверяем, есть ли дата в списке праздников
-    return holidays.some(holiday => {
-      const holidayDate = new Date(holiday.date);
-      const itemDate = new Date(item.date);
+    // *** УЛУЧШЕННАЯ ЛОГИКА: Используем Date-only сравнение (совместимо с HolidaysService) ***
+    const formatDateForComparison = (date: Date): string => {
+      const year = date.getFullYear();
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const day = date.getDate().toString().padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    
+    const itemDateString = formatDateForComparison(item.date);
+    
+    // Проверяем, есть ли дата в списке праздников используя Date-only сравнение
+    const foundHoliday = holidays.some(holiday => {
+      const holidayDateString = formatDateForComparison(holiday.date);
+      const isMatch = holidayDateString === itemDateString;
       
-      // Сравниваем только год, месяц и день (игнорируем время)
-      return (
-        holidayDate.getFullYear() === itemDate.getFullYear() &&
-        holidayDate.getMonth() === itemDate.getMonth() &&
-        holidayDate.getDate() === itemDate.getDate()
-      );
+      if (isMatch) {
+        console.log(`[ScheduleTableRow] Holiday match found via Date-only comparison: ${holiday.title} for ${itemDateString}`);
+      }
+      
+      return isMatch;
     });
+    
+    return foundHoliday;
   }, [holidays, item.date]);
 
-  // *** ОТЛАДОЧНОЕ ЛОГИРОВАНИЕ ДЛЯ ПРОВЕРКИ ПРАЗДНИКОВ ***
+  // *** ОТЛАДОЧНОЕ ЛОГИРОВАНИЕ ДЛЯ ПРОВЕРКИ ПРАЗДНИКОВ С DATE-ONLY FORMAT ***
   React.useEffect(() => {
     if (isHoliday) {
-      console.log(`[ScheduleTableRow] Holiday detected for ${item.date.toLocaleDateString()} via holidays list (not StaffRecords.Holiday field)`);
+      console.log(`[ScheduleTableRow] Holiday detected for ${item.date.toLocaleDateString()} via Date-only compatible holidays list (not StaffRecords.Holiday field)`);
+      
+      // Найдем и выведем информацию о найденном празднике
+      const formatDateForComparison = (date: Date): string => {
+        const year = date.getFullYear();
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const day = date.getDate().toString().padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+      
+      const itemDateString = formatDateForComparison(item.date);
+      const matchedHoliday = holidays.find(holiday => {
+        const holidayDateString = formatDateForComparison(holiday.date);
+        return holidayDateString === itemDateString;
+      });
+      
+      if (matchedHoliday) {
+        console.log(`[ScheduleTableRow] Matched holiday details: "${matchedHoliday.title}" (Date-only format: ${formatDateForComparison(matchedHoliday.date)})`);
+      }
     }
-  }, [isHoliday, item.date]);
+  }, [isHoliday, item.date, holidays]);
   
   // Определяем цвет фона для строки и классы
   const isEvenRow = rowIndex % 2 === 0;
   let backgroundColor = isEvenRow ? '#f9f9f9' : '#ffffff';
   let rowClassName = '';
   
-  // *** ОБНОВЛЕНО: Определяем цвета для праздничных ячеек через holidays список ***
+  // *** ОБНОВЛЕНО: Определяем цвета для праздничных ячеек через Date-only compatible holidays список ***
   const getHolidayCellStyle = (isFirstTwoCells: boolean = false): React.CSSProperties => {
     if (isHoliday && !isDeleted && isFirstTwoCells) {
       return {
@@ -199,7 +228,7 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
     { key: '3', text: '3' }
   ];
 
-  // *** ОБНОВЛЕНО: Отображение ячейки с датой использует holidays список для определения праздника ***
+  // *** ОБНОВЛЕНО: Отображение ячейки с датой использует Date-only compatible holidays список для определения праздника ***
   const renderDateCell = (): JSX.Element => {
     // Если это первая строка даты, отображаем дату и день недели
     if (rowPositionInDate === 0) {
@@ -210,7 +239,7 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
           </div>
           <div style={{ fontWeight: 'normal', fontSize: '12px' }} className={isDeleted ? styles.deletedText : ''}>
             {item.dayOfWeek}
-            {/* *** ОБНОВЛЕНО: Праздник определяется через holidays список *** */}
+            {/* *** ОБНОВЛЕНО: Праздник определяется через Date-only compatible holidays список *** */}
             {isHoliday && !isDeleted && (
               <div style={{ color: '#e81123', fontSize: '10px', fontWeight: 'bold', marginTop: '2px' }}>
                 Holiday
@@ -242,7 +271,7 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
       return (
         <div>
           {isDeleted && <span style={{ color: '#d83b01', fontSize: '10px', textDecoration: 'none' }}>(Deleted)</span>}
-          {/* *** ОБНОВЛЕНО: Праздник определяется через holidays список *** */}
+          {/* *** ОБНОВЛЕНО: Праздник определяется через Date-only compatible holidays список *** */}
           {isHoliday && !isDeleted && (
             <div style={{ color: '#e81123', fontSize: '10px', fontWeight: 'bold' }}>
               Holiday
@@ -278,21 +307,21 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
       }}
       className={rowClassName}
     >
-      {/* *** ОБНОВЛЕНО: Ячейка с датой использует getHolidayCellStyle на основе holidays списка *** */}
+      {/* *** ОБНОВЛЕНО: Ячейка с датой использует getHolidayCellStyle на основе Date-only compatible holidays списка *** */}
       <td style={{ 
         padding: '8px 0 8px 8px',
-        ...getHolidayCellStyle(true) // Применяем розовый фон для праздничных дней (из holidays списка)
+        ...getHolidayCellStyle(true) // Применяем розовый фон для праздничных дней (из Date-only compatible holidays списка)
       }}>
         {renderDateCell()}
       </td>
       
-      {/* *** ОБНОВЛЕНО: Ячейка с рабочими часами использует getHolidayCellStyle на основе holidays списка *** */}
+      {/* *** ОБНОВЛЕНО: Ячейка с рабочими часами использует getHolidayCellStyle на основе Date-only compatible holidays списка *** */}
       <td style={{ 
         textAlign: 'center',
         fontWeight: 'bold',
         whiteSpace: 'nowrap',
         color: displayWorkTime === '0.00' ? '#666' : 'inherit',
-        ...getHolidayCellStyle(true) // Применяем розовый фон для праздничных дней (из holidays списка)
+        ...getHolidayCellStyle(true) // Применяем розовый фон для праздничных дней (из Date-only compatible holidays списка)
       }}
       className={isDeleted ? styles.deletedText : ''}>
         <span className={isDeleted ? styles.deletedText : ''}>
