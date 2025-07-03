@@ -295,7 +295,7 @@ export const MonthSummary: React.FC<IMonthSummaryProps> = ({
                             const daysInMonth = calculateLeaveDaysInMonth(leave, targetMonth, targetYear);
                             return (
                               <li key={index} style={{ marginBottom: '1px' }}>
-                                "{leave.title}": {formatDateOnlyForDisplay(leave.startDate)} - {leave.endDate ? formatDateOnlyForDisplay(leave.endDate) : 'ongoing'}
+                                &ldquo;{leave.title}&rdquo;: {formatDateOnlyForDisplay(leave.startDate)} - {leave.endDate ? formatDateOnlyForDisplay(leave.endDate) : 'ongoing'}
                                 {daysInMonth > 0 && ` (${daysInMonth} days)`}
                               </li>
                             );
