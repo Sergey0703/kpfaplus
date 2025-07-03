@@ -411,7 +411,7 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
     setIsNewLeaveDialogOpen(true);
   };
 
-  // ОБНОВЛЕНО: Обработчик подтверждения создания нового отпуска с Date-only
+  // ОБНОВЛЕНО: Обработчик подтверждения создания нового отпуска с Date-only и автоматическим редактированием
   const handleConfirmNewLeave = async (): Promise<void> => {
     if (!daysOfLeavesService || !selectedStaff || !selectedStaff.employeeId) {
       console.error('[LeavesTabContent] Cannot create new leave: missing service, staff, or employeeId');
@@ -462,6 +462,12 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
         
         // Перезагружаем данные для отображения новой записи
         await loadData();
+        
+        // ДОБАВЛЕНО: Автоматически переводим новую запись в режим редактирования
+        setTimeout(() => {
+          console.log('[LeavesTabContent] Auto-starting edit mode for new leave:', newLeaveId);
+          handleStartEdit(newLeaveId);
+        }, 100);
         
         console.log('[LeavesTabContent] Data reloaded after creating new leave, highlighting new record');
       } else {
