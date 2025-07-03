@@ -440,7 +440,19 @@ export class DaysOfLeavesService {
     });
   }
 
-
+  /**
+   * Форматирует дату для сравнения (только год-месяц-день)
+   * @param date Дата для форматирования
+   * @returns Строка в формате "YYYY-MM-DD"
+   */
+  private formatDateForComparison(date: Date): string {
+    // Используем локальные компоненты даты без учета времени
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    
+    return `${year}-${month}-${day}`;
+  }
 
   /**
    * ИСПРАВЛЕНО: Форматирует дату для использования в фильтре запроса (Date-only формат)
@@ -463,9 +475,10 @@ export class DaysOfLeavesService {
   }
 
   /**
-   * НОВЫЙ МЕТОД: Форматирует дату для отправки в SharePoint (Date-only формат)
+   * ИСПРАВЛЕНО: Форматирует дату для отправки в SharePoint (предотвращает timezone конверсию)
+   * Использует UTC полночь для принуждения правильного сохранения Date-only полей
    * @param date Дата для форматирования
-   * @returns Строка даты в формате для SharePoint
+   * @returns Строка даты в формате UTC для SharePoint
    */
   private formatDateForSharePoint(date: Date): string {
     // Используем локальные компоненты даты для избежания проблем с часовыми поясами
@@ -473,13 +486,18 @@ export class DaysOfLeavesService {
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const day = date.getDate().toString().padStart(2, '0');
     
-    // Возвращаем в формате YYYY-MM-DD (Date-only)
-    return `${year}-${month}-${day}`;
+    // ИСПРАВЛЕНО: Отправляем как UTC полночь с явным Z, чтобы предотвратить timezone конверсию SharePoint
+    // Это решает известную проблему с Date-only полями в SharePoint Graph API
+    const formattedDate = `${year}-${month}-${day}T00:00:00.000Z`;
+    
+    this.logInfo(`Formatted date for SharePoint: ${date.toLocaleDateString()} -> ${formattedDate}`);
+    
+    return formattedDate;
   }
 
   /**
    * ОБНОВЛЕНО: Преобразует сырые данные из SharePoint в массив объектов ILeaveDay
-   * Улучшена обработка Date-only формата
+   * Использует тот же подход что и в HolidaysService для правильной обработки Date-only формата
    * @param items Данные из SharePoint
    * @returns Массив объектов ILeaveDay
    */
@@ -496,16 +514,20 @@ export class DaysOfLeavesService {
             this.logError(`Missing required date field for leave item ${typedItem.id}`);
             return undefined;
           }
-          
-          // УЛУЧШЕНО: Обработка Date-only формата из SharePoint для startDate
+
+          // ИСПРАВЛЕНО: Используем тот же подход что и в HolidaysService для обработки Date-only формата
           let startDate: Date;
           
+          // Логируем исходное значение даты
+          this.logInfo(`[DEBUG] Raw startDate from SharePoint for item ${typedItem.id}: "${fields.Date}"`);
+          
           if (typeof fields.Date === 'string') {
-            // Если приходит строка даты (например, "2025-06-15" или "2025-06-15T00:00:00Z")
+            // Если приходит строка даты (например, "2025-06-01" или "2025-06-01T00:00:00Z")
             const dateStr = fields.Date;
             
             // Убираем время если оно есть, оставляем только дату
             const dateOnlyStr = dateStr.split('T')[0];
+            this.logInfo(`[DEBUG] Date after splitting on T: "${dateOnlyStr}"`);
             
             // Создаем дату из компонентов для избежания проблем с часовыми поясами
             const dateParts = dateOnlyStr.split('-');
@@ -515,28 +537,34 @@ export class DaysOfLeavesService {
               const day = parseInt(dateParts[2]);
               
               startDate = new Date(year, month, day);
+              this.logInfo(`[DEBUG] Created startDate from components: ${this.formatDateForComparison(startDate)} (Year: ${year}, Month: ${month}, Day: ${day})`);
             } else {
               // Fallback на стандартный парсинг
               startDate = new Date(dateStr);
+              this.logInfo(`[DEBUG] Used fallback parsing for startDate: ${this.formatDateForComparison(startDate)}`);
             }
           } else {
             // Если уже объект Date
             startDate = new Date(fields.Date);
+            this.logInfo(`[DEBUG] Converted object to startDate: ${this.formatDateForComparison(startDate)}`);
           }
           
           if (isNaN(startDate.getTime())) {
             this.logError(`Invalid start date format for leave item ${typedItem.id}: ${fields.Date}`);
             return undefined;
           }
-          
-          // УЛУЧШЕНО: Обработка Date-only формата для endDate (может быть undefined)
+
+          // ИСПРАВЛЕНО: Используем тот же подход для endDate (Date2)
           let endDate: Date | undefined;
           
           if (fields.Date2) {
-            // Если есть дата окончания, преобразуем ее аналогично startDate
+            // Логируем исходное значение даты окончания
+            this.logInfo(`[DEBUG] Raw endDate from SharePoint for item ${typedItem.id}: "${fields.Date2}"`);
+            
             if (typeof fields.Date2 === 'string') {
               const dateStr = fields.Date2;
               const dateOnlyStr = dateStr.split('T')[0];
+              this.logInfo(`[DEBUG] EndDate after splitting on T: "${dateOnlyStr}"`);
               
               const dateParts = dateOnlyStr.split('-');
               if (dateParts.length === 3) {
@@ -545,11 +573,14 @@ export class DaysOfLeavesService {
                 const day = parseInt(dateParts[2]);
                 
                 endDate = new Date(year, month, day);
+                this.logInfo(`[DEBUG] Created endDate from components: ${this.formatDateForComparison(endDate)} (Year: ${year}, Month: ${month}, Day: ${day})`);
               } else {
                 endDate = new Date(dateStr);
+                this.logInfo(`[DEBUG] Used fallback parsing for endDate: ${this.formatDateForComparison(endDate)}`);
               }
             } else {
               endDate = new Date(fields.Date2);
+              this.logInfo(`[DEBUG] Converted object to endDate: ${this.formatDateForComparison(endDate)}`);
             }
             
             if (isNaN(endDate.getTime())) {
@@ -637,7 +668,7 @@ export class DaysOfLeavesService {
           this.logInfo(`[DEBUG] - Final typeOfLeave value: ${typeOfLeave}`);
           
           // Создаем объект ILeaveDay
-          return {
+          const result: ILeaveDay = {
             id: String(typedItem.id),
             title: String(fields.Title || ''),
             startDate: startDate,
@@ -650,6 +681,10 @@ export class DaysOfLeavesService {
             createdBy: String(fields.CreatedBy || fields['Created By'] || ''),
             deleted: Boolean(fields.Deleted === 1 || fields.Deleted === true)
           };
+
+          this.logInfo(`[DEBUG] Final mapped leave: ID=${result.id}, startDate=${this.formatDateForComparison(result.startDate)}, endDate=${result.endDate ? this.formatDateForComparison(result.endDate) : 'undefined'}`);
+          
+          return result;
         } catch (error) {
           this.logError(`Error processing leave item ${(item as {id?: string | number})?.id || 'unknown'}: ${error}`);
           return undefined;

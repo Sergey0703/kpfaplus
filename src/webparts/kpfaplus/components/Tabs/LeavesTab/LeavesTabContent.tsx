@@ -43,7 +43,7 @@ const formatDateForStorage = (date: Date): string => {
 };
 
 // НОВАЯ ФУНКЦИЯ: Парсинг даты из sessionStorage в Date-only формате
-const parseDateFromStorage = (dateString: string): Date | null => {
+const parseDateFromStorage = (dateString: string): Date | undefined => {
   try {
     // Ожидаем формат YYYY-MM-DD
     const dateParts = dateString.split('-');
@@ -58,10 +58,10 @@ const parseDateFromStorage = (dateString: string): Date | null => {
     }
     
     console.warn('[LeavesTabContent] Invalid date format in storage:', dateString);
-    return null;
+    return undefined;
   } catch (error) {
     console.warn('[LeavesTabContent] Error parsing date from storage:', error);
-    return null;
+    return undefined;
   }
 };
 
