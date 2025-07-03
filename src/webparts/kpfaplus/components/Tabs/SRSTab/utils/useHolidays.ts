@@ -230,7 +230,7 @@ export const useHolidays = (props: UseHolidaysProps): UseHolidaysReturn => {
 };
 
 /**
- * *** ИСПРАВЛЕНО: Упрощенная функция получения месяцев в диапазоне дат ***
+ * *** ИСПРАВЛЕНО: Упрощенная функция получения месяцев в диапазоне дат БЕЗ БЕСКОНЕЧНОГО ЦИКЛА ***
  */
 function getMonthsInDateRange(fromDate: Date, toDate: Date): Array<{ month: number; year: number }> {
   const months: Array<{ month: number; year: number }> = [];
@@ -246,18 +246,32 @@ function getMonthsInDateRange(fromDate: Date, toDate: Date): Array<{ month: numb
     normalizedEnd: endDate.toISOString()
   });
   
-  // *** ИСПРАВЛЕНО: Упрощенный цикл без сложной логики ***
-  const currentDate = new Date(startDate);
+  // *** ИСПРАВЛЕНО: Цикл с правильным переназначением переменной ***
+  let currentYear = startDate.getFullYear();
+  let currentMonth = startDate.getMonth();
+  const endYear = endDate.getFullYear();
+  const endMonth = endDate.getMonth();
   
-  while (currentDate <= endDate) {
-    const month = currentDate.getMonth() + 1; // API ожидает 1-12, а не 0-11
-    const year = currentDate.getFullYear();
+  // Используем простой цикл для перебора месяцев
+  while (currentYear < endYear || (currentYear === endYear && currentMonth <= endMonth)) {
+    const month = currentMonth + 1; // API ожидает 1-12, а не 0-11
+    const year = currentYear;
     
     months.push({ month, year });
     console.log(`[getMonthsInDateRange] Added month for SRS (SIMPLIFIED): ${month}/${year}`);
     
-    // Переходим к следующему месяцу
-    currentDate.setMonth(currentDate.getMonth() + 1);
+    // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Переназначаем переменные правильно ***
+    currentMonth++;
+    if (currentMonth > 11) { // Месяцы 0-11
+      currentMonth = 0;
+      currentYear++;
+    }
+    
+    // *** ЗАЩИТА ОТ БЕСКОНЕЧНОГО ЦИКЛА: Ограничиваем максимальное количество итераций ***
+    if (months.length > 24) { // Не больше 2 лет
+      console.warn('[getMonthsInDateRange] Too many months, breaking loop to prevent infinite loop');
+      break;
+    }
   }
   
   console.log(`[getMonthsInDateRange] *** SIMPLIFIED: Total months to load for SRS: ${months.length} ***`);
