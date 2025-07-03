@@ -5,9 +5,9 @@ import { IContract } from "../../../../models/IContract";
 import { DateUtils } from '../../../CustomDatePicker/CustomDatePicker';
 
 /**
- * *** НОВАЯ ФУНКЦИЯ: Date-only форматирование для совместимости с HolidaysService ***
+ * *** ОБНОВЛЕННАЯ ФУНКЦИЯ: Date-only форматирование для совместимости с HolidaysService и DaysOfLeavesService ***
  * Создает строку даты в формате YYYY-MM-DD для консистентного сравнения
- * Совместимо с Date-only форматом из SharePoint Holidays list
+ * Совместимо с Date-only форматом из SharePoint Holidays и DaysOfLeaves списков
  */
 export const formatDateForComparison = (date: Date): string => {
   const year = date.getFullYear();
@@ -17,9 +17,9 @@ export const formatDateForComparison = (date: Date): string => {
 };
 
 /**
- * *** НОВАЯ ФУНКЦИЯ: Date-only совместимое сравнение дат ***
+ * *** ОБНОВЛЕННАЯ ФУНКЦИЯ: Date-only совместимое сравнение дат ***
  * Сравнивает две даты только по компонентам года, месяца и дня
- * Игнорирует время и часовые пояса
+ * Игнорирует время и часовые пояса для совместимости с Date-only полями SharePoint
  */
 export const isDateEqual = (date1: Date, date2: Date): boolean => {
   return date1.getFullYear() === date2.getFullYear() &&
@@ -36,7 +36,7 @@ export const formatDateOnly = (date: Date): string => {
 };
 
 /**
- * *** НОВАЯ ФУНКЦИЯ: Проверка является ли дата праздником (Date-only совместимо) ***
+ * *** ОБНОВЛЕННАЯ ФУНКЦИЯ: Проверка является ли дата праздником (Date-only совместимо) ***
  * Использует Date-only сравнение для совместимости с новым форматом Holidays list
  */
 export const isHolidayDate = (date: Date, holidays: Array<{ date: Date; title: string }>): boolean => {
@@ -48,7 +48,56 @@ export const isHolidayDate = (date: Date, holidays: Array<{ date: Date; title: s
   
   return holidays.some(holiday => {
     const holidayDateString = formatDateForComparison(holiday.date);
-    return holidayDateString === targetDateString;
+    const isMatch = holidayDateString === targetDateString;
+    
+    if (isMatch) {
+      console.log(`[ScheduleTabDataUtils] Holiday match found via Date-only comparison: ${holiday.title} for ${targetDateString}`);
+    }
+    
+    return isMatch;
+  });
+};
+
+/**
+ * *** ОБНОВЛЕННАЯ ФУНКЦИЯ: Проверка является ли дата днем отпуска (Date-only совместимо) ***
+ * Использует Date-only сравнение и правильную логику для проверки периодов отпусков
+ */
+export const isLeaveDateInPeriod = (date: Date, leaves: Array<{ startDate: Date; endDate?: Date; title: string }>): boolean => {
+  if (!leaves || leaves.length === 0) {
+    return false;
+  }
+  
+  console.log(`[ScheduleTabDataUtils] *** CHECKING LEAVE DATE WITH DATE-ONLY COMPATIBILITY ***`);
+  console.log(`[ScheduleTabDataUtils] Target date: ${formatDateForComparison(date)}`);
+  
+  // Нормализуем проверяемую дату к полуночи
+  const checkDate = new Date(date);
+  checkDate.setHours(0, 0, 0, 0);
+  
+  return leaves.some(leave => {
+    // Нормализуем даты отпуска
+    const leaveStart = new Date(leave.startDate);
+    leaveStart.setHours(0, 0, 0, 0);
+    
+    // Для открытых отпусков (без даты окончания)
+    if (!leave.endDate) {
+      const isInOpenLeave = checkDate >= leaveStart;
+      if (isInOpenLeave) {
+        console.log(`[ScheduleTabDataUtils] Date ${formatDateForComparison(date)} is in open leave: ${leave.title} (starts ${formatDateForComparison(leaveStart)})`);
+      }
+      return isInOpenLeave;
+    }
+    
+    // Для закрытых отпусков с определенной датой окончания
+    const leaveEnd = new Date(leave.endDate);
+    leaveEnd.setHours(23, 59, 59, 999);
+    
+    const isInClosedLeave = checkDate >= leaveStart && checkDate <= leaveEnd;
+    if (isInClosedLeave) {
+      console.log(`[ScheduleTabDataUtils] Date ${formatDateForComparison(date)} is in closed leave: ${leave.title} (${formatDateForComparison(leaveStart)} - ${formatDateForComparison(leaveEnd)})`);
+    }
+    
+    return isInClosedLeave;
   });
 };
 

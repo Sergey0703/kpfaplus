@@ -32,7 +32,7 @@ export const DayInfo: React.FC<IDayInfoProps> = ({
  holidaysService,
  daysOfLeavesService
 }) => {
- // *** УЛУЧШЕННАЯ ФУНКЦИЯ ДЛЯ DATE-ONLY СОВМЕСТИМОСТИ ***
+ // *** ОБНОВЛЕННАЯ ФУНКЦИЯ ДЛЯ DATE-ONLY СОВМЕСТИМОСТИ ***
  const formatDateForComparison = React.useCallback((date: Date): string => {
    const year = date.getFullYear();
    const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -40,19 +40,22 @@ export const DayInfo: React.FC<IDayInfoProps> = ({
    return `${year}-${month}-${day}`;
  }, []);
 
+
+
  // Получаем текущий месяц и год из выбранной даты
  const currentMonth = selectedDate.getMonth();
  const currentYear = selectedDate.getFullYear();
  
- // *** ИСПРАВЛЕНО: Находим все праздники в текущем месяце с Date-only совместимостью ***
+ // *** ОБНОВЛЕНО: Находим все праздники в текущем месяце с Date-only совместимостью ***
  const monthlyHolidays = React.useMemo(() => {
    console.log('[DayInfo] *** FILTERING HOLIDAYS FOR MONTH WITH DATE-ONLY COMPATIBILITY ***');
    console.log('[DayInfo] Selected date:', selectedDate.toISOString());
+   console.log('[DayInfo] Selected date (Date-only):', formatDateForComparison(selectedDate));
    console.log('[DayInfo] Target month:', currentMonth + 1, 'year:', currentYear);
    console.log('[DayInfo] Total holidays received:', holidays.length);
    
    const filtered = holidays.filter(holiday => {
-     // *** УЛУЧШЕНО: Используем компоненты даты напрямую для избежания проблем с часовыми поясами ***
+     // *** ОБНОВЛЕНО: Используем компоненты даты напрямую для избежания проблем с часовыми поясами ***
      const holidayDate = new Date(holiday.date);
      const holidayYear = holidayDate.getFullYear();
      const holidayMonth = holidayDate.getMonth();
@@ -77,10 +80,10 @@ export const DayInfo: React.FC<IDayInfoProps> = ({
    return filtered;
  }, [holidays, currentMonth, currentYear, formatDateForComparison]);
 
- // *** ИСПРАВЛЕНО: Сортируем праздники по дате с Date-only совместимостью ***
+ // *** ОБНОВЛЕНО: Сортируем праздники по дате с Date-only совместимостью ***
  const sortedHolidays = React.useMemo(() => {
    const sorted = [...monthlyHolidays].sort((a, b) => {
-     // *** УЛУЧШЕНО: Используем Date-only строки для сортировки ***
+     // *** ОБНОВЛЕНО: Используем Date-only строки для сортировки ***
      const dateA = formatDateForComparison(new Date(a.date));
      const dateB = formatDateForComparison(new Date(b.date));
      return dateA.localeCompare(dateB);
@@ -94,39 +97,58 @@ export const DayInfo: React.FC<IDayInfoProps> = ({
    return sorted;
  }, [monthlyHolidays, formatDateForComparison]);
 
- // *** FILTER OUT DELETED LEAVES FOR SCHEDULE TAB ***
+ // *** ОБНОВЛЕНО: Фильтруем активные отпуска для Schedule Tab (без удаленных) ***
  const activeLeaves = React.useMemo(() => {
+   console.log('[DayInfo] *** FILTERING ACTIVE LEAVES FOR DATE-ONLY COMPATIBILITY ***');
+   console.log('[DayInfo] Total leaves received:', leaves.length);
+   
    const filtered = leaves.filter(leave => {
      const isDeleted = leave.deleted === true;
      if (isDeleted) {
-       console.log(`[DayInfo] Filtering out deleted leave: ${leave.title} (${new Date(leave.startDate).toLocaleDateString()} - ${leave.endDate ? new Date(leave.endDate).toLocaleDateString() : 'ongoing'})`);
+       const startDateFormatted = formatDateForComparison(leave.startDate);
+       const endDateFormatted = leave.endDate ? formatDateForComparison(leave.endDate) : 'ongoing';
+       console.log(`[DayInfo] Filtering out deleted leave: ${leave.title} (${startDateFormatted} - ${endDateFormatted})`);
      }
      return !isDeleted;
    });
    
    console.log('[DayInfo] Active leaves after filtering:', filtered.length, 'out of', leaves.length, 'total');
    return filtered;
- }, [leaves]);
+ }, [leaves, formatDateForComparison]);
 
- // *** ИСПРАВЛЕНО: Получаем все активные отпуска за месяц с улучшенной логикой ***
+ // *** ОБНОВЛЕНО: Получаем все активные отпуска за месяц с улучшенной Date-only логикой ***
  const monthlyLeaves = React.useMemo(() => {
-   // *** УЛУЧШЕНО: Используем UTC границы месяца для точного сравнения ***
-   const monthStart = new Date(Date.UTC(currentYear, currentMonth, 1, 0, 0, 0, 0));
-   const monthEnd = new Date(Date.UTC(currentYear, currentMonth + 1, 0, 23, 59, 59, 999));
+   console.log('[DayInfo] *** FILTERING LEAVES FOR MONTH WITH DATE-ONLY COMPATIBILITY ***');
    
-   console.log('[DayInfo] *** FILTERING LEAVES FOR MONTH ***');
-   console.log('[DayInfo] Month boundaries (UTC):', {
+   // *** ОБНОВЛЕНО: Используем локальные границы месяца для точного сравнения ***
+   const monthStart = new Date(currentYear, currentMonth, 1);
+   const monthEnd = new Date(currentYear, currentMonth + 1, 0);
+   
+   // Нормализуем время для корректного сравнения Date-only полей
+   monthStart.setHours(0, 0, 0, 0);
+   monthEnd.setHours(23, 59, 59, 999);
+   
+   console.log('[DayInfo] Month boundaries (local time):', {
      start: monthStart.toISOString(),
      end: monthEnd.toISOString(),
+     startDateOnly: formatDateForComparison(monthStart),
+     endDateOnly: formatDateForComparison(monthEnd),
      monthNumber: currentMonth + 1,
      year: currentYear
    });
    
    const filtered = activeLeaves.filter(leave => {
+     // *** ОБНОВЛЕНО: Нормализуем даты отпуска для Date-only сравнения ***
      const leaveStart = new Date(leave.startDate);
      const leaveEnd = leave.endDate ? new Date(leave.endDate) : null;
      
-     // *** УЛУЧШЕНО: Более точная логика определения попадания отпуска в месяц ***
+     // Нормализуем время для корректного сравнения
+     leaveStart.setHours(0, 0, 0, 0);
+     if (leaveEnd) {
+       leaveEnd.setHours(23, 59, 59, 999);
+     }
+     
+     // *** ОБНОВЛЕНО: Более точная логика определения попадания отпуска в месяц для Date-only полей ***
      // Отпуск попадает в месяц если:
      // 1. Начинается в этом месяце ИЛИ
      // 2. Заканчивается в этом месяце ИЛИ  
@@ -142,8 +164,8 @@ export const DayInfo: React.FC<IDayInfoProps> = ({
      if (isInMonth) {
        console.log('[DayInfo] Leave matches month filter:', {
          title: leave.title,
-         startDate: leaveStart.toLocaleDateString(),
-         endDate: leaveEnd ? leaveEnd.toLocaleDateString() : 'ongoing',
+         startDate: formatDateForComparison(leaveStart),
+         endDate: leaveEnd ? formatDateForComparison(leaveEnd) : 'ongoing',
          typeOfLeave: leave.typeOfLeave,
          startsInMonth,
          endsInMonth,
@@ -157,28 +179,31 @@ export const DayInfo: React.FC<IDayInfoProps> = ({
    
    console.log('[DayInfo] Monthly leaves filtered:', filtered.length);
    return filtered;
- }, [activeLeaves, currentMonth, currentYear]);
+ }, [activeLeaves, currentMonth, currentYear, formatDateForComparison]);
 
- // *** ИСПРАВЛЕНО: Сортируем отпуска по дате начала ***
+ // *** ОБНОВЛЕНО: Сортируем отпуска по дате начала с Date-only совместимостью ***
  const sortedLeaves = React.useMemo(() => {
    const sorted = [...monthlyLeaves].sort((a, b) => {
-     return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
+     // *** ОБНОВЛЕНО: Используем Date-only сравнение для сортировки ***
+     const dateA = formatDateForComparison(new Date(a.startDate));
+     const dateB = formatDateForComparison(new Date(b.startDate));
+     return dateA.localeCompare(dateB);
    });
    
    console.log('[DayInfo] Leaves sorted by start date:', sorted.map(l => ({
      title: l.title,
-     startDate: new Date(l.startDate).toLocaleDateString(),
-     endDate: l.endDate ? new Date(l.endDate).toLocaleDateString() : 'ongoing'
+     startDate: formatDateForComparison(new Date(l.startDate)),
+     endDate: l.endDate ? formatDateForComparison(new Date(l.endDate)) : 'ongoing'
    })));
    
    return sorted;
- }, [monthlyLeaves]);
+ }, [monthlyLeaves, formatDateForComparison]);
 
- // *** ОТЛАДОЧНОЕ ЛОГИРОВАНИЕ С DATE-ONLY ИНФОРМАЦИЕЙ ***
+ // *** ОБНОВЛЕННОЕ ОТЛАДОЧНОЕ ЛОГИРОВАНИЕ С DATE-ONLY ИНФОРМАЦИЕЙ ***
  React.useEffect(() => {
    console.log('[DayInfo] *** COMPONENT RENDER WITH DATE-ONLY COMPATIBILITY ***');
    console.log('[DayInfo] Selected date:', selectedDate.toISOString());
-   console.log('[DayInfo] Selected date formatted:', formatDateForComparison(selectedDate));
+   console.log('[DayInfo] Selected date (Date-only):', formatDateForComparison(selectedDate));
    console.log('[DayInfo] All holidays received:', holidays.length);
    console.log('[DayInfo] Monthly holidays found:', sortedHolidays.length);
    console.log('[DayInfo] All leaves received:', leaves.length);
@@ -193,11 +218,21 @@ export const DayInfo: React.FC<IDayInfoProps> = ({
        console.log(`  ${index + 1}. ${holiday.title} - ${formatDateForComparison(new Date(holiday.date))}`);
      });
    }
+   
+   // Специальное логирование для первых нескольких отпусков
+   if (sortedLeaves.length > 0) {
+     console.log('[DayInfo] Sample leaves (Date-only format):');
+     sortedLeaves.slice(0, 3).forEach((leave, index) => {
+       const startDateFormatted = formatDateForComparison(new Date(leave.startDate));
+       const endDateFormatted = leave.endDate ? formatDateForComparison(new Date(leave.endDate)) : 'ongoing';
+       console.log(`  ${index + 1}. ${leave.title} (${startDateFormatted} - ${endDateFormatted}), Type: ${leave.typeOfLeave}`);
+     });
+   }
  }, [selectedDate, holidays, leaves, sortedHolidays, sortedLeaves, activeLeaves, formatDateForComparison]);
 
  return (
    <div style={{ marginBottom: '15px' }}>
-     {/* *** ИСПРАВЛЕНО: Показываем все праздники месяца с Date-only совместимостью *** */}
+     {/* *** ОБНОВЛЕНО: Показываем все праздники месяца с Date-only совместимостью *** */}
      {sortedHolidays.length > 0 && (
        <div style={{
          backgroundColor: '#FFF4CE',
@@ -210,7 +245,7 @@ export const DayInfo: React.FC<IDayInfoProps> = ({
          
          <div style={{ marginTop: '8px' }}>
            {sortedHolidays.map((holiday, index) => {
-             // *** УЛУЧШЕНО: Используем Date-only совместимое форматирование ***
+             // *** ОБНОВЛЕНО: Используем Date-only совместимое форматирование ***
              const holidayDate = new Date(holiday.date);
              const displayDate = holidayDate.toLocaleDateString();
              
@@ -239,7 +274,7 @@ export const DayInfo: React.FC<IDayInfoProps> = ({
        </div>
      )}
 
-     {/* *** ИСПРАВЛЕНО: Показываем все активные отпуска месяца *** */}
+     {/* *** ОБНОВЛЕНО: Показываем все активные отпуска месяца с Date-only совместимостью *** */}
      {sortedLeaves.length > 0 && (
        <div style={{
          backgroundColor: '#F3F2F1',
@@ -254,6 +289,10 @@ export const DayInfo: React.FC<IDayInfoProps> = ({
            {sortedLeaves.map((leave, index) => {
              const typeInfo = getLeaveTypeInfo(leave.typeOfLeave, typesOfLeave);
              const typeText = typeInfo?.title || getLeaveTypeText(leave.typeOfLeave) || `Type ${leave.typeOfLeave}`;
+             
+             // *** ОБНОВЛЕНО: Используем Date-only форматирование для отображения дат ***
+             const startDateFormatted = formatDateForComparison(new Date(leave.startDate));
+             const endDateFormatted = leave.endDate ? formatDateForComparison(new Date(leave.endDate)) : null;
              
              return (
                <div key={leave.id || index} style={{ 
@@ -270,6 +309,9 @@ export const DayInfo: React.FC<IDayInfoProps> = ({
                        new Date(leave.endDate).toLocaleDateString() : 
                        <span style={{ color: '#d13438', fontStyle: 'italic' }}>ongoing</span>
                      }
+                     <span style={{ fontSize: '10px', color: '#999', marginLeft: '8px' }}>
+                       (Date-only: {startDateFormatted} - {endDateFormatted || 'ongoing'})
+                     </span>
                    </span>
                    {leave.title && (
                      <span style={{ fontStyle: 'italic', marginLeft: '8px', color: '#8A8886' }}>
@@ -284,7 +326,7 @@ export const DayInfo: React.FC<IDayInfoProps> = ({
        </div>
      )}
 
-     {/* *** УЛУЧШЕНО: Сообщение, если нет активных отпусков *** */}
+     {/* *** ОБНОВЛЕНО: Сообщение, если нет активных отпусков с Date-only информацией *** */}
      {sortedLeaves.length === 0 && (
        <div style={{
          backgroundColor: '#F8F9FA',
@@ -296,11 +338,11 @@ export const DayInfo: React.FC<IDayInfoProps> = ({
          color: '#666',
          fontStyle: 'italic'
        }}>
-         No active leave days found for {selectedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}.
+         No active leave days found for {selectedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })} (Date-only format).
        </div>
      )}
 
-     {/* *** УЛУЧШЕНО: Сообщение, если нет праздников с Date-only информацией *** */}
+     {/* *** ОБНОВЛЕНО: Сообщение, если нет праздников с Date-only информацией *** */}
      {sortedHolidays.length === 0 && (
        <div style={{
          backgroundColor: '#F8F9FA',
