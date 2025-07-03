@@ -214,41 +214,100 @@ export function createHolidayCache(holidays: IHoliday[]): HolidayCache {
 }
 
 /**
-* Создает массив периодов отпусков для быстрой проверки
+* *** ОБНОВЛЕНО: Создает массив периодов отпусков для быстрой проверки с Date-only совместимостью ***
+* Теперь корректно работает с Date-only полями из DaysOfLeaves
 */
 export function createLeavePeriods(leaves: ILeaveDay[]): ILeavePeriod[] {
+ console.log(`[ScheduleTabFillHelpers] *** CREATING LEAVE PERIODS WITH DATE-ONLY COMPATIBILITY ***`);
+ console.log(`[ScheduleTabFillHelpers] Processing ${leaves.length} leave records from DaysOfLeaves with Date-only fields`);
+ 
  // *** FILTER OUT DELETED LEAVES FOR SCHEDULE TAB ***
  const activeLeaves = leaves.filter(leave => {
    const isDeleted = leave.deleted === true;
    if (isDeleted) {
-     console.log(`[ScheduleTabFillHelpers] Filtering out deleted leave: ${leave.title} (${new Date(leave.startDate).toLocaleDateString()} - ${leave.endDate ? new Date(leave.endDate).toLocaleDateString() : 'ongoing'})`);
+     // *** ОБНОВЛЕНО: Date-only совместимое логирование ***
+     const startDateOnly = formatDateOnlyForLogging(leave.startDate);
+     const endDateOnly = leave.endDate ? formatDateOnlyForLogging(leave.endDate) : 'ongoing';
+     console.log(`[ScheduleTabFillHelpers] Filtering out deleted leave: ${leave.title} (${startDateOnly} - ${endDateOnly})`);
    }
    return !isDeleted;
  });
  
+ console.log(`[ScheduleTabFillHelpers] *** DATE-ONLY PROCESSING ***`);
+ console.log(`[ScheduleTabFillHelpers] Total leaves: ${leaves.length}, Active leaves: ${activeLeaves.length}`);
+ 
  const leavePeriods = activeLeaves.map(leave => {
+   // *** ОБНОВЛЕНО: Обработка Date-only полей из DaysOfLeaves ***
+   // Создаем нормализованные даты для корректного сравнения
    const startDate = new Date(leave.startDate);
-   // Если дата окончания не указана, считаем отпуск открытым до далекого будущего
-   const endDate = leave.endDate ? new Date(leave.endDate) : new Date(2099, 11, 31);
    
-   return {
-     startDate,
-     endDate,
+   // *** КРИТИЧЕСКИ ВАЖНО: Нормализация к локальной полуночи для Date-only полей ***
+   // Date-only поля из SharePoint содержат дату без времени
+   const normalizedStartDate = new Date(
+     startDate.getFullYear(),
+     startDate.getMonth(),
+     startDate.getDate(),
+     0, 0, 0, 0 // Локальная полночь
+   );
+   
+   let normalizedEndDate: Date;
+   
+   if (leave.endDate) {
+     const endDate = new Date(leave.endDate);
+     // *** ОБНОВЛЕНО: Для Date-only поля окончания устанавливаем конец дня ***
+     normalizedEndDate = new Date(
+       endDate.getFullYear(),
+       endDate.getMonth(),
+       endDate.getDate(),
+       23, 59, 59, 999 // Конец дня для включения всего дня в период
+     );
+   } else {
+     // Если дата окончания не указана, считаем отпуск открытым до далекого будущего
+     normalizedEndDate = new Date(2099, 11, 31, 23, 59, 59, 999);
+   }
+   
+   const period: ILeavePeriod = {
+     startDate: normalizedStartDate,
+     endDate: normalizedEndDate,
      typeOfLeave: leave.typeOfLeave.toString(),
      title: leave.title
    };
+   
+   // *** ОТЛАДОЧНОЕ ЛОГИРОВАНИЕ ДЛЯ DATE-ONLY СОВМЕСТИМОСТИ ***
+   console.log(`[ScheduleTabFillHelpers] *** DATE-ONLY LEAVE PERIOD CREATED ***`);
+   console.log(`[ScheduleTabFillHelpers] Original dates: ${formatDateOnlyForLogging(leave.startDate)} - ${leave.endDate ? formatDateOnlyForLogging(leave.endDate) : 'ongoing'}`);
+   console.log(`[ScheduleTabFillHelpers] Normalized dates: ${formatDateOnlyForLogging(normalizedStartDate)} - ${formatDateOnlyForLogging(normalizedEndDate)}`);
+   console.log(`[ScheduleTabFillHelpers] Leave: "${leave.title}", Type: ${leave.typeOfLeave}`);
+   
+   return period;
  });
  
- console.log(`[ScheduleTabFillHelpers] Подготовлен кэш отпусков: ${leavePeriods.length} активных записей из ${leaves.length} общих`);
+ console.log(`[ScheduleTabFillHelpers] *** LEAVE PERIODS CREATION COMPLETED ***`);
+ console.log(`[ScheduleTabFillHelpers] Создан кэш отпусков с Date-only совместимостью: ${leavePeriods.length} активных записей из ${leaves.length} общих`);
  
  // Логируем информацию об отпусках для отладки
  leavePeriods.forEach((period, index) => {
    if (index < 3) { // Логируем только первые 3 для экономии места
-     console.log(`[ScheduleTabFillHelpers] Active leave period ${index + 1}: ${period.startDate.toLocaleDateString()} - ${period.endDate.toLocaleDateString()}, type: ${period.typeOfLeave}, title: "${period.title}"`);
+     const startDateOnly = formatDateOnlyForLogging(period.startDate);
+     const endDateOnly = formatDateOnlyForLogging(period.endDate);
+     const isOngoing = period.endDate.getFullYear() === 2099;
+     
+     console.log(`[ScheduleTabFillHelpers] Date-only period ${index + 1}: ${startDateOnly} - ${isOngoing ? 'ongoing' : endDateOnly}, type: ${period.typeOfLeave}, title: "${period.title}"`);
    }
  });
  
  return leavePeriods;
+}
+
+/**
+* *** НОВАЯ ФУНКЦИЯ: Date-only форматирование для логирования ***
+* Создает читаемую строку даты в формате YYYY-MM-DD
+*/
+function formatDateOnlyForLogging(date: Date): string {
+ const year = date.getFullYear();
+ const month = (date.getMonth() + 1).toString().padStart(2, '0');
+ const day = date.getDate().toString().padStart(2, '0');
+ return `${year}-${month}-${day}`;
 }
 
 /**
@@ -329,9 +388,10 @@ export function groupTemplatesByWeekAndDay(activeTemplates: IScheduleTemplate[],
 }
 
 /**
-* *** ИСПРАВЛЕННАЯ ФУНКЦИЯ prepareDaysData - ФИКСИТ ПРОБЛЕМУ С 32 ДНЯМИ ***
+* *** ОБНОВЛЕНО: prepareDaysData с улучшенной Date-only логикой для отпусков ***
 * Подготавливает данные для всех дней периода с правильным подсчетом дней
 * ИСПРАВЛЕНО: Использует UTC методы для создания дат и правильно считает количество дней
+* ОБНОВЛЕНО: Корректно проверяет отпуска с Date-only полями
 */
 export function prepareDaysData(
  firstDay: Date,
@@ -341,9 +401,10 @@ export function prepareDaysData(
  templatesByWeekAndDay: TemplateCache,
  numberOfWeekTemplates: number
 ): Map<string, IDayData> {
- console.log(`[ScheduleTabFillHelpers] *** FIXED prepareDaysData - CORRECT DAY COUNT CALCULATION ***`);
+ console.log(`[ScheduleTabFillHelpers] *** UPDATED prepareDaysData WITH DATE-ONLY LEAVE COMPATIBILITY ***`);
  console.log(`[ScheduleTabFillHelpers] Period: ${firstDay.toISOString()} - ${lastDay.toISOString()}`);
  console.log(`[ScheduleTabFillHelpers] Templates contain time from numeric fields`);
+ console.log(`[ScheduleTabFillHelpers] Leave periods created with Date-only compatibility`);
  
  // *** ИСПРАВЛЕНИЕ: Правильный расчет количества дней в периоде ***
  // Создаем нормализованные даты для точного подсчета дней
@@ -371,12 +432,6 @@ export function prepareDaysData(
  console.log(`[ScheduleTabFillHelpers] Time difference (ms): ${timeDiffMs}`);
  console.log(`[ScheduleTabFillHelpers] Time difference (days): ${timeDiffMs / (1000 * 60 * 60 * 24)}`);
  console.log(`[ScheduleTabFillHelpers] Calculated day count: ${dayCount}`);
- 
- // *** ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА для переходов летнее/зимнее время ***
- // UTC не подвержен переходам на летнее/зимнее время, поэтому такая логика безопасна
- console.log(`[ScheduleTabFillHelpers] *** TIMEZONE TRANSITION SAFETY ***`);
- console.log(`[ScheduleTabFillHelpers] Using UTC dates - immune to DST transitions`);
- console.log(`[ScheduleTabFillHelpers] This logic works correctly in any timezone and any month`);
  
  const daysData = new Map<string, IDayData>();
  
@@ -415,10 +470,28 @@ export function prepareDaysData(
    const isHoliday = holidayCache.has(dateKey);
    const holidayInfo = isHoliday ? holidayCache.get(dateKey) : undefined;
    
-   // Проверяем, находится ли сотрудник в отпуске в этот день
-   const leaveForDay = leavePeriods.find(leave => 
-     currentDate >= leave.startDate && currentDate <= leave.endDate
-   );
+   // *** ОБНОВЛЕНО: Проверяем отпуска с улучшенной Date-only логикой ***
+   const leaveForDay = leavePeriods.find(leave => {
+     // *** ИСПРАВЛЕНО: Создаем локальную дату для сравнения с нормализованными периодами отпусков ***
+     // currentDate в UTC, а leave periods в локальном времени
+     const localCurrentDate = new Date(
+       currentDate.getUTCFullYear(),
+       currentDate.getUTCMonth(),
+       currentDate.getUTCDate(),
+       12, 0, 0, 0 // Полдень локального времени для надежного сравнения
+     );
+     
+     const isInLeave = localCurrentDate >= leave.startDate && localCurrentDate <= leave.endDate;
+     
+     if (isInLeave) {
+       console.log(`[ScheduleTabFillHelpers] *** DATE-ONLY LEAVE MATCH FOUND ***`);
+       console.log(`[ScheduleTabFillHelpers] Date: ${formatDateOnlyForLogging(currentDate)} matches leave "${leave.title}"`);
+       console.log(`[ScheduleTabFillHelpers] Leave period: ${formatDateOnlyForLogging(leave.startDate)} - ${formatDateOnlyForLogging(leave.endDate)}`);
+       console.log(`[ScheduleTabFillHelpers] Leave type: ${leave.typeOfLeave}`);
+     }
+     
+     return isInLeave;
+   });
    const isLeave = !!leaveForDay;
    
    // Получаем шаблоны для этого дня недели и недели
@@ -450,32 +523,24 @@ export function prepareDaysData(
      console.log(`[ScheduleTabFillHelpers] Day of week: ${adjustedDayIndex} (${['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][adjustedDayIndex]})`);
      console.log(`[ScheduleTabFillHelpers] Week number: ${weekNumber}, Applied week: ${appliedWeekNumber}`);
      console.log(`[ScheduleTabFillHelpers] Is holiday: ${isHoliday}`);
-     console.log(`[ScheduleTabFillHelpers] Is leave: ${isLeave}`);
+     console.log(`[ScheduleTabFillHelpers] Is leave: ${isLeave} (Date-only compatible check)`);
      console.log(`[ScheduleTabFillHelpers] Templates count: ${templatesForDay.length}`);
      console.log(`[ScheduleTabFillHelpers] Template lookup key: ${key}`);
      console.log(`[ScheduleTabFillHelpers] Templates contain time from numeric fields`);
    }
    
-   // *** СПЕЦИАЛЬНАЯ ОТЛАДКА ДЛЯ ПОСЛЕДНЕГО ДНЯ МЕСЯЦА ***
-   if (currentDate.getUTCDate() === normalizedLastDay.getUTCDate() && 
-       currentDate.getUTCMonth() === normalizedLastDay.getUTCMonth() && 
-       currentDate.getUTCFullYear() === normalizedLastDay.getUTCFullYear()) {
-     console.log(`[ScheduleTabFillHelpers] *** LAST DAY OF PERIOD PROCESSED ***`);
-     console.log(`[ScheduleTabFillHelpers] Last day: ${currentDate.toISOString()}`);
-     console.log(`[ScheduleTabFillHelpers] Day ${i + 1} of ${dayCount} total days`);
-   }
-   
    // Логируем информацию о дне (только для первых нескольких дней и важных случаев)
    if (i < 3 || isHoliday || isLeave || templatesForDay.length > 0) {
      const dayName = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][adjustedDayIndex];
-     console.log(`[ScheduleTabFillHelpers] Day ${i + 1} (${currentDate.toLocaleDateString()} ${dayName}): holiday=${isHoliday}, leave=${isLeave}, templates=${templatesForDay.length}, week=${appliedWeekNumber}`);
+     console.log(`[ScheduleTabFillHelpers] Day ${i + 1} (${currentDate.toLocaleDateString()} ${dayName}): holiday=${isHoliday}, leave=${isLeave} (Date-only), templates=${templatesForDay.length}, week=${appliedWeekNumber}`);
      
      if (isHoliday && holidayInfo) {
        console.log(`[ScheduleTabFillHelpers]   Holiday: ${holidayInfo.title}`);
      }
      
      if (isLeave && leaveForDay) {
-       console.log(`[ScheduleTabFillHelpers]   Leave: ${leaveForDay.title} (type: ${leaveForDay.typeOfLeave})`);
+       console.log(`[ScheduleTabFillHelpers]   Leave (Date-only): ${leaveForDay.title} (type: ${leaveForDay.typeOfLeave})`);
+       console.log(`[ScheduleTabFillHelpers]   Leave period: ${formatDateOnlyForLogging(leaveForDay.startDate)} - ${formatDateOnlyForLogging(leaveForDay.endDate)}`);
      }
      
      if (templatesForDay.length > 0) {
@@ -487,10 +552,11 @@ export function prepareDaysData(
    }
  }
  
- console.log(`[ScheduleTabFillHelpers] *** FINAL RESULT: CORRECT DAY COUNT ***`);
+ console.log(`[ScheduleTabFillHelpers] *** FINAL RESULT: CORRECT DAY COUNT WITH DATE-ONLY LEAVES ***`);
  console.log(`[ScheduleTabFillHelpers] Expected days: ${dayCount}, Generated days: ${daysData.size}`);
  console.log(`[ScheduleTabFillHelpers] Day count matches: ${dayCount === daysData.size ? 'YES ✓' : 'NO ✗'}`);
  console.log(`[ScheduleTabFillHelpers] Templates contain time from numeric fields: ✓`);
+ console.log(`[ScheduleTabFillHelpers] Leave periods use Date-only compatible logic: ✓`);
  console.log(`[ScheduleTabFillHelpers] UTC timezone safe for DST transitions: ✓`);
  
  // Статистика по подготовленным данным
@@ -504,7 +570,7 @@ export function prepareDaysData(
    templatesCount += dayData.templates.length;
  });
  
- console.log(`[ScheduleTabFillHelpers] Summary: ${holidaysCount} holidays, ${leavesCount} leave days, ${templatesCount} total templates`);
+ console.log(`[ScheduleTabFillHelpers] Summary with Date-only leaves: ${holidaysCount} holidays, ${leavesCount} leave days, ${templatesCount} total templates`);
  
  return daysData;
 }
@@ -610,7 +676,7 @@ export function formatTimeForLogging(time?: IDayHours): string {
 }
 
 /**
-* Подсчитывает статистику по дням данных
+* *** ОБНОВЛЕНО: Подсчитывает статистику по дням данных с Date-only совместимостью ***
 */
 export function calculateDaysDataStatistics(daysData: Map<string, IDayData>): {
  totalDays: number;
@@ -627,7 +693,7 @@ export function calculateDaysDataStatistics(daysData: Map<string, IDayData>): {
  
  daysData.forEach(dayData => {
    if (dayData.isHoliday) holidayDays++;
-   if (dayData.isLeave) leaveDays++;
+   if (dayData.isLeave) leaveDays++; // *** Теперь проверка отпусков использует Date-only логику ***
    if (dayData.templates.length > 0) {
      daysWithTemplates++;
      totalTemplates += dayData.templates.length;
@@ -639,13 +705,13 @@ export function calculateDaysDataStatistics(daysData: Map<string, IDayData>): {
  const stats = {
    totalDays: daysData.size,
    holidayDays,
-   leaveDays,
+   leaveDays, // *** Статистика отпусков с Date-only совместимостью ***
    workingDays,
    daysWithTemplates,
    totalTemplates
  };
  
- console.log(`[ScheduleTabFillHelpers] Days data statistics:`, stats);
+ console.log(`[ScheduleTabFillHelpers] Days data statistics with Date-only leaves:`, stats);
  
  return stats;
 }
