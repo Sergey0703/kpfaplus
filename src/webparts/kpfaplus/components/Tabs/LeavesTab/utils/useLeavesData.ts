@@ -27,6 +27,12 @@ interface IUseLeavesDataReturn {
   createLeave: (leave: Omit<ILeaveDay, 'id'>) => Promise<string | undefined>;
 }
 
+// НОВАЯ ФУНКЦИЯ: Нормализация даты для работы с Date-only
+const normalizeDateForDateOnly = (date: Date): Date => {
+  // Создаем новую дату с теми же компонентами, но без времени
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+};
+
 export const useLeavesData = (props: IUseLeavesDataProps): IUseLeavesDataReturn => {
   const {
     typeOfLeaveService,
@@ -77,15 +83,26 @@ export const useLeavesData = (props: IUseLeavesDataProps): IUseLeavesDataReturn 
           periodEnd: selectedPeriodEnd.toLocaleDateString()
         });
 
+        // ОБНОВЛЕНО: Нормализуем даты для Date-only формата перед отправкой в сервис
+        const normalizedStartDate = normalizeDateForDateOnly(selectedPeriodStart);
+        
         const leavesData = await daysOfLeavesService.getLeavesForMonthAndYear(
-          selectedPeriodStart,
+          normalizedStartDate,
           parseInt(selectedStaff.employeeId, 10),
           parseInt(currentUserId, 10),
           parseInt(managingGroupId, 10)
         );
         
         console.log('[useLeavesData] Loaded leaves:', leavesData.length);
-        setLeaves(leavesData);
+        
+        // ОБНОВЛЕНО: Нормализуем даты в полученных данных для обеспечения Date-only формата
+        const normalizedLeavesData = leavesData.map(leave => ({
+          ...leave,
+          startDate: normalizeDateForDateOnly(leave.startDate),
+          endDate: leave.endDate ? normalizeDateForDateOnly(leave.endDate) : undefined
+        }));
+        
+        setLeaves(normalizedLeavesData);
       } else {
         console.log('[useLeavesData] Cannot load leaves - missing required data:', {
           hasService: !!daysOfLeavesService,
@@ -185,7 +202,7 @@ export const useLeavesData = (props: IUseLeavesDataProps): IUseLeavesDataReturn 
     }
   }, [daysOfLeavesService]);
 
-  // Функция для сохранения изменений отпуска
+  // ОБНОВЛЕНО: Функция для сохранения изменений отпуска с Date-only обработкой
   const saveLeave = useCallback(async (leave: Partial<ILeaveDay>): Promise<boolean> => {
     if (!daysOfLeavesService || !leave.id) {
       console.error('[useLeavesData] DaysOfLeavesService not available or leave ID missing for save');
@@ -195,16 +212,33 @@ export const useLeavesData = (props: IUseLeavesDataProps): IUseLeavesDataReturn 
     console.log('[useLeavesData] Saving leave:', leave.id);
 
     try {
+      // ОБНОВЛЕНО: Нормализуем даты в данных для сохранения
+      const normalizedLeave = { ...leave };
+      
+      if (normalizedLeave.startDate) {
+        normalizedLeave.startDate = normalizeDateForDateOnly(normalizedLeave.startDate);
+      }
+      
+      if (normalizedLeave.endDate) {
+        normalizedLeave.endDate = normalizeDateForDateOnly(normalizedLeave.endDate);
+      }
+      
       // Используем реальный метод updateLeave из DaysOfLeavesService
-      const success = await daysOfLeavesService.updateLeave(leave.id, leave);
+      const success = await daysOfLeavesService.updateLeave(leave.id, normalizedLeave);
       
       if (success) {
         console.log('[useLeavesData] Leave saved successfully, updating local state');
         
-        // Обновляем локальное состояние
+        // ОБНОВЛЕНО: Обновляем локальное состояние с нормализованными датами
         setLeaves(prev => prev.map(existingLeave => 
           existingLeave.id === leave.id 
-            ? { ...existingLeave, ...leave }
+            ? { 
+                ...existingLeave, 
+                ...normalizedLeave,
+                // Убеждаемся, что даты нормализованы в локальном состоянии
+                startDate: normalizedLeave.startDate ? normalizeDateForDateOnly(normalizedLeave.startDate) : existingLeave.startDate,
+                endDate: normalizedLeave.endDate ? normalizeDateForDateOnly(normalizedLeave.endDate) : existingLeave.endDate
+              }
             : existingLeave
         ));
         
@@ -220,7 +254,7 @@ export const useLeavesData = (props: IUseLeavesDataProps): IUseLeavesDataReturn 
     }
   }, [daysOfLeavesService]);
 
-  // Функция для создания нового отпуска
+  // ОБНОВЛЕНО: Функция для создания нового отпуска с Date-only обработкой
   const createLeave = useCallback(async (leave: Omit<ILeaveDay, 'id'>): Promise<string | undefined> => {
     if (!daysOfLeavesService) {
       console.error('[useLeavesData] DaysOfLeavesService not available for create');
@@ -230,18 +264,37 @@ export const useLeavesData = (props: IUseLeavesDataProps): IUseLeavesDataReturn 
     console.log('[useLeavesData] Creating new leave');
 
     try {
+      // ОБНОВЛЕНО: Нормализуем даты для Date-only формата
+      const normalizedLeave = { ...leave };
+      
+      // Обязательная нормализация даты начала
+      normalizedLeave.startDate = normalizeDateForDateOnly(leave.startDate);
+      
+      // Нормализация даты окончания, если она есть
+      if (normalizedLeave.endDate) {
+        normalizedLeave.endDate = normalizeDateForDateOnly(normalizedLeave.endDate);
+      }
+      
+      console.log('[useLeavesData] Creating leave with normalized dates:', {
+        startDate: normalizedLeave.startDate.toLocaleDateString(),
+        endDate: normalizedLeave.endDate ? normalizedLeave.endDate.toLocaleDateString() : 'undefined'
+      });
+      
       // Используем реальный метод createLeave из DaysOfLeavesService
-      const newLeaveId = await daysOfLeavesService.createLeave(leave);
+      const newLeaveId = await daysOfLeavesService.createLeave(normalizedLeave);
       
       if (newLeaveId) {
         console.log('[useLeavesData] New leave created successfully with ID:', newLeaveId);
         
-        // Создаём полный объект нового отпуска для локального состояния
+        // ОБНОВЛЕНО: Создаём полный объект нового отпуска для локального состояния с нормализованными датами
         const newLeave: ILeaveDay = {
-          ...leave,
+          ...normalizedLeave,
           id: newLeaveId,
           created: new Date(),
-          createdBy: 'Current User' // Можно улучшить, передав реального пользователя
+          createdBy: 'Current User', // Можно улучшить, передав реального пользователя
+          // Убеждаемся, что даты нормализованы
+          startDate: normalizeDateForDateOnly(normalizedLeave.startDate),
+          endDate: normalizedLeave.endDate ? normalizeDateForDateOnly(normalizedLeave.endDate) : undefined
         };
         
         // Обновляем локальное состояние

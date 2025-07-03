@@ -16,7 +16,8 @@ interface IInfoMessage {
   type: MessageBarType;
 }
 
-// Функции для работы с сохраненными датами
+// ОБНОВЛЕНО: Функции для работы с Date-only форматом без timezone проблем
+
 const getFirstDayOfCurrentMonth = (): Date => {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), 1);
@@ -27,13 +28,51 @@ const getLastDayOfCurrentMonth = (): Date => {
   return new Date(now.getFullYear(), now.getMonth() + 1, 0);
 };
 
+// НОВАЯ ФУНКЦИЯ: Нормализация даты для работы с Date-only
+const normalizeDateForDateOnly = (date: Date): Date => {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+};
+
+// НОВАЯ ФУНКЦИЯ: Форматирование даты для sessionStorage в Date-only формате
+const formatDateForStorage = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const day = date.getDate().toString().padStart(2, '0');
+  
+  return `${year}-${month}-${day}`;
+};
+
+// НОВАЯ ФУНКЦИЯ: Парсинг даты из sessionStorage в Date-only формате
+const parseDateFromStorage = (dateString: string): Date | null => {
+  try {
+    // Ожидаем формат YYYY-MM-DD
+    const dateParts = dateString.split('-');
+    if (dateParts.length === 3) {
+      const year = parseInt(dateParts[0]);
+      const month = parseInt(dateParts[1]) - 1; // месяцы в JS 0-based
+      const day = parseInt(dateParts[2]);
+      
+      if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+        return new Date(year, month, day);
+      }
+    }
+    
+    console.warn('[LeavesTabContent] Invalid date format in storage:', dateString);
+    return null;
+  } catch (error) {
+    console.warn('[LeavesTabContent] Error parsing date from storage:', error);
+    return null;
+  }
+};
+
+// ОБНОВЛЕНО: Получение сохраненной даты начала периода с Date-only обработкой
 const getSavedPeriodStart = (): Date => {
   try {
     const savedDate = sessionStorage.getItem('leavesTab_periodStart');
     if (savedDate) {
-      const parsedDate = new Date(savedDate);
-      if (!isNaN(parsedDate.getTime())) {
-        console.log('[LeavesTabContent] Restored period start from sessionStorage:', parsedDate.toISOString());
+      const parsedDate = parseDateFromStorage(savedDate);
+      if (parsedDate) {
+        console.log('[LeavesTabContent] Restored period start from sessionStorage (Date-only):', parsedDate.toLocaleDateString());
         return parsedDate;
       } else {
         console.warn('[LeavesTabContent] Invalid start date found in sessionStorage, using first day of current month');
@@ -46,17 +85,18 @@ const getSavedPeriodStart = (): Date => {
   }
   
   const firstDay = getFirstDayOfCurrentMonth();
-  console.log('[LeavesTabContent] Using first day of current month as default start:', firstDay.toISOString());
+  console.log('[LeavesTabContent] Using first day of current month as default start:', firstDay.toLocaleDateString());
   return firstDay;
 };
 
+// ОБНОВЛЕНО: Получение сохраненной даты окончания периода с Date-only обработкой
 const getSavedPeriodEnd = (): Date => {
   try {
     const savedDate = sessionStorage.getItem('leavesTab_periodEnd');
     if (savedDate) {
-      const parsedDate = new Date(savedDate);
-      if (!isNaN(parsedDate.getTime())) {
-        console.log('[LeavesTabContent] Restored period end from sessionStorage:', parsedDate.toISOString());
+      const parsedDate = parseDateFromStorage(savedDate);
+      if (parsedDate) {
+        console.log('[LeavesTabContent] Restored period end from sessionStorage (Date-only):', parsedDate.toLocaleDateString());
         return parsedDate;
       } else {
         console.warn('[LeavesTabContent] Invalid end date found in sessionStorage, using last day of current month');
@@ -69,7 +109,7 @@ const getSavedPeriodEnd = (): Date => {
   }
   
   const lastDay = getLastDayOfCurrentMonth();
-  console.log('[LeavesTabContent] Using last day of current month as default end:', lastDay.toISOString());
+  console.log('[LeavesTabContent] Using last day of current month as default end:', lastDay.toLocaleDateString());
   return lastDay;
 };
 
@@ -95,7 +135,7 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
     return undefined;
   }, [context]);
 
-  // Базовые состояния с инициализацией из sessionStorage
+  // ОБНОВЛЕНО: Базовые состояния с инициализацией из sessionStorage в Date-only формате
   const [selectedPeriodStart, setSelectedPeriodStart] = useState<Date>(getSavedPeriodStart());
   const [selectedPeriodEnd, setSelectedPeriodEnd] = useState<Date>(getSavedPeriodEnd());
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('');
@@ -176,36 +216,40 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
     }
   }, [infoMessage]);
 
-  // Обработчики для фильтров
+  // ОБНОВЛЕНО: Обработчики для фильтров с Date-only форматом
   const handlePeriodStartChange = (date: Date | null | undefined): void => {
     if (date) {
-      console.log('[LeavesTabContent] Period start changed:', date.toLocaleDateString());
+      const normalizedDate = normalizeDateForDateOnly(date);
+      console.log('[LeavesTabContent] Period start changed:', normalizedDate.toLocaleDateString());
       
-      // Сохраняем дату в sessionStorage
+      // ОБНОВЛЕНО: Сохраняем дату в sessionStorage в Date-only формате
       try {
-        sessionStorage.setItem('leavesTab_periodStart', date.toISOString());
-        console.log('[LeavesTabContent] Period start saved to sessionStorage:', date.toISOString());
+        const dateForStorage = formatDateForStorage(normalizedDate);
+        sessionStorage.setItem('leavesTab_periodStart', dateForStorage);
+        console.log('[LeavesTabContent] Period start saved to sessionStorage (Date-only):', dateForStorage);
       } catch (error) {
         console.warn('[LeavesTabContent] Error saving period start to sessionStorage:', error);
       }
       
-      setSelectedPeriodStart(date);
+      setSelectedPeriodStart(normalizedDate);
     }
   };
 
   const handlePeriodEndChange = (date: Date | null | undefined): void => {
     if (date) {
-      console.log('[LeavesTabContent] Period end changed:', date.toLocaleDateString());
+      const normalizedDate = normalizeDateForDateOnly(date);
+      console.log('[LeavesTabContent] Period end changed:', normalizedDate.toLocaleDateString());
       
-      // Сохраняем дату в sessionStorage
+      // ОБНОВЛЕНО: Сохраняем дату в sessionStorage в Date-only формате
       try {
-        sessionStorage.setItem('leavesTab_periodEnd', date.toISOString());
-        console.log('[LeavesTabContent] Period end saved to sessionStorage:', date.toISOString());
+        const dateForStorage = formatDateForStorage(normalizedDate);
+        sessionStorage.setItem('leavesTab_periodEnd', dateForStorage);
+        console.log('[LeavesTabContent] Period end saved to sessionStorage (Date-only):', dateForStorage);
       } catch (error) {
         console.warn('[LeavesTabContent] Error saving period end to sessionStorage:', error);
       }
       
-      setSelectedPeriodEnd(date);
+      setSelectedPeriodEnd(normalizedDate);
     }
   };
 
@@ -367,7 +411,7 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
     setIsNewLeaveDialogOpen(true);
   };
 
-  // Обработчик подтверждения создания нового отпуска
+  // ОБНОВЛЕНО: Обработчик подтверждения создания нового отпуска с Date-only
   const handleConfirmNewLeave = async (): Promise<void> => {
     if (!daysOfLeavesService || !selectedStaff || !selectedStaff.employeeId) {
       console.error('[LeavesTabContent] Cannot create new leave: missing service, staff, or employeeId');
@@ -385,10 +429,12 @@ export const LeavesTabContent: React.FC<ITabProps> = (props) => {
       // Определяем тип отпуска по умолчанию (первый из списка)
       const defaultTypeOfLeave = typesOfLeave.length > 0 ? parseInt(typesOfLeave[0].id, 10) : 1;
 
-      // Подготавливаем данные для новой записи
+      // ОБНОВЛЕНО: Подготавливаем данные для новой записи с нормализованной датой
+      const normalizedStartDate = normalizeDateForDateOnly(selectedPeriodStart);
+      
       const newLeaveData = {
         title: '', // пустые заметки
-        startDate: selectedPeriodStart, // первый день выбранного периода
+        startDate: normalizedStartDate, // нормализованная дата начала
         endDate: undefined, // открытый отпуск
         staffMemberId: parseInt(selectedStaff.employeeId, 10),
         managerId: parseInt(props.currentUserId, 10),

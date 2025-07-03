@@ -22,8 +22,8 @@ interface IRawLeaveDayItem {
   id: string | number;
   fields?: {
     Title?: string;
-    Date?: string; // Дата начала в строковом формате
-    Date2?: string; // Дата окончания в строковом формате
+    Date?: string; // Дата начала в строковом формате (Date-only)
+    Date2?: string; // Дата окончания в строковом формате (Date-only)
     StaffMember?: { Id?: number; Title?: string; [key: string]: unknown };
     StaffMemberLookup?: { Id?: number; Title?: string; [key: string]: unknown };
     StaffMemberLookupId?: number;
@@ -47,6 +47,7 @@ interface IRawLeaveDayItem {
 
 /**
  * Сервис для работы со списком дней отпуска в SharePoint
+ * ОБНОВЛЕНО: Работа с Date-only полем (без времени) для устранения проблем с часовыми поясами
  */
 export class DaysOfLeavesService {
   private static _instance: DaysOfLeavesService;
@@ -61,7 +62,7 @@ export class DaysOfLeavesService {
   private constructor(context: WebPartContext) {
     // Инициализация RemoteSiteService для работы с удаленным сайтом
     this._remoteSiteService = RemoteSiteService.getInstance(context);
-    this.logInfo("DaysOfLeavesService initialized with RemoteSiteService");
+    this.logInfo("DaysOfLeavesService initialized with RemoteSiteService (Date-only mode)");
   }
 
   /**
@@ -128,11 +129,11 @@ export class DaysOfLeavesService {
         // Продолжаем выполнение, так как это только для отладки
       }
       
-      // Формируем строки с первым и последним днем месяца для фильтрации
+      // ИСПРАВЛЕНО: Правильное вычисление границ месяца
       const firstDayOfMonth = new Date(year, month - 1, 1);
       const lastDayOfMonth = new Date(year, month, 0);
       
-      // Форматируем даты в ISO строки для фильтрации
+      // Форматируем даты для фильтрации (Date-only формат)
       const firstDayStr = this.formatDateForFilter(firstDayOfMonth);
       const lastDayStr = this.formatDateForFilter(lastDayOfMonth);
       
@@ -163,6 +164,7 @@ export class DaysOfLeavesService {
       // Теперь загружаем ВСЕ записи (и активные, и удаленные) для клиентской фильтрации
       
       this.logInfo(`Using filter: ${filter}`);
+      this.logInfo(`Date range: ${firstDayOfMonth.toLocaleDateString()} - ${lastDayOfMonth.toLocaleDateString()}`);
       
       // Выполняем запрос к SharePoint с фильтром на сервере
       const items = await this._remoteSiteService.getListItems(
@@ -310,12 +312,13 @@ export class DaysOfLeavesService {
         itemData.Title = updateData.title;
       }
       
+      // ОБНОВЛЕНО: Обработка Date-only формата для дат
       if (updateData.startDate !== undefined) {
-        itemData.Date = updateData.startDate;
+        itemData.Date = this.formatDateForSharePoint(updateData.startDate);
       }
       
       if (updateData.endDate !== undefined) {
-        itemData.Date2 = updateData.endDate;
+        itemData.Date2 = updateData.endDate ? this.formatDateForSharePoint(updateData.endDate) : null;
       }
       
       if (updateData.typeOfLeave !== undefined) {
@@ -359,7 +362,7 @@ export class DaysOfLeavesService {
       // Подготавливаем данные для создания в формате SharePoint
       const itemData: Record<string, unknown> = {
         Title: leaveData.title || '',
-        Date: leaveData.startDate,
+        Date: this.formatDateForSharePoint(leaveData.startDate),
         StaffMemberLookupId: leaveData.staffMemberId,
         ManagerLookupId: leaveData.managerId,
         StaffGroupLookupId: leaveData.staffGroupId,
@@ -367,9 +370,9 @@ export class DaysOfLeavesService {
         Deleted: leaveData.deleted ? 1 : 0
       };
       
-      // Добавляем дату окончания, если она есть
+      // ОБНОВЛЕНО: Добавляем дату окончания в Date-only формате, если она есть
       if (leaveData.endDate) {
-        itemData.Date2 = leaveData.endDate;
+        itemData.Date2 = this.formatDateForSharePoint(leaveData.endDate);
       }
       
       this.logInfo(`Prepared create data: ${JSON.stringify(itemData, null, 2)}`);
@@ -437,18 +440,46 @@ export class DaysOfLeavesService {
     });
   }
 
+
+
   /**
-   * Форматирует дату для использования в фильтре запроса
+   * ИСПРАВЛЕНО: Форматирует дату для использования в фильтре запроса (Date-only формат)
    * @param date Дата для форматирования
-   * @returns Строка даты в формате для фильтра SharePoint
+   * @returns Строка даты в формате для фильтра SharePoint (Date-only)
    */
   private formatDateForFilter(date: Date): string {
-    // Формат ISO для SharePoint: YYYY-MM-DDT00:00:00Z
-    return date.toISOString().split('T')[0] + 'T00:00:00Z';
+    // Формат для Date-only поля в SharePoint
+    // Используем локальные компоненты даты для избежания проблем с часовыми поясами
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    
+    // Возвращаем в формате YYYY-MM-DD (без времени)
+    const formattedDate = `${year}-${month}-${day}`;
+    
+    this.logInfo(`Formatted date for filter: ${date.toLocaleDateString()} -> ${formattedDate}`);
+    
+    return formattedDate;
   }
 
   /**
-   * Преобразует данные из SharePoint в массив объектов ILeaveDay
+   * НОВЫЙ МЕТОД: Форматирует дату для отправки в SharePoint (Date-only формат)
+   * @param date Дата для форматирования
+   * @returns Строка даты в формате для SharePoint
+   */
+  private formatDateForSharePoint(date: Date): string {
+    // Используем локальные компоненты даты для избежания проблем с часовыми поясами
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    
+    // Возвращаем в формате YYYY-MM-DD (Date-only)
+    return `${year}-${month}-${day}`;
+  }
+
+  /**
+   * ОБНОВЛЕНО: Преобразует сырые данные из SharePoint в массив объектов ILeaveDay
+   * Улучшена обработка Date-only формата
    * @param items Данные из SharePoint
    * @returns Массив объектов ILeaveDay
    */
@@ -466,20 +497,60 @@ export class DaysOfLeavesService {
             return undefined;
           }
           
-          // Преобразуем строку даты начала в объект Date
-          const startDate = new Date(fields.Date);
+          // УЛУЧШЕНО: Обработка Date-only формата из SharePoint для startDate
+          let startDate: Date;
+          
+          if (typeof fields.Date === 'string') {
+            // Если приходит строка даты (например, "2025-06-15" или "2025-06-15T00:00:00Z")
+            const dateStr = fields.Date;
+            
+            // Убираем время если оно есть, оставляем только дату
+            const dateOnlyStr = dateStr.split('T')[0];
+            
+            // Создаем дату из компонентов для избежания проблем с часовыми поясами
+            const dateParts = dateOnlyStr.split('-');
+            if (dateParts.length === 3) {
+              const year = parseInt(dateParts[0]);
+              const month = parseInt(dateParts[1]) - 1; // месяцы в JS 0-based
+              const day = parseInt(dateParts[2]);
+              
+              startDate = new Date(year, month, day);
+            } else {
+              // Fallback на стандартный парсинг
+              startDate = new Date(dateStr);
+            }
+          } else {
+            // Если уже объект Date
+            startDate = new Date(fields.Date);
+          }
           
           if (isNaN(startDate.getTime())) {
-            this.logError(`Invalid date format for leave item ${typedItem.id}`);
+            this.logError(`Invalid start date format for leave item ${typedItem.id}: ${fields.Date}`);
             return undefined;
           }
           
-          // Обработка случая, когда дата окончания не задана (открытый отпуск)
+          // УЛУЧШЕНО: Обработка Date-only формата для endDate (может быть undefined)
           let endDate: Date | undefined;
           
           if (fields.Date2) {
-            // Если есть дата окончания, преобразуем ее
-            endDate = new Date(fields.Date2);
+            // Если есть дата окончания, преобразуем ее аналогично startDate
+            if (typeof fields.Date2 === 'string') {
+              const dateStr = fields.Date2;
+              const dateOnlyStr = dateStr.split('T')[0];
+              
+              const dateParts = dateOnlyStr.split('-');
+              if (dateParts.length === 3) {
+                const year = parseInt(dateParts[0]);
+                const month = parseInt(dateParts[1]) - 1; // месяцы в JS 0-based
+                const day = parseInt(dateParts[2]);
+                
+                endDate = new Date(year, month, day);
+              } else {
+                endDate = new Date(dateStr);
+              }
+            } else {
+              endDate = new Date(fields.Date2);
+            }
             
             if (isNaN(endDate.getTime())) {
               this.logError(`Invalid end date format for leave item ${typedItem.id}, using undefined`);

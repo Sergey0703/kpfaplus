@@ -45,15 +45,28 @@ const datePickerStringsEN = {
   yearPickerHeaderAriaLabel: '{0}, select to change the month'
 };
 
-// Форматирование даты в формате dd.mm.yyyy
+// ОБНОВЛЕНО: Форматирование даты в формате dd.mm.yyyy для Date-only
 const formatDate = (date?: Date): string => {
   if (!date) return '';
   
+  // Используем локальные компоненты даты для избежания проблем с часовыми поясами
   const day = date.getDate().toString().padStart(2, '0');
   const month = (date.getMonth() + 1).toString().padStart(2, '0');
   const year = date.getFullYear();
   
   return `${day}.${month}.${year}`;
+};
+
+// НОВАЯ ФУНКЦИЯ: Нормализация даты для работы с Date-only
+const normalizeDateForDateOnly = (date: Date): Date => {
+  // Создаем новую дату с теми же компонентами, но без времени
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+};
+
+// НОВАЯ ФУНКЦИЯ: Создание последнего дня месяца для выбранной даты
+const getLastDayOfMonth = (date: Date): Date => {
+  // Создаем дату первого дня следующего месяца, затем вычитаем 1 день
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
 };
 
 const calendarMinWidth = '655px';
@@ -86,35 +99,43 @@ export const LeavesFilterPanel: React.FC<ILeavesFilterPanelProps> = (props) => {
     }))
   ];
 
-  // Обработчик для первого датапикера (начало периода)
+  // ОБНОВЛЕНО: Обработчик для первого датапикера (начало периода) с Date-only
   const handleStartDateSelect = (date: Date | null | undefined): void => {
     if (date) {
-      console.log('[LeavesFilterPanel] Start date selected:', formatDate(date));
+      // Нормализуем дату для Date-only формата
+      const normalizedStartDate = normalizeDateForDateOnly(date);
+      
+      console.log('[LeavesFilterPanel] Start date selected:', formatDate(normalizedStartDate));
       
       // Устанавливаем выбранную дату как начало периода
-      onPeriodStartChange(date);
+      onPeriodStartChange(normalizedStartDate);
       
       // Автоматически устанавливаем конец периода как последний день того же месяца
-      const lastDayOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-      console.log('[LeavesFilterPanel] Auto-setting end date to last day of month:', formatDate(lastDayOfMonth));
+      const lastDayOfMonth = getLastDayOfMonth(normalizedStartDate);
+      const normalizedEndDate = normalizeDateForDateOnly(lastDayOfMonth);
+      
+      console.log('[LeavesFilterPanel] Auto-setting end date to last day of month:', formatDate(normalizedEndDate));
       
       // Сохраняем автоматически установленную дату окончания в sessionStorage
       try {
-        sessionStorage.setItem('leavesTab_periodEnd', lastDayOfMonth.toISOString());
-        console.log('[LeavesFilterPanel] Auto-set period end saved to sessionStorage:', lastDayOfMonth.toISOString());
+        sessionStorage.setItem('leavesTab_periodEnd', normalizedEndDate.toISOString());
+        console.log('[LeavesFilterPanel] Auto-set period end saved to sessionStorage:', normalizedEndDate.toISOString());
       } catch (error) {
         console.warn('[LeavesFilterPanel] Error saving auto-set period end to sessionStorage:', error);
       }
       
-      onPeriodEndChange(lastDayOfMonth);
+      onPeriodEndChange(normalizedEndDate);
     }
   };
 
-  // Обработчик для второго датапикера (конец периода)
+  // ОБНОВЛЕНО: Обработчик для второго датапикера (конец периода) с Date-only
   const handleEndDateSelect = (date: Date | null | undefined): void => {
     if (date) {
-      console.log('[LeavesFilterPanel] End date manually selected:', formatDate(date));
-      onPeriodEndChange(date);
+      // Нормализуем дату для Date-only формата
+      const normalizedEndDate = normalizeDateForDateOnly(date);
+      
+      console.log('[LeavesFilterPanel] End date manually selected:', formatDate(normalizedEndDate));
+      onPeriodEndChange(normalizedEndDate);
     }
   };
 
@@ -209,6 +230,14 @@ export const LeavesFilterPanel: React.FC<ILeavesFilterPanelProps> = (props) => {
             showGoToToday: true,
             showSixWeeksByDefault: true,
             showWeekNumbers: false,
+            // ОБНОВЛЕНО: Обработка выбора даты в календаре для Date-only
+            onSelectDate: (selectedDate): void => {
+              if (selectedDate) {
+                // Нормализуем выбранную дату и обрабатываем
+                const normalizedDate = normalizeDateForDateOnly(selectedDate);
+                handleStartDateSelect(normalizedDate);
+              }
+            }
           }}
           calloutProps={{
             styles: {
@@ -280,6 +309,14 @@ export const LeavesFilterPanel: React.FC<ILeavesFilterPanelProps> = (props) => {
             showGoToToday: true,
             showSixWeeksByDefault: true,
             showWeekNumbers: false,
+            // ОБНОВЛЕНО: Обработка выбора даты в календаре для Date-only
+            onSelectDate: (selectedDate): void => {
+              if (selectedDate) {
+                // Нормализуем выбранную дату и обрабатываем
+                const normalizedDate = normalizeDateForDateOnly(selectedDate);
+                handleEndDateSelect(normalizedDate);
+              }
+            }
           }}
           calloutProps={{
             styles: {

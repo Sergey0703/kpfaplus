@@ -79,15 +79,24 @@ const datePickerStringsEN = {
   yearPickerHeaderAriaLabel: '{0}, select to change the month'
 };
 
-// Форматирование даты в формате dd.mm.yyyy
+// ОБНОВЛЕНО: Форматирование даты в формате dd.mm.yyyy для Date-only
 const formatDate = (date?: Date): string => {
   if (!date) return '';
   
+  // Используем локальные компоненты даты для избежания проблем с часовыми поясами
   const day = date.getDate().toString().padStart(2, '0');
   const month = (date.getMonth() + 1).toString().padStart(2, '0');
   const year = date.getFullYear();
   
   return `${day}.${month}.${year}`;
+};
+
+
+
+// НОВАЯ ФУНКЦИЯ: Нормализация даты для работы с Date-only
+const normalizeDateForDateOnly = (date: Date): Date => {
+  // Создаем новую дату с теми же компонентами, но без времени
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 };
 
 const calendarMinWidth = '655px';
@@ -336,15 +345,18 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
     });
   };
 
-  // Обработчики изменения полей (сохраняют изменения локально)
+  // ОБНОВЛЕНО: Обработчики изменения полей с улучшенной обработкой Date-only
   const handleStartDateChange = (itemId: string, date: Date | undefined): void => {
     if (date) {
-      console.log('[LeavesTable] Start date changed for item:', itemId, 'to:', formatDate(date));
+      // Нормализуем дату для Date-only формата
+      const normalizedDate = normalizeDateForDateOnly(date);
+      
+      console.log('[LeavesTable] Start date changed for item:', itemId, 'to:', formatDate(normalizedDate));
       setEditableLeaves(prev => prev.map(leave => 
         leave.id === itemId 
           ? { 
               ...leave, 
-              localChanges: { ...leave.localChanges, startDate: date },
+              localChanges: { ...leave.localChanges, startDate: normalizedDate },
               hasErrors: false,
               errors: {}
             }
@@ -354,12 +366,15 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
   };
 
   const handleEndDateChange = (itemId: string, date: Date | undefined): void => {
-    console.log('[LeavesTable] End date changed for item:', itemId, 'to:', date ? formatDate(date) : 'undefined');
+    // Нормализуем дату для Date-only формата, если она есть
+    const normalizedDate = date ? normalizeDateForDateOnly(date) : undefined;
+    
+    console.log('[LeavesTable] End date changed for item:', itemId, 'to:', date ? formatDate(normalizedDate!) : 'undefined');
     setEditableLeaves(prev => prev.map(leave => 
       leave.id === itemId 
         ? { 
             ...leave, 
-            localChanges: { ...leave.localChanges, endDate: date || undefined }
+            localChanges: { ...leave.localChanges, endDate: normalizedDate }
           }
         : leave
     ));
@@ -420,7 +435,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
     return true;
   });
 
-  // Рендер ячейки с датой
+  // ОБНОВЛЕНО: Рендер ячейки с датой для Date-only формата
   const renderDateCell = (item: IEditableLeaveDay, field: 'startDate' | 'endDate', isRequired: boolean = false): JSX.Element => {
     const itemIsEditing = isEditing(item.id);
     const hasError = item.hasErrors && item.errors && item.errors[field as keyof typeof item.errors];
@@ -494,6 +509,19 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
             showGoToToday: true,
             showSixWeeksByDefault: true,
             showWeekNumbers: false,
+            // ОБНОВЛЕНО: Обработка выбора даты в календаре для Date-only
+            onSelectDate: (selectedDate): void => {
+              if (selectedDate) {
+                // Нормализуем выбранную дату
+                const normalizedDate = normalizeDateForDateOnly(selectedDate);
+                
+                if (field === 'startDate') {
+                  handleStartDateChange(item.id, normalizedDate);
+                } else {
+                  handleEndDateChange(item.id, normalizedDate);
+                }
+              }
+            }
           }}
           calloutProps={{
             styles: {
@@ -523,22 +551,22 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
     }
 
     return (
-      <div style={{ width: '150px' }}> {/* Уменьшено с 180px до 150px */}
+      <div style={{ width: '150px' }}>
         <Dropdown
           options={typeOptions}
           selectedKey={currentTypeOfLeave.toString()}
           onChange={(_, option): void => option && handleTypeChange(item.id, option.key as string)}
           placeholder="Select type..."
           styles={{
-            root: { width: '150px' }, // Уменьшено с 180px до 150px
+            root: { width: '150px' },
             dropdown: { 
-              height: '26px', // Уменьшено с 28px до 26px
+              height: '26px',
               border: hasError ? '2px solid #d13438' : undefined
             },
             title: { 
               height: '26px', 
               lineHeight: '24px', 
-              fontSize: '11px' // Уменьшено с 12px до 11px
+              fontSize: '11px'
             },
           }}
         />
@@ -566,10 +594,10 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
         onChange={(_, newValue): void => handleNotesChange(item.id, newValue || '')}
         multiline={false}
         styles={{
-          root: { width: '180px' }, // Уменьшено с 200px до 180px
+          root: { width: '180px' },
           field: { 
-            height: '26px', // Уменьшено с 28px до 26px
-            fontSize: '11px' // Уменьшено с 12px до 11px
+            height: '26px',
+            fontSize: '11px'
           }
         }}
       />
@@ -654,7 +682,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
       key: 'startDate',
       name: 'Start Date *',
       fieldName: 'startDate',
-      minWidth: 120, // Уменьшено с 230 до 120
+      minWidth: 120,
       maxWidth: 120,
       onRender: (item: IEditableLeaveDay): JSX.Element => renderDateCell(item, 'startDate', true)
     },
@@ -662,7 +690,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
       key: 'endDate',
       name: 'End Date',
       fieldName: 'endDate',
-      minWidth: 120, // Уменьшено с 230 до 120
+      minWidth: 120,
       maxWidth: 120,
       onRender: (item: IEditableLeaveDay): JSX.Element => renderDateCell(item, 'endDate', false)
     },
@@ -670,7 +698,7 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
       key: 'typeOfLeave',
       name: 'Type of Leave *',
       fieldName: 'typeOfLeave',
-      minWidth: 160, // Уменьшено с 190 до 160
+      minWidth: 160,
       maxWidth: 160,
       onRender: (item: IEditableLeaveDay): JSX.Element => renderTypeCell(item)
     },
@@ -678,11 +706,10 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
       key: 'notes',
       name: 'Notes',
       fieldName: 'title',
-      minWidth: 200, // Уменьшено с 210 до 200
-      isResizable: true, // Позволяет пользователю менять размер
+      minWidth: 200,
+      isResizable: true,
       onRender: (item: IEditableLeaveDay): JSX.Element => renderNotesCell(item)
     },
-    // УДАЛИЛИ колонку Status для экономии места
     {
       key: 'actions',
       name: 'Actions',
@@ -690,7 +717,6 @@ export const LeavesTable: React.FC<ILeavesTableProps> = (props) => {
       maxWidth: 70,
       onRender: (item: IEditableLeaveDay): JSX.Element => renderActionsCell(item)
     },
-    // НОВАЯ колонка с ID записей
     {
       key: 'id',
       name: 'ID',
