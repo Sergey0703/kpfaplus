@@ -96,16 +96,22 @@ export class CommonFillDateUtils {
    * Нормализует дату к UTC для избежания проблем с timezone при сохранении
    */
   public normalizeToUTCForStorage(date: Date): Date {
-    // Создает UTC дату с теми же компонентами месяца/года для корректного сохранения
+    // *** ИСПРАВЛЕНО: Создает UTC дату с теми же компонентами месяца/года для корректного сохранения ***
+    // Используем полдень UTC для избежания проблем с границами дней
     const utcForStorage = new Date(Date.UTC(
       date.getFullYear(),
       date.getMonth(),
       date.getDate(),
-      FILL_CONSTANTS.TIMEZONE.NOON_SAFE_HOUR, 0, 0, 0  // Используем полдень UTC для избежания проблем с границами дней
+      FILL_CONSTANTS.TIMEZONE.NOON_SAFE_HOUR, 0, 0, 0  // Полдень UTC для безопасности
     ));
     
-    console.log('[CommonFillDateUtils] *** UTC NORMALIZATION FOR STORAGE ***');
+    console.log('[CommonFillDateUtils] *** ИСПРАВЛЕННОЕ UTC СОХРАНЕНИЕ ***');
     console.log('[CommonFillDateUtils] Input date:', this.formatDateOnlyForDisplay(date));
+    console.log('[CommonFillDateUtils] UTC components being stored:', {
+      year: date.getFullYear(),
+      month: date.getMonth(),
+      day: date.getDate()
+    });
     console.log('[CommonFillDateUtils] UTC for storage:', utcForStorage.toISOString());
     
     return utcForStorage;
@@ -121,16 +127,23 @@ export class CommonFillDateUtils {
         throw new Error('Invalid date string');
       }
       
-      // Извлекаем UTC компоненты для создания локальной Date-only даты
+      // *** ИСПРАВЛЕНО: Используем UTC методы для извлечения компонентов ***
+      // Это предотвращает timezone shifts при восстановлении
       const normalizedDate = this.createDateOnlyFromComponents(
-        parsedDate.getUTCFullYear(),
-        parsedDate.getUTCMonth(),
+        parsedDate.getUTCFullYear(),  // Используем UTC методы
+        parsedDate.getUTCMonth(),     // Используем UTC методы
         1 // Всегда первый день месяца
       );
       
-      console.log('[CommonFillDateUtils] *** DATE RESTORATION FROM UTC STORAGE ***');
+      console.log('[CommonFillDateUtils] *** ИСПРАВЛЕННОЕ ВОССТАНОВЛЕНИЕ ИЗ UTC ***');
       console.log('[CommonFillDateUtils] Saved date:', savedDate);
+      console.log('[CommonFillDateUtils] UTC components extracted:', {
+        year: parsedDate.getUTCFullYear(),
+        month: parsedDate.getUTCMonth(),
+        day: parsedDate.getUTCDate()
+      });
       console.log('[CommonFillDateUtils] Restored date:', this.formatDateOnlyForDisplay(normalizedDate));
+      console.log('[CommonFillDateUtils] Verification: expected month', normalizedDate.getMonth() + 1);
       
       return normalizedDate;
     } catch (error) {

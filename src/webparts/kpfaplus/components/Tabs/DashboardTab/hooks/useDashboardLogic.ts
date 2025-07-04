@@ -9,6 +9,8 @@ import { IStaffMember } from '../../../../models/types';
 import { IStaffMemberWithAutoschedule } from '../components/DashboardTable';
 import { CommonFillService } from '../../../../services/CommonFillService';
 import { ScheduleLogsService } from '../../../../services/ScheduleLogsService';
+import { RemoteSiteService } from '../../../../services/RemoteSiteService';
+import { CommonFillDateUtils } from '../../../../services/CommonFillDateUtils';
 import { useDashboardLogs } from './useDashboardLogs';
 import { useDashboardFill } from './useDashboardFill';
 
@@ -129,42 +131,6 @@ const getFirstDayOfCurrentMonth = (): Date => {
   return result;
 };
 
-const getSavedSelectedDate = (): Date => {
-  try {
-    const savedDate = sessionStorage.getItem('dashboardTab_selectedDate');
-    if (savedDate) {
-      const parsedDate = new Date(savedDate);
-      if (!isNaN(parsedDate.getTime())) {
-        console.log('[useDashboardLogic] Restoring date from sessionStorage:', savedDate);
-        
-        // *** FIXED: Extract only the date components to avoid timezone issues ***
-        // When we stored as UTC, we need to extract the UTC components for Date-only
-        const normalizedDate = createDateOnlyFromComponents(
-          parsedDate.getUTCFullYear(),  // Use UTC methods to extract components
-          parsedDate.getUTCMonth(),     // Use UTC methods to extract components
-          1 // Always first day of month
-        );
-        
-        console.log('[useDashboardLogic] *** DATE RESTORATION WITH DATE-ONLY NORMALIZATION FIXED ***');
-        console.log('[useDashboardLogic] Original saved:', savedDate);
-        console.log('[useDashboardLogic] Parsed UTC date:', parsedDate.toISOString());
-        console.log('[useDashboardLogic] Extracted UTC components:', {
-          year: parsedDate.getUTCFullYear(),
-          month: parsedDate.getUTCMonth(),
-          day: parsedDate.getUTCDate()
-        });
-        console.log('[useDashboardLogic] Normalized to first of month:', formatDateOnlyForDisplay(normalizedDate));
-        console.log('[useDashboardLogic] Display format:', formatDateOnlyForDisplay(normalizedDate));
-        
-        return normalizedDate;
-      }
-    }
-  } catch (error) {
-    console.warn('[useDashboardLogic] Error reading saved date:', error);
-  }
-  return getFirstDayOfCurrentMonth();
-};
-
 // *** MAIN HOOK IMPLEMENTATION ***
 export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboardLogicReturn => {
   const { context, currentUserId, managingGroupId } = params;
@@ -174,8 +140,37 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
   // *** CONTEXT DATA ***
   const { staffMembers, updateStaffMember } = useDataContext();
 
+  // *** СОЗДАЕМ ЭКЗЕМПЛЯР DATE UTILS ДЛЯ КОРРЕКТНОЙ РАБОТЫ С ДАТАМИ ***
+  const remoteSiteService = useMemo(() => {
+    if (context) {
+      return RemoteSiteService.getInstance(context);
+    }
+    return undefined;
+  }, [context]);
+
+  const dateUtils = useMemo(() => {
+    if (remoteSiteService) {
+      return new CommonFillDateUtils(remoteSiteService);
+    }
+    return undefined;
+  }, [remoteSiteService]);
+
+  // *** ФУНКЦИЯ ВОССТАНОВЛЕНИЯ ДАТЫ С ИСПОЛЬЗОВАНИЕМ COMMONFILL DATEUTILS ***
+  const getSavedSelectedDate = useCallback((): Date => {
+    try {
+      const savedDate = sessionStorage.getItem('dashboardTab_selectedDate');
+      if (savedDate && dateUtils) {
+        console.log('[useDashboardLogic] Restoring date from sessionStorage using CommonFillDateUtils:', savedDate);
+        return dateUtils.restoreFromUTCStorage(savedDate);
+      }
+    } catch (error) {
+      console.warn('[useDashboardLogic] Error reading saved date:', error);
+    }
+    return dateUtils?.getFirstDayOfCurrentMonth() || getFirstDayOfCurrentMonth();
+  }, [dateUtils]);
+
   // *** STATE VARIABLES ***
-  const [selectedDate, setSelectedDate] = useState<Date>(getSavedSelectedDate());
+  const [selectedDate, setSelectedDate] = useState<Date>(() => getSavedSelectedDate());
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isLoadingLogs, setIsLoadingLogs] = useState<boolean>(true);
   const [infoMessage, setInfoMessage] = useState<IInfoMessage | undefined>(undefined);
@@ -206,7 +201,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
       month: selectedDate.getMonth() + 1,
       monthName: selectedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
     });
-  }, []);
+  }, [selectedDate]);
 
   // *** MEMOIZED SERVICES ***
   const fillService = useMemo(() => {
@@ -397,36 +392,36 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
         console.log('[useDashboardLogic] Applying debounced date change:', formatDateOnlyForDisplay(date));
         
         try {
-          // *** FIXED: Save date components to avoid timezone conversion issues ***
+          // *** ИСПРАВЛЕНО: Используем CommonFillDateUtils для корректного сохранения ***
           const normalizedDate = createDateOnlyFromComponents(
             date.getFullYear(),
             date.getMonth(),
             1 // Always first day of month
           );
           
-          console.log('[useDashboardLogic] *** DATE NORMALIZATION BEFORE SAVING WITH DATE-ONLY FIXED ***');
+          console.log('[useDashboardLogic] *** DATE NORMALIZATION WITH COMMONFILL DATEUTILS ***');
           console.log('[useDashboardLogic] Input date:', formatDateOnlyForDisplay(date));
           console.log('[useDashboardLogic] Normalized date:', formatDateOnlyForDisplay(normalizedDate));
-          console.log('[useDashboardLogic] Normalized display:', formatDateOnlyForDisplay(normalizedDate));
           
-          // *** FIXED: Store as UTC but preserve the intended month/year ***
-          // Create UTC date with the SAME month/year components to avoid timezone shifts
-          const utcForStorage = new Date(Date.UTC(
-            normalizedDate.getFullYear(),
-            normalizedDate.getMonth(),
-            normalizedDate.getDate(),
-            12, 0, 0, 0  // Use noon UTC to avoid timezone boundary issues
-          ));
+          if (dateUtils) {
+            // *** ИСПРАВЛЕНО: Используем правильный метод из CommonFillDateUtils ***
+            const utcForStorage = dateUtils.normalizeToUTCForStorage(normalizedDate);
+            sessionStorage.setItem('dashboardTab_selectedDate', utcForStorage.toISOString());
+            console.log('[useDashboardLogic] *** ИСПОЛЬЗУЕМ ИСПРАВЛЕННОЕ UTC СОХРАНЕНИЕ ИЗ COMMONFILL DATEUTILS ***');
+            console.log('[useDashboardLogic] UTC stored:', utcForStorage.toISOString());
+          } else {
+            // Fallback to old method if dateUtils not available
+            const utcForStorage = new Date(Date.UTC(
+              normalizedDate.getFullYear(),
+              normalizedDate.getMonth(),
+              normalizedDate.getDate(),
+              12, 0, 0, 0  // Use noon UTC to avoid timezone boundary issues
+            ));
+            sessionStorage.setItem('dashboardTab_selectedDate', utcForStorage.toISOString());
+            console.log('[useDashboardLogic] *** FALLBACK UTC STORAGE ***');
+            console.log('[useDashboardLogic] UTC stored (fallback):', utcForStorage.toISOString());
+          }
           
-          console.log('[useDashboardLogic] *** FIXED UTC STORAGE ***');
-          console.log('[useDashboardLogic] Storing UTC date:', utcForStorage.toISOString());
-          console.log('[useDashboardLogic] UTC components:', {
-            year: utcForStorage.getUTCFullYear(),
-            month: utcForStorage.getUTCMonth(),
-            day: utcForStorage.getUTCDate()
-          });
-          
-          sessionStorage.setItem('dashboardTab_selectedDate', utcForStorage.toISOString());
           setSelectedDate(normalizedDate);
           
           console.log('[useDashboardLogic] *** FINAL SELECTED DATE SET WITH DATE-ONLY FIXED ***');
@@ -456,7 +451,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
         
       }, DEBOUNCE_DELAY);
     }
-  }, [logsHook, setLogLoadingState]);
+  }, [dateUtils, logsHook, setLogLoadingState]);
 
   // *** AUTOSCHEDULE TOGGLE ***
   const handleAutoscheduleToggle = useCallback(async (staffId: string, checked: boolean): Promise<void> => {
