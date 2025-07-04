@@ -1,5 +1,6 @@
 // src/webparts/kpfaplus/services/CommonFillGeneration.ts
-// ИСПРАВЛЕНО: Полностью переходим на числовые поля времени, отказываемся от ShiftDate1/ShiftDate2
+// UPDATED: Full support for Date-only format in Holidays and DaysOfLeaves lists
+// COMPLETE IMPLEMENTATION: Enhanced Auto-Fill with timer, spinner, and execution time tracking
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { IStaffRecord, StaffRecordsService } from './StaffRecordsService';
 import { HolidaysService, IHoliday } from './HolidaysService';
@@ -128,7 +129,7 @@ export class CommonFillGeneration {
     this.weeklyTimeTableService = new WeeklyTimeTableService(context);
     this.remoteSiteService = RemoteSiteService.getInstance(context);
     
-    console.log('[CommonFillGeneration] Service initialized with NUMERIC TIME FIELDS ONLY (no more ShiftDate1/ShiftDate2)');
+    console.log('[CommonFillGeneration] Service initialized with Date-only format support for Holidays and DaysOfLeaves');
   }
 
   /**
@@ -182,30 +183,37 @@ export class CommonFillGeneration {
   }
 
   /**
-   * Загружает праздники для месяца
+   * UPDATED: Загружает праздники для месяца с поддержкой Date-only формата
    */
   public async loadHolidays(date: Date): Promise<IHoliday[]> {
     try {
-      console.log(`[CommonFillGeneration] Loading holidays for ${date.getMonth() + 1}/${date.getFullYear()}`);
-      const holidays = await this.holidaysService.getHolidaysByMonthAndYear(date);
-      console.log(`[CommonFillGeneration] Loaded ${holidays.length} holidays`);
+      console.log(`[CommonFillGeneration] Loading holidays for ${date.getMonth() + 1}/${date.getFullYear()} with Date-only format support`);
       
-      // Логируем первые несколько праздников для отладки
+      // *** ИСПРАВЛЕНО: Создаем дату с локальными компонентами для избежания проблем с часовыми поясами ***
+      const normalizedDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      console.log(`[CommonFillGeneration] Normalized date for holidays query: ${normalizedDate.toLocaleDateString()}`);
+      
+      const holidays = await this.holidaysService.getHolidaysByMonthAndYear(normalizedDate);
+      console.log(`[CommonFillGeneration] Loaded ${holidays.length} holidays with Date-only format`);
+      
+      // Логируем первые несколько праздников для отладки Date-only формата
       if (holidays.length > 0) {
         holidays.slice(0, 3).forEach((holiday, index) => {
-          console.log(`[CommonFillGeneration] Holiday ${index + 1}: ${new Date(holiday.date).toLocaleDateString()} - ${holiday.title}`);
+          // *** ОБНОВЛЕНО: Правильное форматирование Date-only дат ***
+          const holidayDateStr = this.formatDateOnlyForDisplay(holiday.date);
+          console.log(`[CommonFillGeneration] Holiday ${index + 1}: ${holidayDateStr} - ${holiday.title}`);
         });
       }
       
       return holidays;
     } catch (error) {
-      console.error('[CommonFillGeneration] Error loading holidays:', error);
+      console.error('[CommonFillGeneration] Error loading holidays with Date-only format:', error);
       return [];
     }
   }
 
   /**
-   * Загружает отпуска сотрудника
+   * UPDATED: Загружает отпуска сотрудника с поддержкой Date-only формата
    */
   public async loadLeaves(params: IFillParams): Promise<ILeaveDay[]> {
     try {
@@ -214,9 +222,14 @@ export class CommonFillGeneration {
         return [];
       }
 
-      console.log(`[CommonFillGeneration] Loading leaves for employee ${params.staffMember.employeeId}`);
+      console.log(`[CommonFillGeneration] Loading leaves for employee ${params.staffMember.employeeId} with Date-only format support`);
+      
+      // *** ИСПРАВЛЕНО: Создаем дату с локальными компонентами для избежания проблем с часовыми поясами ***
+      const normalizedDate = new Date(params.selectedDate.getFullYear(), params.selectedDate.getMonth(), params.selectedDate.getDate());
+      console.log(`[CommonFillGeneration] Normalized date for leaves query: ${normalizedDate.toLocaleDateString()}`);
+      
       const leaves = await this.daysOfLeavesService.getLeavesForMonthAndYear(
-        params.selectedDate,
+        normalizedDate,
         parseInt(params.staffMember.employeeId, 10),
         parseInt(params.currentUserId || '0', 10),
         parseInt(params.managingGroupId || '0', 10)
@@ -224,22 +237,43 @@ export class CommonFillGeneration {
 
       // Фильтруем удаленные отпуска
       const activeLeaves = leaves.filter((leave: ILeaveDay) => !leave.deleted);
-      console.log(`[CommonFillGeneration] Loaded ${leaves.length} total leaves, ${activeLeaves.length} active`);
+      console.log(`[CommonFillGeneration] Loaded ${leaves.length} total leaves, ${activeLeaves.length} active with Date-only format`);
 
-      // Логируем первые несколько отпусков для отладки
+      // Логируем первые несколько отпусков для отладки Date-only формата
       if (activeLeaves.length > 0) {
         activeLeaves.slice(0, 3).forEach((leave, index) => {
-          const endDateStr = leave.endDate ? new Date(leave.endDate).toLocaleDateString() : 'ongoing';
-          console.log(`[CommonFillGeneration] Leave ${index + 1}: ${new Date(leave.startDate).toLocaleDateString()} - ${endDateStr}, type: ${leave.typeOfLeave}, title: "${leave.title}"`);
+          // *** ОБНОВЛЕНО: Правильное форматирование Date-only дат ***
+          const startDateStr = this.formatDateOnlyForDisplay(leave.startDate);
+          const endDateStr = leave.endDate ? this.formatDateOnlyForDisplay(leave.endDate) : 'ongoing';
+          console.log(`[CommonFillGeneration] Leave ${index + 1}: ${startDateStr} - ${endDateStr}, type: ${leave.typeOfLeave}, title: "${leave.title}"`);
         });
       }
 
       return activeLeaves;
     } catch (error) {
-      console.error('[CommonFillGeneration] Error loading leaves:', error);
+      console.error('[CommonFillGeneration] Error loading leaves with Date-only format:', error);
       return [];
     }
   }
+
+  /**
+   * *** НОВЫЙ МЕТОД: Форматирует Date-only дату для отображения ***
+   */
+  private formatDateOnlyForDisplay(date: Date): string {
+    try {
+      // Используем локальные компоненты даты для правильного отображения Date-only полей
+      const year = date.getFullYear();
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const day = date.getDate().toString().padStart(2, '0');
+      
+      return `${day}.${month}.${year}`;
+    } catch (error) {
+      console.warn('[CommonFillGeneration] Error formatting Date-only date for display:', error);
+      return date.toLocaleDateString();
+    }
+  }
+
+
 
   /**
    * *** ОБНОВЛЕНО: Helper function для получения времени с timezone adjustment в числовом формате ***
@@ -790,7 +824,7 @@ export class CommonFillGeneration {
 
   /**
    * *** ПОЛНОСТЬЮ ПЕРЕПИСАННЫЙ МЕТОД: Генерирует записи с правильной логикой чередования недель и числовыми полями времени ***
-   * ИСПРАВЛЕНО: Теперь использует только числовые поля времени, отказывается от ShiftDate1/ShiftDate2
+   * UPDATED: Теперь использует Date-only обработку для праздников и отпусков
    */
   public async generateScheduleRecords(
     params: IFillParams,
@@ -799,8 +833,8 @@ export class CommonFillGeneration {
     leaves: ILeaveDay[],
     weeklyTemplates: IScheduleTemplate[]
   ): Promise<Partial<IStaffRecord>[]> {
-    console.log(`[CommonFillGeneration] *** GENERATING WITH NUMERIC TIME FIELDS ONLY ***`);
-    console.log(`[CommonFillGeneration] Generating schedule records with NUMERIC TIME FIELDS for ${params.staffMember.name}`);
+    console.log(`[CommonFillGeneration] *** GENERATING WITH NUMERIC TIME FIELDS AND DATE-ONLY SUPPORT ***`);
+    console.log(`[CommonFillGeneration] Generating schedule records with Date-only format support for ${params.staffMember.name}`);
 
     // *** ИСПРАВЛЕННЫЙ РАСЧЕТ ПЕРИОДА МЕСЯЦА С UTC ***
     const startOfMonth = new Date(Date.UTC(
@@ -817,7 +851,7 @@ export class CommonFillGeneration {
       23, 59, 59, 999
     ));
 
-    console.log(`[CommonFillGeneration] NUMERIC FIELDS UTC Month period: ${startOfMonth.toISOString()} - ${endOfMonth.toISOString()}`);
+    console.log(`[CommonFillGeneration] Date-only UTC Month period: ${startOfMonth.toISOString()} - ${endOfMonth.toISOString()}`);
 
     const contractStartDate = contract.startDate;
     const contractFinishDate = contract.finishDate;
@@ -847,17 +881,17 @@ export class CommonFillGeneration {
       lastDay = endOfMonth;
     }
 
-    console.log(`[CommonFillGeneration] NUMERIC FIELDS UTC Generation period: ${firstDay.toISOString()} - ${lastDay.toISOString()}`);
+    console.log(`[CommonFillGeneration] Date-only UTC Generation period: ${firstDay.toISOString()} - ${lastDay.toISOString()}`);
 
     // *** ПРОВЕРЯЕМ КОЛИЧЕСТВО ДНЕЙ ***
     const totalDays = Math.floor((lastDay.getTime() - firstDay.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-    console.log(`[CommonFillGeneration] NUMERIC FIELDS Total days in period: ${totalDays}`);
+    console.log(`[CommonFillGeneration] Date-only Total days in period: ${totalDays}`);
 
     this.initializeGenerationAnalysis(firstDay, lastDay);
 
-    // Создаем кэши для быстрого поиска
-    const holidayCache = this.createHolidayCache(holidays);
-    const leavePeriods = this.createLeavePeriods(leaves);
+    // UPDATED: Создаем кэши для быстрого поиска с поддержкой Date-only формата
+    const holidayCache = this.createHolidayCacheWithDateOnly(holidays);
+    const leavePeriods = this.createLeavePeriodsWithDateOnly(leaves);
 
     // *** ПОЛУЧАЕМ ГРУППИРОВАННЫЕ ШАБЛОНЫ И АНАЛИЗИРУЕМ ЛОГИКУ ЧЕРЕДОВАНИЯ ***
     const groupedTemplates = (weeklyTemplates as IScheduleTemplate[] & { _groupedTemplates?: Map<string, IScheduleTemplate[]> })._groupedTemplates;
@@ -906,12 +940,12 @@ export class CommonFillGeneration {
         dayNumber: weekAndDay.dayNumber,
         dayName: this.getDayName(weekAndDay.dayNumber),
         templateFound: templatesForDay.length > 0,
-        isHoliday: this.isHoliday(currentDate, holidayCache),
-        isLeave: this.isLeave(currentDate, leavePeriods)
+        isHoliday: this.isHolidayWithDateOnly(currentDate, holidayCache),
+        isLeave: this.isLeaveWithDateOnly(currentDate, leavePeriods)
       };
 
       if (dayInfo.isLeave) {
-        const leave = this.getLeaveForDay(currentDate, leavePeriods);
+        const leave = this.getLeaveForDayWithDateOnly(currentDate, leavePeriods);
         dayInfo.leaveType = leave?.typeOfLeave || 'Unknown';
       }
 
@@ -956,8 +990,8 @@ export class CommonFillGeneration {
     // *** ЗАВЕРШАЕМ АНАЛИЗ ГЕНЕРАЦИИ ***
     this.finalizeGenerationAnalysis(records.length, holidays.length, leaves.length);
 
-    console.log(`[CommonFillGeneration] *** NUMERIC TIME FIELDS APPROACH COMPLETED ***`);
-    console.log(`[CommonFillGeneration] Generated ${records.length} schedule records with NUMERIC TIME FIELDS ONLY`);
+    console.log(`[CommonFillGeneration] *** DATE-ONLY NUMERIC TIME FIELDS APPROACH COMPLETED ***`);
+    console.log(`[CommonFillGeneration] Generated ${records.length} schedule records with Date-only format support`);
     return records;
   }
 
@@ -1007,7 +1041,7 @@ export class CommonFillGeneration {
 
   /**
    * *** НОВЫЙ МЕТОД: Создает запись расписания из шаблона с ЧИСЛОВЫМИ ПОЛЯМИ ВРЕМЕНИ ***
-   * ИСПРАВЛЕНО: Полностью отказывается от ShiftDate1/ShiftDate2, использует только числовые поля
+   * UPDATED: Теперь использует Date-only методы для проверки праздников и отпусков
    */
   private async createStaffRecordFromTemplateNumeric(
     date: Date,
@@ -1017,15 +1051,19 @@ export class CommonFillGeneration {
     holidayCache: Map<string, IHoliday>,
     leavePeriods: Array<{startDate: Date, endDate: Date, typeOfLeave: string, title: string}>
   ): Promise<Partial<IStaffRecord>> {
-    const dateKey = `${date.getUTCFullYear()}-${date.getUTCMonth() + 1}-${date.getUTCDate()}`;
+    const dateKey = this.formatDateOnlyForComparison(date);
     
-    // Проверяем, является ли день праздником
+    // UPDATED: Проверяем, является ли день праздником с Date-only поддержкой
     const isHoliday = holidayCache.has(dateKey);
     
-    // Проверяем, находится ли сотрудник в отпуске в этот день
-    const leaveForDay = leavePeriods.find(leave => 
-      date >= leave.startDate && date <= leave.endDate
-    );
+    // UPDATED: Проверяем, находится ли сотрудник в отпуске в этот день с Date-only поддержкой
+    const leaveForDay = leavePeriods.find(leave => {
+      const checkDate = this.createDateOnlyFromDate(date);
+      const leaveStart = this.createDateOnlyFromDate(leave.startDate);
+      const leaveEnd = this.createDateOnlyFromDate(leave.endDate);
+      
+      return checkDate >= leaveStart && checkDate <= leaveEnd;
+    });
     const isLeave = !!leaveForDay;
 
     // *** ИСПРАВЛЕНО: Парсим время из шаблона и получаем числовые поля с timezone adjustment ***
@@ -1033,7 +1071,7 @@ export class CommonFillGeneration {
     const endTime = this.parseTimeString(template.endTime);
     const lunchTime = template.lunchMinutes;
 
-    console.log(`[CommonFillGeneration] *** USING NUMERIC TIME FIELDS CREATION ***`);
+    console.log(`[CommonFillGeneration] *** USING NUMERIC TIME FIELDS CREATION WITH DATE-ONLY SUPPORT ***`);
     console.log(`[CommonFillGeneration] Creating record for ${date.toISOString()}: Shift ${template.NumberOfShift}, ${template.startTime}-${template.endTime}, lunch: ${lunchTime}min, holiday: ${isHoliday}, leave: ${isLeave}`);
 
     // *** ИСПРАВЛЕНО: Используем getAdjustedNumericTime для получения скорректированного времени ***
@@ -1047,10 +1085,6 @@ export class CommonFillGeneration {
     const record: Partial<IStaffRecord> = {
       Title: `Template=${contract.id} Week=${template.NumberOfWeek} Shift=${template.NumberOfShift}`,
       Date: new Date(date), // *** UTC дата ***
-      
-      // *** ИСПРАВЛЕНО: УДАЛЕНЫ ShiftDate1/ShiftDate2 - НЕ ИСПОЛЬЗУЕМ БОЛЬШЕ ***
-      // ShiftDate1: undefined,
-      // ShiftDate2: undefined,
       
       // *** НОВОЕ: ТОЛЬКО ЧИСЛОВЫЕ ПОЛЯ ВРЕМЕНИ С TIMEZONE ADJUSTMENT ***
       ShiftDate1Hours: adjustedStartTime.hours,
@@ -1073,7 +1107,7 @@ export class CommonFillGeneration {
       console.log(`[CommonFillGeneration] Added leave type ${record.TypeOfLeaveID} for ${date.toISOString()}: ${leaveForDay.title}`);
     }
 
-    console.log(`[CommonFillGeneration] *** FINAL NUMERIC RECORD CREATED ***`);
+    console.log(`[CommonFillGeneration] *** FINAL NUMERIC RECORD CREATED WITH DATE-ONLY SUPPORT ***`);
     console.log(`[CommonFillGeneration] Record: ${JSON.stringify({
       Title: record.Title,
       Date: record.Date?.toISOString(),
@@ -1167,56 +1201,108 @@ export class CommonFillGeneration {
   }
 
   /**
-   * *** ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ДЛЯ АНАЛИЗА ***
+   * *** UPDATED: Создает Date-only объект из существующей даты ***
    */
-  private isHoliday(date: Date, holidayCache: Map<string, IHoliday>): boolean {
-    const dateKey = `${date.getUTCFullYear()}-${date.getUTCMonth() + 1}-${date.getUTCDate()}`;
-    return holidayCache.has(dateKey);
-  }
-
-  private isLeave(date: Date, leavePeriods: Array<{startDate: Date, endDate: Date, typeOfLeave: string, title: string}>): boolean {
-    return leavePeriods.some(leave => date >= leave.startDate && date <= leave.endDate);
-  }
-
-  private getLeaveForDay(date: Date, leavePeriods: Array<{startDate: Date, endDate: Date, typeOfLeave: string, title: string}>): {typeOfLeave: string, title: string} | undefined {
-    return leavePeriods.find(leave => date >= leave.startDate && date <= leave.endDate);
+  private createDateOnlyFromDate(date: Date): Date {
+    // Создаем новую дату только с компонентами даты, без времени
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
   }
 
   /**
-   * *** НОВЫЙ МЕТОД: Создает кэш праздников для быстрого поиска с UTC ***
+   * *** UPDATED: Форматирует Date-only дату для сравнения ***
    */
-  private createHolidayCache(holidays: IHoliday[]): Map<string, IHoliday> {
+  private formatDateOnlyForComparison(date: Date): string {
+    try {
+      // Используем локальные компоненты даты для правильного сравнения Date-only полей
+      const year = date.getFullYear();
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const day = date.getDate().toString().padStart(2, '0');
+      
+      return `${year}-${month}-${day}`;
+    } catch (error) {
+      console.warn('[CommonFillGeneration] Error formatting Date-only date for comparison:', error);
+      return date.toLocaleDateString();
+    }
+  }
+
+  /**
+   * *** UPDATED: Проверка праздника с Date-only поддержкой ***
+   */
+  private isHolidayWithDateOnly(date: Date, holidayCache: Map<string, IHoliday>): boolean {
+    const dateKey = this.formatDateOnlyForComparison(date);
+    return holidayCache.has(dateKey);
+  }
+
+  /**
+   * *** UPDATED: Проверка отпуска с Date-only поддержкой ***
+   */
+  private isLeaveWithDateOnly(date: Date, leavePeriods: Array<{startDate: Date, endDate: Date, typeOfLeave: string, title: string}>): boolean {
+    return leavePeriods.some(leave => {
+      const checkDate = this.createDateOnlyFromDate(date);
+      const leaveStart = this.createDateOnlyFromDate(leave.startDate);
+      const leaveEnd = this.createDateOnlyFromDate(leave.endDate);
+      
+      return checkDate >= leaveStart && checkDate <= leaveEnd;
+    });
+  }
+
+  /**
+   * *** UPDATED: Получение отпуска для дня с Date-only поддержкой ***
+   */
+  private getLeaveForDayWithDateOnly(date: Date, leavePeriods: Array<{startDate: Date, endDate: Date, typeOfLeave: string, title: string}>): {typeOfLeave: string, title: string} | undefined {
+    return leavePeriods.find(leave => {
+      const checkDate = this.createDateOnlyFromDate(date);
+      const leaveStart = this.createDateOnlyFromDate(leave.startDate);
+      const leaveEnd = this.createDateOnlyFromDate(leave.endDate);
+      
+      return checkDate >= leaveStart && checkDate <= leaveEnd;
+    });
+  }
+
+  /**
+   * *** UPDATED: Создает кэш праздников для быстрого поиска с Date-only поддержкой ***
+   */
+  private createHolidayCacheWithDateOnly(holidays: IHoliday[]): Map<string, IHoliday> {
     const cache = new Map<string, IHoliday>();
     holidays.forEach((holiday: IHoliday) => {
-      const date = new Date(holiday.date);
-      // *** ИСПРАВЛЕНО: Используем UTC методы ***
-      const key = `${date.getUTCFullYear()}-${date.getUTCMonth() + 1}-${date.getUTCDate()}`;
+      // *** ОБНОВЛЕНО: Используем Date-only форматирование ***
+      const key = this.formatDateOnlyForComparison(holiday.date);
       cache.set(key, holiday);
+      console.log(`[CommonFillGeneration] Added holiday to Date-only cache: ${key} - ${holiday.title}`);
     });
-    console.log(`[CommonFillGeneration] Created holiday cache with ${cache.size} entries using UTC`);
+    console.log(`[CommonFillGeneration] Created Date-only holiday cache with ${cache.size} entries`);
     return cache;
   }
 
   /**
-   * *** НОВЫЙ МЕТОД: Создает массив периодов отпусков для быстрой проверки ***
+   * *** UPDATED: Создает массив периодов отпусков для быстрой проверки с Date-only поддержкой ***
    */
-  private createLeavePeriods(leaves: ILeaveDay[]): Array<{startDate: Date, endDate: Date, typeOfLeave: string, title: string}> {
+  private createLeavePeriodsWithDateOnly(leaves: ILeaveDay[]): Array<{startDate: Date, endDate: Date, typeOfLeave: string, title: string}> {
     // *** FILTER OUT DELETED LEAVES FOR DASHBOARD TAB ***
     const activeLeaves = leaves.filter(leave => {
       const isDeleted = leave.deleted === true;
       if (isDeleted) {
-        console.log(`[CommonFillGeneration] Filtering out deleted leave: ${leave.title} (${new Date(leave.startDate).toLocaleDateString()} - ${leave.endDate ? new Date(leave.endDate).toLocaleDateString() : 'ongoing'})`);
+        console.log(`[CommonFillGeneration] Filtering out deleted leave: ${leave.title} (${this.formatDateOnlyForDisplay(leave.startDate)} - ${leave.endDate ? this.formatDateOnlyForDisplay(leave.endDate) : 'ongoing'})`);
       }
       return !isDeleted;
     });
     
-    const leavePeriods = activeLeaves.map((leave: ILeaveDay) => ({
-      startDate: new Date(leave.startDate),
-      endDate: leave.endDate ? new Date(leave.endDate) : new Date(2099, 11, 31),
-      typeOfLeave: leave.typeOfLeave.toString(),
-      title: leave.title || ''
-    }));
-    console.log(`[CommonFillGeneration] Created leave periods cache with ${leavePeriods.length} entries from ${leaves.length} total`);
+    const leavePeriods = activeLeaves.map((leave: ILeaveDay) => {
+      // *** ОБНОВЛЕНО: Создаем Date-only объекты для корректного сравнения ***
+      const startDate = this.createDateOnlyFromDate(leave.startDate);
+      const endDate = leave.endDate ? this.createDateOnlyFromDate(leave.endDate) : new Date(2099, 11, 31);
+      
+      console.log(`[CommonFillGeneration] Added leave to Date-only cache: ${this.formatDateOnlyForDisplay(startDate)} - ${this.formatDateOnlyForDisplay(endDate)}, type: ${leave.typeOfLeave}, title: "${leave.title}"`);
+      
+      return {
+        startDate,
+        endDate,
+        typeOfLeave: leave.typeOfLeave.toString(),
+        title: leave.title || ''
+      };
+    });
+    
+    console.log(`[CommonFillGeneration] Created Date-only leave periods cache with ${leavePeriods.length} entries from ${leaves.length} total`);
     return leavePeriods;
   }
 
@@ -1224,8 +1310,8 @@ export class CommonFillGeneration {
    * *** ОБНОВЛЕННЫЙ МЕТОД: Сохраняет сгенерированные записи в SharePoint с числовыми полями ***
    */
   public async saveGeneratedRecords(records: Partial<IStaffRecord>[], params: IFillParams): Promise<number> {
-    console.log(`[CommonFillGeneration] *** SAVING WITH NUMERIC TIME FIELDS ONLY ***`);
-    console.log(`[CommonFillGeneration] Saving ${records.length} generated records with NUMERIC TIME FIELDS`);
+    console.log(`[CommonFillGeneration] *** SAVING WITH NUMERIC TIME FIELDS AND DATE-ONLY SUPPORT ***`);
+    console.log(`[CommonFillGeneration] Saving ${records.length} generated records with Date-only format support`);
 
     let successCount = 0;
     const errors: string[] = [];
@@ -1250,7 +1336,7 @@ export class CommonFillGeneration {
         // *** ЛОГИРУЕМ ЧИСЛОВЫЕ ПОЛЯ ВРЕМЕНИ ПЕРЕД СОХРАНЕНИЕМ ***
         if (record.ShiftDate1Hours !== undefined && record.ShiftDate1Minutes !== undefined && 
             record.ShiftDate2Hours !== undefined && record.ShiftDate2Minutes !== undefined) {
-          console.log(`[CommonFillGeneration] *** NUMERIC TIME FIELDS BEING SAVED ***`);
+          console.log(`[CommonFillGeneration] *** NUMERIC TIME FIELDS BEING SAVED WITH DATE-ONLY SUPPORT ***`);
           console.log(`[CommonFillGeneration] Date: ${record.Date?.toISOString()}`);
           console.log(`[CommonFillGeneration] Start Time: ${record.ShiftDate1Hours}:${record.ShiftDate1Minutes?.toString().padStart(2, '0')}`);
           console.log(`[CommonFillGeneration] End Time: ${record.ShiftDate2Hours}:${record.ShiftDate2Minutes?.toString().padStart(2, '0')}`);
@@ -1272,11 +1358,11 @@ export class CommonFillGeneration {
             console.log(`[CommonFillGeneration] ✓ Record ${newRecordId} created with leave type: ${record.TypeOfLeaveID}`);
           }
           if (record.Holiday === 1) {
-            console.log(`[CommonFillGeneration] ✓ Record ${newRecordId} created for holiday`);
+            console.log(`[CommonFillGeneration] ✓ Record ${newRecordId} created for holiday (Date-only format)`);
           }
           
           if (record.ShiftDate1Hours !== undefined && record.ShiftDate2Hours !== undefined) {
-            console.log(`[CommonFillGeneration] ✓ Record ${newRecordId} saved with NUMERIC TIME FIELDS - no timezone shift should occur`);
+            console.log(`[CommonFillGeneration] ✓ Record ${newRecordId} saved with NUMERIC TIME FIELDS and Date-only format support`);
             console.log(`[CommonFillGeneration] ✓ Saved times: ${record.ShiftDate1Hours}:${record.ShiftDate1Minutes?.toString().padStart(2, '0')} - ${record.ShiftDate2Hours}:${record.ShiftDate2Minutes?.toString().padStart(2, '0')}`);
           }
         } else {
@@ -1295,8 +1381,8 @@ export class CommonFillGeneration {
       }
     }
 
-    console.log(`[CommonFillGeneration] *** NUMERIC FIELDS SAVE COMPLETED ***`);
-    console.log(`[CommonFillGeneration] Save operation completed with NUMERIC TIME FIELDS: ${successCount}/${records.length} successful`);
+    console.log(`[CommonFillGeneration] *** DATE-ONLY NUMERIC FIELDS SAVE COMPLETED ***`);
+    console.log(`[CommonFillGeneration] Save operation completed with Date-only format support: ${successCount}/${records.length} successful`);
     
     if (errors.length > 0) {
       console.error(`[CommonFillGeneration] Save errors (${errors.length}):`, errors);

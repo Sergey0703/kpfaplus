@@ -1,5 +1,5 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/hooks/useDashboardFill.ts
-// ИСПРАВЛЕНО: Удалены неиспользуемые переменные и исправлены ошибки линтера
+// UPDATED: Full support for Date-only format in Holidays and DaysOfLeaves lists
 // ДОБАВЛЕНО: Поддержка автозаполнения и специальная обработка для staff с autoschedule
 import { useCallback } from 'react';
 import { MessageBarType } from '@fluentui/react';
@@ -51,19 +51,32 @@ interface IUseDashboardFillReturn {
   handleFillStaff: (staffId: string, staffName: string) => Promise<void>;
   handleFillAll: () => Promise<void>;
   handleAutoscheduleToggle: (staffId: string, checked: boolean) => Promise<void>;
-  // ДОБАВЛЕНО: Функции для автозаполнения
+  // ДОБАВЛЕНО: Функции для автозаполнения с Date-only поддержкой
   processStaffMemberAuto: (staff: IStaffMemberWithAutoschedule) => Promise<{success: boolean, message: string}>;
   checkAutoFillEligibility: (staff: IStaffMemberWithAutoschedule) => Promise<{eligible: boolean, reason?: string}>;
   logAutoFillWarning: (staff: IStaffMemberWithAutoschedule, reason: string) => Promise<void>;
 }
 
-// Utility functions
-const formatDate = (date?: Date): string => {
+// *** UTILITY FUNCTIONS WITH DATE-ONLY SUPPORT ***
+const formatDateOnlyForDisplay = (date?: Date): string => {
   if (!date) return '';
-  const day = date.getDate().toString().padStart(2, '0');
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  const year = date.getFullYear();
-  return `${day}.${month}.${year}`;
+  try {
+    // Используем локальные компоненты даты для правильного отображения Date-only полей
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    
+    return `${day}.${month}.${year}`;
+  } catch (error) {
+    console.warn('[useDashboardFill] Error formatting Date-only date for display:', error);
+    return date.toLocaleDateString();
+  }
+};
+
+const createDateOnlyFromComponents = (year: number, month: number, day: number): Date => {
+  // Создаем дату с локальными компонентами для избежания проблем с часовыми поясами
+  // month должен быть 0-based для конструктора Date
+  return new Date(year, month, day);
 };
 
 // *** HELPER FUNCTION: Extract records count from message ***
@@ -94,9 +107,9 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
     handleBulkLogRefresh
   } = params;
 
-  console.log('[useDashboardFill] Fill operations hook initialized with Auto Fill support and Result=3 logging');
+  console.log('[useDashboardFill] Fill operations hook initialized with Date-only format support and Auto Fill');
 
-  // *** CREATE FILL PARAMETERS ***
+  // *** CREATE FILL PARAMETERS WITH DATE-ONLY SUPPORT ***
   const createFillParams = useCallback((staffMember: IStaffMemberWithAutoschedule): IFillParams | undefined => {
     if (!context) {
       console.error('[useDashboardFill] Context not available');
@@ -138,7 +151,7 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
     };
   }, [context, staffMembers, selectedDate, currentUserId, managingGroupId]);
 
-  // *** GET ACTIVE CONTRACT FOR STAFF WITH UTC BOUNDARIES ***
+  // *** GET ACTIVE CONTRACT FOR STAFF WITH DATE-ONLY BOUNDARIES ***
   const getActiveContractForStaff = useCallback(async (staffMember: IStaffMember): Promise<IContract | undefined> => {
     if (!context) return undefined;
 
@@ -153,37 +166,36 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
       const activeContracts = contracts.filter((contract: IContract) => {
         if (contract.isDeleted) return false;
         
-        // *** ИСПРАВЛЕНО: Check if contract is active in selected month using UTC ***
-        const year = selectedDate.getUTCFullYear();
-        const month = selectedDate.getUTCMonth();
+        // *** UPDATED: Check if contract is active in selected month using Date-only approach ***
+        const selectedYear = selectedDate.getFullYear();
+        const selectedMonth = selectedDate.getMonth();
         
-        // *** ИСПРАВЛЕНО: Create month boundaries using UTC methods ***
-        const firstDayOfMonth = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
-        const lastDayOfMonth = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
+        // *** UPDATED: Create month boundaries using Date-only methods ***
+        const firstDayOfMonth = createDateOnlyFromComponents(selectedYear, selectedMonth, 1);
+        const lastDayOfMonth = createDateOnlyFromComponents(selectedYear, selectedMonth + 1, 0); // Last day of month
 
-        console.log(`[useDashboardFill] *** UTC CONTRACT VALIDATION FOR ${staffMember.name} ***`);
-        console.log(`[useDashboardFill] Selected date: ${selectedDate.toISOString()}`);
-        console.log(`[useDashboardFill] Month boundaries (UTC): ${firstDayOfMonth.toISOString()} - ${lastDayOfMonth.toISOString()}`);
-        console.log(`[useDashboardFill] Contract ${contract.id} dates: ${contract.startDate ? new Date(contract.startDate).toISOString() : 'no start'} - ${contract.finishDate ? new Date(contract.finishDate).toISOString() : 'no end'}`);
+        console.log(`[useDashboardFill] *** DATE-ONLY CONTRACT VALIDATION FOR ${staffMember.name} ***`);
+        console.log(`[useDashboardFill] Selected date: ${formatDateOnlyForDisplay(selectedDate)}`);
+        console.log(`[useDashboardFill] Month boundaries (Date-only): ${formatDateOnlyForDisplay(firstDayOfMonth)} - ${formatDateOnlyForDisplay(lastDayOfMonth)}`);
+        console.log(`[useDashboardFill] Contract ${contract.id} dates: ${contract.startDate ? formatDateOnlyForDisplay(new Date(contract.startDate)) : 'no start'} - ${contract.finishDate ? formatDateOnlyForDisplay(new Date(contract.finishDate)) : 'no end'}`);
 
         if (!contract.startDate) {
           console.log(`[useDashboardFill] Contract ${contract.id} has no start date - excluding`);
           return false;
         }
         
-        // *** ИСПРАВЛЕНО: Normalize contract start date to UTC ***
+        // *** UPDATED: Normalize contract start date to Date-only ***
         const startDate = new Date(contract.startDate);
-        const startDateUTC = new Date(Date.UTC(
-          startDate.getUTCFullYear(),
-          startDate.getUTCMonth(),
-          startDate.getUTCDate(),
-          0, 0, 0, 0
-        ));
+        const startDateOnly = createDateOnlyFromComponents(
+          startDate.getFullYear(),
+          startDate.getMonth(),
+          startDate.getDate()
+        );
         
         // Check if contract starts after the month ends
-        if (startDateUTC > lastDayOfMonth) {
+        if (startDateOnly > lastDayOfMonth) {
           console.log(`[useDashboardFill] Contract ${contract.id} starts after selected month - excluding`);
-          console.log(`[useDashboardFill] Contract start (UTC): ${startDateUTC.toISOString()}, Month end (UTC): ${lastDayOfMonth.toISOString()}`);
+          console.log(`[useDashboardFill] Contract start (Date-only): ${formatDateOnlyForDisplay(startDateOnly)}, Month end (Date-only): ${formatDateOnlyForDisplay(lastDayOfMonth)}`);
           return false;
         }
         
@@ -193,23 +205,22 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
           return true;
         }
 
-        // *** ИСПРАВЛЕНО: Normalize contract finish date to UTC ***
+        // *** UPDATED: Normalize contract finish date to Date-only ***
         const finishDate = new Date(contract.finishDate);
-        const finishDateUTC = new Date(Date.UTC(
-          finishDate.getUTCFullYear(),
-          finishDate.getUTCMonth(),
-          finishDate.getUTCDate(),
-          23, 59, 59, 999
-        ));
+        const finishDateOnly = createDateOnlyFromComponents(
+          finishDate.getFullYear(),
+          finishDate.getMonth(),
+          finishDate.getDate()
+        );
         
         // Check if contract ends before the month starts
-        const isActive = finishDateUTC >= firstDayOfMonth;
+        const isActive = finishDateOnly >= firstDayOfMonth;
         
-        console.log(`[useDashboardFill] Contract ${contract.id} UTC validation result:`, {
-          contractStart: startDateUTC.toISOString(),
-          contractEnd: finishDateUTC.toISOString(),
-          monthStart: firstDayOfMonth.toISOString(),
-          monthEnd: lastDayOfMonth.toISOString(),
+        console.log(`[useDashboardFill] Contract ${contract.id} Date-only validation result:`, {
+          contractStart: formatDateOnlyForDisplay(startDateOnly),
+          contractEnd: formatDateOnlyForDisplay(finishDateOnly),
+          monthStart: formatDateOnlyForDisplay(firstDayOfMonth),
+          monthEnd: formatDateOnlyForDisplay(lastDayOfMonth),
           isActive: isActive
         });
         
@@ -218,23 +229,23 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
 
       const selectedContract = activeContracts.length > 0 ? activeContracts[0] : undefined;
       
-      console.log(`[useDashboardFill] Contract selection result for ${staffMember.name}:`, {
+      console.log(`[useDashboardFill] Contract selection result with Date-only support for ${staffMember.name}:`, {
         totalContracts: contracts.length,
         activeContracts: activeContracts.length,
         selectedContract: selectedContract ? `${selectedContract.id} - ${selectedContract.template || 'No name'}` : 'None',
-        period: `${selectedDate.toISOString()} (UTC)`
+        period: `${formatDateOnlyForDisplay(selectedDate)} (Date-only)`
       });
 
       return selectedContract;
     } catch (error) {
-      console.error('[useDashboardFill] Error getting active contract with UTC validation:', error);
+      console.error('[useDashboardFill] Error getting active contract with Date-only validation:', error);
       return undefined;
     }
   }, [context, currentUserId, managingGroupId, selectedDate]);
 
-  // *** НОВАЯ ФУНКЦИЯ: Проверка возможности автозаполнения ***
+  // *** НОВАЯ ФУНКЦИЯ: Проверка возможности автозаполнения с Date-only поддержкой ***
   const checkAutoFillEligibility = useCallback(async (staff: IStaffMemberWithAutoschedule): Promise<{eligible: boolean, reason?: string}> => {
-    console.log(`[useDashboardFill] 🔍 Checking auto-fill eligibility for ${staff.name}`);
+    console.log(`[useDashboardFill] 🔍 Checking auto-fill eligibility with Date-only support for ${staff.name}`);
 
     // Проверка 1: Autoschedule должен быть включен
     if (!staff.autoschedule) {
@@ -270,7 +281,7 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
       // Проверка 4: Получаем активный контракт
       const activeContract = await getActiveContractForStaff(fillParams.staffMember);
       if (!activeContract) {
-        const reason = 'No active contract found for selected period';
+        const reason = 'No active contract found for selected period (Date-only check)';
         console.log(`[useDashboardFill] ❌ ${staff.name}: ${reason}`);
         return { eligible: false, reason };
       }
@@ -286,7 +297,7 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
       }
 
       // EmptySchedule или UnprocessedRecordsReplace - можно обрабатывать
-      console.log(`[useDashboardFill] ✅ ${staff.name}: Eligible for auto-fill (${dialogConfig.type})`);
+      console.log(`[useDashboardFill] ✅ ${staff.name}: Eligible for auto-fill (${dialogConfig.type}) with Date-only support`);
       return { eligible: true };
 
     } catch (error) {
@@ -296,9 +307,9 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
     }
   }, [createFillParams, fillService, getActiveContractForStaff]);
 
-  // *** НОВАЯ ФУНКЦИЯ: Логирование предупреждений для автозаполнения ***
+  // *** НОВАЯ ФУНКЦИЯ: Логирование предупреждений для автозаполнения с Date-only поддержкой ***
   const logAutoFillWarning = useCallback(async (staff: IStaffMemberWithAutoschedule, reason: string): Promise<void> => {
-    console.log(`[useDashboardFill] 📝 Logging auto-fill warning for ${staff.name}: ${reason}`);
+    console.log(`[useDashboardFill] 📝 Logging auto-fill warning with Date-only support for ${staff.name}: ${reason}`);
 
     if (!fillService) {
       console.warn('[useDashboardFill] Cannot log warning - fill service not available');
@@ -315,15 +326,15 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
       // Создаем специальный лог с Result=3 (Warning/Info) для автозаполнения
       await fillService.logUserRefusal(fillParams, DialogType.ProcessedRecordsBlock, undefined);
       
-      console.log(`[useDashboardFill] ✓ Warning logged for ${staff.name}: ${reason}`);
+      console.log(`[useDashboardFill] ✓ Warning logged with Date-only support for ${staff.name}: ${reason}`);
     } catch (error) {
       console.error(`[useDashboardFill] Error logging warning for ${staff.name}:`, error);
     }
   }, [fillService, createFillParams]);
 
-  // *** НОВАЯ ФУНКЦИЯ: Автоматическая обработка одного staff member ***
+  // *** НОВАЯ ФУНКЦИЯ: Автоматическая обработка одного staff member с Date-only поддержкой ***
   const processStaffMemberAuto = useCallback(async (staff: IStaffMemberWithAutoschedule): Promise<{success: boolean, message: string}> => {
-    console.log(`[useDashboardFill] 🤖 Auto-processing staff member: ${staff.name}`);
+    console.log(`[useDashboardFill] 🤖 Auto-processing staff member with Date-only support: ${staff.name}`);
 
     try {
       // Проверяем возможность автозаполнения
@@ -359,7 +370,7 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
       if (!activeContract) {
         return { 
           success: false, 
-          message: '❌ No active contract' 
+          message: '❌ No active contract (Date-only check)' 
         };
       }
 
@@ -374,12 +385,12 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
         replaceExisting
       };
 
-      console.log(`[useDashboardFill] 🚀 Executing auto-fill for ${staff.name} (replace existing: ${replaceExisting})`);
+      console.log(`[useDashboardFill] 🚀 Executing auto-fill with Date-only support for ${staff.name} (replace existing: ${replaceExisting})`);
       
       const result = await fillService.performFillOperation(performParams);
 
       if (result.success) {
-        console.log(`[useDashboardFill] ✅ Auto-fill successful for ${staff.name}: ${result.createdRecordsCount} records created`);
+        console.log(`[useDashboardFill] ✅ Auto-fill successful with Date-only support for ${staff.name}: ${result.createdRecordsCount} records created`);
         
         // Обновляем лог через небольшую задержку
         setTimeout(() => {
@@ -388,7 +399,7 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
 
         return { 
           success: true, 
-          message: `✅ Success (${result.createdRecordsCount} records created)` 
+          message: `✅ Success (${result.createdRecordsCount} records created, Date-only format)` 
         };
       } else {
         console.error(`[useDashboardFill] ❌ Auto-fill failed for ${staff.name}: ${result.message}`);
@@ -418,7 +429,7 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
     }
   }, [checkAutoFillEligibility, createFillParams, fillService, getActiveContractForStaff, logAutoFillWarning, handleLogRefresh]);
 
-  // *** SHOW SCHEDULE TAB DIALOG WITH REFUSAL LOGGING ***
+  // *** SHOW SCHEDULE TAB DIALOG WITH REFUSAL LOGGING AND DATE-ONLY SUPPORT ***
   const showScheduleDialog = useCallback((
     dialogConfig: IDialogConfig, 
     staffName: string, 
@@ -426,12 +437,12 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
     contractId: string,
     onConfirm: () => Promise<void>
   ): void => {
-    console.log(`[useDashboardFill] Showing Schedule tab dialog: ${dialogConfig.type} for ${staffName}`);
+    console.log(`[useDashboardFill] Showing Schedule tab dialog with Date-only support: ${dialogConfig.type} for ${staffName}`);
     
     // Добавляем информацию о периоде к сообщению
-    const enhancedMessage = dialogConfig.message.includes(formatDate(selectedDate)) 
+    const enhancedMessage = dialogConfig.message.includes(formatDateOnlyForDisplay(selectedDate)) 
       ? dialogConfig.message 
-      : `${dialogConfig.message}\n\nPeriod: ${formatDate(selectedDate)}`;
+      : `${dialogConfig.message}\n\nPeriod: ${formatDateOnlyForDisplay(selectedDate)} (Date-only format)`;
 
     setConfirmDialog({
       isOpen: true,
@@ -447,7 +458,7 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
     });
   }, [selectedDate, setConfirmDialog]);
 
-  // *** LOG USER REFUSAL ***
+  // *** LOG USER REFUSAL WITH DATE-ONLY SUPPORT ***
   const logUserRefusal = useCallback(async (
     fillParams: IFillParams,
     dialogType: DialogType,
@@ -455,12 +466,12 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
     staffName: string
   ): Promise<void> => {
     if (fillService) {
-      console.log(`[useDashboardFill] Logging user refusal for ${staffName}, dialog: ${dialogType}`);
+      console.log(`[useDashboardFill] Logging user refusal with Date-only support for ${staffName}, dialog: ${dialogType}`);
       await fillService.logUserRefusal(fillParams, dialogType, contractId);
     }
   }, [fillService]);
 
-  // *** PERFORM ACTUAL FILL OPERATION ***
+  // *** PERFORM ACTUAL FILL OPERATION WITH DATE-ONLY SUPPORT ***
   const performFillOperation = useCallback(async (
     fillParams: IFillParams, 
     contractId: string,
@@ -478,7 +489,7 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
 
     try {
       setIsLoading(true);
-      console.log(`[useDashboardFill] Performing fill operation for ${staffName} (period: ${formatDate(selectedDate)})`);
+      console.log(`[useDashboardFill] Performing fill operation with Date-only support for ${staffName} (period: ${formatDateOnlyForDisplay(selectedDate)})`);
 
       const performParams: IPerformFillParams = {
         ...fillParams,
@@ -494,7 +505,7 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
       });
 
       if (result.success) {
-        console.log(`[useDashboardFill] Fill successful for ${staffName} - will refresh log`);
+        console.log(`[useDashboardFill] Fill successful with Date-only support for ${staffName} - will refresh log`);
         
         // Обновляем лог через небольшую задержку
         setTimeout(() => {
@@ -540,9 +551,9 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
     }
   }, [setIsLoading, setInfoMessage]);
 
-  // *** HANDLE FILL STAFF WITH SCHEDULE TAB LOGIC ***
+  // *** HANDLE FILL STAFF WITH SCHEDULE TAB LOGIC AND DATE-ONLY SUPPORT ***
   const handleFillStaff = useCallback(async (staffId: string, staffName: string): Promise<void> => {
-    console.log(`[useDashboardFill] Fill staff operation with Schedule tab logic: ${staffId}, ${staffName} (period: ${formatDate(selectedDate)})`);
+    console.log(`[useDashboardFill] Fill staff operation with Schedule tab logic and Date-only support: ${staffId}, ${staffName} (period: ${formatDateOnlyForDisplay(selectedDate)})`);
     
     const staffMember = staffMembersData.find(staff => staff.id === staffId);
     if (!staffMember) {
@@ -569,8 +580,8 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
         throw new Error('Fill service not available');
       }
 
-      // *** ШАГ 1: ПРОВЕРЯЕМ ЗАПИСИ С SCHEDULE TAB ЛОГИКОЙ ***
-      console.log(`[useDashboardFill] Checking schedule with Schedule tab logic for ${staffName}`);
+      // *** ШАГ 1: ПРОВЕРЯЕМ ЗАПИСИ С SCHEDULE TAB ЛОГИКОЙ И DATE-ONLY ПОДДЕРЖКОЙ ***
+      console.log(`[useDashboardFill] Checking schedule with Schedule tab logic and Date-only support for ${staffName}`);
       const checkResult = await fillService.checkScheduleForFill(fillParams);
 
       if (!checkResult.requiresDialog) {
@@ -582,11 +593,11 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
         return;
       }
 
-      // *** ШАГ 2: ПОЛУЧАЕМ АКТИВНЫЙ КОНТРАКТ ***
+      // *** ШАГ 2: ПОЛУЧАЕМ АКТИВНЫЙ КОНТРАКТ С DATE-ONLY ПРОВЕРКОЙ ***
       const activeContract = await getActiveContractForStaff(fillParams.staffMember);
       if (!activeContract) {
         setInfoMessage({
-          text: `No active contract found for ${staffName} in selected period`,
+          text: `No active contract found for ${staffName} in selected period (Date-only check)`,
           type: MessageBarType.error
         });
         return;
@@ -598,7 +609,7 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
       switch (dialogConfig.type) {
         case DialogType.EmptySchedule:
           // Нет записей - спрашиваем хочет ли пользователь заполнить
-          console.log(`[useDashboardFill] EmptySchedule dialog for ${staffName}`);
+          console.log(`[useDashboardFill] EmptySchedule dialog with Date-only support for ${staffName}`);
           showScheduleDialog(dialogConfig, staffName, fillParams, activeContract.id, async () => {
             await performFillOperation(fillParams, activeContract.id, false, staffName);
           });
@@ -606,7 +617,7 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
 
         case DialogType.UnprocessedRecordsReplace:
           // Есть необработанные записи - спрашиваем хочет ли заменить
-          console.log(`[useDashboardFill] UnprocessedRecordsReplace dialog for ${staffName}`);
+          console.log(`[useDashboardFill] UnprocessedRecordsReplace dialog with Date-only support for ${staffName}`);
           showScheduleDialog(dialogConfig, staffName, fillParams, activeContract.id, async () => {
             await performFillOperation(fillParams, activeContract.id, true, staffName);
           });
@@ -614,7 +625,7 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
 
         case DialogType.ProcessedRecordsBlock:
           // Есть обработанные записи - блокируем операцию
-          console.log(`[useDashboardFill] ProcessedRecordsBlock dialog for ${staffName}`);
+          console.log(`[useDashboardFill] ProcessedRecordsBlock dialog with Date-only support for ${staffName}`);
           showScheduleDialog(dialogConfig, staffName, fillParams, activeContract.id, async () => {
             // Ничего не делаем - это блокирующий диалог
             console.log(`[useDashboardFill] ProcessedRecordsBlock - no action taken for ${staffName}`);
@@ -654,7 +665,7 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
     setInfoMessage
   ]);
 
-  // *** PERFORM FILL ALL OPERATION WITH SCHEDULE TAB LOGIC ***
+  // *** PERFORM FILL ALL OPERATION WITH SCHEDULE TAB LOGIC AND DATE-ONLY SUPPORT ***
   const performFillAllOperation = useCallback(async (replaceExisting: boolean): Promise<void> => {
     if (!fillService) return;
 
@@ -663,7 +674,7 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
     let totalCreatedRecords = 0;
     const processedStaffIds: string[] = [];
 
-    console.log(`[useDashboardFill] Performing fill all operation with Schedule tab logic for period: ${formatDate(selectedDate)}`);
+    console.log(`[useDashboardFill] Performing fill all operation with Schedule tab logic and Date-only support for period: ${formatDateOnlyForDisplay(selectedDate)}`);
 
     for (const staffMember of staffMembersData) {
       const fillParams = createFillParams(staffMember);
@@ -674,11 +685,11 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
       }
 
       try {
-        // Получаем активный контракт
+        // Получаем активный контракт с Date-only проверкой
         const activeContract = await getActiveContractForStaff(fillParams.staffMember);
         if (!activeContract) {
           errorCount++;
-          console.error(`[useDashboardFill] No active contract for ${staffMember.name}`);
+          console.error(`[useDashboardFill] No active contract for ${staffMember.name} (Date-only check)`);
           continue;
         }
 
@@ -710,12 +721,12 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
     // Показываем итоговое сообщение
     if (errorCount === 0) {
       setInfoMessage({
-        text: `Successfully filled schedule for all ${successCount} staff members for ${formatDate(selectedDate)} period. Created ${totalCreatedRecords} records.`,
+        text: `Successfully filled schedule for all ${successCount} staff members for ${formatDateOnlyForDisplay(selectedDate)} period. Created ${totalCreatedRecords} records (Date-only format).`,
         type: MessageBarType.success
       });
     } else {
       setInfoMessage({
-        text: `Filled ${successCount} of ${staffMembersData.length} staff members for ${formatDate(selectedDate)} period. ${errorCount} failed.`,
+        text: `Filled ${successCount} of ${staffMembersData.length} staff members for ${formatDateOnlyForDisplay(selectedDate)} period. ${errorCount} failed.`,
         type: MessageBarType.warning
       });
     }
@@ -736,9 +747,9 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
     setInfoMessage
   ]);
 
-  // *** HANDLE FILL ALL WITH SCHEDULE TAB LOGIC ***
+  // *** HANDLE FILL ALL WITH SCHEDULE TAB LOGIC AND DATE-ONLY SUPPORT ***
   const handleFillAll = useCallback(async (): Promise<void> => {
-    console.log(`[useDashboardFill] Fill all operation started with Schedule tab logic for period: ${formatDate(selectedDate)}`);
+    console.log(`[useDashboardFill] Fill all operation started with Schedule tab logic and Date-only support for period: ${formatDateOnlyForDisplay(selectedDate)}`);
     
     if (!fillService) {
       setInfoMessage({
@@ -763,8 +774,8 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
       let totalProcessedRecords = 0;
       const staffWithExistingRecords: string[] = [];
 
-      // *** ШАГ 1: ПРОВЕРЯЕМ ВСЕ ЗАПИСИ С SCHEDULE TAB ЛОГИКОЙ ***
-      console.log(`[useDashboardFill] Checking all staff records with Schedule tab logic`);
+      // *** ШАГ 1: ПРОВЕРЯЕМ ВСЕ ЗАПИСИ С SCHEDULE TAB ЛОГИКОЙ И DATE-ONLY ПОДДЕРЖКОЙ ***
+      console.log(`[useDashboardFill] Checking all staff records with Schedule tab logic and Date-only support`);
       
       for (const staffMember of staffMembersData) {
         const fillParams = createFillParams(staffMember);
@@ -807,7 +818,7 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
         setConfirmDialog({
           isOpen: true,
           title: 'Replace All Existing Records',
-          message: `Found ${totalExistingRecords} existing records for ${staffWithExistingRecords.length} staff members in ${formatDate(selectedDate)} period. Replace all?`,
+          message: `Found ${totalExistingRecords} existing records for ${staffWithExistingRecords.length} staff members in ${formatDateOnlyForDisplay(selectedDate)} period. Replace all?\n\nNote: Uses Date-only format for holidays and leaves.`,
           confirmButtonText: 'Replace All',
           cancelButtonText: 'Cancel',
           confirmButtonColor: '#d83b01',
@@ -822,7 +833,7 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
         setConfirmDialog({
           isOpen: true,
           title: 'Fill All Schedules',
-          message: `Do you want to fill schedules for all ${staffMembersData.length} staff members for ${formatDate(selectedDate)} period?`,
+          message: `Do you want to fill schedules for all ${staffMembersData.length} staff members for ${formatDateOnlyForDisplay(selectedDate)} period?\n\nNote: Uses Date-only format for holidays and leaves.`,
           confirmButtonText: 'Fill All',
           cancelButtonText: 'Cancel',
           confirmButtonColor: '#107c10',
@@ -858,7 +869,7 @@ export const useDashboardFill = (params: IUseDashboardFillParams): IUseDashboard
     handleFillStaff,
     handleFillAll,
     handleAutoscheduleToggle,
-    // ДОБАВЛЕНО: Новые функции для автозаполнения
+    // ДОБАВЛЕНО: Новые функции для автозаполнения с Date-only поддержкой
     processStaffMemberAuto,
     checkAutoFillEligibility,
     logAutoFillWarning
