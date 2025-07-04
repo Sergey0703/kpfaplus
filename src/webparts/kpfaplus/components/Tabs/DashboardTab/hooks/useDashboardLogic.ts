@@ -1,5 +1,5 @@
 // src/webparts/kpfaplus/components/Tabs/DashboardTab/hooks/useDashboardLogic.ts
-// UPDATED: Full support for Date-only format in Holidays and DaysOfLeaves lists
+// ИСПРАВЛЕНО: Убрана UTC конвертация для Date-only операций выбора месяца
 // COMPLETE IMPLEMENTATION: Auto-fill with detailed progress tracking, Date-only support and timezone handling
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { MessageBarType } from '@fluentui/react';
@@ -9,8 +9,8 @@ import { IStaffMember } from '../../../../models/types';
 import { IStaffMemberWithAutoschedule } from '../components/DashboardTable';
 import { CommonFillService } from '../../../../services/CommonFillService';
 import { ScheduleLogsService } from '../../../../services/ScheduleLogsService';
-import { RemoteSiteService } from '../../../../services/RemoteSiteService';
-import { CommonFillDateUtils } from '../../../../services/CommonFillDateUtils';
+//import { RemoteSiteService } from '../../../../services/RemoteSiteService';
+//import { CommonFillDateUtils } from '../../../../services/CommonFillDateUtils';
 import { useDashboardLogs } from './useDashboardLogs';
 import { useDashboardFill } from './useDashboardFill';
 
@@ -97,7 +97,7 @@ interface IUseDashboardLogicReturn {
 const DEBOUNCE_DELAY = 300; // 300ms for debounce
 const AUTO_FILL_DELAY = 3000; // 3 seconds delay between auto-fill operations
 
-// *** UTILITY FUNCTIONS WITH DATE-ONLY SUPPORT ***
+// *** ИСПРАВЛЕННЫЕ UTILITY FUNCTIONS - БЕЗ UTC КОНВЕРТАЦИИ ДЛЯ DATE-ONLY ***
 const formatDateOnlyForDisplay = (date?: Date): string => {
   if (!date) return '';
   try {
@@ -119,55 +119,92 @@ const createDateOnlyFromComponents = (year: number, month: number, day: number):
   return new Date(year, month, day);
 };
 
-// *** DATE-ONLY HANDLING FUNCTIONS ***
+// *** ИСПРАВЛЕННЫЕ DATE-ONLY HANDLING FUNCTIONS - БЕЗ UTC ***
 const getFirstDayOfCurrentMonth = (): Date => {
   const now = new Date();
   const result = createDateOnlyFromComponents(now.getFullYear(), now.getMonth(), 1);
   
-  console.log('[useDashboardLogic] *** FIRST DAY OF CURRENT MONTH (DATE-ONLY) ***');
+  console.log('[useDashboardLogic] *** FIRST DAY OF CURRENT MONTH (DATE-ONLY LOCAL TIME) ***');
   console.log('[useDashboardLogic] Current date:', formatDateOnlyForDisplay(now));
   console.log('[useDashboardLogic] First day of month:', formatDateOnlyForDisplay(result));
   console.log('[useDashboardLogic] Display format:', formatDateOnlyForDisplay(result));
   return result;
 };
 
+// *** ИСПРАВЛЕННЫЕ ФУНКЦИИ СОХРАНЕНИЯ/ВОССТАНОВЛЕНИЯ - БЕЗ UTC ***
+const saveDateOnlyForMonthSelection = (date: Date): string => {
+  // ИСПРАВЛЕНО: Сохраняем простую строку без UTC конвертации
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const dateOnlyString = `${year}-${month}-01`;
+  
+  console.log('[useDashboardLogic] *** ИСПРАВЛЕННОЕ СОХРАНЕНИЕ DATE-ONLY БЕЗ UTC ***');
+  console.log('[useDashboardLogic] Input date:', formatDateOnlyForDisplay(date));
+  console.log('[useDashboardLogic] Saved string (no UTC):', dateOnlyString);
+  
+  return dateOnlyString;
+};
+
+const restoreDateOnlyForMonthSelection = (savedDateString: string): Date => {
+  try {
+    console.log('[useDashboardLogic] *** ИСПРАВЛЕННОЕ ВОССТАНОВЛЕНИЕ DATE-ONLY БЕЗ UTC ***');
+    console.log('[useDashboardLogic] Saved string:', savedDateString);
+    
+    const [year, month] = savedDateString.split('-').map(Number);
+    // ИСПРАВЛЕНО: Создаем дату в локальном времени, НЕ в UTC
+    const restoredDate = createDateOnlyFromComponents(year, month - 1, 1);
+    
+    console.log('[useDashboardLogic] Parsed components:', { year, month: month - 1, day: 1 });
+    console.log('[useDashboardLogic] Restored date (local time):', formatDateOnlyForDisplay(restoredDate));
+    console.log('[useDashboardLogic] Verification: expected month', restoredDate.getMonth() + 1);
+    
+    return restoredDate;
+  } catch (error) {
+    console.warn('[useDashboardLogic] Error restoring date from storage:', error);
+    return getFirstDayOfCurrentMonth();
+  }
+};
+
 // *** MAIN HOOK IMPLEMENTATION ***
 export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboardLogicReturn => {
   const { context, currentUserId, managingGroupId } = params;
   
-  console.log('[useDashboardLogic] Main coordinator hook initialized with Date-only format support and Auto Fill');
+  console.log('[useDashboardLogic] Main coordinator hook initialized with FIXED Date-only format support (no UTC for UI dates)');
 
   // *** CONTEXT DATA ***
   const { staffMembers, updateStaffMember } = useDataContext();
 
   // *** СОЗДАЕМ ЭКЗЕМПЛЯР DATE UTILS ДЛЯ КОРРЕКТНОЙ РАБОТЫ С ДАТАМИ ***
-  const remoteSiteService = useMemo(() => {
+ /* const remoteSiteService = useMemo(() => {
     if (context) {
       return RemoteSiteService.getInstance(context);
     }
     return undefined;
   }, [context]);
+*/
+  // УБРАНО: dateUtils больше не используется в этом файле после исправления Date-only логики
+  // const dateUtils = useMemo(() => {
+  //   if (remoteSiteService) {
+  //     return new CommonFillDateUtils(remoteSiteService);
+  //   }
+  //   return undefined;
+  // }, [remoteSiteService]);
 
-  const dateUtils = useMemo(() => {
-    if (remoteSiteService) {
-      return new CommonFillDateUtils(remoteSiteService);
-    }
-    return undefined;
-  }, [remoteSiteService]);
-
-  // *** ФУНКЦИЯ ВОССТАНОВЛЕНИЯ ДАТЫ С ИСПОЛЬЗОВАНИЕМ COMMONFILL DATEUTILS ***
+  // *** ИСПРАВЛЕННАЯ ФУНКЦИЯ ВОССТАНОВЛЕНИЯ ДАТЫ БЕЗ UTC ***
   const getSavedSelectedDate = useCallback((): Date => {
     try {
       const savedDate = sessionStorage.getItem('dashboardTab_selectedDate');
-      if (savedDate && dateUtils) {
-        console.log('[useDashboardLogic] Restoring date from sessionStorage using CommonFillDateUtils:', savedDate);
-        return dateUtils.restoreFromUTCStorage(savedDate);
+      if (savedDate) {
+        console.log('[useDashboardLogic] Restoring date from sessionStorage WITHOUT UTC conversion:', savedDate);
+        
+        // ИСПРАВЛЕНО: Используем новую функцию без UTC
+        return restoreDateOnlyForMonthSelection(savedDate);
       }
     } catch (error) {
       console.warn('[useDashboardLogic] Error reading saved date:', error);
     }
-    return dateUtils?.getFirstDayOfCurrentMonth() || getFirstDayOfCurrentMonth();
-  }, [dateUtils]);
+    return getFirstDayOfCurrentMonth();
+  }, []);
 
   // *** STATE VARIABLES ***
   const [selectedDate, setSelectedDate] = useState<Date>(() => getSavedSelectedDate());
@@ -194,8 +231,8 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
 
   // *** INITIAL DATE LOGGING WITH DATE-ONLY SUPPORT ***
   useEffect(() => {
-    console.log('[useDashboardLogic] *** INITIAL SELECTED DATE ANALYSIS WITH DATE-ONLY ***');
-    console.log('[useDashboardLogic] Selected date (Date-only):', formatDateOnlyForDisplay(selectedDate));
+    console.log('[useDashboardLogic] *** INITIAL SELECTED DATE ANALYSIS WITH FIXED DATE-ONLY ***');
+    console.log('[useDashboardLogic] Selected date (Date-only, local time):', formatDateOnlyForDisplay(selectedDate));
     console.log('[useDashboardLogic] Month/Year:', {
       year: selectedDate.getFullYear(),
       month: selectedDate.getMonth() + 1,
@@ -374,11 +411,11 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     setIsLoadingLogs(true);
   }, []);
 
-  // *** DATE CHANGE HANDLER WITH DATE-ONLY SUPPORT ***
+  // *** ИСПРАВЛЕННЫЙ DATE CHANGE HANDLER - БЕЗ UTC КОНВЕРТАЦИИ ***
   const handleDateChange = useCallback((date: Date | undefined): void => {
     if (date) {
       console.log('[useDashboardLogic] Date change requested:', formatDateOnlyForDisplay(date));
-      console.log('[useDashboardLogic] *** INCOMING DATE ANALYSIS WITH DATE-ONLY ***');
+      console.log('[useDashboardLogic] *** ИСПРАВЛЕННЫЙ DATE CHANGE БЕЗ UTC КОНВЕРТАЦИИ ***');
       console.log('[useDashboardLogic] Raw input date:', formatDateOnlyForDisplay(date));
       console.log('[useDashboardLogic] Display format:', formatDateOnlyForDisplay(date));
       
@@ -392,40 +429,27 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
         console.log('[useDashboardLogic] Applying debounced date change:', formatDateOnlyForDisplay(date));
         
         try {
-          // *** ИСПРАВЛЕНО: Используем CommonFillDateUtils для корректного сохранения ***
+          // *** ИСПРАВЛЕНО: НЕ ИСПОЛЬЗУЕМ UTC КОНВЕРТАЦИЮ ДЛЯ DATE-ONLY ***
           const normalizedDate = createDateOnlyFromComponents(
             date.getFullYear(),
             date.getMonth(),
             1 // Always first day of month
           );
           
-          console.log('[useDashboardLogic] *** DATE NORMALIZATION WITH COMMONFILL DATEUTILS ***');
+          console.log('[useDashboardLogic] *** ИСПРАВЛЕННАЯ DATE NORMALIZATION БЕЗ UTC ***');
           console.log('[useDashboardLogic] Input date:', formatDateOnlyForDisplay(date));
-          console.log('[useDashboardLogic] Normalized date:', formatDateOnlyForDisplay(normalizedDate));
+          console.log('[useDashboardLogic] Normalized date (local time):', formatDateOnlyForDisplay(normalizedDate));
           
-          if (dateUtils) {
-            // *** ИСПРАВЛЕНО: Используем правильный метод из CommonFillDateUtils ***
-            const utcForStorage = dateUtils.normalizeToUTCForStorage(normalizedDate);
-            sessionStorage.setItem('dashboardTab_selectedDate', utcForStorage.toISOString());
-            console.log('[useDashboardLogic] *** ИСПОЛЬЗУЕМ ИСПРАВЛЕННОЕ UTC СОХРАНЕНИЕ ИЗ COMMONFILL DATEUTILS ***');
-            console.log('[useDashboardLogic] UTC stored:', utcForStorage.toISOString());
-          } else {
-            // Fallback to old method if dateUtils not available
-            const utcForStorage = new Date(Date.UTC(
-              normalizedDate.getFullYear(),
-              normalizedDate.getMonth(),
-              normalizedDate.getDate(),
-              12, 0, 0, 0  // Use noon UTC to avoid timezone boundary issues
-            ));
-            sessionStorage.setItem('dashboardTab_selectedDate', utcForStorage.toISOString());
-            console.log('[useDashboardLogic] *** FALLBACK UTC STORAGE ***');
-            console.log('[useDashboardLogic] UTC stored (fallback):', utcForStorage.toISOString());
-          }
+          // *** ИСПРАВЛЕНО: Используем новую функцию сохранения без UTC ***
+          const dateOnlyString = saveDateOnlyForMonthSelection(normalizedDate);
+          sessionStorage.setItem('dashboardTab_selectedDate', dateOnlyString);
+          console.log('[useDashboardLogic] *** ИСПРАВЛЕННОЕ СОХРАНЕНИЕ БЕЗ UTC ***');
+          console.log('[useDashboardLogic] Saved string (no UTC conversion):', dateOnlyString);
           
           setSelectedDate(normalizedDate);
           
-          console.log('[useDashboardLogic] *** FINAL SELECTED DATE SET WITH DATE-ONLY FIXED ***');
-          console.log('[useDashboardLogic] Final date:', formatDateOnlyForDisplay(normalizedDate));
+          console.log('[useDashboardLogic] *** ИСПРАВЛЕННЫЙ FINAL SELECTED DATE SET БЕЗ UTC ***');
+          console.log('[useDashboardLogic] Final date (local time):', formatDateOnlyForDisplay(normalizedDate));
           console.log('[useDashboardLogic] Will generate for month:', {
             year: normalizedDate.getFullYear(),
             month: normalizedDate.getMonth() + 1,
@@ -451,7 +475,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
         
       }, DEBOUNCE_DELAY);
     }
-  }, [dateUtils, logsHook, setLogLoadingState]);
+  }, [logsHook, setLogLoadingState]);
 
   // *** AUTOSCHEDULE TOGGLE ***
   const handleAutoscheduleToggle = useCallback(async (staffId: string, checked: boolean): Promise<void> => {
@@ -482,7 +506,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
 
   // *** NEW: PERFORM AUTO-FILL OPERATION WITH DETAILED PROGRESS AND DATE-ONLY SUPPORT ***
   const performAutoFillAllOperation = useCallback(async (autoScheduleStaff: IStaffMemberWithAutoschedule[]): Promise<void> => {
-    console.log(`[useDashboardLogic] 🤖 PERFORMING AUTO-FILL WITH DATE-ONLY SUPPORT for ${autoScheduleStaff.length} staff members`);
+    console.log(`[useDashboardLogic] 🤖 PERFORMING AUTO-FILL WITH FIXED DATE-ONLY SUPPORT for ${autoScheduleStaff.length} staff members`);
     
     const startTime = Date.now(); // Record start time
     
@@ -525,7 +549,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
         const staff = autoScheduleStaff[i];
         const nextStaff = i < autoScheduleStaff.length - 1 ? autoScheduleStaff[i + 1] : undefined;
         
-        console.log(`[useDashboardLogic] 🔄 Auto-processing ${i + 1}/${autoScheduleStaff.length}: ${staff.name} WITH DATE-ONLY SUPPORT`);
+        console.log(`[useDashboardLogic] 🔄 Auto-processing ${i + 1}/${autoScheduleStaff.length}: ${staff.name} WITH FIXED DATE-ONLY SUPPORT`);
         
         // *** UPDATE PROGRESS - START PROCESSING CURRENT STAFF ***
         setAutoFillProgress(prev => prev ? {
@@ -668,7 +692,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
 
       if (errorCount === 0) {
         resultType = MessageBarType.success;
-        resultMessage = `Auto-fill completed in ${timeString}! Processed: ${processedCount}, Skipped: ${skippedCount} of ${autoScheduleStaff.length} staff members (Date-only format).`;
+        resultMessage = `Auto-fill completed in ${timeString}! Processed: ${processedCount}, Skipped: ${skippedCount} of ${autoScheduleStaff.length} staff members (Fixed Date-only format).`;
       } else if (processedCount > 0) {
         resultType = MessageBarType.warning;
         resultMessage = `Auto-fill completed in ${timeString} with issues. Processed: ${processedCount}, Skipped: ${skippedCount}, Errors: ${errorCount} of ${autoScheduleStaff.length} staff members.`;
@@ -682,7 +706,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
         type: resultType
       });
 
-      console.log(`[useDashboardLogic] 🏁 AUTO FILL ALL COMPLETED WITH DATE-ONLY SUPPORT IN ${timeString}:`, {
+      console.log(`[useDashboardLogic] 🏁 AUTO FILL ALL COMPLETED WITH FIXED DATE-ONLY SUPPORT IN ${timeString}:`, {
         total: autoScheduleStaff.length,
         processed: processedCount,
         skipped: skippedCount,
@@ -704,7 +728,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
       }, 3000);
 
     } catch (error) {
-      console.error('[useDashboardLogic] Auto-fill all error with Date-only support:', error);
+      console.error('[useDashboardLogic] Auto-fill all error with fixed Date-only support:', error);
       const totalElapsedTime = Date.now() - startTime;
       const minutes = Math.floor(totalElapsedTime / 60000);
       const seconds = Math.floor((totalElapsedTime % 60000) / 1000);
@@ -729,7 +753,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
 
   // *** NEW: AUTO-FILL ALL FUNCTION WITH DATE-ONLY SUPPORT ***
   const handleAutoFillAll = useCallback(async (): Promise<void> => {
-    console.log(`[useDashboardLogic] 🚀 AUTO FILL ALL STARTED WITH DATE-ONLY SUPPORT for period: ${formatDateOnlyForDisplay(selectedDate)}`);
+    console.log(`[useDashboardLogic] 🚀 AUTO FILL ALL STARTED WITH FIXED DATE-ONLY SUPPORT for period: ${formatDateOnlyForDisplay(selectedDate)}`);
     
     if (!fillService) {
       setInfoMessage({
@@ -767,7 +791,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     setConfirmDialog({
       isOpen: true,
       title: 'Auto Fill All Schedules',
-      message: `Do you want to automatically fill schedules for ${autoScheduleStaff.length} staff members with Auto Schedule enabled for ${formatDateOnlyForDisplay(selectedDate)} period?\n\nThis will process each staff member automatically without additional confirmations.\n\nNote: Uses Date-only format for holidays and leaves.`,
+      message: `Do you want to automatically fill schedules for ${autoScheduleStaff.length} staff members with Auto Schedule enabled for ${formatDateOnlyForDisplay(selectedDate)} period?\n\nThis will process each staff member automatically without additional confirmations.\n\nNote: Uses fixed Date-only format for holidays and leaves.`,
       confirmButtonText: 'Start Auto Fill',
       cancelButtonText: 'Cancel',
       confirmButtonColor: '#107c10',
@@ -798,7 +822,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     setInfoMessage,
     setConfirmDialog,
     
-    // *** DATE HANDLING WITH DATE-ONLY SUPPORT ***
+    // *** DATE HANDLING WITH FIXED DATE-ONLY SUPPORT ***
     handleDateChange,
     
     // *** AUTOSCHEDULE ***
@@ -807,7 +831,7 @@ export const useDashboardLogic = (params: IUseDashboardLogicParams): IUseDashboa
     // *** FILL OPERATIONS ***
     handleFillStaff: fillHook.handleFillStaff,
     handleFillAll: fillHook.handleFillAll, // LEGACY: for compatibility
-    handleAutoFillAll, // NEW: auto-fill function with Date-only support and progress tracking
+    handleAutoFillAll, // NEW: auto-fill function with fixed Date-only support and progress tracking
     
     // *** AUTO-FILL PROGRESS ***
     autoFillProgress, // NEW: real-time progress tracking
