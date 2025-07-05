@@ -1,6 +1,6 @@
 // src/webparts/kpfaplus/services/CommonFillRecords.ts
 // RECORD GENERATION AND SAVING: All record creation and persistence logic
-// COMPLETE IMPLEMENTATION: Numeric time fields with Date-only support
+// ИСПРАВЛЕНО: Удалено дублирование методов, используются dateUtils для Date-only операций
 
 import { IStaffRecord, StaffRecordsService } from './StaffRecordsService';
 import { HolidaysService, IHoliday } from './HolidaysService';
@@ -42,19 +42,20 @@ export class CommonFillRecords {
     this.dateUtils = dateUtils;
     this.analysis = analysis;
     this.templates = templates;
-    console.log('[CommonFillRecords] Record generator initialized with Date-only format support and numeric time fields');
+    console.log('[CommonFillRecords] Record generator initialized with dateUtils integration for Date-only operations');
   }
 
   // *** PUBLIC API METHODS ***
 
   /**
    * Загружает праздники для месяца с поддержкой Date-only формата
+   * ПРАВИЛЬНО: HolidaysService уже использует Date-only методы внутри
    */
   public async loadHolidays(date: Date): Promise<IHoliday[]> {
     try {
       console.log(`[CommonFillRecords] Loading holidays for ${date.getMonth() + 1}/${date.getFullYear()} with Date-only format support`);
       
-      // ИСПРАВЛЕНО: Создаем дату с локальными компонентами для избежания проблем с часовыми поясами
+      // ПРАВИЛЬНО: Создаем дату с локальными компонентами, HolidaysService обработает правильно
       const normalizedDate = this.dateUtils.createDateOnlyFromDate(date);
       console.log(`[CommonFillRecords] Normalized date for holidays query: ${normalizedDate.toLocaleDateString()}`);
       
@@ -78,6 +79,7 @@ export class CommonFillRecords {
 
   /**
    * Загружает отпуска сотрудника с поддержкой Date-only формата
+   * ПРАВИЛЬНО: DaysOfLeavesService уже использует Date-only методы внутри
    */
   public async loadLeaves(params: IFillParams): Promise<ILeaveDay[]> {
     try {
@@ -88,7 +90,7 @@ export class CommonFillRecords {
 
       console.log(`[CommonFillRecords] Loading leaves for employee ${params.staffMember.employeeId} with Date-only format support`);
       
-      // ИСПРАВЛЕНО: Создаем дату с локальными компонентами для избежания проблем с часовыми поясами
+      // ПРАВИЛЬНО: Создаем дату с локальными компонентами, DaysOfLeavesService обработает правильно
       const normalizedDate = this.dateUtils.createDateOnlyFromDate(params.selectedDate);
       console.log(`[CommonFillRecords] Normalized date for leaves query: ${normalizedDate.toLocaleDateString()}`);
       
@@ -121,7 +123,7 @@ export class CommonFillRecords {
 
   /**
    * Генерирует записи расписания с правильной логикой чередования недель и числовыми полями времени
-   * UPDATED: Теперь использует Date-only обработку для праздников и отпусков
+   * ИСПРАВЛЕНО: Использует dateUtils методы вместо собственных
    */
   public async generateScheduleRecords(
     params: IFillParams,
@@ -130,8 +132,8 @@ export class CommonFillRecords {
     leaves: ILeaveDay[],
     weeklyTemplates: IScheduleTemplate[]
   ): Promise<IGenerationResult> {
-    console.log(`[CommonFillRecords] *** GENERATING WITH NUMERIC TIME FIELDS AND DATE-ONLY SUPPORT ***`);
-    console.log(`[CommonFillRecords] Generating schedule records with Date-only format support for ${params.staffMember.name}`);
+    console.log(`[CommonFillRecords] *** GENERATING WITH DATEUTILS INTEGRATION ***`);
+    console.log(`[CommonFillRecords] Generating schedule records using dateUtils for ${params.staffMember.name}`);
 
     // ИСПРАВЛЕНО: Приводим даты контракта к строкам для совместимости
     const contractStartDate = contract.startDate ? 
@@ -139,7 +141,7 @@ export class CommonFillRecords {
     const contractFinishDate = contract.finishDate ? 
       (typeof contract.finishDate === 'string' ? contract.finishDate : contract.finishDate.toISOString()) : undefined;
 
-    // Вычисляем период месяца
+    // ИСПРАВЛЕНО: Используем dateUtils метод вместо собственного
     const periodInfo = this.dateUtils.calculateMonthPeriod(
       params.selectedDate,
       contractStartDate,
@@ -149,7 +151,7 @@ export class CommonFillRecords {
     // Инициализируем анализ генерации
     const generationAnalysis = this.analysis.initializeGenerationAnalysis(periodInfo.firstDay, periodInfo.lastDay);
 
-    // UPDATED: Создаем кэши для быстрого поиска с поддержкой Date-only формата
+    // ИСПРАВЛЕНО: Используем dateUtils методы для кэширования
     const holidayCache = this.dateUtils.createHolidayCacheWithDateOnly(holidays);
     const leavePeriods = this.dateUtils.createLeavePeriodsWithDateOnly(leaves);
 
@@ -255,8 +257,8 @@ export class CommonFillRecords {
     // Завершаем анализ генерации
     const finalAnalysis = this.analysis.finalizeGenerationAnalysis(records.length, holidays.length, leaves.length);
 
-    console.log(`[CommonFillRecords] *** DATE-ONLY NUMERIC TIME FIELDS APPROACH COMPLETED ***`);
-    console.log(`[CommonFillRecords] Generated ${records.length} schedule records with Date-only format support`);
+    console.log(`[CommonFillRecords] *** DATEUTILS INTEGRATION COMPLETED ***`);
+    console.log(`[CommonFillRecords] Generated ${records.length} schedule records using dateUtils methods`);
     
     return {
       records,
@@ -264,12 +266,14 @@ export class CommonFillRecords {
       analysis: finalAnalysis
     };
   }
+
   /**
    * Сохраняет сгенерированные записи в SharePoint с числовыми полями
+   * ПРАВИЛЬНО: StaffRecords.Date - это DateTime поле, используем Date объекты
    */
   public async saveGeneratedRecords(records: Partial<IStaffRecord>[], params: IFillParams): Promise<ISaveResult> {
-    console.log(`[CommonFillRecords] *** SAVING WITH NUMERIC TIME FIELDS AND DATE-ONLY SUPPORT ***`);
-    console.log(`[CommonFillRecords] Saving ${records.length} generated records with Date-only format support`);
+    console.log(`[CommonFillRecords] *** SAVING STAFFRECORDS WITH DATETIME FIELD ***`);
+    console.log(`[CommonFillRecords] Saving ${records.length} generated records to StaffRecords (DateTime field)`);
 
     let successCount = 0;
     const errors: string[] = [];
@@ -294,13 +298,14 @@ export class CommonFillRecords {
         // Логируем числовые поля времени перед сохранением
         if (record.ShiftDate1Hours !== undefined && record.ShiftDate1Minutes !== undefined && 
             record.ShiftDate2Hours !== undefined && record.ShiftDate2Minutes !== undefined) {
-          console.log(`[CommonFillRecords] *** NUMERIC TIME FIELDS BEING SAVED WITH DATE-ONLY SUPPORT ***`);
-          console.log(`[CommonFillRecords] Date: ${record.Date?.toISOString()}`);
+          console.log(`[CommonFillRecords] *** NUMERIC TIME FIELDS TO STAFFRECORDS ***`);
+          console.log(`[CommonFillRecords] Date (DateTime field): ${record.Date?.toISOString()}`);
           console.log(`[CommonFillRecords] Start Time: ${record.ShiftDate1Hours}:${record.ShiftDate1Minutes?.toString().padStart(2, '0')}`);
           console.log(`[CommonFillRecords] End Time: ${record.ShiftDate2Hours}:${record.ShiftDate2Minutes?.toString().padStart(2, '0')}`);
           console.log(`[CommonFillRecords] Time for Lunch: ${record.TimeForLunch} minutes`);
         }
         
+        // ПРАВИЛЬНО: StaffRecordsService.createStaffRecord принимает Date объекты для DateTime поля
         const newRecordId = await this.staffRecordsService.createStaffRecord(
           record,
           managerId || '0',
@@ -310,26 +315,26 @@ export class CommonFillRecords {
 
         if (newRecordId) {
           successCount++;
-          console.log(`[CommonFillRecords] ✓ Created record ID=${newRecordId} for ${record.Date?.toISOString()}`);
+          console.log(`[CommonFillRecords] ✓ Created StaffRecord ID=${newRecordId} for ${record.Date?.toISOString()}`);
           
           if (record.TypeOfLeaveID) {
             console.log(`[CommonFillRecords] ✓ Record ${newRecordId} created with leave type: ${record.TypeOfLeaveID}`);
           }
           if (record.Holiday === FILL_CONSTANTS.FLAGS.HOLIDAY) {
-            console.log(`[CommonFillRecords] ✓ Record ${newRecordId} created for holiday (Date-only format)`);
+            console.log(`[CommonFillRecords] ✓ Record ${newRecordId} created for holiday (DateTime field)`);
           }
           
           if (record.ShiftDate1Hours !== undefined && record.ShiftDate2Hours !== undefined) {
-            console.log(`[CommonFillRecords] ✓ Record ${newRecordId} saved with NUMERIC TIME FIELDS and Date-only format support`);
+            console.log(`[CommonFillRecords] ✓ Record ${newRecordId} saved to StaffRecords with NUMERIC TIME FIELDS`);
             console.log(`[CommonFillRecords] ✓ Saved times: ${record.ShiftDate1Hours}:${record.ShiftDate1Minutes?.toString().padStart(2, '0')} - ${record.ShiftDate2Hours}:${record.ShiftDate2Minutes?.toString().padStart(2, '0')}`);
           }
         } else {
-          const errorMsg = `Failed to create record for ${record.Date?.toISOString()}: No ID returned`;
+          const errorMsg = `Failed to create StaffRecord for ${record.Date?.toISOString()}: No ID returned`;
           errors.push(errorMsg);
           console.error(`[CommonFillRecords] ✗ ${errorMsg}`);
         }
       } catch (error) {
-        const errorMsg = `Error creating record ${i + 1} for ${record.Date?.toISOString()}: ${error}`;
+        const errorMsg = `Error creating StaffRecord ${i + 1} for ${record.Date?.toISOString()}: ${error}`;
         errors.push(errorMsg);
         console.error(`[CommonFillRecords] ✗ ${errorMsg}`);
       }
@@ -339,8 +344,8 @@ export class CommonFillRecords {
       }
     }
 
-    console.log(`[CommonFillRecords] *** DATE-ONLY NUMERIC FIELDS SAVE COMPLETED ***`);
-    console.log(`[CommonFillRecords] Save operation completed with Date-only format support: ${successCount}/${records.length} successful`);
+    console.log(`[CommonFillRecords] *** STAFFRECORDS DATETIME SAVE COMPLETED ***`);
+    console.log(`[CommonFillRecords] Save operation to StaffRecords completed: ${successCount}/${records.length} successful`);
     
     if (errors.length > 0) {
       console.error(`[CommonFillRecords] Save errors (${errors.length}):`, errors);
@@ -357,7 +362,7 @@ export class CommonFillRecords {
 
   /**
    * Создает запись расписания из шаблона с ЧИСЛОВЫМИ ПОЛЯМИ ВРЕМЕНИ
-   * UPDATED: Теперь использует Date-only методы для проверки праздников и отпусков
+   * ИСПРАВЛЕНО: Использует dateUtils методы для Date-only операций
    */
   private async createStaffRecordFromTemplateNumeric(
     date: Date,
@@ -367,12 +372,13 @@ export class CommonFillRecords {
     holidayCache: Map<string, IHoliday>,
     leavePeriods: ILeavePeriod[]
   ): Promise<Partial<IStaffRecord>> {
+    // ИСПРАВЛЕНО: Используем dateUtils метод вместо собственного
     const dateKey = this.dateUtils.formatDateOnlyForComparison(date);
     
-    // UPDATED: Проверяем, является ли день праздником с Date-only поддержкой
+    // ИСПРАВЛЕНО: Проверяем, является ли день праздником с dateUtils
     const isHoliday = holidayCache.has(dateKey);
     
-    // UPDATED: Проверяем, находится ли сотрудник в отпуске в этот день с Date-only поддержкой
+    // ИСПРАВЛЕНО: Проверяем, находится ли сотрудник в отпуске с dateUtils
     const leaveForDay = leavePeriods.find(leave => {
       const checkDate = this.dateUtils.createDateOnlyFromDate(date);
       const leaveStart = this.dateUtils.createDateOnlyFromDate(leave.startDate);
@@ -387,22 +393,22 @@ export class CommonFillRecords {
     const endTime = this.dateUtils.parseTimeString(template.endTime);
     const lunchTime = template.lunchMinutes;
 
-    console.log(`[CommonFillRecords] *** USING NUMERIC TIME FIELDS CREATION WITH DATE-ONLY SUPPORT ***`);
+    console.log(`[CommonFillRecords] *** USING DATEUTILS FOR NUMERIC TIME FIELDS ***`);
     console.log(`[CommonFillRecords] Creating record for ${date.toISOString()}: Shift ${template.NumberOfShift}, ${template.startTime}-${template.endTime}, lunch: ${lunchTime}min, holiday: ${isHoliday}, leave: ${isLeave}`);
 
-    // ИСПРАВЛЕНО: Используем getAdjustedNumericTime для получения скорректированного времени
+    // ИСПРАВЛЕНО: Используем dateUtils для получения скорректированного времени
     const adjustedStartTime = await this.dateUtils.getAdjustedNumericTime(startTime);
     const adjustedEndTime = await this.dateUtils.getAdjustedNumericTime(endTime);
 
-    console.log(`[CommonFillRecords] *** NUMERIC TIME FIELDS WITH TIMEZONE ADJUSTMENT ***`);
+    console.log(`[CommonFillRecords] *** DATEUTILS NUMERIC TIME ADJUSTMENT ***`);
     console.log(`[CommonFillRecords] Start time: ${template.startTime} → ${adjustedStartTime.hours}:${adjustedStartTime.minutes}`);
     console.log(`[CommonFillRecords] End time: ${template.endTime} → ${adjustedEndTime.hours}:${adjustedEndTime.minutes}`);
 
     const record: Partial<IStaffRecord> = {
       Title: `Template=${contract.id} Week=${template.NumberOfWeek} Shift=${template.NumberOfShift}`,
-      Date: new Date(date), // UTC дата
+      Date: new Date(date), // ПРАВИЛЬНО: UTC дата для StaffRecords.Date (DateTime поле)
       
-      // *** НОВОЕ: ТОЛЬКО ЧИСЛОВЫЕ ПОЛЯ ВРЕМЕНИ С TIMEZONE ADJUSTMENT ***
+      // *** ПРАВИЛЬНО: ТОЛЬКО ЧИСЛОВЫЕ ПОЛЯ ВРЕМЕНИ С DATEUTILS ADJUSTMENT ***
       ShiftDate1Hours: adjustedStartTime.hours,
       ShiftDate1Minutes: adjustedStartTime.minutes,
       ShiftDate2Hours: adjustedEndTime.hours,
@@ -423,7 +429,7 @@ export class CommonFillRecords {
       console.log(`[CommonFillRecords] Added leave type ${record.TypeOfLeaveID} for ${date.toISOString()}: ${leaveForDay.title}`);
     }
 
-    console.log(`[CommonFillRecords] *** FINAL NUMERIC RECORD CREATED WITH DATE-ONLY SUPPORT ***`);
+    console.log(`[CommonFillRecords] *** FINAL RECORD WITH DATEUTILS INTEGRATION ***`);
     console.log(`[CommonFillRecords] Record: ${JSON.stringify({
       Title: record.Title,
       Date: record.Date?.toISOString(),
@@ -484,6 +490,7 @@ export class CommonFillRecords {
 
   /**
    * Получает статистику по записям
+   * ИСПРАВЛЕНО: Использует dateUtils для форматирования дат
    */
   public getRecordsStatistics(records: Partial<IStaffRecord>[]): {
     totalRecords: number;
@@ -534,6 +541,7 @@ export class CommonFillRecords {
       workingRecords,
       shifts: Array.from(shifts).sort(),
       dateRange: {
+        // ИСПРАВЛЕНО: Используем dateUtils для форматирования дат
         start: earliestDate ? this.dateUtils.formatDateOnlyForDisplay(earliestDate) : 'N/A',
         end: latestDate ? this.dateUtils.formatDateOnlyForDisplay(latestDate) : 'N/A'
       },
@@ -661,6 +669,7 @@ export class CommonFillRecords {
         name: params.staffMember.name,
         employeeId: params.staffMember.employeeId
       },
+      // ИСПРАВЛЕНО: Используем dateUtils для форматирования периода
       period: this.dateUtils.formatDateOnlyForDisplay(params.selectedDate),
       totalRecords: records.length,
       records: records.map(record => ({
@@ -724,6 +733,7 @@ export class CommonFillRecords {
       staffRecords: boolean;
       holidays: boolean;
       leaves: boolean;
+      dateUtils: boolean;
     };
     memoryUsage: string;
     lastOperation: string;
@@ -736,10 +746,11 @@ export class CommonFillRecords {
       servicesStatus: {
         staffRecords: !!this.staffRecordsService,
         holidays: !!this.holidaysService,
-        leaves: !!this.daysOfLeavesService
+        leaves: !!this.daysOfLeavesService,
+        dateUtils: !!this.dateUtils // ДОБАВЛЕНО: статус dateUtils
       },
       memoryUsage: 'Not available in browser environment',
-      lastOperation: 'Records generation and saving',
+      lastOperation: 'Records generation and saving with dateUtils integration',
       performanceMetrics: {
         averageRecordCreationTime: 0, // Would need timing implementation
         totalOperationTime: 0 // Would need timing implementation
