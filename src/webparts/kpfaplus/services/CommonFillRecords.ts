@@ -180,11 +180,11 @@ export class CommonFillRecords {
     for (let dayIndex = 0; dayIndex < periodInfo.totalDays; dayIndex++) {
       // Создаем UTC дату для каждой итерации
       const currentDate = new Date(Date.UTC(
-        periodInfo.firstDay.getUTCFullYear(),
-        periodInfo.firstDay.getUTCMonth(),
-        periodInfo.firstDay.getUTCDate() + dayIndex,
-        0, 0, 0, 0
-      ));
+  periodInfo.firstDay.getFullYear(),     // ✅ Локальный метод
+  periodInfo.firstDay.getMonth(),        // ✅ Локальный метод
+  periodInfo.firstDay.getDate() + dayIndex, // ✅ Локальный метод
+  0, 0, 0, 0
+));
 
       // ИСПРАВЛЕНО: Используем значение по умолчанию для dayOfStartWeek
       const dayOfStartWeek = params.dayOfStartWeek || DEFAULT_VALUES.FILL_PARAMS.dayOfStartWeek;
