@@ -593,40 +593,264 @@ export class CommonFillService {
   /**
    * *** ИСПРАВЛЕНО: Выполняет фактическое заполнение ПОСЛЕ подтверждения пользователя с FIXED Date-only logging ***
    */
-  public async performFillOperation(performParams: IPerformFillParams): Promise<IFillResult> {
-    console.log('[CommonFillService] Performing fill operation with FIXED Date-only logging:', {
-      staffMember: performParams.staffMember.name,
-      contractId: performParams.contractId,
-      replaceExisting: performParams.replaceExisting,
-      period: this.dateUtils.formatDateOnlyForDisplay(performParams.selectedDate), // *** ИСПРАВЛЕНО: Используем dateUtils ***
-      currentUserId: performParams.currentUserId,
-      managingGroupId: performParams.managingGroupId
-    });
+  /**
+ * *** ИСПРАВЛЕНО: Выполняет фактическое заполнение ПОСЛЕ подтверждения пользователя с FIXED Date-only logging ***
+ */
+public async performFillOperation(performParams: IPerformFillParams): Promise<IFillResult> {
+  console.log('[CommonFillService] Performing fill operation with FIXED Date-only logging:', {
+    staffMember: performParams.staffMember.name,
+    contractId: performParams.contractId,
+    replaceExisting: performParams.replaceExisting,
+    period: this.dateUtils.formatDateOnlyForDisplay(performParams.selectedDate), // *** ИСПРАВЛЕНО: Используем dateUtils ***
+    currentUserId: performParams.currentUserId,
+    managingGroupId: performParams.managingGroupId
+  });
 
-    const operationDetails: string[] = [];
+  const operationDetails: string[] = [];
+  
+  try {
+    operationDetails.push('=== DETAILED FILL OPERATION WITH FIXED DATE-ONLY LOGGING ===');
+    operationDetails.push(`Staff: ${performParams.staffMember.name} (ID: ${performParams.staffMember.employeeId})`);
+    operationDetails.push(`Contract: ${performParams.contractId}`);
+    operationDetails.push(`Replace existing: ${performParams.replaceExisting}`);
+    operationDetails.push(`Period: ${this.dateUtils.formatDateOnlyForDisplay(performParams.selectedDate)}`); // *** ИСПРАВЛЕНО: Используем dateUtils ***
+    operationDetails.push(`Manager: ${performParams.currentUserId}`);
+    operationDetails.push(`Staff Group: ${performParams.managingGroupId}`);
+    operationDetails.push(`Day of Start Week: ${performParams.dayOfStartWeek || 7}`);
+    operationDetails.push('');
+
+    // *** ШАГ 1: УДАЛЕНИЕ СУЩЕСТВУЮЩИХ ЗАПИСЕЙ (КРИТИЧНОЕ ИСПРАВЛЕНИЕ) ***
+    let deletedRecordsCount = 0;
+    if (performParams.replaceExisting) {
+      operationDetails.push('STEP 1: Deleting existing records...');
+      console.log('[CommonFillService] *** CRITICAL: DELETING EXISTING RECORDS ***');
+      
+      try {
+        // *** ИСПРАВЛЕНО: Получаем существующие записи с правильной фильтрацией ***
+        const scheduleLogicResult = await this.validationService.checkExistingRecordsWithScheduleLogic(
+          performParams, 
+          performParams.contractId
+        );
+
+        console.log(`[CommonFillService] Found ${scheduleLogicResult.existingRecords.length} existing records to delete`);
+        operationDetails.push(`Found ${scheduleLogicResult.existingRecords.length} existing records to delete`);
+
+        if (scheduleLogicResult.existingRecords.length > 0) {
+          console.log('[CommonFillService] *** STARTING DELETION PROCESS ***');
+          
+          // *** КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Детальное логирование каждой операции удаления ***
+          for (let i = 0; i < scheduleLogicResult.existingRecords.length; i++) {
+            const record = scheduleLogicResult.existingRecords[i];
+            console.log(`[CommonFillService] Deleting record ${i + 1}/${scheduleLogicResult.existingRecords.length}: ID=${record.ID}, Date=${record.Date ? this.dateUtils.formatDateOnlyForDisplay(record.Date) : 'N/A'}`);
+          }
+          
+          // *** ИСПРАВЛЕНО: Используем улучшенную версию deleteExistingRecords с детальным логированием ***
+          const deleteSuccess = await this.deleteExistingRecordsWithLogging(scheduleLogicResult.existingRecords, operationDetails);
+          
+          if (!deleteSuccess) {
+            const result: IFillResult = {
+              success: false,
+              message: 'Failed to delete existing records.',
+              messageType: MessageBarType.error,
+              logResult: 1
+            };
+            operationDetails.push('❌ ERROR: Failed to delete existing records');
+            console.error('[CommonFillService] *** DELETION FAILED ***');
+            await this.createFillLog(performParams, result, performParams.contractId, operationDetails.join('\n'));
+            return result;
+          }
+          
+          deletedRecordsCount = scheduleLogicResult.existingRecords.length;
+          operationDetails.push(`✅ Successfully deleted ${deletedRecordsCount} existing records`);
+          console.log(`[CommonFillService] *** DELETION COMPLETED: ${deletedRecordsCount} records deleted ***`);
+        } else {
+          operationDetails.push('ℹ️ No existing records found to delete');
+          console.log('[CommonFillService] No existing records found to delete');
+        }
+      } catch (deleteError) {
+        const result: IFillResult = {
+          success: false,
+          message: `Error during deletion: ${deleteError instanceof Error ? deleteError.message : String(deleteError)}`,
+          messageType: MessageBarType.error,
+          logResult: 1
+        };
+        operationDetails.push(`❌ DELETION ERROR: ${deleteError}`);
+        console.error('[CommonFillService] *** DELETION ERROR ***:', deleteError);
+        await this.createFillLog(performParams, result, performParams.contractId, operationDetails.join('\n'));
+        return result;
+      }
+    } else {
+      operationDetails.push('STEP 1: Skipping deletion (replaceExisting = false)');
+      console.log('[CommonFillService] Skipping deletion step (replaceExisting = false)');
+    }
+
+    // *** ШАГ 2: ДЕТАЛЬНАЯ ЗАГРУЗКА ДАННЫХ С DATE-ONLY ПОДДЕРЖКОЙ ***
+    operationDetails.push('STEP 2: Loading data for generation with Date-only format support...');
+    console.log('[CommonFillService] *** LOADING DATA WITH DATE-ONLY SUPPORT ***');
     
     try {
-      operationDetails.push('=== DETAILED FILL OPERATION WITH FIXED DATE-ONLY LOGGING ===');
-      operationDetails.push(`Staff: ${performParams.staffMember.name} (ID: ${performParams.staffMember.employeeId})`);
-      operationDetails.push(`Contract: ${performParams.contractId}`);
-      operationDetails.push(`Replace existing: ${performParams.replaceExisting}`);
-      operationDetails.push(`Period: ${this.dateUtils.formatDateOnlyForDisplay(performParams.selectedDate)}`); // *** ИСПРАВЛЕНО: Используем dateUtils ***
-      operationDetails.push(`Manager: ${performParams.currentUserId}`);
-      operationDetails.push(`Staff Group: ${performParams.managingGroupId}`);
-      operationDetails.push(`Day of Start Week: ${performParams.dayOfStartWeek || 7}`);
+      const [holidays, leaves, weeklyTemplates] = await Promise.all([
+        this.generationService.loadHolidays(performParams.selectedDate),
+        this.generationService.loadLeaves(performParams),
+        this.generationService.loadWeeklyTemplates(
+          performParams.contractId, 
+          performParams.dayOfStartWeek || 7,
+          performParams.currentUserId || '0',
+          performParams.managingGroupId || '0'
+        )
+      ]);
+
+      operationDetails.push(`✅ Loaded ${holidays.length} holidays, ${leaves.length} leaves, ${weeklyTemplates.length} templates`);
+      console.log(`[CommonFillService] Data loaded: ${holidays.length} holidays, ${leaves.length} leaves, ${weeklyTemplates.length} templates`);
+
+      if (weeklyTemplates.length === 0) {
+        const result: IFillResult = {
+          success: false,
+          message: 'No weekly schedule templates found for the selected contract after filtering.',
+          messageType: MessageBarType.warning,
+          logResult: 1
+        };
+        operationDetails.push('❌ ERROR: No weekly templates found after client-side filtering');
+        
+        // Добавляем детальную информацию о фильтрации
+        const templatesAnalysis = this.generationService.getDetailedAnalysis();
+        if (templatesAnalysis.templates) {
+          operationDetails.push('');
+          operationDetails.push('DETAILED FILTERING RESULTS:');
+          operationDetails.push(...templatesAnalysis.templates.filteringDetails);
+        }
+        
+        await this.createFillLog(performParams, result, performParams.contractId, operationDetails.join('\n'));
+        return result;
+      }
+
+      // *** ШАГ 3: ЗАГРУЗКА КОНТРАКТА ***
+      const contracts = await this.contractsService.getContractsForStaffMember(
+        performParams.staffMember.employeeId || '',
+        performParams.currentUserId || '',
+        performParams.managingGroupId || ''
+      );
+      
+      const selectedContract = contracts.find(c => c.id === performParams.contractId);
+      if (!selectedContract) {
+        const result: IFillResult = {
+          success: false,
+          message: 'Selected contract not found.',
+          messageType: MessageBarType.error,
+          logResult: 1
+        };
+        operationDetails.push('❌ ERROR: Contract not found');
+        await this.createFillLog(performParams, result, performParams.contractId, operationDetails.join('\n'));
+        return result;
+      }
+
+      // *** ШАГ 4: ГЕНЕРАЦИЯ ЗАПИСЕЙ С DATE-ONLY ПОДДЕРЖКОЙ ***
+      operationDetails.push('STEP 3: Generating schedule records with Date-only format support...');
+      console.log('[CommonFillService] *** CALLING generateScheduleRecords WITH DATE-ONLY SUPPORT ***');
+      
+      const generatedRecords = await this.generationService.generateScheduleRecords(
+        performParams,
+        selectedContract,
+        holidays,
+        leaves,
+        weeklyTemplates
+      );
+
+      operationDetails.push(`✅ Generated ${generatedRecords.length} schedule records with Date-only format handling`);
+      console.log(`[CommonFillService] Generated ${generatedRecords.length} records`);
+
+      if (generatedRecords.length === 0) {
+        const result: IFillResult = {
+          success: false,
+          message: 'No schedule records generated.',
+          messageType: MessageBarType.warning,
+          logResult: 1
+        };
+        operationDetails.push('❌ ERROR: No records generated');
+        await this.createFillLog(performParams, result, performParams.contractId, operationDetails.join('\n'));
+        return result;
+      }
+
+      // *** ШАГ 5: ПОЛУЧАЕМ ДЕТАЛЬНЫЙ АНАЛИЗ ОТ GENERATION SERVICE ***
+      const detailedAnalysis = this.generationService.getDetailedAnalysis();
+      
+      // *** ДОБАВЛЯЕМ АНАЛИЗ В ЛОГИ ***
+      if (detailedAnalysis.contracts) {
+        operationDetails.push('');
+        operationDetails.push('DETAILED CONTRACTS ANALYSIS:');
+        operationDetails.push(`Total contracts found: ${detailedAnalysis.contracts.totalFound}`);
+        operationDetails.push(`Active contracts in period: ${detailedAnalysis.contracts.activeInPeriod.length}`);
+        operationDetails.push(`Selected contract: ID=${detailedAnalysis.contracts.selectedContract.id}, Name="${detailedAnalysis.contracts.selectedContract.template || 'No name'}"`);
+        operationDetails.push(`Selection reason: ${detailedAnalysis.contracts.selectionReason}`);
+      }
+
+      if (detailedAnalysis.templates) {
+        operationDetails.push('');
+        operationDetails.push('DETAILED TEMPLATES ANALYSIS WITH DATE-ONLY SUPPORT:');
+        operationDetails.push(`Contract: ID=${detailedAnalysis.templates.contractId}, Name="${detailedAnalysis.templates.contractName}"`);
+        operationDetails.push(`Items from server: ${detailedAnalysis.templates.totalItemsFromServer}`);
+        operationDetails.push(`After manager filter: ${detailedAnalysis.templates.afterManagerFilter}`);
+        operationDetails.push(`After deleted filter: ${detailedAnalysis.templates.afterDeletedFilter}`);
+        operationDetails.push(`Final templates: ${detailedAnalysis.templates.finalTemplatesCount}`);
+        operationDetails.push(`Week start day: ${detailedAnalysis.templates.weekStartDayName} (dayOfStartWeek=${detailedAnalysis.templates.dayOfStartWeek})`);
+        operationDetails.push(`Weeks in schedule: [${detailedAnalysis.templates.weeksInSchedule.join(', ')}]`);
+        operationDetails.push(`Shifts available: [${detailedAnalysis.templates.shiftsAvailable.join(', ')}]`);
+        operationDetails.push(`Number of week templates: ${detailedAnalysis.templates.numberOfWeekTemplates}`);
+        operationDetails.push('');
+        operationDetails.push('FILTERING PROCESS DETAILS:');
+        operationDetails.push(...detailedAnalysis.templates.filteringDetails);
+      }
+
+      if (detailedAnalysis.generation) {
+        operationDetails.push('');
+        operationDetails.push('DETAILED GENERATION ANALYSIS WITH DATE-ONLY:');
+        operationDetails.push(`Total days in period: ${detailedAnalysis.generation.totalDaysInPeriod}`);
+        operationDetails.push(`Days generated: ${detailedAnalysis.generation.daysGenerated}`);
+        operationDetails.push(`Days skipped: ${detailedAnalysis.generation.daysSkipped}`);
+        operationDetails.push(`Holidays detected: ${detailedAnalysis.generation.holidaysDetected}`);
+        operationDetails.push(`Leaves detected: ${detailedAnalysis.generation.leavesDetected}`);
+        
+        // Добавляем статистику по неделям
+        operationDetails.push('');
+        operationDetails.push('WEEKLY GENERATION STATISTICS:');
+        detailedAnalysis.generation.weeklyStats.forEach((stats, weekNumber) => {
+          operationDetails.push(`Week ${weekNumber}: ${stats.generated}/${stats.total} generated, ${stats.skipped} skipped`);
+        });
+
+        // Добавляем первые несколько дней для примера
+        if (detailedAnalysis.generation.dailyInfo.length > 0) {
+          operationDetails.push('');
+          operationDetails.push('DAILY GENERATION EXAMPLES:');
+          detailedAnalysis.generation.dailyInfo.slice(0, 7).forEach(dayInfo => {
+            if (dayInfo.templateFound) {
+              operationDetails.push(`${dayInfo.date} (${dayInfo.dayName}): Week ${dayInfo.weekNumber}, ${dayInfo.workingHours}, Lunch: ${dayInfo.lunchMinutes}min`);
+            } else {
+              operationDetails.push(`${dayInfo.date} (${dayInfo.dayName}): Week ${dayInfo.weekNumber}, SKIPPED - ${dayInfo.skipReason}`);
+            }
+          });
+        }
+      }
+
+      // *** ШАГ 6: СОХРАНЕНИЕ ЗАПИСЕЙ С DATE-ONLY ПОДДЕРЖКОЙ ***
       operationDetails.push('');
+      operationDetails.push('STEP 4: Saving generated records with Date-only format support...');
+      console.log('[CommonFillService] *** SAVING RECORDS WITH DATE-ONLY FORMAT HANDLING ***');
+      
+      const savedCount = await this.generationService.saveGeneratedRecords(generatedRecords, performParams);
+      operationDetails.push(`✅ Successfully saved ${savedCount} of ${generatedRecords.length} records with Date-only format handling`);
+      console.log(`[CommonFillService] Saved ${savedCount}/${generatedRecords.length} records`);
 
-      // [... остальная логика performFillOperation остается без изменений ...]
-      // Показываю только измененные части для краткости
-
+      // *** ФОРМИРОВАНИЕ РЕЗУЛЬТАТА ***
       const result: IFillResult = {
-        success: true, // placeholder
-        message: `Successfully generated records for ${this.dateUtils.formatDateOnlyForDisplay(performParams.selectedDate)}`,
-        messageType: MessageBarType.success,
-        createdRecordsCount: 0, // placeholder
-        deletedRecordsCount: 0,
+        success: savedCount > 0,
+        message: savedCount === generatedRecords.length 
+          ? `Successfully generated ${savedCount} schedule records for ${this.dateUtils.formatDateOnlyForDisplay(performParams.selectedDate)}`
+          : `Generated ${savedCount} of ${generatedRecords.length} records. Some failed to save.`,
+        messageType: savedCount === generatedRecords.length ? MessageBarType.success : MessageBarType.warning,
+        createdRecordsCount: savedCount,
+        deletedRecordsCount: deletedRecordsCount,
         requiresDialog: false,
-        logResult: 2
+        logResult: savedCount > 0 ? 2 : 1
       };
 
       console.log('[CommonFillService] Fill operation completed with FIXED Date-only logging:', {
@@ -639,15 +863,15 @@ export class CommonFillService {
       await this.createFillLog(performParams, result, performParams.contractId, operationDetails.join('\n'));
       return result;
 
-    } catch (error) {
-      console.error('[CommonFillService] Error during fill operation:', error);
+    } catch (dataError) {
+      console.error('[CommonFillService] Error loading data or generating records:', dataError);
       
       operationDetails.push('');
-      operationDetails.push(`CRITICAL ERROR: ${error instanceof Error ? error.message : String(error)}`);
+      operationDetails.push(`DATA/GENERATION ERROR: ${dataError instanceof Error ? dataError.message : String(dataError)}`);
       
       const result: IFillResult = {
         success: false,
-        message: `Error filling schedule: ${error instanceof Error ? error.message : String(error)}`,
+        message: `Error during generation: ${dataError instanceof Error ? dataError.message : String(dataError)}`,
         messageType: MessageBarType.error,
         logResult: 1
       };
@@ -655,7 +879,73 @@ export class CommonFillService {
       await this.createFillLog(performParams, result, performParams.contractId, operationDetails.join('\n'));
       return result;
     }
+
+  } catch (error) {
+    console.error('[CommonFillService] Error during fill operation:', error);
+    
+    operationDetails.push('');
+    operationDetails.push(`CRITICAL ERROR: ${error instanceof Error ? error.message : String(error)}`);
+    
+    const result: IFillResult = {
+      success: false,
+      message: `Error filling schedule: ${error instanceof Error ? error.message : String(error)}`,
+      messageType: MessageBarType.error,
+      logResult: 1
+    };
+    
+    await this.createFillLog(performParams, result, performParams.contractId, operationDetails.join('\n'));
+    return result;
   }
+}
+
+/**
+ * *** ИСПРАВЛЕНО: Удаление записей с детальным логированием через validationService ***
+ */
+private async deleteExistingRecordsWithLogging(existingRecords: IStaffRecord[], operationDetails: string[]): Promise<boolean> {
+  console.log(`[CommonFillService] *** DETAILED DELETION WITH LOGGING *** Deleting ${existingRecords.length} existing StaffRecords`);
+  
+  try {
+    operationDetails.push(`Starting deletion of ${existingRecords.length} records (soft delete: Deleted=1)`);
+    
+    // Логируем детали записей перед удалением
+    existingRecords.forEach((record, index) => {
+      console.log(`[CommonFillService] Record ${index + 1}: ID=${record.ID}, Date=${record.Date ? this.dateUtils.formatDateOnlyForDisplay(record.Date) : 'N/A'}, Title="${record.Title || 'No title'}", Current Deleted=${record.Deleted || 0}`);
+      operationDetails.push(`  Record ${index + 1}: ID=${record.ID}, Date=${record.Date ? this.dateUtils.formatDateOnlyForDisplay(record.Date) : 'N/A'}, Deleted=${record.Deleted || 0}`);
+    });
+
+    console.log('[CommonFillService] *** CALLING validationService.deleteExistingRecords ***');
+    operationDetails.push('Calling validationService.deleteExistingRecords()...');
+    
+    // *** ИСПРАВЛЕНО: Используем validationService.deleteExistingRecords ***
+    const deleteSuccess = await this.validationService.deleteExistingRecords(existingRecords);
+    
+    if (deleteSuccess) {
+      console.log(`[CommonFillService] ✅ validationService.deleteExistingRecords returned SUCCESS`);
+      operationDetails.push(`✅ validationService.deleteExistingRecords completed successfully`);
+      operationDetails.push(`All ${existingRecords.length} records should now have Deleted=1`);
+      
+      // *** ДОБАВЛЕНО: Проверяем результат удаления ***
+      operationDetails.push('');
+      operationDetails.push('DELETION VERIFICATION:');
+      operationDetails.push('Note: Records are soft-deleted (Deleted=1), not physically removed from SharePoint');
+      operationDetails.push('Future queries will filter out these records using "Deleted ne 1" filter');
+      
+      return true;
+    } else {
+      console.error(`[CommonFillService] ❌ validationService.deleteExistingRecords returned FAILURE`);
+      operationDetails.push(`❌ validationService.deleteExistingRecords failed`);
+      operationDetails.push('Some or all records may not have been marked as deleted');
+      return false;
+    }
+
+  } catch (error) {
+    const errorMsg = `Critical error during deletion: ${error instanceof Error ? error.message : String(error)}`;
+    console.error(`[CommonFillService] *** DELETION CRITICAL ERROR ***`, error);
+    operationDetails.push(`❌ ${errorMsg}`);
+    operationDetails.push('Deletion process was interrupted due to an exception');
+    return false;
+  }
+}
 
   /**
    * Логирует отказ пользователя
