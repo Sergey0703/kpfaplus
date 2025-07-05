@@ -1,11 +1,14 @@
 // src/webparts/kpfaplus/services/CommonFillValidation.ts
 // ИСПРАВЛЕНО: Правильное разделение DateTime (StaffRecords) и Date-only (Holidays, Leaves, ScheduleLogs) полей
 // ДОБАВЛЕНО: Поддержка автозаполнения и специальная валидация для staff с autoschedule
+// FIXED: TypeScript lint error - replaced require with proper ES6 import
+
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { IStaffRecord, StaffRecordsService } from './StaffRecordsService';
 import { IContract } from '../models/IContract';
 import { IStaffMember } from '../models/types';
 import { CommonFillDateUtils } from './CommonFillDateUtils';
+import { RemoteSiteService } from './RemoteSiteService';
 
 // Интерфейс для параметров операции заполнения
 export interface IFillParams {
@@ -83,8 +86,7 @@ export class CommonFillValidation {
 
   constructor(context: WebPartContext) {
     this.staffRecordsService = StaffRecordsService.getInstance(context);
-    // ДОБАВЛЕНО: Инициализация dateUtils для правильной работы с Date-only полями
-    const { RemoteSiteService } = require('./RemoteSiteService');
+    // FIXED: Replaced require statement with proper ES6 import
     const remoteSiteService = RemoteSiteService.getInstance(context);
     this.dateUtils = new CommonFillDateUtils(remoteSiteService);
     console.log('[CommonFillValidation] Service initialized with FIXED DateTime/Date-only separation and auto-fill validation');

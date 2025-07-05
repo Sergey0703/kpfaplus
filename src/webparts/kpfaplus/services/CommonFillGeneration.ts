@@ -1,6 +1,8 @@
 // src/webparts/kpfaplus/services/CommonFillGeneration.ts
 // MAIN COORDINATOR: Refactored with separated components for better maintainability
 // COMPLETE IMPLEMENTATION: Enhanced Auto-Fill with timer, spinner, and execution time tracking
+// FIXED: TypeScript lint error - replaced any with proper types
+
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { IStaffRecord, StaffRecordsService } from './StaffRecordsService';
 import { HolidaysService, IHoliday } from './HolidaysService';
@@ -13,7 +15,8 @@ import {
   IScheduleTemplate,
   IDetailedAnalysisResult,
   IGenerationResult,
-  ISaveResult
+  ISaveResult,
+  AnalysisLevel
 } from './CommonFillTypes';
 import { CommonFillDateUtils } from './CommonFillDateUtils';
 import { CommonFillAnalysis } from './CommonFillAnalysis';
@@ -290,11 +293,19 @@ export class CommonFillGeneration {
 
   /**
    * Валидирует группу шаблонов
+   * FIXED: Proper interface type instead of any
    */
   public validateTemplateGroup(templates: IScheduleTemplate[]): {
     isValid: boolean;
     issues: string[];
-    statistics: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+    statistics: {
+      totalTemplates: number;
+      uniqueWeeks: number;
+      uniqueShifts: number;
+      uniqueDays: number;
+      validTemplates: number;
+      invalidTemplates: number;
+    };
   } {
     console.log('[CommonFillGeneration] Delegating template group validation to Templates component');
     return this.templates.validateTemplateGroup(templates);
@@ -347,9 +358,9 @@ export class CommonFillGeneration {
   /**
    * Генерирует текстовый отчет анализа
    */
-  public generateAnalysisReport(level: 'basic' | 'detailed' | 'debug' = 'detailed'): string {
+  public generateAnalysisReport(level: AnalysisLevel = AnalysisLevel.DETAILED): string {
     console.log('[CommonFillGeneration] Delegating analysis report generation to Analysis component');
-    return this.analysis.generateAnalysisReport(level as any);
+    return this.analysis.generateAnalysisReport(level);
   }
 
   /**
@@ -380,11 +391,30 @@ export class CommonFillGeneration {
 
   /**
    * Восстанавливает записи из резервной копии
+   * FIXED: Proper interface type instead of any
    */
   public restoreRecordsFromBackup(backupJson: string): {
     success: boolean;
     records?: Partial<IStaffRecord>[];
-    metadata?: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+    metadata?: {
+      timestamp: string;
+      staffMember: {
+        id: string;
+        name: string;
+        employeeId: string;
+      };
+      period: string;
+      totalRecords: number;
+      statistics: {
+        totalRecords: number;
+        holidayRecords: number;
+        leaveRecords: number;
+        workingRecords: number;
+        shifts: number[];
+        dateRange: { start: string; end: string };
+        timeRanges: Set<string>;
+      };
+    };
     error?: string;
   } {
     console.log('[CommonFillGeneration] Delegating records restore to Records component');
@@ -437,11 +467,16 @@ export class CommonFillGeneration {
 
   /**
    * Получает диагностическую информацию анализа
+   * FIXED: Proper interface type instead of any
    */
   public getAnalysisDiagnostics(): {
     memoryUsage: string;
     analysisSize: string;
-    performanceMetrics: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+    performanceMetrics: {
+      contractsAnalyzed: boolean;
+      templatesAnalyzed: boolean;
+      generationAnalyzed: boolean;
+    };
   } {
     console.log('[CommonFillGeneration] Delegating analysis diagnostics to Analysis component');
     return this.analysis.getDiagnostics();
@@ -449,12 +484,21 @@ export class CommonFillGeneration {
 
   /**
    * Получает диагностическую информацию о процессе генерации записей
+   * FIXED: Proper interface type instead of any
    */
   public getRecordsDiagnostics(): {
-    servicesStatus: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+    servicesStatus: {
+      staffRecords: boolean;
+      holidays: boolean;
+      leaves: boolean;
+      dateUtils: boolean;
+    };
     memoryUsage: string;
     lastOperation: string;
-    performanceMetrics: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+    performanceMetrics: {
+      averageRecordCreationTime: number;
+      totalOperationTime: number;
+    };
   } {
     console.log('[CommonFillGeneration] Delegating records diagnostics to Records component');
     return this.records.getDiagnostics();
@@ -611,6 +655,7 @@ export class CommonFillGeneration {
     console.log('[CommonFillGeneration] Providing direct access to Templates component');
     return this.templates;
   }
+  
 
   /**
    * Получает прямой доступ к компоненту Records (для продвинутого использования)

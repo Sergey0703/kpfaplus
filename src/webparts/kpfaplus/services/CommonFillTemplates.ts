@@ -1,13 +1,15 @@
 // src/webparts/kpfaplus/services/CommonFillTemplates.ts
 // TEMPLATE PROCESSING: All template loading, formatting, and grouping logic
 // COMPLETE IMPLEMENTATION: Schedule Tab compatibility with Date-only support
+// FIXED: TypeScript lint errors - replaced any with proper types
 
 import { WeeklyTimeTableService } from './WeeklyTimeTableService';
 import { WeeklyTimeTableUtils, IFormattedWeeklyTimeRow } from '../models/IWeeklyTimeTable';
 import { 
   IScheduleTemplate,
   IWeeklyTimeTableItem,
-  FILL_CONSTANTS
+  FILL_CONSTANTS,
+  SharePointDayNumber
 } from './CommonFillTypes';
 import { CommonFillAnalysis } from './CommonFillAnalysis';
 import { CommonFillDateUtils } from './CommonFillDateUtils';
@@ -299,18 +301,20 @@ export class CommonFillTemplates {
 
   /**
    * Применяет Schedule Tab форматирование
+   * FIXED: Proper type instead of any
    */
   private applyScheduleTabFormatting(
     items: IWeeklyTimeTableItem[], 
     dayOfStartWeek: number
   ): IFormattedWeeklyTimeRow[] {
-    // ИСПРАВЛЕНО: Используем тот же метод что и Schedule Tab
-    // Приводим тип для совместимости с WeeklyTimeTableUtils
+    // FIXED: Use proper type with index signature for compatibility with WeeklyTimeTableUtils
+    type CompatibleItem = IWeeklyTimeTableItem & { [key: string]: unknown };
+    
     const compatibleItems = items.map(item => ({
       ...item,
-      // Добавляем индексную сигнатуру для совместимости
+      // Добавляем поля из fields для совместимости с WeeklyTimeTableUtils
       ...(item.fields || {})
-    })) as any[]; // eslint-disable-line @typescript-eslint/no-explicit-any
+    })) as CompatibleItem[];
     
     const formattedTemplates = WeeklyTimeTableUtils.formatWeeklyTimeTableData(compatibleItems, dayOfStartWeek);
     
@@ -459,6 +463,7 @@ export class CommonFillTemplates {
 
   /**
    * Валидирует группу шаблонов
+   * FIXED: Proper interface type for statistics
    */
   public validateTemplateGroup(templates: IScheduleTemplate[]): {
     isValid: boolean;
@@ -502,7 +507,7 @@ export class CommonFillTemplates {
     const missingDays = [];
     for (let day = 1; day <= 7; day++) {
       if (!days.has(day)) {
-        missingDays.push(this.dateUtils.getSharePointDayName(day as any));
+        missingDays.push(this.dateUtils.getSharePointDayName(day as SharePointDayNumber));
       }
     }
     
@@ -596,7 +601,7 @@ export class CommonFillTemplates {
 
     const workingDays = Array.from(days)
       .sort()
-      .map(d => this.dateUtils.getSharePointDayName(d as any))
+      .map(d => this.dateUtils.getSharePointDayName(d as SharePointDayNumber))
       .join(', ');
 
     const timeRanges = new Set(templates.map(t => `${t.startTime}-${t.endTime}`));
