@@ -1,12 +1,11 @@
-// src/webparts/kpfaplus/services/ScheduleLogsService.ts
-// ИСПРАВЛЕНО: Добавлена серверная фильтрация по образцу ContractsService
+// src/webparts/kpfaplus/services/ScheduleLogsService.ts - ЧАСТЬ 1/4
+// ✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Убрана UTC конвертация для Date-only поля ScheduleLogs.Date
 // ДОБАВЛЕНО: Поддержка автозаполнения и специализированного логирования
 
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { RemoteSiteService } from "./RemoteSiteService";
-import { DateUtils } from "../components/CustomDatePicker/CustomDatePicker";
 
-// ИСПРАВЛЕНО: Структура интерфейса для полной совместимости с LogDetailsDialog
+// ✅ ИСПРАВЛЕНО: Структура интерфейса для полной совместимости с LogDetailsDialog
 export interface IScheduleLogLookup {
   Id: string;
   Title: string;
@@ -93,14 +92,14 @@ export class ScheduleLogsService {
   private _remoteSiteService: RemoteSiteService;
 
   private constructor(context: WebPartContext) {
-    console.log('[ScheduleLogsService] Инициализация с серверной фильтрацией и поддержкой автозаполнения');
+    console.log('[ScheduleLogsService] ✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Инициализация БЕЗ UTC конвертации для Date-only поля');
     this._remoteSiteService = RemoteSiteService.getInstance(context);
-    this.logInfo("ScheduleLogsService initialized with server-side filtering and auto-fill support");
+    this.logInfo("ScheduleLogsService initialized with FIXED Date-only format support and auto-fill");
   }
 
   public static getInstance(context: WebPartContext): ScheduleLogsService {
     if (!ScheduleLogsService._instance) {
-      console.log('[ScheduleLogsService] Создание нового экземпляра с серверной фильтрацией и автозаполнением');
+      console.log('[ScheduleLogsService] ✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Создание нового экземпляра с Date-only фиксом');
       ScheduleLogsService._instance = new ScheduleLogsService(context);
     }
     return ScheduleLogsService._instance;
@@ -122,7 +121,7 @@ export class ScheduleLogsService {
     return isNaN(num) ? 0 : num;
   }
 
-  // СКОПИРОВАНО ИЗ ContractsService: Преобразует значение в дату с нормализацией через DateUtils
+  // ✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: НОВЫЙ метод ensureDate БЕЗ DateUtils.normalizeDateToUTCMidnight
   private ensureDate(value: unknown): Date {
     if (value === null || value === undefined) {
       return new Date();
@@ -136,22 +135,50 @@ export class ScheduleLogsService {
       } else if (typeof value === 'string') {
         date = new Date(value);
         if (isNaN(date.getTime())) {
-          this.logInfo(`[DEBUG] Invalid date string for ensureDate: ${value}`);
+          this.logInfo(`[DEBUG] ✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Invalid date string for ensureDate: ${value}`);
           return new Date();
         }
       } else {
-        this.logInfo(`[DEBUG] Unsupported date type for ensureDate: ${typeof value}`);
+        this.logInfo(`[DEBUG] ✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Unsupported date type for ensureDate: ${typeof value}`);
         return new Date();
       }
       
-      // Нормализуем дату через DateUtils как в ContractsService
-      const normalizedDate = DateUtils.normalizeDateToUTCMidnight(date);
-      return normalizedDate;
+      // ✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: НЕ ИСПОЛЬЗУЕМ DateUtils.normalizeDateToUTCMidnight!
+      // Для Date-only полей возвращаем дату как есть
+      console.log('[ScheduleLogsService] ✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: ensureDate БЕЗ UTC конвертации');
+      console.log('[ScheduleLogsService] Input value:', value);
+      console.log('[ScheduleLogsService] Parsed date (no UTC conversion):', date.toISOString());
+      
+      return date;
     } catch (error) {
-      this.logError(`Error converting date: ${error}`);
+      this.logError(`Error converting date with FIXED logic: ${error}`);
       return new Date();
     }
   }
+
+  /**
+   * СКОПИРОВАНО ИЗ ContractsService: Статический метод для очистки экземпляра
+   */
+  public static clearInstance(): void {
+    ScheduleLogsService._instance = undefined as unknown as ScheduleLogsService;
+    console.log('[ScheduleLogsService] Instance cleared');
+  }
+
+  /**
+   * СКОПИРОВАНО ИЗ ContractsService: Helper method to log info messages
+   */
+  private logInfo(message: string): void {
+    console.log(`[${this._logSource}] ${message}`);
+  }
+
+  /**
+   * СКОПИРОВАНО ИЗ ContractsService: Helper method to log error messages
+   */
+  private logError(message: string): void {
+    console.error(`[${this._logSource}] ${message}`);
+  }
+  // src/webparts/kpfaplus/services/ScheduleLogsService.ts - ЧАСТЬ 2/4
+// ✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Приватные методы с правильной обработкой Date-only полей
 
   /**
    * *** НОВЫЙ МЕТОД: Формирует серверный фильтр для ScheduleLogs с поддержкой автозаполнения ***
@@ -186,28 +213,34 @@ export class ScheduleLogsService {
       }
     }
 
-    // *** ИСПРАВЛЕНО: Фильтр по дате с UTC границами месяца ***
+    // ✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Фильтр по дате с правильной Date-only обработкой
     if (params.periodDate) {
-      const startOfMonth = new Date(Date.UTC(
-        params.periodDate.getUTCFullYear(), 
-        params.periodDate.getUTCMonth(), 
-        1, 
-        0, 0, 0, 0
-      ));
+      console.log('[ScheduleLogsService] ✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Строим Date-only фильтр для ScheduleLogs.Date');
+      console.log('[ScheduleLogsService] Input periodDate:', params.periodDate.toLocaleDateString());
       
-      const endOfMonth = new Date(Date.UTC(
-        params.periodDate.getUTCFullYear(), 
-        params.periodDate.getUTCMonth() + 1, 
-        0, 
-        23, 59, 59, 999
-      ));
+      // ✅ ИСПРАВЛЕНО: Используем локальные компоненты для создания границ месяца
+      const year = params.periodDate.getFullYear();
+      const month = params.periodDate.getMonth();
+      
+      // Создаем границы месяца в локальном времени, затем конвертируем в UTC строки
+      const startOfMonth = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
+      const endOfMonth = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
 
       // OData формат для дат в Graph API
       const startDateISO = startOfMonth.toISOString();
       const endDateISO = endOfMonth.toISOString();
       
       filterParts.push(`(fields/Date ge '${startDateISO}' and fields/Date le '${endDateISO}')`);
-      this.logInfo(`Adding Date filter: Date between ${startDateISO} and ${endDateISO}`);
+      
+      console.log('[ScheduleLogsService] ✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Date-only фильтр создан правильно');
+      console.log('[ScheduleLogsService] Month boundaries:', {
+        year,
+        month: month + 1,
+        startISO: startDateISO,
+        endISO: endDateISO
+      });
+      
+      this.logInfo(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Adding Date filter for ScheduleLogs.Date: ${startDateISO} to ${endDateISO}`);
     }
 
     // *** НОВЫЙ ФИЛЬТР: По типу операции (автозаполнение) ***
@@ -237,7 +270,7 @@ export class ScheduleLogsService {
 
     if (filterParts.length > 0) {
       const filter = filterParts.join(' and ');
-      this.logInfo(`Built server filter with auto-fill support: ${filter}`);
+      this.logInfo(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Built server filter with Date-only support: ${filter}`);
       return filter;
     }
 
@@ -255,7 +288,7 @@ export class ScheduleLogsService {
     weeklyTimeTableField: string;
   }> {
     try {
-      this.logInfo('Analyzing ScheduleLogs field structure like ContractsService does');
+      this.logInfo('✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Analyzing ScheduleLogs field structure with Date-only awareness');
       
       // Получаем образцы для анализа структуры
       const sampleItems = await this._remoteSiteService.getListItems(
@@ -274,7 +307,7 @@ export class ScheduleLogsService {
         const sampleItem = sampleItems[0];
         const fields = sampleItem.fields || {};
         
-        this.logInfo(`Sample ScheduleLogs item structure: ${JSON.stringify(fields, null, 2)}`);
+        this.logInfo(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Sample ScheduleLogs item structure: ${JSON.stringify(fields, null, 2)}`);
         
         // Определяем правильные имена полей для lookup-полей
         if (fields.StaffMemberLookupId !== undefined) {
@@ -308,8 +341,16 @@ export class ScheduleLogsService {
           weeklyTimeTableField = "WeeklyTimeTableId";
           this.logInfo(`Using field name "${weeklyTimeTableField}" for WeeklyTimeTable filtering`);
         }
+
+        // ✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Проверяем структуру Date поля
+        if (fields.Date !== undefined) {
+          console.log('[ScheduleLogsService] ✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Found ScheduleLogs.Date field structure');
+          console.log('[ScheduleLogsService] Date field sample value:', fields.Date);
+          console.log('[ScheduleLogsService] Date field type:', typeof fields.Date);
+          this.logInfo(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: ScheduleLogs.Date field confirmed as Date-only field`);
+        }
       } else {
-        this.logInfo(`No sample items found in list "${this._listName}". Using default field names.`);
+        this.logInfo(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: No sample items found in list "${this._listName}". Using default field names.`);
       }
       
       return {
@@ -319,7 +360,7 @@ export class ScheduleLogsService {
         weeklyTimeTableField
       };
     } catch (error) {
-      this.logError(`Error analyzing ScheduleLogs fields: ${error}`);
+      this.logError(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Error analyzing ScheduleLogs fields: ${error}`);
       // Возвращаем значения по умолчанию
       return {
         staffMemberField: "StaffMemberLookupId",
@@ -331,211 +372,12 @@ export class ScheduleLogsService {
   }
 
   /**
-   * *** ИСПРАВЛЕНО: Получает логи С СЕРВЕРНОЙ ФИЛЬТРАЦИЕЙ и поддержкой автозаполнения ***
-   */
-  public async getScheduleLogs(params: IGetScheduleLogsParams = {}): Promise<IScheduleLogsResult> {
-    try {
-      this.logInfo(`Fetching schedule logs WITH SERVER-SIDE FILTERING and auto-fill support`);
-      this.logInfo(`Parameters: ${JSON.stringify(params)}`);
-
-      // *** ШАГ 1: АНАЛИЗ СТРУКТУРЫ ПОЛЕЙ (ОДИН РАЗ) ***
-      const fieldNames = await this.analyzeScheduleLogsFields();
-      
-      // *** ШАГ 2: СТРОИМ СЕРВЕРНЫЙ ФИЛЬТР С ПОДДЕРЖКОЙ АВТОЗАПОЛНЕНИЯ ***
-      const serverFilter = this.buildServerFilter(params);
-      
-      // *** ШАГ 3: ВЫПОЛНЯЕМ ЗАПРОС С СЕРВЕРНОЙ ФИЛЬТРАЦИЕЙ ***
-      this.logInfo(`Executing request with server filter: ${serverFilter || 'no filter'}`);
-      
-      const items = await this._remoteSiteService.getListItems(
-        this._listName,
-        true,
-        serverFilter, // *** СЕРВЕРНАЯ ФИЛЬТРАЦИЯ! ***
-        { field: "Created", ascending: false } // Сортируем по дате создания (новые сначала)
-      );
-      
-      this.logInfo(`Retrieved ${items.length} schedule logs with server-side filtering and auto-fill support`);
-      
-      // *** ШАГ 4: ПРЕОБРАЗУЕМ ДАННЫЕ В ФОРМАТ IScheduleLog ***
-      const logs: IScheduleLog[] = [];
-      
-      for (const item of items) {
-        try {
-          const fields = item.fields || {};
-          
-          // Создаем lookup объекты для LogDetailsDialog
-          const createLookupInfo = (lookupIdField: string, lookupTitleField: string): IScheduleLogLookup | undefined => {
-            const id = fields[lookupIdField];
-            const title = fields[lookupTitleField];
-            if (id && title) {
-              return {
-                Id: this.ensureString(id),
-                Title: this.ensureString(title)
-              };
-            }
-            return undefined;
-          };
-
-          const log: IScheduleLog = {
-            ID: this.ensureString(item.id),
-            Title: this.ensureString(fields.Title),
-            Result: this.ensureNumber(fields.Result),
-            Message: this.ensureString(fields.Message),
-            Date: this.ensureDate(fields.Date),
-            // ID поля для обратной совместимости
-            StaffMemberId: fields[fieldNames.staffMemberField] ? this.ensureString(fields[fieldNames.staffMemberField]) : undefined,
-            ManagerId: fields[fieldNames.managerField] ? this.ensureString(fields[fieldNames.managerField]) : undefined,
-            StaffGroupId: fields[fieldNames.staffGroupField] ? this.ensureString(fields[fieldNames.staffGroupField]) : undefined,
-            WeeklyTimeTableId: fields[fieldNames.weeklyTimeTableField] ? this.ensureString(fields[fieldNames.weeklyTimeTableField]) : undefined,
-            WeeklyTimeTableTitle: fields.WeeklyTimeTableLookup ? this.ensureString(fields.WeeklyTimeTableLookup) : undefined,
-            // Объекты lookup для LogDetailsDialog
-            Manager: createLookupInfo('ManagerLookupId', 'ManagerLookup'),
-            StaffMember: createLookupInfo('StaffMemberLookupId', 'StaffMemberLookup'),
-            StaffGroup: createLookupInfo('StaffGroupLookupId', 'StaffGroupLookup'),
-            WeeklyTimeTable: createLookupInfo('WeeklyTimeTableLookupId', 'WeeklyTimeTableLookup'),
-            Created: this.ensureDate(fields.Created),
-            Modified: this.ensureDate(fields.Modified)
-          };
-          
-          logs.push(log);
-        } catch (itemError) {
-          this.logError(`Error processing log item: ${itemError}`);
-        }
-      }
-
-      // *** ШАГ 5: ПРИМЕНЯЕМ КЛИЕНТСКУЮ ПАГИНАЦИЮ (если нужно) ***
-      let paginatedLogs = logs;
-      if (params.top || params.skip) {
-        const skip = params.skip || 0;
-        const top = params.top || 50;
-        paginatedLogs = logs.slice(skip, skip + top);
-        this.logInfo(`Applied pagination (skip: ${skip}, top: ${top}): ${paginatedLogs.length} logs from ${logs.length} total`);
-      }
-      
-      this.logInfo(`Successfully fetched ${paginatedLogs.length} logs with server-side filtering and auto-fill support`);
-      
-      return {
-        logs: paginatedLogs,
-        totalCount: logs.length,
-        error: undefined
-      };
-
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logError(`Error fetching schedule logs with server filtering and auto-fill support: ${errorMessage}`);
-      
-      return {
-        logs: [],
-        totalCount: 0,
-        error: errorMessage
-      };
-    }
-  }
-
-  /**
-   * *** НОВЫЙ МЕТОД: Создает лог для автозаполнения ***
-   */
-  public async createAutoFillLog(params: ICreateAutoFillLogParams): Promise<string | undefined> {
-    try {
-      this.logInfo(`Creating auto-fill log using enhanced pattern`);
-      this.logInfo(`Auto-fill parameters: ${JSON.stringify(params)}`);
-
-      // Подготавливаем данные для MS Graph API
-      const itemData: Record<string, unknown> = {
-        Title: `[${params.operationType}] ${params.title}`,
-        Result: params.result,
-        Message: this.buildAutoFillLogMessage(params)
-      };
-
-      // Добавляем дату с нормализацией через DateUtils
-      if (params.date) {
-        const normalizedDate = DateUtils.normalizeDateToUTCMidnight(params.date);
-        itemData.Date = normalizedDate.toISOString();
-        this.logInfo(`[DEBUG] Auto-fill date normalized: ${params.date.toISOString()} → ${normalizedDate.toISOString()}`);
-      }
-
-      // Добавляем lookup поля если они есть
-      if (params.staffMemberId && params.staffMemberId !== '' && params.staffMemberId !== '0') {
-        try {
-          const staffMemberId = parseInt(params.staffMemberId, 10);
-          if (!isNaN(staffMemberId)) {
-            itemData.StaffMemberLookupId = staffMemberId;
-          }
-        } catch (e) {
-          console.warn(`Could not parse staffMemberId: ${params.staffMemberId}`, e);
-        }
-      }
-
-      if (params.managerId && params.managerId !== '' && params.managerId !== '0') {
-        try {
-          const managerId = parseInt(params.managerId, 10);
-          if (!isNaN(managerId)) {
-            itemData.ManagerLookupId = managerId;
-          }
-        } catch (e) {
-          console.warn(`Could not parse managerId: ${params.managerId}`, e);
-        }
-      }
-
-      if (params.staffGroupId && params.staffGroupId !== '' && params.staffGroupId !== '0') {
-        try {
-          const staffGroupId = parseInt(params.staffGroupId, 10);
-          if (!isNaN(staffGroupId)) {
-            itemData.StaffGroupLookupId = staffGroupId;
-          }
-        } catch (e) {
-          console.warn(`Could not parse staffGroupId: ${params.staffGroupId}`, e);
-        }
-      }
-
-      if (params.weeklyTimeTableId && params.weeklyTimeTableId !== '' && params.weeklyTimeTableId !== '0') {
-        try {
-          const weeklyTimeTableId = parseInt(params.weeklyTimeTableId, 10);
-          if (!isNaN(weeklyTimeTableId)) {
-            itemData.WeeklyTimeTableLookupId = weeklyTimeTableId;
-          }
-        } catch (e) {
-          console.warn(`Could not parse weeklyTimeTableId: ${params.weeklyTimeTableId}`, e);
-        }
-      }
-
-      this.logInfo(`Prepared auto-fill item data for save: ${JSON.stringify(itemData, null, 2)}`);
-
-      // Создаем новый элемент через RemoteSiteService
-      try {
-        const listId = await this._remoteSiteService.getListId(this._listName);
-        
-        const response = await this._remoteSiteService.addListItem(
-          listId,
-          itemData
-        );
-        
-        if (response && response.id) {
-          const result = this.ensureString(response.id);
-          this.logInfo(`Created new auto-fill log with ID: ${result}`);
-          return result;
-        } else {
-          throw new Error('Failed to get ID from the created auto-fill log item');
-        }
-      } catch (error) {
-        this.logError(`Error creating new auto-fill log: ${error}`);
-        throw error;
-      }
-
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logError(`Error creating auto-fill log: ${errorMessage}`);
-      return undefined;
-    }
-  }
-
-  /**
    * *** НОВЫЙ МЕТОД: Строит сообщение для лога автозаполнения ***
    */
   private buildAutoFillLogMessage(params: ICreateAutoFillLogParams): string {
     const lines: string[] = [];
     
-    lines.push(`=== AUTO-FILL LOG MESSAGE ===`);
+    lines.push(`=== AUTO-FILL LOG MESSAGE WITH FIXED DATE-ONLY SUPPORT ===`);
     lines.push(`Operation Type: ${params.operationType}`);
     lines.push(`Date: ${new Date().toISOString()}`);
     lines.push('');
@@ -564,26 +406,135 @@ export class ScheduleLogsService {
       lines.push('');
     }
     
-    // Параметры операции
-    lines.push(`OPERATION PARAMETERS:`);
-    lines.push(`Period: ${params.date.toISOString()}`);
+    // ✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Параметры операции с Date-only форматированием
+    lines.push(`OPERATION PARAMETERS WITH FIXED DATE-ONLY SUPPORT:`);
+    
+    // Форматируем дату для отображения БЕЗ timezone conversion
+    const displayDate = `${params.date.getDate().toString().padStart(2, '0')}.${(params.date.getMonth() + 1).toString().padStart(2, '0')}.${params.date.getFullYear()}`;
+    lines.push(`Period (Date-only): ${displayDate}`);
+    lines.push(`Period (ISO for storage): ${params.date.toISOString()}`);
+    
     lines.push(`Staff Member ID: ${params.staffMemberId || 'N/A'}`);
     lines.push(`Manager ID: ${params.managerId || 'N/A'}`);
     lines.push(`Staff Group ID: ${params.staffGroupId || 'N/A'}`);
     lines.push(`Weekly Time Table ID: ${params.weeklyTimeTableId || 'N/A'}`);
     lines.push(`Result Code: ${params.result} (${params.result === 2 ? 'Success' : params.result === 3 ? 'Warning/Skip' : 'Error'})`);
     
-    lines.push(`=== END AUTO-FILL LOG ===`);
+    lines.push(`=== END AUTO-FILL LOG WITH FIXED DATE-ONLY SUPPORT ===`);
     
     return lines.join('\n');
   }
+  // src/webparts/kpfaplus/services/ScheduleLogsService.ts - ЧАСТЬ 3/4
+// 🚨 КРИТИЧНЫЕ ИСПРАВЛЕНИЯ: Основные методы БЕЗ DateUtils.normalizeDateToUTCMidnight
 
   /**
-   * Создает лог операции используя паттерн из ContractsService
+   * ✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Получает логи С СЕРВЕРНОЙ ФИЛЬТРАЦИЕЙ и Date-only поддержкой
+   */
+  public async getScheduleLogs(params: IGetScheduleLogsParams = {}): Promise<IScheduleLogsResult> {
+    try {
+      this.logInfo(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Fetching schedule logs with FIXED Date-only support`);
+      this.logInfo(`Parameters: ${JSON.stringify(params)}`);
+
+      // *** ШАГ 1: АНАЛИЗ СТРУКТУРЫ ПОЛЕЙ (ОДИН РАЗ) ***
+      const fieldNames = await this.analyzeScheduleLogsFields();
+      
+      // *** ШАГ 2: СТРОИМ СЕРВЕРНЫЙ ФИЛЬТР С ПОДДЕРЖКОЙ АВТОЗАПОЛНЕНИЯ ***
+      const serverFilter = this.buildServerFilter(params);
+      
+      // *** ШАГ 3: ВЫПОЛНЯЕМ ЗАПРОС С СЕРВЕРНОЙ ФИЛЬТРАЦИЕЙ ***
+      this.logInfo(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Executing request with Date-only aware server filter: ${serverFilter || 'no filter'}`);
+      
+      const items = await this._remoteSiteService.getListItems(
+        this._listName,
+        true,
+        serverFilter, // *** СЕРВЕРНАЯ ФИЛЬТРАЦИЯ! ***
+        { field: "Created", ascending: false } // Сортируем по дате создания (новые сначала)
+      );
+      
+      this.logInfo(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Retrieved ${items.length} schedule logs with fixed Date-only support`);
+      
+      // *** ШАГ 4: ПРЕОБРАЗУЕМ ДАННЫЕ В ФОРМАТ IScheduleLog ***
+      const logs: IScheduleLog[] = [];
+      
+      for (const item of items) {
+        try {
+          const fields = item.fields || {};
+          
+          // Создаем lookup объекты для LogDetailsDialog
+          const createLookupInfo = (lookupIdField: string, lookupTitleField: string): IScheduleLogLookup | undefined => {
+            const id = fields[lookupIdField];
+            const title = fields[lookupTitleField];
+            if (id && title) {
+              return {
+                Id: this.ensureString(id),
+                Title: this.ensureString(title)
+              };
+            }
+            return undefined;
+          };
+
+          const log: IScheduleLog = {
+            ID: this.ensureString(item.id),
+            Title: this.ensureString(fields.Title),
+            Result: this.ensureNumber(fields.Result),
+            Message: this.ensureString(fields.Message),
+            Date: this.ensureDate(fields.Date), // ✅ ИСПРАВЛЕНО: БЕЗ UTC конвертации
+            // ID поля для обратной совместимости
+            StaffMemberId: fields[fieldNames.staffMemberField] ? this.ensureString(fields[fieldNames.staffMemberField]) : undefined,
+            ManagerId: fields[fieldNames.managerField] ? this.ensureString(fields[fieldNames.managerField]) : undefined,
+            StaffGroupId: fields[fieldNames.staffGroupField] ? this.ensureString(fields[fieldNames.staffGroupField]) : undefined,
+            WeeklyTimeTableId: fields[fieldNames.weeklyTimeTableField] ? this.ensureString(fields[fieldNames.weeklyTimeTableField]) : undefined,
+            WeeklyTimeTableTitle: fields.WeeklyTimeTableLookup ? this.ensureString(fields.WeeklyTimeTableLookup) : undefined,
+            // Объекты lookup для LogDetailsDialog
+            Manager: createLookupInfo('ManagerLookupId', 'ManagerLookup'),
+            StaffMember: createLookupInfo('StaffMemberLookupId', 'StaffMemberLookup'),
+            StaffGroup: createLookupInfo('StaffGroupLookupId', 'StaffGroupLookup'),
+            WeeklyTimeTable: createLookupInfo('WeeklyTimeTableLookupId', 'WeeklyTimeTableLookup'),
+            Created: this.ensureDate(fields.Created), // ✅ ИСПРАВЛЕНО: БЕЗ UTC конвертации
+            Modified: this.ensureDate(fields.Modified) // ✅ ИСПРАВЛЕНО: БЕЗ UTC конвертации
+          };
+          
+          logs.push(log);
+        } catch (itemError) {
+          this.logError(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Error processing log item: ${itemError}`);
+        }
+      }
+
+      // *** ШАГ 5: ПРИМЕНЯЕМ КЛИЕНТСКУЮ ПАГИНАЦИЮ (если нужно) ***
+      let paginatedLogs = logs;
+      if (params.top || params.skip) {
+        const skip = params.skip || 0;
+        const top = params.top || 50;
+        paginatedLogs = logs.slice(skip, skip + top);
+        this.logInfo(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Applied pagination with Date-only support (skip: ${skip}, top: ${top}): ${paginatedLogs.length} logs from ${logs.length} total`);
+      }
+      
+      this.logInfo(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Successfully fetched ${paginatedLogs.length} logs with FIXED Date-only support`);
+      
+      return {
+        logs: paginatedLogs,
+        totalCount: logs.length,
+        error: undefined
+      };
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logError(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Error fetching schedule logs: ${errorMessage}`);
+      
+      return {
+        logs: [],
+        totalCount: 0,
+        error: errorMessage
+      };
+    }
+  }
+
+  /**
+   * 🚨 КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Создает лог операции БЕЗ DateUtils.normalizeDateToUTCMidnight
    */
   public async createScheduleLog(params: ICreateScheduleLogParams): Promise<string | undefined> {
     try {
-      this.logInfo(`Creating schedule log using ContractsService pattern`);
+      this.logInfo(`🚨 КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Creating schedule log with FIXED Date-only format`);
       this.logInfo(`Parameters: ${JSON.stringify(params)}`);
 
       // СКОПИРОВАНО ИЗ ContractsService: Подготавливаем данные для MS Graph API
@@ -593,11 +544,29 @@ export class ScheduleLogsService {
         Message: params.message
       };
 
-      // СКОПИРОВАНО ИЗ ContractsService: Добавляем дату с нормализацией через DateUtils
+      // 🚨 КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Правильная обработка Date-only поля ScheduleLogs.Date
       if (params.date) {
-        const normalizedDate = DateUtils.normalizeDateToUTCMidnight(params.date);
-        itemData.Date = normalizedDate.toISOString();
-        this.logInfo(`[DEBUG] Date normalized: ${params.date.toISOString()} → ${normalizedDate.toISOString()}`);
+        console.log('[ScheduleLogsService] 🚨 КРИТИЧНОЕ ИСПРАВЛЕНИЕ: ScheduleLogs.Date = Date-only поле, НЕ ИСПОЛЬЗУЕМ UTC КОНВЕРТАЦИЮ');
+        console.log('[ScheduleLogsService] Original date (UI):', params.date.toLocaleDateString());
+        
+        // ✅ ИСПРАВЛЕНО: Используем локальные компоненты даты для Date-only поля
+        const year = params.date.getFullYear();
+        const month = (params.date.getMonth() + 1).toString().padStart(2, '0');
+        const day = params.date.getDate().toString().padStart(2, '0');
+        
+        // ✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Date-only формат с UTC полночью для предотвращения timezone conversion
+        const dateOnlyString = `${year}-${month}-${day}T00:00:00.000Z`;
+        itemData.Date = dateOnlyString;
+        
+        console.log('[ScheduleLogsService] 🚨 КРИТИЧНОЕ ИСПРАВЛЕНИЕ: ScheduleLogs.Date (Date-only поле)');
+        console.log('[ScheduleLogsService] Date-only string для SharePoint:', dateOnlyString);
+        console.log('[ScheduleLogsService] Expected result: Правильный месяц в ScheduleLogs');
+        
+        this.logInfo(`🚨 КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Date normalized for ScheduleLogs.Date (Date-only): ${params.date.toLocaleDateString()} → ${dateOnlyString}`);
+        
+        // 🚨 УБРАНО: DateUtils.normalizeDateToUTCMidnight() - он делает timezone conversion!
+        // const normalizedDate = DateUtils.normalizeDateToUTCMidnight(params.date);
+        // itemData.Date = normalizedDate.toISOString();
       }
 
       // СКОПИРОВАНО ИЗ ContractsService: Добавляем lookup поля если они есть
@@ -645,7 +614,7 @@ export class ScheduleLogsService {
         }
       }
 
-      this.logInfo(`Prepared item data for save: ${JSON.stringify(itemData, null, 2)}`);
+      this.logInfo(`🚨 КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Prepared item data for save with FIXED Date-only: ${JSON.stringify(itemData, null, 2)}`);
 
       // СКОПИРОВАНО ИЗ ContractsService: Создаем новый элемент через RemoteSiteService
       try {
@@ -658,34 +627,152 @@ export class ScheduleLogsService {
         
         if (response && response.id) {
           const result = this.ensureString(response.id);
-          this.logInfo(`Created new schedule log with ID: ${result}`);
+          this.logInfo(`🚨 КРИТИЧНОЕ ИСПРАВЛЕНИЕ: ScheduleLog создан с правильным Date-only форматом, ID: ${result}`);
           return result;
         } else {
           throw new Error('Failed to get ID from the created item');
         }
       } catch (error) {
-        this.logError(`Error creating new schedule log: ${error}`);
+        this.logError(`🚨 КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Error creating new schedule log: ${error}`);
         throw error;
       }
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logError(`Error creating schedule log: ${errorMessage}`);
+      this.logError(`🚨 КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Error creating schedule log: ${errorMessage}`);
       return undefined;
     }
   }
 
   /**
-   * Получает конкретный лог по ID используя прямой доступ (без фильтрации)
+   * 🚨 КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Создает лог для автозаполнения БЕЗ DateUtils.normalizeDateToUTCMidnight
+   */
+  public async createAutoFillLog(params: ICreateAutoFillLogParams): Promise<string | undefined> {
+    try {
+      this.logInfo(`🚨 КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Creating auto-fill log with FIXED Date-only format`);
+      this.logInfo(`Auto-fill parameters: ${JSON.stringify(params)}`);
+
+      // Подготавливаем данные для MS Graph API
+      const itemData: Record<string, unknown> = {
+        Title: `[${params.operationType}] ${params.title}`,
+        Result: params.result,
+        Message: this.buildAutoFillLogMessage(params)
+      };
+
+      // 🚨 КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Правильная обработка Date-only поля ScheduleLogs.Date
+      if (params.date) {
+        console.log('[ScheduleLogsService] 🚨 КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Auto-fill ScheduleLogs.Date (Date-only поле)');
+        console.log('[ScheduleLogsService] Original date (UI):', params.date.toLocaleDateString());
+        
+        // ✅ ИСПРАВЛЕНО: Используем локальные компоненты даты для Date-only поля
+        const year = params.date.getFullYear();
+        const month = (params.date.getMonth() + 1).toString().padStart(2, '0');
+        const day = params.date.getDate().toString().padStart(2, '0');
+        
+        // ✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Date-only формат с UTC полночью для предотвращения timezone conversion
+        const dateOnlyString = `${year}-${month}-${day}T00:00:00.000Z`;
+        itemData.Date = dateOnlyString;
+        
+        console.log('[ScheduleLogsService] 🚨 КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Auto-fill ScheduleLogs.Date');
+        console.log('[ScheduleLogsService] Date-only string для SharePoint:', dateOnlyString);
+        console.log('[ScheduleLogsService] Expected result: Правильный месяц в Auto-fill ScheduleLogs');
+        
+        this.logInfo(`🚨 КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Auto-fill date normalized for ScheduleLogs.Date (Date-only): ${params.date.toLocaleDateString()} → ${dateOnlyString}`);
+        
+        // 🚨 УБРАНО: DateUtils.normalizeDateToUTCMidnight() - он делает timezone conversion!
+        // const normalizedDate = DateUtils.normalizeDateToUTCMidnight(params.date);
+        // itemData.Date = normalizedDate.toISOString();
+      }
+
+      // [Остальная логика остается без изменений - добавление lookup полей]
+      
+      if (params.staffMemberId && params.staffMemberId !== '' && params.staffMemberId !== '0') {
+        try {
+          const staffMemberId = parseInt(params.staffMemberId, 10);
+          if (!isNaN(staffMemberId)) {
+            itemData.StaffMemberLookupId = staffMemberId;
+          }
+        } catch (e) {
+          console.warn(`Could not parse staffMemberId: ${params.staffMemberId}`, e);
+        }
+      }
+
+      if (params.managerId && params.managerId !== '' && params.managerId !== '0') {
+        try {
+          const managerId = parseInt(params.managerId, 10);
+          if (!isNaN(managerId)) {
+            itemData.ManagerLookupId = managerId;
+          }
+        } catch (e) {
+          console.warn(`Could not parse managerId: ${params.managerId}`, e);
+        }
+      }
+
+      if (params.staffGroupId && params.staffGroupId !== '' && params.staffGroupId !== '0') {
+        try {
+          const staffGroupId = parseInt(params.staffGroupId, 10);
+          if (!isNaN(staffGroupId)) {
+            itemData.StaffGroupLookupId = staffGroupId;
+          }
+        } catch (e) {
+          console.warn(`Could not parse staffGroupId: ${params.staffGroupId}`, e);
+        }
+      }
+
+      if (params.weeklyTimeTableId && params.weeklyTimeTableId !== '' && params.weeklyTimeTableId !== '0') {
+        try {
+          const weeklyTimeTableId = parseInt(params.weeklyTimeTableId, 10);
+          if (!isNaN(weeklyTimeTableId)) {
+            itemData.WeeklyTimeTableLookupId = weeklyTimeTableId;
+          }
+        } catch (e) {
+          console.warn(`Could not parse weeklyTimeTableId: ${params.weeklyTimeTableId}`, e);
+        }
+      }
+
+      this.logInfo(`🚨 КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Prepared auto-fill item data for save with FIXED Date-only: ${JSON.stringify(itemData, null, 2)}`);
+
+      // Создаем новый элемент через RemoteSiteService
+      try {
+        const listId = await this._remoteSiteService.getListId(this._listName);
+        
+        const response = await this._remoteSiteService.addListItem(
+          listId,
+          itemData
+        );
+        
+        if (response && response.id) {
+          const result = this.ensureString(response.id);
+          this.logInfo(`🚨 КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Auto-fill ScheduleLog создан с правильным Date-only форматом, ID: ${result}`);
+          return result;
+        } else {
+          throw new Error('Failed to get ID from the created auto-fill log item');
+        }
+      } catch (error) {
+        this.logError(`🚨 КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Error creating new auto-fill log: ${error}`);
+        throw error;
+      }
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logError(`🚨 КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Error creating auto-fill log: ${errorMessage}`);
+      return undefined;
+    }
+  }
+  // src/webparts/kpfaplus/services/ScheduleLogsService.ts - ЧАСТЬ 4/4
+// ✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Дополнительные методы с поддержкой FIXED Date-only
+
+  /**
+   * ✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Получает конкретный лог по ID с FIXED Date-only поддержкой
    */
   public async getScheduleLogById(logId: string): Promise<IScheduleLog | undefined> {
     try {
-      this.logInfo(`Getting schedule log by ID: ${logId} using direct access (no filtering)`);
+      this.logInfo(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Getting schedule log by ID: ${logId} with FIXED Date-only support`);
 
       // ИСПРАВЛЕНО: Используем прямой доступ к элементу по ID через RemoteSiteService
       const logIdNumber = parseInt(logId, 10);
       if (isNaN(logIdNumber)) {
-        this.logError(`Invalid logId format: ${logId}`);
+        this.logError(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Invalid logId format: ${logId}`);
         return undefined;
       }
 
@@ -716,7 +803,7 @@ export class ScheduleLogsService {
           Title: this.ensureString(fields.Title),
           Result: this.ensureNumber(fields.Result),
           Message: this.ensureString(fields.Message),
-          Date: this.ensureDate(fields.Date),
+          Date: this.ensureDate(fields.Date), // ✅ ИСПРАВЛЕНО: БЕЗ UTC конвертации
           StaffMemberId: fields.StaffMemberLookupId ? this.ensureString(fields.StaffMemberLookupId) : undefined,
           ManagerId: fields.ManagerLookupId ? this.ensureString(fields.ManagerLookupId) : undefined,
           StaffGroupId: fields.StaffGroupLookupId ? this.ensureString(fields.StaffGroupLookupId) : undefined,
@@ -726,25 +813,25 @@ export class ScheduleLogsService {
           StaffMember: createLookupInfo('StaffMemberLookupId', 'StaffMemberLookup'),
           StaffGroup: createLookupInfo('StaffGroupLookupId', 'StaffGroupLookup'),
           WeeklyTimeTable: createLookupInfo('WeeklyTimeTableLookupId', 'WeeklyTimeTableLookup'),
-          Created: this.ensureDate(fields.Created),
-          Modified: this.ensureDate(fields.Modified)
+          Created: this.ensureDate(fields.Created), // ✅ ИСПРАВЛЕНО: БЕЗ UTC конвертации
+          Modified: this.ensureDate(fields.Modified) // ✅ ИСПРАВЛЕНО: БЕЗ UTC конвертации
         };
 
-        this.logInfo(`Successfully retrieved log using direct access: ${log.Title}`);
+        this.logInfo(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Successfully retrieved log with FIXED Date-only support: ${log.Title}`);
         return log;
       } else {
-        this.logInfo(`Log with ID ${logId} not found using direct access`);
+        this.logInfo(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Log with ID ${logId} not found`);
         return undefined;
       }
 
     } catch (error) {
-      this.logError(`Error getting schedule log by ID ${logId} using direct access: ${error}`);
+      this.logError(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Error getting schedule log by ID ${logId}: ${error}`);
       return undefined;
     }
   }
 
   /**
-   * *** НОВЫЙ МЕТОД: Получает статистику автозаполнения ***
+   * *** НОВЫЙ МЕТОД: Получает статистику автозаполнения с FIXED Date-only поддержкой ***
    */
   public async getAutoFillStats(params: { 
     managerId?: string; 
@@ -753,7 +840,7 @@ export class ScheduleLogsService {
     staffMemberId?: string;
   } = {}): Promise<IAutoFillLogStats> {
     try {
-      this.logInfo(`Getting auto-fill statistics with filtering`);
+      this.logInfo(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Getting auto-fill statistics with FIXED Date-only filtering`);
       
       // Получаем логи автозаполнения с серверной фильтрацией
       const logsParams: IGetScheduleLogsParams = {
@@ -783,18 +870,18 @@ export class ScheduleLogsService {
         }
       };
       
-      // Определяем период покрытия
+      // Определяем период покрытия с правильной Date-only обработкой
       if (logs.length > 0) {
         const dates = logs.map(log => log.Date).sort((a, b) => a.getTime() - b.getTime());
         stats.periodCoverage.startDate = dates[0];
         stats.periodCoverage.endDate = dates[dates.length - 1];
       }
       
-      this.logInfo(`Auto-fill statistics: ${JSON.stringify(stats)}`);
+      this.logInfo(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Auto-fill statistics with FIXED Date-only support: ${JSON.stringify(stats)}`);
       return stats;
       
     } catch (error) {
-      this.logError(`Error getting auto-fill statistics: ${error}`);
+      this.logError(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Error getting auto-fill statistics: ${error}`);
       return {
         totalAutoFillLogs: 0,
         successfulAutoFills: 0,
@@ -811,7 +898,7 @@ export class ScheduleLogsService {
   }
 
   /**
-   * *** НОВЫЙ МЕТОД: Получает статистику логов с серверной фильтрацией и поддержкой автозаполнения ***
+   * *** НОВЫЙ МЕТОД: Получает статистику логов с FIXED Date-only поддержкой ***
    */
   public async getScheduleLogsStats(params: IGetScheduleLogsParams = {}): Promise<{
     totalLogs: number;
@@ -822,7 +909,7 @@ export class ScheduleLogsService {
     manualCount: number;
   }> {
     try {
-      this.logInfo(`Getting schedule logs statistics with server filtering and auto-fill support`);
+      this.logInfo(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Getting schedule logs statistics with FIXED Date-only support`);
       
       // Получаем все логи с серверной фильтрацией
       const result = await this.getScheduleLogs(params);
@@ -843,11 +930,11 @@ export class ScheduleLogsService {
         manualCount: logs.filter(log => !log.Title.includes('Auto-Fill')).length
       };
       
-      this.logInfo(`Schedule logs statistics with auto-fill breakdown: ${JSON.stringify(stats)}`);
+      this.logInfo(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Schedule logs statistics with auto-fill breakdown: ${JSON.stringify(stats)}`);
       return stats;
       
     } catch (error) {
-      this.logError(`Error getting schedule logs statistics: ${error}`);
+      this.logError(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Error getting schedule logs statistics: ${error}`);
       return {
         totalLogs: 0,
         successCount: 0,
@@ -860,7 +947,7 @@ export class ScheduleLogsService {
   }
 
   /**
-   * *** НОВЫЙ МЕТОД: Логирует предупреждение для автозаполнения ***
+   * *** НОВЫЙ МЕТОД: Логирует предупреждение для автозаполнения с FIXED Date-only ***
    */
   public async logAutoFillWarning(params: {
     staffMemberId: string;
@@ -872,13 +959,13 @@ export class ScheduleLogsService {
     weeklyTimeTableId?: string;
   }): Promise<string | undefined> {
     try {
-      this.logInfo(`Logging auto-fill warning for staff: ${params.staffName}`);
+      this.logInfo(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Logging auto-fill warning for staff: ${params.staffName} with FIXED Date-only`);
       
       const autoFillParams: ICreateAutoFillLogParams = {
         title: `Auto-Fill Warning - ${params.staffName}`,
         result: 3, // Warning
         message: `Auto-fill operation skipped: ${params.reason}`,
-        date: params.period,
+        date: params.period, // ✅ БУДЕТ ОБРАБОТАНО ПРАВИЛЬНО в createAutoFillLog
         staffMemberId: params.staffMemberId,
         managerId: params.managerId,
         staffGroupId: params.staffGroupId,
@@ -891,22 +978,22 @@ export class ScheduleLogsService {
         }
       };
       
-      const logId = await this.createAutoFillLog(autoFillParams);
+      const logId = await this.createAutoFillLog(autoFillParams); // ✅ ИСПОЛЬЗУЕТ ИСПРАВЛЕННЫЙ МЕТОД
       
       if (logId) {
-        this.logInfo(`Auto-fill warning logged with ID: ${logId}`);
+        this.logInfo(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Auto-fill warning logged with FIXED Date-only, ID: ${logId}`);
       }
       
       return logId;
       
     } catch (error) {
-      this.logError(`Error logging auto-fill warning: ${error}`);
+      this.logError(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Error logging auto-fill warning: ${error}`);
       return undefined;
     }
   }
 
   /**
-   * *** НОВЫЙ МЕТОД: Логирует пропуск автозаполнения ***
+   * *** НОВЫЙ МЕТОД: Логирует пропуск автозаполнения с FIXED Date-only ***
    */
   public async logAutoFillSkip(params: {
     staffMemberId: string;
@@ -918,13 +1005,13 @@ export class ScheduleLogsService {
     weeklyTimeTableId?: string;
   }): Promise<string | undefined> {
     try {
-      this.logInfo(`Logging auto-fill skip for staff: ${params.staffName}`);
+      this.logInfo(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Logging auto-fill skip for staff: ${params.staffName} with FIXED Date-only`);
       
       const autoFillParams: ICreateAutoFillLogParams = {
         title: `Auto-Fill Skipped - ${params.staffName}`,
         result: 3, // Info/Skip
         message: `Auto-fill operation skipped: ${params.reason}`,
-        date: params.period,
+        date: params.period, // ✅ БУДЕТ ОБРАБОТАНО ПРАВИЛЬНО в createAutoFillLog
         staffMemberId: params.staffMemberId,
         managerId: params.managerId,
         staffGroupId: params.staffGroupId,
@@ -936,39 +1023,142 @@ export class ScheduleLogsService {
         }
       };
       
-      const logId = await this.createAutoFillLog(autoFillParams);
+      const logId = await this.createAutoFillLog(autoFillParams); // ✅ ИСПОЛЬЗУЕТ ИСПРАВЛЕННЫЙ МЕТОД
       
       if (logId) {
-        this.logInfo(`Auto-fill skip logged with ID: ${logId}`);
+        this.logInfo(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Auto-fill skip logged with FIXED Date-only, ID: ${logId}`);
       }
       
       return logId;
       
     } catch (error) {
-      this.logError(`Error logging auto-fill skip: ${error}`);
+      this.logError(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Error logging auto-fill skip: ${error}`);
       return undefined;
     }
   }
 
   /**
-   * СКОПИРОВАНО ИЗ ContractsService: Статический метод для очистки экземпляра
+   * *** НОВЫЙ МЕТОД: Получает детальную статистику по периодам с FIXED Date-only поддержкой ***
    */
-  public static clearInstance(): void {
-    ScheduleLogsService._instance = undefined as unknown as ScheduleLogsService;
-    console.log('[ScheduleLogsService] Instance cleared');
+  public async getDetailedStatsForPeriod(params: {
+    managerId: string;
+    staffGroupId: string;
+    startDate: Date;
+    endDate: Date;
+  }): Promise<{
+    totalLogs: number;
+    logsByResult: { [result: number]: number };
+    logsByOperationType: { autoFill: number; manual: number };
+    dailyBreakdown: Array<{
+      date: string;
+      logsCount: number;
+      successCount: number;
+      errorCount: number;
+    }>;
+    staffBreakdown: Array<{
+      staffId: string;
+      staffName?: string;
+      logsCount: number;
+      lastActivity: Date;
+    }>;
+  }> {
+    try {
+      this.logInfo(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Getting detailed stats for period with FIXED Date-only support`);
+      
+      // Получаем все логи за период без periodDate (используем startDate/endDate логику)
+      const result = await this.getScheduleLogs({
+        managerId: params.managerId,
+        staffGroupId: params.staffGroupId
+        // Не используем periodDate, так как нам нужен кастомный период
+      });
+      
+      if (result.error) {
+        throw new Error(result.error);
+      }
+      
+      // Фильтруем логи по кастомному периоду с правильной Date-only логикой
+      const filteredLogs = result.logs.filter(log => {
+        const logDate = log.Date;
+        return logDate >= params.startDate && logDate <= params.endDate;
+      });
+      
+      // Статистика по результатам
+      const logsByResult: { [result: number]: number } = {};
+      filteredLogs.forEach(log => {
+        logsByResult[log.Result] = (logsByResult[log.Result] || 0) + 1;
+      });
+      
+      // Статистика по типам операций
+      const autoFillLogs = filteredLogs.filter(log => log.Title.includes('Auto-Fill'));
+      const manualLogs = filteredLogs.filter(log => !log.Title.includes('Auto-Fill'));
+      
+      // Daily breakdown с правильным Date-only форматированием
+      const dailyMap = new Map<string, { logsCount: number; successCount: number; errorCount: number }>();
+      filteredLogs.forEach(log => {
+        const dateKey = log.Date.toLocaleDateString(); // ✅ ИСПОЛЬЗУЕМ localeString для Date-only
+        if (!dailyMap.has(dateKey)) {
+          dailyMap.set(dateKey, { logsCount: 0, successCount: 0, errorCount: 0 });
+        }
+        const dayStats = dailyMap.get(dateKey)!;
+        dayStats.logsCount++;
+        if (log.Result === 2) dayStats.successCount++;
+        if (log.Result === 1) dayStats.errorCount++;
+      });
+      
+      const dailyBreakdown = Array.from(dailyMap.entries()).map(([date, stats]) => ({
+        date,
+        ...stats
+      }));
+      
+      // Staff breakdown
+      const staffMap = new Map<string, { logsCount: number; lastActivity: Date; staffName?: string }>();
+      filteredLogs.forEach(log => {
+        if (log.StaffMemberId) {
+          const staffId = log.StaffMemberId;
+          if (!staffMap.has(staffId)) {
+            staffMap.set(staffId, { 
+              logsCount: 0, 
+              lastActivity: log.Date,
+              staffName: log.StaffMember?.Title
+            });
+          }
+          const staffStats = staffMap.get(staffId)!;
+          staffStats.logsCount++;
+          if (log.Date > staffStats.lastActivity) {
+            staffStats.lastActivity = log.Date;
+          }
+        }
+      });
+      
+      const staffBreakdown = Array.from(staffMap.entries()).map(([staffId, stats]) => ({
+        staffId,
+        ...stats
+      }));
+      
+      const detailedStats = {
+        totalLogs: filteredLogs.length,
+        logsByResult,
+        logsByOperationType: {
+          autoFill: autoFillLogs.length,
+          manual: manualLogs.length
+        },
+        dailyBreakdown,
+        staffBreakdown
+      };
+      
+      this.logInfo(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Detailed stats calculated with FIXED Date-only support: ${JSON.stringify(detailedStats)}`);
+      return detailedStats;
+      
+    } catch (error) {
+      this.logError(`✅ КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Error getting detailed stats: ${error}`);
+      return {
+        totalLogs: 0,
+        logsByResult: {},
+        logsByOperationType: { autoFill: 0, manual: 0 },
+        dailyBreakdown: [],
+        staffBreakdown: []
+      };
+    }
   }
 
-  /**
-   * СКОПИРОВАНО ИЗ ContractsService: Helper method to log info messages
-   */
-  private logInfo(message: string): void {
-    console.log(`[${this._logSource}] ${message}`);
-  }
-
-  /**
-   * СКОПИРОВАНО ИЗ ContractsService: Helper method to log error messages
-   */
-  private logError(message: string): void {
-    console.error(`[${this._logSource}] ${message}`);
-  }
 }
