@@ -2,14 +2,15 @@
 
 import { IDropdownOption } from '@fluentui/react';
 import { IHoliday } from '../../../../services/HolidaysService';
+import { SRSDateUtils } from './SRSDateUtils';
 
 /**
  * Основной интерфейс для записи SRS
- * ОБНОВЛЕНО: Holiday поле изменено - теперь вычисляется на основе списка праздников, а не поля StaffRecords
+ * ОБНОВЛЕНО: Holiday поле изменено - теперь вычисляется на основе списка праздников (Date-only), а не поля StaffRecords
  */
 export interface ISRSRecord {
   id: string;
-  date: Date;
+  date: Date; // ОБНОВЛЕНО: Date-only формат (no time component)
   dayOfWeek: string;
   hours: string; // Рабочие часы в формате "7.50"
   relief: boolean; // Relief checkbox
@@ -31,20 +32,20 @@ export interface ISRSRecord {
   srs: boolean; // Отметка SRS
   checked: boolean; // Для массовых операций
   deleted?: boolean; // Для удаленных записей
-  // *** ИЗМЕНЕНО: Holiday поле теперь вычисляется на основе списка праздников ***
+  // ОБНОВЛЕНО: Holiday поле теперь вычисляется на основе списка праздников Date-only
   Holiday?: number; // DEPRECATED: Больше не используется из StaffRecords, вычисляется из holidays list
 }
 
 /**
- * *** ИСПРАВЛЕНО: Интерфейс данных для новой смены без проверки Holiday поля ***
+ * ОБНОВЛЕНО: Интерфейс данных для новой смены с Date-only форматом
  */
 export interface INewSRSShiftData {
-  date: Date;
+  date: Date; // ОБНОВЛЕНО: Date-only формат
   timeForLunch: string;
   contract: string;
   contractNumber?: string;
   typeOfLeave?: string;
-  Holiday?: number; // *** ИСПРАВЛЕНО: Всегда 0 - праздники определяются из holidays list, не устанавливается пользователем ***
+  Holiday?: number; // ОБНОВЛЕНО: Всегда 0 - праздники определяются из holidays list Date-only, не устанавливается пользователем
 }
 
 /**
@@ -55,17 +56,17 @@ export interface ISRSTableOptions {
   hours: IDropdownOption[]; // 00-23
   minutes: IDropdownOption[]; // 00, 05, 10, ..., 55
   lunchTimes: IDropdownOption[]; // 0, 5, 10, ..., 30
-  leaveTypes: IDropdownOption[]; // *** ОБНОВЛЕНО: Типы отпусков из справочника ***
+  leaveTypes: IDropdownOption[]; // ОБНОВЛЕНО: Типы отпусков из справочника
   contractNumbers: IDropdownOption[]; // 1, 2, 3
 }
 
 /**
- * *** ОБНОВЛЕНО: Пропсы для компонента SRSFilterControls - убран totalHours, добавлен calculatedTotalHours ***
+ * ОБНОВЛЕНО: Пропсы для компонента SRSFilterControls - убран totalHours, добавлен calculatedTotalHours
  */
 export interface ISRSFilterControlsProps {
-  fromDate: Date;
-  toDate: Date;
-  calculatedTotalHours: string; // *** ИЗМЕНЕНО: calculatedTotalHours вместо totalHours ***
+  fromDate: Date; // ОБНОВЛЕНО: Date-only формат
+  toDate: Date; // ОБНОВЛЕНО: Date-only формат
+  calculatedTotalHours: string; // ИЗМЕНЕНО: calculatedTotalHours вместо totalHours
   isLoading: boolean;
   onFromDateChange: (date: Date | undefined) => void;
   onToDateChange: (date: Date | undefined) => void;
@@ -78,79 +79,80 @@ export interface ISRSFilterControlsProps {
 }
 
 /**
- * *** ОБНОВЛЕНО: Пропсы для компонента SRSTable - добавлен holidays list для определения праздников ***
+ * ОБНОВЛЕНО: Пропсы для компонента SRSTable - добавлен holidays list для определения праздников Date-only
  */
 export interface ISRSTableProps {
   items: ISRSRecord[];
   options: ISRSTableOptions;
-  // *** НОВОЕ: Список праздников для определения праздничных дней ***
+  // НОВОЕ: Список праздников для определения праздничных дней Date-only
   holidays: IHoliday[];
   isLoading: boolean;
   onItemChange: (item: ISRSRecord, field: string, value: string | boolean | { hours: string; minutes: string }) => void;
   onLunchTimeChange: (item: ISRSRecord, value: string) => void;
   onContractNumberChange: (item: ISRSRecord, value: string) => void;
-  // *** НОВОЕ: Обработчик изменения типа отпуска ***
+  // НОВОЕ: Обработчик изменения типа отпуска
   onTypeOfLeaveChange?: (item: ISRSRecord, value: string) => void;
-  // *** НОВОЕ: Обработчики удаления/восстановления ***
+  // НОВОЕ: Обработчики удаления/восстановления
   showDeleteConfirmDialog?: (id: string) => void;
   showRestoreConfirmDialog?: (id: string) => void;
   onDeleteItem?: (id: string) => Promise<boolean>;
   onRestoreItem?: (id: string) => Promise<boolean>;
-  // *** ИСПРАВЛЕНО: Добавлены пропсы для showDeleted ***
+  // ИСПРАВЛЕНО: Добавлены пропсы для showDeleted
   showDeleted: boolean; // Флаг отображения удаленных записей
   onToggleShowDeleted: (checked: boolean) => void; // Обработчик переключения флага
-  // *** ИСПРАВЛЕНО: Добавлен обработчик добавления смены без Holiday проверки ***
+  // ИСПРАВЛЕНО: Добавлен обработчик добавления смены с Date-only форматом
   onAddShift?: (date: Date, shiftData?: INewSRSShiftData) => Promise<boolean>;
 }
 
 /**
  * Пропсы для компонента SRSTableRow
- * ОБНОВЛЕНО: Добавлен holidays list для определения праздников
+ * ОБНОВЛЕНО: Добавлен holidays list для определения праздников Date-only
  */
 export interface ISRSTableRowProps {
   item: ISRSRecord;
   options: ISRSTableOptions;
-  // *** НОВОЕ: Список праздников для определения является ли день праздничным ***
+  // НОВОЕ: Список праздников для определения является ли день праздничным Date-only
   holidays: IHoliday[];
   isEven: boolean; // Для чередования цветов строк
   onItemChange: (item: ISRSRecord, field: string, value: string | boolean | { hours: string; minutes: string }) => void;
-  // *** НОВОЕ: Дополнительные обработчики ***
+  // НОВОЕ: Дополнительные обработчики
   onTypeOfLeaveChange?: (item: ISRSRecord, value: string) => void;
-  // *** НОВОЕ: Обработчики удаления/восстановления ***
+  // НОВОЕ: Обработчики удаления/восстановления
   showDeleteConfirmDialog?: (id: string) => void;
   showRestoreConfirmDialog?: (id: string) => void;
   onDeleteItem?: (id: string) => Promise<boolean>;
   onRestoreItem?: (id: string) => Promise<boolean>;
-  // *** ИСПРАВЛЕНО: Добавлен обработчик добавления смены без Holiday проверки ***
+  // ИСПРАВЛЕНО: Добавлен обработчик добавления смены с Date-only форматом
   onAddShift?: (date: Date, shiftData?: INewSRSShiftData) => Promise<boolean>;
 }
 
 /**
- * *** ОБНОВЛЕНО: Состояние SRS вкладки - убрано totalHours ***
+ * ОБНОВЛЕНО: Состояние SRS вкладки - убрано totalHours
  * Убрано поле totalHours, так как теперь оно вычисляется в реальном времени
  */
 export interface ISRSTabState {
-  fromDate: Date;
-  toDate: Date;
+  fromDate: Date; // ОБНОВЛЕНО: Date-only формат
+  toDate: Date; // ОБНОВЛЕНО: Date-only формат
   srsData: ISRSRecord[];
-  // *** УБРАНО: totalHours: string; - теперь вычисляется в реальном времени ***
+  // УБРАНО: totalHours: string; - теперь вычисляется в реальном времени
   isLoading: boolean;
   error?: string;
   hasUnsavedChanges: boolean;
   selectedItems: Set<string>; // ID выбранных записей
-  // *** НОВОЕ: Типы отпусков ***
+  // НОВОЕ: Типы отпусков
   typesOfLeave: Array<{ id: string; title: string; color?: string }>; // Упрощенный интерфейс типов отпусков
   isLoadingTypesOfLeave: boolean;
-  // *** ИСПРАВЛЕНО: Добавлено поле showDeleted ***
+  // ИСПРАВЛЕНО: Добавлено поле showDeleted
   showDeleted: boolean; // Флаг отображения удаленных записей
 }
 
 /**
  * Параметры для операций с SRS данными (для будущего использования)
+ * ОБНОВЛЕНО: Date-only формат
  */
 export interface ISRSOperationParams {
-  fromDate: Date;
-  toDate: Date;
+  fromDate: Date; // ОБНОВЛЕНО: Date-only формат
+  toDate: Date; // ОБНОВЛЕНО: Date-only формат
   staffId: string;
   managerId?: string;
   staffGroupId?: string;
@@ -177,7 +179,7 @@ export interface ISRSSaveResult {
 }
 
 /**
- * *** НОВЫЕ ИНТЕРФЕЙСЫ ДЛЯ РАБОТЫ С ТИПАМИ ОТПУСКОВ ***
+ * НОВЫЕ ИНТЕРФЕЙСЫ ДЛЯ РАБОТЫ С ТИПАМИ ОТПУСКОВ
  */
 
 /**
@@ -190,7 +192,7 @@ export interface ISRSTypeOfLeave {
 }
 
 /**
- * *** НОВЫЕ ИНТЕРФЕЙСЫ ДЛЯ DELETE/RESTORE ФУНКЦИОНАЛА ***
+ * НОВЫЕ ИНТЕРФЕЙСЫ ДЛЯ DELETE/RESTORE ФУНКЦИОНАЛА
  */
 
 /**
@@ -222,7 +224,7 @@ export interface ISRSDeleteRestoreParams {
 }
 
 /**
- * *** ИСПРАВЛЕНО: Интерфейсы для showDeleted функционала ***
+ * ИСПРАВЛЕНО: Интерфейсы для showDeleted функционала
  */
 
 /**
@@ -238,18 +240,18 @@ export interface ISRSDeletedStatistics {
 
 /**
  * Параметры фильтрации записей
- * *** ИСПРАВЛЕНО: Обязательное поле showDeleted ***
+ * ОБНОВЛЕНО: Date-only формат, обязательное поле showDeleted
  */
 export interface ISRSFilterParams {
-  fromDate: Date;
-  toDate: Date;
-  showDeleted: boolean; // *** ИСПРАВЛЕНО: Убран optional, сделан обязательным ***
+  fromDate: Date; // ОБНОВЛЕНО: Date-only формат
+  toDate: Date; // ОБНОВЛЕНО: Date-only формат
+  showDeleted: boolean; // ИСПРАВЛЕНО: Убран optional, сделан обязательным
   staffId?: string;
   typeOfLeave?: string;
 }
 
 /**
- * *** ОБНОВЛЕНО: Расширенные пропсы для главного компонента SRS Tab - убран totalHours, добавлен holidays ***
+ * ОБНОВЛЕНО: Расширенные пропсы для главного компонента SRS Tab - убран totalHours, добавлен holidays
  */
 export interface ISRSTabProps {
   // Основные пропсы
@@ -258,18 +260,18 @@ export interface ISRSTabProps {
   currentUserId?: string;
   managingGroupId?: string;
   
-  // Данные состояния
-  fromDate: Date;
-  toDate: Date;
+  // Данные состояния - ОБНОВЛЕНО: Date-only формат
+  fromDate: Date; // ОБНОВЛЕНО: Date-only формат
+  toDate: Date; // ОБНОВЛЕНО: Date-only формат
   srsRecords: ISRSRecord[];
-  // *** УБРАНО: totalHours: string; - теперь вычисляется в реальном времени ***
+  // УБРАНО: totalHours: string; - теперь вычисляется в реальном времени
   
   // Типы отпусков
   typesOfLeave: ISRSTypeOfLeave[];
   isLoadingTypesOfLeave: boolean;
   
-  // *** ОБНОВЛЕНО: Праздники - теперь обязательны для определения праздничных дней ***
-  holidays: IHoliday[]; // Список праздников для определения праздничных дней
+  // ОБНОВЛЕНО: Праздники - теперь обязательны для определения праздничных дней Date-only
+  holidays: IHoliday[]; // Список праздников для определения праздничных дней Date-only
   isLoadingHolidays: boolean;
   
   // Состояния загрузки
@@ -285,10 +287,10 @@ export interface ISRSTabProps {
   selectedItems: Set<string>;
   hasCheckedItems: boolean;
   
-  // *** ИСПРАВЛЕНО: Обязательные пропсы для showDeleted ***
-  showDeleted: boolean; // *** ИСПРАВЛЕНО: Убран optional, сделан обязательным ***
+  // ИСПРАВЛЕНО: Обязательные пропсы для showDeleted
+  showDeleted: boolean; // ИСПРАВЛЕНО: Убран optional, сделан обязательным
   
-  // Обработчики
+  // Обработчики - ОБНОВЛЕНО: Date-only формат
   onFromDateChange: (date: Date | undefined) => void;
   onToDateChange: (date: Date | undefined) => void;
   onRefreshData: () => void;
@@ -300,22 +302,22 @@ export interface ISRSTabProps {
   onContractNumberChange: (item: ISRSRecord, value: string) => void;
   onTypeOfLeaveChange: (item: ISRSRecord, value: string) => void;
   
-  // *** НОВОЕ: Обработчики праздников ***
+  // НОВОЕ: Обработчики праздников
   loadHolidays: () => void;
   
-  // *** НОВОЕ: Обработчики delete/restore ***
+  // НОВОЕ: Обработчики delete/restore
   onDeleteRecord: (recordId: string) => Promise<ISRSDeleteResult>;
   onRestoreRecord: (recordId: string) => Promise<ISRSRestoreResult>;
   
-  // *** ИСПРАВЛЕНО: Обязательный обработчик showDeleted ***
-  onToggleShowDeleted: (checked: boolean) => void; // *** ИСПРАВЛЕНО: Убран optional, сделан обязательным ***
+  // ИСПРАВЛЕНО: Обязательный обработчик showDeleted
+  onToggleShowDeleted: (checked: boolean) => void; // ИСПРАВЛЕНО: Убран optional, сделан обязательным
   
-  // *** ИСПРАВЛЕНО: Добавлен обработчик добавления смены без Holiday проверки ***
+  // ИСПРАВЛЕНО: Добавлен обработчик добавления смены с Date-only форматом
   onAddShift: (date: Date, shiftData?: INewSRSShiftData) => Promise<boolean>;
 }
 
 /**
- * *** НОВОЕ: Конфигурация опций SRS таблицы ***
+ * НОВОЕ: Конфигурация опций SRS таблицы
  * Функция-помощник для создания опций с типами отпусков
  */
 export interface ISRSTableOptionsConfig {
@@ -326,90 +328,78 @@ export interface ISRSTableOptionsConfig {
 }
 
 /**
- * *** ИСПРАВЛЕНО: Интерфейсы для диалогов подтверждения ***
+ * ИСПРАВЛЕНО: Интерфейсы для диалогов подтверждения
  */
 
 /**
  * Пропсы для диалога подтверждения удаления
- * *** ИСПРАВЛЕНО: Добавлены обязательные обработчики ***
+ * ИСПРАВЛЕНО: Добавлены обязательные обработчики
  */
 export interface ISRSDeleteConfirmDialogProps {
   isOpen: boolean;
   recordId: string;
   recordDate?: string;
   staffName?: string;
-  onConfirm: (recordId: string) => void; // *** ИСПРАВЛЕНО: Обязательный обработчик ***
-  onCancel: () => void; // *** ИСПРАВЛЕНО: Обязательный обработчик ***
+  onConfirm: (recordId: string) => void; // ИСПРАВЛЕНО: Обязательный обработчик
+  onCancel: () => void; // ИСПРАВЛЕНО: Обязательный обработчик
 }
 
 /**
  * Пропсы для диалога подтверждения восстановления
- * *** ИСПРАВЛЕНО: Добавлены обязательные обработчики ***
+ * ИСПРАВЛЕНО: Добавлены обязательные обработчики
  */
 export interface ISRSRestoreConfirmDialogProps {
   isOpen: boolean;
   recordId: string;
   recordDate?: string;
   staffName?: string;
-  onConfirm: (recordId: string) => void; // *** ИСПРАВЛЕНО: Обязательный обработчик ***
-  onCancel: () => void; // *** ИСПРАВЛЕНО: Обязательный обработчик ***
+  onConfirm: (recordId: string) => void; // ИСПРАВЛЕНО: Обязательный обработчик
+  onCancel: () => void; // ИСПРАВЛЕНО: Обязательный обработчик
 }
 
 /**
- * *** ОБНОВЛЕНО: Функции для работы с праздниками на основе списка праздников и Date-only формата ***
+ * ОБНОВЛЕННЫЕ: Функции для работы с праздниками на основе списка праздников и Date-only формата
  */
 
 /**
- * УПРОЩЕНО: Проверяет является ли указанная дата праздником на основе списка праздников
- * Убрана нормализация времени - теперь сравниваем только даты
+ * ОБНОВЛЕНО: Проверяет является ли указанная дата праздником на основе списка праздников Date-only
+ * Использует SRSDateUtils для корректного сравнения дат
  */
 export function isHolidayDate(date: Date, holidays: IHoliday[]): boolean {
   if (!date || !holidays || holidays.length === 0) {
     return false;
   }
 
-  // УПРОЩЕНО: Получаем компоненты даты напрямую без нормализации времени
-  const targetYear = date.getFullYear();
-  const targetMonth = date.getMonth();
-  const targetDay = date.getDate();
+  // ОБНОВЛЕНО: Используем SRSDateUtils для корректного сравнения Date-only
+  const normalizedDate = SRSDateUtils.normalizeDateToLocalMidnight(date);
   
   return holidays.some(holiday => {
-    const holidayDate = holiday.date;
-    
-    // Сравниваем только компоненты даты (год, месяц, день)
-    return holidayDate.getFullYear() === targetYear &&
-           holidayDate.getMonth() === targetMonth &&
-           holidayDate.getDate() === targetDay;
+    const normalizedHolidayDate = SRSDateUtils.normalizeDateToLocalMidnight(holiday.date);
+    return SRSDateUtils.areDatesEqual(normalizedDate, normalizedHolidayDate);
   });
 }
 
 /**
- * УПРОЩЕНО: Получает информацию о празднике для указанной даты
- * Убрана нормализация времени - теперь сравниваем только даты
+ * ОБНОВЛЕНО: Получает информацию о празднике для указанной даты Date-only
+ * Использует SRSDateUtils для корректного сравнения дат
  */
 export function getHolidayInfo(date: Date, holidays: IHoliday[]): IHoliday | undefined {
   if (!date || !holidays || holidays.length === 0) {
     return undefined;
   }
 
-  // УПРОЩЕНО: Получаем компоненты даты напрямую без нормализации времени
-  const targetYear = date.getFullYear();
-  const targetMonth = date.getMonth();
-  const targetDay = date.getDate();
+  // ОБНОВЛЕНО: Используем SRSDateUtils для корректного сравнения Date-only
+  const normalizedDate = SRSDateUtils.normalizeDateToLocalMidnight(date);
   
   return holidays.find(holiday => {
-    const holidayDate = holiday.date;
-    
-    // Сравниваем только компоненты даты (год, месяц, день)
-    return holidayDate.getFullYear() === targetYear &&
-           holidayDate.getMonth() === targetMonth &&
-           holidayDate.getDate() === targetDay;
+    const normalizedHolidayDate = SRSDateUtils.normalizeDateToLocalMidnight(holiday.date);
+    return SRSDateUtils.areDatesEqual(normalizedDate, normalizedHolidayDate);
   });
 }
 
 /**
- * УПРОЩЕНО: Получает статистику праздников в записях SRS на основе списка праздников
- * Упрощена логика сравнения дат для Date-only формата
+ * ОБНОВЛЕНО: Получает статистику праздников в записях SRS на основе списка праздников Date-only
+ * Использует SRSDateUtils для операций с датами
  */
 export function getHolidayRecordsStatistics(
   records: ISRSRecord[], 
@@ -432,7 +422,7 @@ export function getHolidayRecordsStatistics(
   );
 
   const holidayDates = holidayRecords.map(record => 
-    record.date.toLocaleDateString()
+    SRSDateUtils.formatDateForDisplay(record.date)
   );
 
   return {
@@ -445,7 +435,7 @@ export function getHolidayRecordsStatistics(
 }
 
 /**
- * *** ОБНОВЛЕННЫЕ: Утилиты для работы с типами отпусков в SRS ***
+ * ОБНОВЛЕННЫЕ: Утилиты для работы с типами отпусков в SRS
  */
 export class SRSTableOptionsHelper {
   /**
@@ -530,7 +520,7 @@ export class SRSTableOptionsHelper {
   }
 
   /**
-   * *** НОВОЕ: Валидация записи перед удалением ***
+   * НОВОЕ: Валидация записи перед удалением
    * Проверяет можно ли удалить запись
    */
   public static canDeleteRecord(record: ISRSRecord): { canDelete: boolean; reason?: string } {
@@ -544,7 +534,7 @@ export class SRSTableOptionsHelper {
   }
 
   /**
-   * *** НОВОЕ: Валидация записи перед восстановлением ***
+   * НОВОЕ: Валидация записи перед восстановлением
    * Проверяет можно ли восстановить запись
    */
   public static canRestoreRecord(record: ISRSRecord): { canRestore: boolean; reason?: string } {
@@ -558,7 +548,7 @@ export class SRSTableOptionsHelper {
   }
 
   /**
-   * *** ИСПРАВЛЕНО: Получение статистики удаленных записей ***
+   * ИСПРАВЛЕНО: Получение статистики удаленных записей
    */
   public static getDeletedRecordsStatistics(records: ISRSRecord[]): ISRSDeletedStatistics {
     const totalRecords = records.length;
@@ -576,12 +566,12 @@ export class SRSTableOptionsHelper {
   }
 
   /**
-   * *** ИСПРАВЛЕНО: Фильтрация записей по статусу удаления ***
+   * ИСПРАВЛЕНО: Фильтрация записей по статусу удаления
    * Применяет клиентскую фильтрацию записей на основе showDeleted
    */
   public static filterRecordsByDeletedStatus(
     records: ISRSRecord[], 
-    showDeleted: boolean // *** ИСПРАВЛЕНО: Убран optional, сделан обязательным ***
+    showDeleted: boolean // ИСПРАВЛЕНО: Убран optional, сделан обязательным
   ): ISRSRecord[] {
     if (showDeleted) {
       // Показываем все записи
@@ -593,12 +583,12 @@ export class SRSTableOptionsHelper {
   }
 
   /**
-   * *** ИСПРАВЛЕНО: Получение краткой статистики для UI ***
+   * ИСПРАВЛЕНО: Получение краткой статистики для UI
    * Возвращает текст для отображения в интерфейсе с учетом showDeleted
    */
   public static getRecordsDisplayText(
     records: ISRSRecord[], 
-    showDeleted: boolean // *** ИСПРАВЛЕНО: Убран optional, сделан обязательным ***
+    showDeleted: boolean // ИСПРАВЛЕНО: Убран optional, сделан обязательным
   ): {
     mainText: string;
     detailText: string;
@@ -617,7 +607,7 @@ export class SRSTableOptionsHelper {
   }
 
   /**
-   * *** ИСПРАВЛЕНО: Проверка необходимости показа переключателя ***
+   * ИСПРАВЛЕНО: Проверка необходимости показа переключателя
    * Определяет, нужно ли показывать переключатель "Show deleted"
    */
   public static shouldShowDeletedToggle(records: ISRSRecord[]): boolean {
@@ -626,7 +616,7 @@ export class SRSTableOptionsHelper {
   }
 
   /**
-   * *** НОВАЯ ФУНКЦИЯ: Проверка совместимости showDeleted состояний ***
+   * НОВАЯ ФУНКЦИЯ: Проверка совместимости showDeleted состояний
    * Помогает синхронизировать состояние showDeleted между компонентами
    */
   public static validateShowDeletedState(
@@ -648,27 +638,27 @@ export class SRSTableOptionsHelper {
   }
 
   /**
-   * *** ИСПРАВЛЕНО: Создание параметров фильтрации без Holiday проверки ***
+   * ОБНОВЛЕНО: Создание параметров фильтрации с Date-only форматом
    * Создает объект параметров фильтрации с правильными типами
    */
   public static createFilterParams(
-    fromDate: Date,
-    toDate: Date,
-    showDeleted: boolean, // *** ОБЯЗАТЕЛЬНЫЙ ПАРАМЕТР ***
+    fromDate: Date, // ОБНОВЛЕНО: Date-only формат
+    toDate: Date, // ОБНОВЛЕНО: Date-only формат
+    showDeleted: boolean, // ОБЯЗАТЕЛЬНЫЙ ПАРАМЕТР
     staffId?: string,
     typeOfLeave?: string
   ): ISRSFilterParams {
     return {
-      fromDate,
-      toDate,
-      showDeleted, // *** ОБЯЗАТЕЛЬНЫЙ ***
+      fromDate: SRSDateUtils.normalizeDateToLocalMidnight(fromDate), // ОБНОВЛЕНО: Date-only нормализация
+      toDate: SRSDateUtils.normalizeDateToLocalMidnight(toDate), // ОБНОВЛЕНО: Date-only нормализация
+      showDeleted, // ОБЯЗАТЕЛЬНЫЙ
       staffId,
       typeOfLeave
     };
   }
 
   /**
-   * *** НОВАЯ ФУНКЦИЯ: Валидация параметров фильтрации ***
+   * ОБНОВЛЕНО: Валидация параметров фильтрации с Date-only проверками
    * Проверяет корректность параметров фильтрации
    */
   public static validateFilterParams(params: ISRSFilterParams): {
@@ -677,11 +667,25 @@ export class SRSTableOptionsHelper {
   } {
     const errors: string[] = [];
 
-    // Проверяем даты
+    // Проверяем даты с использованием SRSDateUtils
     if (!params.fromDate || !params.toDate) {
       errors.push('From date and to date are required');
-    } else if (params.fromDate > params.toDate) {
-      errors.push('From date must be before or equal to to date');
+    } else {
+      // Используем SRSDateUtils для валидации
+      const fromValidation = SRSDateUtils.validateDateForSharePoint(params.fromDate);
+      const toValidation = SRSDateUtils.validateDateForSharePoint(params.toDate);
+      
+      if (!fromValidation.isValid) {
+        errors.push(`Invalid from date: ${fromValidation.error}`);
+      }
+      
+      if (!toValidation.isValid) {
+        errors.push(`Invalid to date: ${toValidation.error}`);
+      }
+      
+      if (fromValidation.isValid && toValidation.isValid && params.fromDate > params.toDate) {
+        errors.push('From date must be before or equal to to date');
+      }
     }
 
     // Проверяем showDeleted
@@ -696,7 +700,7 @@ export class SRSTableOptionsHelper {
   }
 
   /**
-   * *** ОБНОВЛЕНО: Получение праздничной статистики на основе списка праздников и Date-only формата ***
+   * ОБНОВЛЕНО: Получение праздничной статистики на основе списка праздников и Date-only формата
    * Анализирует праздники в SRS записях используя holidays list вместо Holiday поля
    */
   public static getHolidayStatisticsFromHolidaysList(
@@ -711,7 +715,7 @@ export class SRSTableOptionsHelper {
   } {
     const totalRecords = records.length;
     
-    // Подсчитываем записи, которые попадают на праздничные дни
+    // Подсчитываем записи, которые попадают на праздничные дни (Date-only)
     const holidayRecords = records.filter(record => 
       isHolidayDate(record.date, holidays)
     );
@@ -733,7 +737,7 @@ export class SRSTableOptionsHelper {
         
         return {
           title: holiday.title,
-          date: holiday.date.toLocaleDateString(),
+          date: SRSDateUtils.formatDateForDisplay(holiday.date),
           recordsCount
         };
       });
@@ -748,27 +752,27 @@ export class SRSTableOptionsHelper {
   }
 
   /**
-   * *** ИСПРАВЛЕНО: Создание данных для новой смены без Holiday проверки ***
+   * ОБНОВЛЕНО: Создание данных для новой смены с Date-only форматом
    * Подготавливает данные для создания новой SRS смены
    */
   public static createNewShiftData(
-    date: Date,
+    date: Date, // ОБНОВЛЕНО: Date-only формат
     timeForLunch: string = '30',
     contract: string = '1',
     typeOfLeave?: string
   ): INewSRSShiftData {
     return {
-      date,
+      date: SRSDateUtils.normalizeDateToLocalMidnight(date), // ОБНОВЛЕНО: Date-only нормализация
       timeForLunch,
       contract,
       contractNumber: contract,
       typeOfLeave: typeOfLeave || '',
-      Holiday: 0 // *** ИСПРАВЛЕНО: Всегда 0 - праздники определяются из holidays list ***
+      Holiday: 0 // ИСПРАВЛЕНО: Всегда 0 - праздники определяются из holidays list Date-only
     };
   }
 
   /**
-   * *** ИСПРАВЛЕНО: Валидация данных новой смены без Holiday проверки ***
+   * ОБНОВЛЕНО: Валидация данных новой смены с Date-only проверками
    * Проверяет корректность данных для создания новой смены
    */
   public static validateNewShiftData(shiftData: INewSRSShiftData): {
@@ -779,9 +783,14 @@ export class SRSTableOptionsHelper {
     const errors: string[] = [];
     const warnings: string[] = [];
 
-    // Проверяем дату
-    if (!shiftData.date || isNaN(shiftData.date.getTime())) {
-      errors.push('Valid date is required');
+    // Проверяем дату с использованием SRSDateUtils
+    if (!shiftData.date) {
+      errors.push('Date is required');
+    } else {
+      const dateValidation = SRSDateUtils.validateDateForSharePoint(shiftData.date);
+      if (!dateValidation.isValid) {
+        errors.push(`Invalid date: ${dateValidation.error}`);
+      }
     }
 
     // Проверяем время обеда
@@ -796,9 +805,9 @@ export class SRSTableOptionsHelper {
       errors.push('Contract must be 1, 2, or 3');
     }
 
-    // *** ИСПРАВЛЕНО: НЕ проверяем Holiday поле - оно всегда должно быть 0 ***
+    // ИСПРАВЛЕНО: НЕ проверяем Holiday поле - оно всегда должно быть 0
     if (shiftData.Holiday !== undefined && shiftData.Holiday !== 0) {
-      warnings.push('Holiday field will be ignored - holidays are determined from holidays list');
+      warnings.push('Holiday field will be ignored - holidays are determined from holidays list (Date-only)');
     }
 
     // Проверяем тип отпуска (необязательно)
@@ -814,7 +823,7 @@ export class SRSTableOptionsHelper {
   }
 
   /**
-   * *** ИСПРАВЛЕНО: Подготовка данных смены для отправки на сервер без Holiday поля ***
+   * ОБНОВЛЕНО: Подготовка данных смены для отправки на сервер с Date-only форматом
    * Конвертирует INewSRSShiftData в формат для StaffRecordsService
    */
   public static prepareShiftDataForServer(
@@ -824,7 +833,7 @@ export class SRSTableOptionsHelper {
     defaultEndHours: number = 0,
     defaultEndMinutes: number = 0
   ): {
-    Date: Date;
+    Date: Date; // ОБНОВЛЕНО: Date-only формат
     ShiftDate1Hours: number;
     ShiftDate1Minutes: number;
     ShiftDate2Hours: number;
@@ -840,7 +849,7 @@ export class SRSTableOptionsHelper {
     const typeOfLeaveID = shiftData.typeOfLeave && shiftData.typeOfLeave !== '' ? shiftData.typeOfLeave : '';
 
     return {
-      Date: new Date(shiftData.date),
+      Date: SRSDateUtils.normalizeDateToLocalMidnight(shiftData.date), // ОБНОВЛЕНО: Date-only нормализация
       ShiftDate1Hours: defaultStartHours,
       ShiftDate1Minutes: defaultStartMinutes,
       ShiftDate2Hours: defaultEndHours,
@@ -848,8 +857,8 @@ export class SRSTableOptionsHelper {
       TimeForLunch: timeForLunch,
       Contract: contract,
       TypeOfLeaveID: typeOfLeaveID,
-      Holiday: 0, // *** ИСПРАВЛЕНО: Всегда 0 - праздники определяются из holidays list ***
-      Title: typeOfLeaveID ? `Leave on ${shiftData.date.toLocaleDateString()}` : `SRS Shift on ${shiftData.date.toLocaleDateString()}`
+      Holiday: 0, // ИСПРАВЛЕНО: Всегда 0 - праздники определяются из holidays list Date-only
+      Title: typeOfLeaveID ? `Leave on ${SRSDateUtils.formatDateForDisplay(shiftData.date)}` : `SRS Shift on ${SRSDateUtils.formatDateForDisplay(shiftData.date)}`
     };
   }
 }
