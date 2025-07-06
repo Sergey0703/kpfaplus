@@ -4,15 +4,14 @@ import {
     IStaffRecordTypeOfLeave,
     IStaffRecordWeeklyTimeTable
   } from "./StaffRecordsInterfaces";
-import { DateUtils } from "../components/CustomDatePicker/CustomDatePicker";
   
   /**
    * Сервис для преобразования данных из SharePoint в бизнес-модели
    * Отвечает за маппинг, валидацию и нормализацию данных
    * 
+   * ОБНОВЛЕНО: ВСЕ поля дат теперь Date-only (без времени) - убрана UTC нормализация
    * ОБНОВЛЕНО: Добавлена поддержка числовых полей времени для ScheduleTab
-   * ОБНОВЛЕНО: Добавлена правильная обработка дат через DateUtils для решения проблемы с 1 октября
-   * и корректного парсинга дат из SharePoint с учетом временных зон
+   * ИСПРАВЛЕНО: Убрана избыточная обработка ВСЕХ полей дат через DateUtils
    */
   export class StaffRecordsMapperService {
     private _logSource: string;
@@ -23,19 +22,19 @@ import { DateUtils } from "../components/CustomDatePicker/CustomDatePicker";
      */
     constructor(logSource: string) {
       this._logSource = logSource + ".Mapper";
-      this.logInfo("StaffRecordsMapperService инициализирован с поддержкой DateUtils и числовых полей времени");
+      this.logInfo("StaffRecordsMapperService инициализирован с поддержкой Date-only полей и числовых полей времени");
     }
   
     /**
      * Преобразует сырые данные из SharePoint в массив объектов IStaffRecord
-     * ИСПРАВЛЕНО: Добавлена правильная обработка дат через DateUtils
+     * ИСПРАВЛЕНО: ВСЕ поля дат теперь обрабатываются как Date-only (без UTC нормализации)
      * 
      * @param rawItems Сырые данные из SharePoint
      * @returns Массив объектов IStaffRecord
      */
     public mapToStaffRecords(rawItems: unknown[]): IStaffRecord[] {
       try {
-        this.logInfo(`[DEBUG] mapToStaffRecords: Начинаем преобразование ${rawItems.length} сырых элементов с DateUtils`);
+        this.logInfo(`[DEBUG] mapToStaffRecords: Начинаем преобразование ${rawItems.length} сырых элементов с Date-only полями`);
   
         // Маппинг сырых данных в формат IStaffRecord
         const mappedItems = rawItems.map((item, index) => {
@@ -67,7 +66,7 @@ import { DateUtils } from "../components/CustomDatePicker/CustomDatePicker";
   
         // Фильтруем неопределенные элементы
         const filteredItems = mappedItems.filter((item): item is IStaffRecord => item !== undefined);
-        this.logInfo(`[DEBUG] mapToStaffRecords: Преобразовано ${filteredItems.length} элементов из ${rawItems.length} исходных с DateUtils`);
+        this.logInfo(`[DEBUG] mapToStaffRecords: Преобразовано ${filteredItems.length} элементов из ${rawItems.length} исходных с Date-only полями`);
   
         return filteredItems;
       } catch (error) {
@@ -78,8 +77,8 @@ import { DateUtils } from "../components/CustomDatePicker/CustomDatePicker";
   
     /**
      * Преобразует одну сырую запись в структурированный объект IStaffRecord
-     * ИСПРАВЛЕНО: Добавлена правильная обработка дат через DateUtils
-     * ОБНОВЛЕНО: Добавлена поддержка числовых полей времени
+     * ОБНОВЛЕНО: Поле Date теперь Date-only, время смен хранится в числовых полях
+     * УДАЛЕНО: ShiftDate1-4 поля больше не используются
      * 
      * @param id Идентификатор записи
      * @param fields Поля записи
@@ -91,12 +90,8 @@ import { DateUtils } from "../components/CustomDatePicker/CustomDatePicker";
       fields: Record<string, unknown>,
       index: number
     ): IStaffRecord {
-      // ИСПРАВЛЕНО: Преобразуем даты из строк в объекты Date с использованием DateUtils
+      // Парсим только основную дату (Date-only)
       const mainDate = this.parseMainDate(fields.Date as string, index, 'Date');
-      const shiftDate1 = this.parseShiftDate(fields.ShiftDate1 as string, index, 'ShiftDate1');
-      const shiftDate2 = this.parseShiftDate(fields.ShiftDate2 as string, index, 'ShiftDate2');
-      const shiftDate3 = this.parseShiftDate(fields.ShiftDate3 as string, index, 'ShiftDate3');
-      const shiftDate4 = this.parseShiftDate(fields.ShiftDate4 as string, index, 'ShiftDate4');
       
       // Получаем информацию о типе отпуска
       const { typeOfLeaveID, typeOfLeave } = this.extractTypeOfLeave(fields.TypeOfLeaveLookupId, index);
@@ -112,15 +107,15 @@ import { DateUtils } from "../components/CustomDatePicker/CustomDatePicker";
         Checked: this.ensureNumber(fields.Checked, 0),
         ExportResult: this.ensureString(fields.ExportResult),
         Title: this.ensureString(fields.Title),
-        Date: mainDate,
+        Date: mainDate, // Date-only поле
         
-        // СУЩЕСТВУЮЩИЕ поля даты-времени (для обратной совместимости)
-        ShiftDate1: shiftDate1,
-        ShiftDate2: shiftDate2,
-        ShiftDate3: shiftDate3,
-        ShiftDate4: shiftDate4,
+        // УДАЛЕНО: ShiftDate1-4 поля больше не используются
+        ShiftDate1: undefined,
+        ShiftDate2: undefined,
+        ShiftDate3: undefined,
+        ShiftDate4: undefined,
         
-        // НОВЫЕ числовые поля времени
+        // Числовые поля времени (основные для времени смен)
         ShiftDate1Hours: this.ensureNumber(fields.ShiftDate1Hours),
         ShiftDate1Minutes: this.ensureNumber(fields.ShiftDate1Minutes),
         ShiftDate2Hours: this.ensureNumber(fields.ShiftDate2Hours),
@@ -144,89 +139,47 @@ import { DateUtils } from "../components/CustomDatePicker/CustomDatePicker";
     }
 
     /**
-     * НОВЫЙ МЕТОД: Парсинг основной даты записи с нормализацией через DateUtils
-     * Основная дата должна быть нормализована к полуночи UTC для корректной фильтрации
+     * ОБНОВЛЕНО: Парсинг основной даты записи БЕЗ нормализации времени
+     * Поле Date теперь Date-only, поэтому НЕ нормализуем к полуночи UTC
      * 
      * @param dateString Строка с датой из SharePoint
      * @param index Индекс записи (для логов)
      * @param fieldName Название поля (для логов)
-     * @returns Нормализованный объект Date
+     * @returns Объект Date БЕЗ UTC нормализации
      */
     private parseMainDate(dateString: string | undefined, index: number, fieldName: string): Date {
       try {
         if (!dateString) {
           this.logError(`[ОШИБКА] Отсутствует обязательное поле ${fieldName} для элемента #${index}`);
-          // Возвращаем нормализованную текущую дату как запасной вариант
-          return DateUtils.normalizeDateToUTCMidnight(new Date());
+          // Возвращаем текущую дату без нормализации как запасной вариант
+          return new Date();
         }
         
         // Парсим дату из SharePoint (обычно в ISO формате)
         const parsedDate = new Date(dateString);
         if (isNaN(parsedDate.getTime())) {
           this.logError(`[ОШИБКА] Некорректная дата ${fieldName} для элемента #${index}: ${dateString}`);
-          return DateUtils.normalizeDateToUTCMidnight(new Date());
+          return new Date();
         }
 
-        // ИСПРАВЛЕНО: Нормализуем основную дату к полуночи UTC через DateUtils
-        const normalizedDate = DateUtils.normalizeDateToUTCMidnight(parsedDate);
+        // ИСПРАВЛЕНО: Поле Date теперь Date-only - НЕ нормализуем к полуночи UTC
+        // Возвращаем дату как есть, так как SharePoint теперь хранит только дату без времени
+        const dateOnlyResult = parsedDate;
         
         // Логируем только если есть изменения (каждый 20-й элемент для экономии логов)
         if (index % 20 === 0) {
-          this.logInfo(`[DEBUG] ${fieldName} элемента #${index}: ${dateString} → ${parsedDate.toISOString()} → ${normalizedDate.toISOString()}`);
+          this.logInfo(`[DEBUG] ${fieldName} элемента #${index} (Date-only): ${dateString} → ${dateOnlyResult.toISOString()}`);
+          this.logInfo(`[DEBUG] No UTC normalization applied (Date-only field)`);
         }
         
-        return normalizedDate;
+        return dateOnlyResult;
       } catch (dateError) {
         this.logError(`[ОШИБКА] Ошибка при преобразовании ${fieldName} для элемента #${index}: ${dateError}`);
-        return DateUtils.normalizeDateToUTCMidnight(new Date());
+        return new Date();
       }
     }
 
-    /**
-     * НОВЫЙ МЕТОД: Парсинг времени смен с сохранением времени через DateUtils
-     * Время смен должно сохранять точное время, но быть привязано к нормализованной дате
-     * 
-     * @param dateString Строка с датой и временем из SharePoint
-     * @param index Индекс записи (для логов)
-     * @param fieldName Название поля (для логов)
-     * @returns Объект Date с сохраненным временем или undefined
-     */
-    private parseShiftDate(dateString: string | undefined, index: number, fieldName: string): Date | undefined {
-      if (!dateString) {
-        return undefined;
-      }
-      
-      try {
-        // Парсим дату и время из SharePoint
-        const parsedDateTime = new Date(dateString);
-        if (isNaN(parsedDateTime.getTime())) {
-          this.logError(`[ОШИБКА] Некорректная дата ${fieldName} для элемента #${index}: ${dateString}`);
-          return undefined;
-        }
 
-        // ИСПРАВЛЕНО: Для времени смен сохраняем время, но нормализуем базовую дату
-        // Извлекаем время из исходной даты
-        const hours = parsedDateTime.getHours();
-        const minutes = parsedDateTime.getMinutes();
-        const seconds = parsedDateTime.getSeconds();
-        const milliseconds = parsedDateTime.getMilliseconds();
-
-        // Создаем нормализованную дату с сохранением времени
-        const baseDate = DateUtils.normalizeDateToUTCMidnight(parsedDateTime);
-        const normalizedShiftDate = new Date(baseDate);
-        normalizedShiftDate.setUTCHours(hours, minutes, seconds, milliseconds);
-
-        // Логируем только каждый 30-й элемент для экономии логов
-        if (index % 30 === 0) {
-          this.logInfo(`[DEBUG] ${fieldName} элемента #${index}: ${dateString} → ${parsedDateTime.toISOString()} → ${normalizedShiftDate.toISOString()}`);
-        }
-
-        return normalizedShiftDate;
-      } catch (dateError) {
-        this.logError(`[ОШИБКА] Ошибка при преобразовании ${fieldName} для элемента #${index}: ${dateError}`);
-        return undefined;
-      }
-    }
 
     /**
      * Извлекает информацию о типе отпуска из правильного поля TypeOfLeaveLookupId
