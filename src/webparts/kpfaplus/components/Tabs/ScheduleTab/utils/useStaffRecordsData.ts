@@ -7,6 +7,8 @@ import { IStaffRecordsResult, IStaffRecordsQueryParams } from '../../../../servi
 import { IStaffMember } from '../../../../models/types';
 import { IExistingRecordCheck } from './ScheduleTabFillInterfaces';
 import { IScheduleTabState } from './useScheduleTabState';
+// *** ДОБАВЛЕН ИМПОРТ ФУНКЦИЙ ДЛЯ UTC DATE-ONLY СОВМЕСТИМОСТИ ***
+import { formatDateForSharePoint, parseDateFromSharePoint } from './ScheduleTabDataUtils';
 
 
 interface UseStaffRecordsDataProps {
@@ -56,17 +58,17 @@ const setIsLoadingStaffRecords = useCallback((isLoading: boolean) => setState(pr
 const setErrorStaffRecords = useCallback((error?: string) => setState(prevState => ({ ...prevState, errorStaffRecords: error })), [setState]);
 const setTotalItemCount = useCallback((total: number) => setState(prevState => ({ ...prevState, totalItemCount: total })), [setState]);
 
-// *** ИСПРАВЛЕННЫЙ МЕТОД loadStaffRecords С НОРМАЛИЗОВАННЫМИ ДАТАМИ ***
+// *** ИСПРАВЛЕННЫЙ МЕТОД loadStaffRecords С UTC DATE-ONLY СОВМЕСТИМОСТЬЮ ***
 const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: string): Promise<void> => {
   const dateToUse = overrideDate || selectedDate;
   const contractIdToUse = contractId !== undefined ? contractId : selectedContractId;
 
-  console.log('[useStaffRecordsData] *** loadStaffRecords CALLED - WITH DATE NORMALIZATION ***');
+  console.log('[useStaffRecordsData] *** loadStaffRecords CALLED - WITH UTC DATE-ONLY COMPATIBILITY ***');
   console.log('[useStaffRecordsData] *** PAGINATION PARAMS ***');
   console.log('[useStaffRecordsData] currentPage:', currentPage);
   console.log('[useStaffRecordsData] itemsPerPage:', itemsPerPage);
   console.log('[useStaffRecordsData] showDeleted:', showDeleted);
-  console.log('[useStaffRecordsData] Logic: showDeleted=true -> server pagination, showDeleted=false -> load all + client pagination');
+  console.log('[useStaffRecordsData] IMPORTANT: Using formatDateForSharePoint for consistent UTC boundaries');
 
   if (!context || !staffRecordsService) {
     console.log('[useStaffRecordsData] Cannot load records: missing context or service');
@@ -90,28 +92,26 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
     setIsLoadingStaffRecords(true);
     setErrorStaffRecords(undefined);
 
-    // *** КРИТИЧЕСКИ ВАЖНОЕ ИСПРАВЛЕНИЕ: Используем UTC границы месяца через DateUtils ***
+    // *** ИСПРАВЛЕНИЕ: Используем formatDateForSharePoint для создания UTC границ месяца ***
     const inputDate = dateToUse;
     
-    // *** ИСПРАВЛЕНИЕ: Создаем границы месяца в UTC ***
-    const firstDayOfMonth = new Date(Date.UTC(
-      inputDate.getUTCFullYear(),
-      inputDate.getUTCMonth(),
-      1,
-      0, 0, 0, 0
+    // *** ИСПРАВЛЕНО: Создаем границы месяца используя formatDateForSharePoint ***
+    const firstDayOfMonth = formatDateForSharePoint(new Date(
+      inputDate.getFullYear(),
+      inputDate.getMonth(),
+      1
     ));
     
-    const lastDayOfMonth = new Date(Date.UTC(
-      inputDate.getUTCFullYear(),
-      inputDate.getUTCMonth() + 1,
-      0,
-      23, 59, 59, 999
+    const lastDayOfMonth = formatDateForSharePoint(new Date(
+      inputDate.getFullYear(),
+      inputDate.getMonth() + 1,
+      0
     ));
 
-    console.log('[useStaffRecordsData] *** USING UTC MONTH BOUNDARIES FOR OCTOBER FIX ***');
+    console.log('[useStaffRecordsData] *** USING formatDateForSharePoint FOR CONSISTENT UTC BOUNDARIES ***');
     console.log('[useStaffRecordsData] Input date:', inputDate.toISOString());
-    console.log('[useStaffRecordsData] UTC first day of month:', firstDayOfMonth.toISOString());
-    console.log('[useStaffRecordsData] UTC last day of month:', lastDayOfMonth.toISOString());
+    console.log('[useStaffRecordsData] UTC first day of month (formatDateForSharePoint):', firstDayOfMonth.toISOString());
+    console.log('[useStaffRecordsData] UTC last day of month (formatDateForSharePoint):', lastDayOfMonth.toISOString());
 
     // *** СПЕЦИАЛЬНАЯ ОТЛАДКА ДЛЯ ОКТЯБРЯ 2024 ***
     if (inputDate.getUTCMonth() === 9 && inputDate.getUTCFullYear() === 2024) {
@@ -127,7 +127,7 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
       const testDate1Oct = new Date(Date.UTC(2024, 9, 1, 0, 0, 0, 0)); // 1 октября 2024, полночь UTC
       const testDate1OctMidday = new Date(Date.UTC(2024, 9, 1, 12, 0, 0, 0)); // 1 октября 2024, полдень UTC
       
-      console.log('[useStaffRecordsData] *** OCTOBER 1st TEST ***');
+      console.log('[useStaffRecordsData] *** OCTOBER 1st TEST WITH formatDateForSharePoint BOUNDARIES ***');
       console.log('[useStaffRecordsData] Test date (1 Oct midnight):', testDate1Oct.toISOString());
       console.log('[useStaffRecordsData] Test date (1 Oct midday):', testDate1OctMidday.toISOString());
       console.log('[useStaffRecordsData] 1 Oct midnight >= firstDayOfMonth:', testDate1Oct >= firstDayOfMonth);
@@ -149,8 +149,8 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
       const top = itemsPerPage;
 
       const queryParams: IStaffRecordsQueryParams = {
-        startDate: firstDayOfMonth,  // *** ИСПОЛЬЗУЕМ UTC ГРАНИЦЫ ***
-        endDate: lastDayOfMonth,     // *** ИСПОЛЬЗУЕМ UTC ГРАНИЦЫ ***
+        startDate: firstDayOfMonth,  // *** ИСПОЛЬЗУЕМ UTC ГРАНИЦЫ ИЗ formatDateForSharePoint ***
+        endDate: lastDayOfMonth,     // *** ИСПОЛЬЗУЕМ UTC ГРАНИЦЫ ИЗ formatDateForSharePoint ***
         currentUserID: currentUserID,
         staffGroupID: staffGroupID,
         employeeID: employeeId,
@@ -160,7 +160,7 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
       };
 
       console.log('[useStaffRecordsData] *** SERVER PAGINATION - calling getStaffRecordsWithOptions ***');
-      console.log('[useStaffRecordsData] Query params with UTC dates:', {
+      console.log('[useStaffRecordsData] Query params with UTC dates from formatDateForSharePoint:', {
         ...queryParams,
         startDate: queryParams.startDate.toISOString(),
         endDate: queryParams.endDate.toISOString()
@@ -171,40 +171,47 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
       console.log(`[useStaffRecordsData] *** SERVER PAGINATION RESULT ***`);
       console.log(`[useStaffRecordsData] Records: ${result.records.length}, totalCount: ${result.totalCount}`);
 
-      if (result.records.length > 0) {
-        console.log(`[useStaffRecordsData] First record ID: ${result.records[0].ID}, Date: ${result.records[0].Date.toISOString()}, Deleted: ${result.records[0].Deleted}`);
-        console.log(`[useStaffRecordsData] Last record ID: ${result.records[result.records.length - 1].ID}, Date: ${result.records[result.records.length - 1].Date.toISOString()}, Deleted: ${result.records[result.records.length - 1].Deleted}`);
+      // *** ИСПРАВЛЕНИЕ: Нормализуем полученные даты используя parseDateFromSharePoint ***
+      const normalizedRecords = result.records.map(record => ({
+        ...record,
+        Date: parseDateFromSharePoint(record.Date)
+      }));
+
+      console.log(`[useStaffRecordsData] *** NORMALIZED ${normalizedRecords.length} RECORD DATES USING parseDateFromSharePoint ***`);
+
+      if (normalizedRecords.length > 0) {
+        console.log(`[useStaffRecordsData] First record ID: ${normalizedRecords[0].ID}, Date: ${normalizedRecords[0].Date.toISOString()}, Deleted: ${normalizedRecords[0].Deleted}`);
+        console.log(`[useStaffRecordsData] Last record ID: ${normalizedRecords[normalizedRecords.length - 1].ID}, Date: ${normalizedRecords[normalizedRecords.length - 1].Date.toISOString()}, Deleted: ${normalizedRecords[normalizedRecords.length - 1].Deleted}`);
         
-        // Проверяем, есть ли записи за 1 октября
-        const oct1Records = result.records.filter(record => {
-          const recordDate = new Date(record.Date);
+        // Проверяем, есть ли записи за 1 октября после нормализации
+        const oct1Records = normalizedRecords.filter(record => {
+          const recordDate = record.Date; // Уже нормализована через parseDateFromSharePoint
           return recordDate.getUTCDate() === 1 && recordDate.getUTCMonth() === 9 && recordDate.getUTCFullYear() === 2024;
         });
         if (oct1Records.length > 0) {
-          console.log(`[useStaffRecordsData] *** FOUND ${oct1Records.length} RECORDS FOR OCTOBER 1st! ***`);
+          console.log(`[useStaffRecordsData] *** FOUND ${oct1Records.length} RECORDS FOR OCTOBER 1st AFTER parseDateFromSharePoint! ***`);
           oct1Records.forEach(record => {
             console.log(`[useStaffRecordsData] Oct 1st record: ID=${record.ID}, Date=${record.Date.toISOString()}`);
           });
         } else {
-          console.log(`[useStaffRecordsData] *** NO RECORDS FOUND FOR OCTOBER 1st in results ***`);
+          console.log(`[useStaffRecordsData] *** NO RECORDS FOUND FOR OCTOBER 1st after parseDateFromSharePoint ***`);
         }
       }
 
-      setStaffRecords(result.records);
+      setStaffRecords(normalizedRecords); // *** ИСПОЛЬЗУЕМ НОРМАЛИЗОВАННЫЕ ЗАПИСИ ***
       setTotalItemCount(result.totalCount);
 
       if (result.error) {
         setErrorStaffRecords(`Failed to load schedule records: ${result.error}`);
       }
-
-    } else {
+      } else {
       // *** ВАРИАНТ 2: ПОКАЗЫВАЕМ ТОЛЬКО АКТИВНЫЕ ЗАПИСИ - ЗАГРУЖАЕМ ВСЕ + КЛИЕНТСКАЯ ПАГИНАЦИЯ ***
       console.log('[useStaffRecordsData] *** LOADING ONLY ACTIVE RECORDS - LOAD ALL + CLIENT PAGINATION ***');
       
       // Используем метод для загрузки ВСЕХ записей без серверной пагинации
       const allRecordsQueryParams = {
-        startDate: firstDayOfMonth,  // *** ИСПОЛЬЗУЕМ UTC ГРАНИЦЫ ***
-        endDate: lastDayOfMonth,     // *** ИСПОЛЬЗУЕМ UTC ГРАНИЦЫ ***
+        startDate: firstDayOfMonth,  // *** ИСПОЛЬЗУЕМ UTC ГРАНИЦЫ ИЗ formatDateForSharePoint ***
+        endDate: lastDayOfMonth,     // *** ИСПОЛЬЗУЕМ UTC ГРАНИЦЫ ИЗ formatDateForSharePoint ***
         currentUserID: currentUserID,
         staffGroupID: staffGroupID,
         employeeID: employeeId,
@@ -213,7 +220,7 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
       };
 
       console.log('[useStaffRecordsData] *** LOADING ALL RECORDS - calling getAllStaffRecordsForTimetable ***');
-      console.log('[useStaffRecordsData] Query params with UTC dates (no pagination):', {
+      console.log('[useStaffRecordsData] Query params with UTC dates from formatDateForSharePoint (no pagination):', {
         ...allRecordsQueryParams,
         startDate: allRecordsQueryParams.startDate.toISOString(),
         endDate: allRecordsQueryParams.endDate.toISOString()
@@ -228,39 +235,47 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
       console.log(`[useStaffRecordsData] *** ALL RECORDS LOADED ***`);
       console.log(`[useStaffRecordsData] Total records from server: ${allRecordsResult.records.length}`);
 
-      // *** ОТЛАДКА ДЛЯ ОКТЯБРЯ: Проверяем, есть ли записи за 1 октября в общем списке ***
-      const oct1RecordsAll = allRecordsResult.records.filter(record => {
-        const recordDate = new Date(record.Date);
+      // *** ИСПРАВЛЕНИЕ: Нормализуем ВСЕ полученные даты используя parseDateFromSharePoint ***
+      const allNormalizedRecords = allRecordsResult.records.map(record => ({
+        ...record,
+        Date: parseDateFromSharePoint(record.Date)
+      }));
+
+      console.log(`[useStaffRecordsData] *** NORMALIZED ${allNormalizedRecords.length} RECORD DATES USING parseDateFromSharePoint ***`);
+
+      // *** ОТЛАДКА ДЛЯ ОКТЯБРЯ: Проверяем, есть ли записи за 1 октября в общем списке после нормализации ***
+      const oct1RecordsAll = allNormalizedRecords.filter(record => {
+        const recordDate = record.Date; // Уже нормализована через parseDateFromSharePoint
         return recordDate.getUTCDate() === 1 && recordDate.getUTCMonth() === 9 && recordDate.getUTCFullYear() === 2024;
       });
       if (oct1RecordsAll.length > 0) {
-        console.log(`[useStaffRecordsData] *** FOUND ${oct1RecordsAll.length} RECORDS FOR OCTOBER 1st in ALL records! ***`);
+        console.log(`[useStaffRecordsData] *** FOUND ${oct1RecordsAll.length} RECORDS FOR OCTOBER 1st in ALL records after parseDateFromSharePoint! ***`);
         oct1RecordsAll.forEach(record => {
           console.log(`[useStaffRecordsData] Oct 1st record: ID=${record.ID}, Date=${record.Date.toISOString()}, Deleted=${record.Deleted}`);
         });
       } else {
-        console.log(`[useStaffRecordsData] *** NO RECORDS FOUND FOR OCTOBER 1st in ALL records ***`);
+        console.log(`[useStaffRecordsData] *** NO RECORDS FOUND FOR OCTOBER 1st in ALL records after parseDateFromSharePoint ***`);
       }
 
       // *** КЛИЕНТСКАЯ ФИЛЬТРАЦИЯ: ТОЛЬКО АКТИВНЫЕ ЗАПИСИ ***
-      const activeRecords = allRecordsResult.records.filter((record: IStaffRecord) => record.Deleted !== 1);
+      const activeRecords = allNormalizedRecords.filter((record: IStaffRecord) => record.Deleted !== 1);
       console.log(`[useStaffRecordsData] *** CLIENT FILTERING ***`);
-      console.log(`[useStaffRecordsData] Total records: ${allRecordsResult.records.length}`);
+      console.log(`[useStaffRecordsData] Total records: ${allNormalizedRecords.length}`);
       console.log(`[useStaffRecordsData] Active records: ${activeRecords.length}`);
-      console.log(`[useStaffRecordsData] Deleted records: ${allRecordsResult.records.length - activeRecords.length}`);
+      console.log(`[useStaffRecordsData] Deleted records: ${allNormalizedRecords.length - activeRecords.length}`);
 
       // *** ОТЛАДКА ДЛЯ ОКТЯБРЯ: Проверяем, есть ли записи за 1 октября среди активных ***
       const oct1RecordsActive = activeRecords.filter(record => {
-        const recordDate = new Date(record.Date);
+        const recordDate = record.Date; // Уже нормализована через parseDateFromSharePoint
         return recordDate.getUTCDate() === 1 && recordDate.getUTCMonth() === 9 && recordDate.getUTCFullYear() === 2024;
       });
       if (oct1RecordsActive.length > 0) {
-        console.log(`[useStaffRecordsData] *** FOUND ${oct1RecordsActive.length} ACTIVE RECORDS FOR OCTOBER 1st! ***`);
+        console.log(`[useStaffRecordsData] *** FOUND ${oct1RecordsActive.length} ACTIVE RECORDS FOR OCTOBER 1st after parseDateFromSharePoint! ***`);
         oct1RecordsActive.forEach(record => {
           console.log(`[useStaffRecordsData] Oct 1st active record: ID=${record.ID}, Date=${record.Date.toISOString()}`);
         });
       } else {
-        console.log(`[useStaffRecordsData] *** NO ACTIVE RECORDS FOUND FOR OCTOBER 1st ***`);
+        console.log(`[useStaffRecordsData] *** NO ACTIVE RECORDS FOUND FOR OCTOBER 1st after parseDateFromSharePoint ***`);
       }
 
       // *** КЛИЕНТСКАЯ ПАГИНАЦИЯ: ПРИМЕНЯЕМ К АКТИВНЫМ ЗАПИСЯМ ***
@@ -278,11 +293,11 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
         
         // *** ФИНАЛЬНАЯ ПРОВЕРКА ДЛЯ ОКТЯБРЯ: Есть ли записи за 1 октября на текущей странице ***
         const oct1RecordsPage = pageActiveRecords.filter(record => {
-          const recordDate = new Date(record.Date);
+          const recordDate = record.Date; // Уже нормализована через parseDateFromSharePoint
           return recordDate.getUTCDate() === 1 && recordDate.getUTCMonth() === 9 && recordDate.getUTCFullYear() === 2024;
         });
         if (oct1RecordsPage.length > 0) {
-          console.log(`[useStaffRecordsData] *** SUCCESS: FOUND ${oct1RecordsPage.length} RECORDS FOR OCTOBER 1st ON CURRENT PAGE! ***`);
+          console.log(`[useStaffRecordsData] *** SUCCESS: FOUND ${oct1RecordsPage.length} RECORDS FOR OCTOBER 1st ON CURRENT PAGE after parseDateFromSharePoint! ***`);
           oct1RecordsPage.forEach(record => {
             console.log(`[useStaffRecordsData] Oct 1st page record: ID=${record.ID}, Date=${record.Date.toISOString()}`);
           });
@@ -326,7 +341,7 @@ const loadStaffRecords = useCallback(async (overrideDate?: Date, contractId?: st
   setTotalItemCount,
 ]);
 
-// *** ИСПРАВЛЕННЫЙ getExistingRecordsWithStatus С UTC ГРАНИЦАМИ ***
+// *** ИСПРАВЛЕННЫЙ getExistingRecordsWithStatus С UTC DATE-ONLY СОВМЕСТИМОСТЬЮ ***
 const getExistingRecordsWithStatus = useCallback(async (
   startDate: Date,
   endDate: Date,
@@ -336,7 +351,7 @@ const getExistingRecordsWithStatus = useCallback(async (
   timeTableIDParam?: string
 ): Promise<IExistingRecordCheck[]> => {
   console.log('[useStaffRecordsData] getExistingRecordsWithStatus called with timeTableID:', timeTableIDParam);
-  console.log('[useStaffRecordsData] *** IMPORTANT: This will collect ALL pages to find all existing records ***');
+  console.log('[useStaffRecordsData] *** IMPORTANT: Using formatDateForSharePoint for consistent boundaries ***');
   console.log('[useStaffRecordsData] Input date range:', startDate.toISOString(), '-', endDate.toISOString());
   
   if (!context || !staffRecordsService) {
@@ -351,45 +366,25 @@ const getExistingRecordsWithStatus = useCallback(async (
   try {
     console.log('[useStaffRecordsData] *** Starting to collect ALL pages for existing records ***');
     
-    // *** ИСПРАВЛЕНИЕ: Убеждаемся что переданные даты в правильном UTC формате ***
-    // Входные даты уже должны быть нормализованы вызывающим кодом (ScheduleTabContent),
-    // но для безопасности еще раз нормализуем их к UTC
-    let normalizedStartDate: Date;
-    let normalizedEndDate: Date;
+    // *** ИСПРАВЛЕНИЕ: Используем formatDateForSharePoint для нормализации границ ***
+    // Входные даты должны быть нормализованы к UTC используя тот же подход, что и при сохранении
+    const normalizedStartDate = formatDateForSharePoint(new Date(
+      startDate.getFullYear(),
+      startDate.getMonth(),
+      startDate.getDate()
+    ));
     
-    if (startDate.getUTCHours() === 0 && startDate.getUTCMinutes() === 0 && 
-        startDate.getUTCSeconds() === 0 && startDate.getUTCMilliseconds() === 0) {
-      // Дата уже нормализована к UTC полуночи
-      normalizedStartDate = startDate;
-    } else {
-      // Нормализуем к UTC полуночи
-      normalizedStartDate = new Date(Date.UTC(
-        startDate.getUTCFullYear(),
-        startDate.getUTCMonth(),
-        startDate.getUTCDate(),
-        0, 0, 0, 0
-      ));
-    }
+    const normalizedEndDate = formatDateForSharePoint(new Date(
+      endDate.getFullYear(),
+      endDate.getMonth(),
+      endDate.getDate()
+    ));
     
-    if (endDate.getUTCHours() === 23 && endDate.getUTCMinutes() === 59 && 
-        endDate.getUTCSeconds() === 59) {
-      // Дата уже нормализована к UTC концу дня
-      normalizedEndDate = endDate;
-    } else {
-      // Нормализуем к UTC концу дня
-      normalizedEndDate = new Date(Date.UTC(
-        endDate.getUTCFullYear(),
-        endDate.getUTCMonth(),
-        endDate.getUTCDate(),
-        23, 59, 59, 999
-      ));
-    }
-    
-    console.log('[useStaffRecordsData] *** NORMALIZED DATES FOR EXISTING RECORDS CHECK ***');
+    console.log('[useStaffRecordsData] *** NORMALIZED DATES USING formatDateForSharePoint ***');
     console.log('[useStaffRecordsData] Original start date:', startDate.toISOString());
     console.log('[useStaffRecordsData] Original end date:', endDate.toISOString());
-    console.log('[useStaffRecordsData] Normalized start date:', normalizedStartDate.toISOString());
-    console.log('[useStaffRecordsData] Normalized end date:', normalizedEndDate.toISOString());
+    console.log('[useStaffRecordsData] Normalized start date (formatDateForSharePoint):', normalizedStartDate.toISOString());
+    console.log('[useStaffRecordsData] Normalized end date (formatDateForSharePoint):', normalizedEndDate.toISOString());
 
     // Base query parameters (without pagination) - используем нормализованные даты
     const baseQueryParams = {
@@ -427,8 +422,14 @@ const getExistingRecordsWithStatus = useCallback(async (
       
       console.log(`[useStaffRecordsData] Page ${pageNumber} result: ${result.records.length} records, total available: ${result.totalCount}`);
 
-      // Add records from this page to our collection
-      allRecords.push(...result.records);
+      // *** ИСПРАВЛЕНИЕ: Нормализуем даты в полученных записях ***
+      const normalizedPageRecords = result.records.map(record => ({
+        ...record,
+        Date: parseDateFromSharePoint(record.Date)
+      }));
+
+      // Add normalized records from this page to our collection
+      allRecords.push(...normalizedPageRecords);
 
       // Check if we need to fetch more pages
       const recordsRetrievedSoFar = allRecords.length;
@@ -439,7 +440,7 @@ const getExistingRecordsWithStatus = useCallback(async (
         pageNumber++;
         console.log(`[useStaffRecordsData] More data available. Moving to page ${pageNumber} (skip: ${currentSkip})`);
       } else {
-        console.log(`[useStaffRecordsData] *** Pagination complete. Retrieved ${recordsRetrievedSoFar} total records ***`);
+        console.log(`[useStaffRecordsData] *** Pagination complete. Retrieved ${recordsRetrievedSoFar} total records with parseDateFromSharePoint normalization ***`);
       }
 
       // Safety check to prevent infinite loops
@@ -467,11 +468,11 @@ const getExistingRecordsWithStatus = useCallback(async (
       id: record.ID,
       checked: record.Checked || 0,
       exportResult: record.ExportResult || '0',
-      date: record.Date,
+      date: record.Date, // Уже нормализована через parseDateFromSharePoint
       title: record.Title
     }));
 
-    console.log(`[useStaffRecordsData] Converted ${activeRecords.length} active records to IExistingRecordCheck format`);
+    console.log(`[useStaffRecordsData] Converted ${activeRecords.length} active records to IExistingRecordCheck format with parseDateFromSharePoint dates`);
     
     // Log some sample records for verification
     if (existingRecordsCheck.length > 0) {
