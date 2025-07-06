@@ -87,7 +87,7 @@ export interface UseSRSTabLogicReturn extends ISRSTabState {
 export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   const { selectedStaff, context, currentUserId, managingGroupId } = props;
 
-  console.log('[useSRSTabLogic] *** FIXED DEPENDENCIES READY LOGIC ***:', {
+  console.log('[useSRSTabLogic] *** FIXED DEPENDENCIES READY LOGIC WITH DATE-ONLY FORMAT ***:', {
     hasSelectedStaff: !!selectedStaff,
     selectedStaffId: selectedStaff?.id,
     selectedStaffEmployeeId: selectedStaff?.employeeId,
@@ -101,7 +101,8 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     numericTimeFieldsSupport: true,
     showDeletedSupport: true,
     simplifiedArchitecture: true,
-    totalHoursCalculation: 'Real-time in SRSTable'
+    totalHoursCalculation: 'Real-time in SRSTable',
+    dateOnlyFormat: 'Date field now Date-only, using SRSDateUtils for all operations'
   });
 
   // Инициализируем состояние SRS Tab
@@ -138,7 +139,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
 
   // *** ИСПРАВЛЕНО: Враппим loadHolidays для отслеживания попыток ***
   const loadHolidaysWithTracking = useCallback(() => {
-    console.log('[useSRSTabLogic] *** LOADING HOLIDAYS WITH ATTEMPT TRACKING ***');
+    console.log('[useSRSTabLogic] *** LOADING HOLIDAYS WITH ATTEMPT TRACKING (DATE-ONLY) ***');
     setLoadAttempts(prev => ({ ...prev, holidays: true }));
     loadHolidays();
   }, [loadHolidays]);
@@ -161,7 +162,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     
     const ready = holidaysReady && typesOfLeaveReady;
     
-    console.log('[useSRSTabLogic] *** FIXED DEPENDENCIES READINESS CHECK ***:', {
+    console.log('[useSRSTabLogic] *** FIXED DEPENDENCIES READINESS CHECK (DATE-ONLY) ***:', {
       // Holidays
       holidaysLoadAttempted: loadAttempts.holidays,
       holidaysLoading: state.isLoadingHolidays,
@@ -180,7 +181,8 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       
       // Fix details
       fixApplied: 'Load attempts tracking + data presence check',
-      previousIssue: 'areDependenciesReady was true before loading started'
+      previousIssue: 'areDependenciesReady was true before loading started',
+      dateFormat: 'Date-only format with SRSDateUtils integration'
     });
     
     return ready;
@@ -207,7 +209,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
 
   // *** ИСПРАВЛЕНО: ЕДИНЫЙ ЭФФЕКТ для загрузки зависимостей ***
   useEffect(() => {
-    console.log('[useSRSTabLogic] *** FIXED SINGLE EFFECT FOR DEPENDENCIES LOADING ***');
+    console.log('[useSRSTabLogic] *** FIXED SINGLE EFFECT FOR DEPENDENCIES LOADING (DATE-ONLY) ***');
     console.log('[useSRSTabLogic] Context available:', !!context);
     console.log('[useSRSTabLogic] Load attempts:', loadAttempts);
     
@@ -218,7 +220,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
 
     // *** ИСПРАВЛЕНО: Загружаем holidays только если попытка еще не была сделана ***
     if (!loadAttempts.holidays) {
-      console.log('[useSRSTabLogic] Loading holidays (first attempt)');
+      console.log('[useSRSTabLogic] Loading holidays (first attempt) with Date-only format');
       loadHolidaysWithTracking();
     } else {
       console.log('[useSRSTabLogic] Holidays load already attempted');
@@ -236,31 +238,33 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
 
   // *** ИСПРАВЛЕНО: Отдельный эффект для перезагрузки holidays при изменении дат ***
   useEffect(() => {
-    console.log('[useSRSTabLogic] *** DATE CHANGE - RELOAD HOLIDAYS ***');
+    console.log('[useSRSTabLogic] *** DATE CHANGE - RELOAD HOLIDAYS (DATE-ONLY FORMAT) ***');
     console.log('[useSRSTabLogic] Date range changed:', {
       fromDate: state.fromDate.toLocaleDateString(),
-      toDate: state.toDate.toLocaleDateString()
+      toDate: state.toDate.toLocaleDateString(),
+      dateFormat: 'Date-only using SRSDateUtils'
     });
     
     if (context && loadAttempts.holidays) {
-      console.log('[useSRSTabLogic] Reloading holidays for new date range');
+      console.log('[useSRSTabLogic] Reloading holidays for new date range (Date-only format)');
       loadHolidays(); // Прямой вызов без изменения loadAttempts
     }
   }, [context, state.fromDate, state.toDate, loadAttempts.holidays, loadHolidays]);
 
   // *** ИСПРАВЛЕНО: ЭФФЕКТ для загрузки SRS данных когда зависимости готовы ***
   useEffect(() => {
-    console.log('[useSRSTabLogic] *** FIXED SRS DATA LOADING EFFECT ***');
+    console.log('[useSRSTabLogic] *** FIXED SRS DATA LOADING EFFECT (DATE-ONLY) ***');
     console.log('[useSRSTabLogic] Dependencies check result:', {
       hasContext: !!context,
       hasSelectedStaff: !!selectedStaff?.employeeId,
       areDependenciesReady,
       isDataValid,
-      fixApplied: 'Load attempts tracking prevents premature loading'
+      fixApplied: 'Load attempts tracking prevents premature loading',
+      dateFormat: 'Date-only format with SRSDateUtils'
     });
     
     if (context && selectedStaff?.employeeId && areDependenciesReady && isDataValid) {
-      console.log('[useSRSTabLogic] *** ALL DEPENDENCIES READY - LOADING SRS DATA ***');
+      console.log('[useSRSTabLogic] *** ALL DEPENDENCIES READY - LOADING SRS DATA (DATE-ONLY) ***');
       void loadSRSData();
     } else {
       console.log('[useSRSTabLogic] SRS data load blocked:', {
@@ -286,19 +290,20 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     state.showDeleted, 
     loadSRSData
   ]);
-
   // ===============================================
-  // *** ИСПРАВЛЕНО: ДОБАВЛЕНИЕ СМЕНЫ БЕЗ ПРОВЕРКИ HOLIDAY ПОЛЯ ***
+  // *** ИСПРАВЛЕНО: ДОБАВЛЕНИЕ СМЕНЫ С DATE-ONLY ФОРМАТОМ ***
   // ===============================================
 
   /**
-   * *** ИСПРАВЛЕНО: Добавление смены SRS без проверки Holiday поля ***
+   * *** ИСПРАВЛЕНО: Добавление смены SRS с Date-only форматом ***
    * Holiday всегда устанавливается в 0, так как праздники определяются из holidays list
+   * Дата обрабатывается через SRSDateUtils для корректного Date-only формата
    */
   const handleAddShift = useCallback(async (date: Date, shiftData?: INewSRSShiftData): Promise<boolean> => {
-    console.log('[useSRSTabLogic] *** REAL ADD SHIFT OPERATION WITHOUT HOLIDAY FIELD CHECK ***');
+    console.log('[useSRSTabLogic] *** REAL ADD SHIFT OPERATION WITH DATE-ONLY FORMAT ***');
     console.log('[useSRSTabLogic] Date for new shift:', date.toLocaleDateString());
     console.log('[useSRSTabLogic] Holiday determination: From holidays list only, not from Holiday field');
+    console.log('[useSRSTabLogic] Date format: Date-only using SRSDateUtils');
     console.log('[useSRSTabLogic] Shift data:', shiftData);
     
     // Проверяем базовые требования
@@ -322,8 +327,8 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       return false;
     }
 
-    // Создаем ключ операции на основе даты
-    const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+    // Создаем ключ операции на основе даты (Date-only формат)
+    const dateKey = SRSDateUtils.formatDateForDisplay(date); // DD.MM.YYYY format
     
     // Проверяем, не выполняется ли уже операция добавления для этой даты
     if (addShiftOperations.get(dateKey)) {
@@ -335,17 +340,25 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       // Отмечаем начало операции добавления смены
       setAddShiftOperations(prev => new Map(prev.set(dateKey, true)));
       
-      console.log('[useSRSTabLogic] Starting REAL add shift operation using StaffRecordsService with NUMERIC TIME FIELDS...');
+      console.log('[useSRSTabLogic] Starting REAL add shift operation using StaffRecordsService with NUMERIC TIME FIELDS and DATE-ONLY format...');
       
       // Используем РЕАЛЬНЫЙ StaffRecordsService
       const staffRecordsService = StaffRecordsService.getInstance(context);
       
-      // *** ПОДГОТОВКА ДАННЫХ: Создаем объект для новой записи с ЧИСЛОВЫМИ ПОЛЯМИ ВРЕМЕНИ ***
-      console.log('[useSRSTabLogic] Preparing new SRS record data with NUMERIC TIME FIELDS...');
+      // *** ИСПРАВЛЕНО: Подготовка даты с использованием SRSDateUtils для Date-only формата ***
+      console.log('[useSRSTabLogic] Preparing new SRS record data with NUMERIC TIME FIELDS and DATE-ONLY format...');
       
-      // Подготавливаем дату
-      const newDate = new Date(date);
-      newDate.setHours(0, 0, 0, 0);
+      // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Используем SRSDateUtils для правильной обработки Date-only ***
+      const normalizedDate = SRSDateUtils.normalizeDateToLocalMidnight(date);
+      
+      console.log('[useSRSTabLogic] *** DATE-ONLY FORMAT PROCESSING ***:', {
+        originalDate: date.toISOString(),
+        originalLocal: date.toLocaleDateString(),
+        normalizedDate: normalizedDate.toISOString(),
+        normalizedLocal: normalizedDate.toLocaleDateString(),
+        dateFormatMethod: 'SRSDateUtils.normalizeDateToLocalMidnight',
+        sharePointFormat: SRSDateUtils.formatDateForSharePoint(normalizedDate)
+      });
 
       // *** КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Используем числовые поля времени по умолчанию 00:00-00:00 ***
       const defaultStartHours = 0;   // 00:00 по умолчанию
@@ -361,9 +374,9 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       // *** ИСПРАВЛЕНО: Holiday всегда 0 - не проверяем из shiftData ***
       const holidayFlag = 0; // Всегда 0, так как праздники определяются из holidays list
 
-      // *** СТРУКТУРА ДАННЫХ С ЧИСЛОВЫМИ ПОЛЯМИ ВРЕМЕНИ ***
+      // *** СТРУКТУРА ДАННЫХ С ЧИСЛОВЫМИ ПОЛЯМИ ВРЕМЕНИ И DATE-ONLY ФОРМАТОМ ***
       const createData: Partial<IStaffRecord> = {
-        Date: newDate,
+        Date: normalizedDate, // *** ИСПРАВЛЕНО: Используем нормализованную дату Date-only ***
         // *** НОВОЕ: Устанавливаем числовые поля времени (основные) ***
         ShiftDate1Hours: shiftData?.ShiftDate1Hours ?? defaultStartHours,    // Начало: 0 часов
         ShiftDate1Minutes: shiftData?.ShiftDate1Minutes ?? defaultStartMinutes, // Начало: 0 минут
@@ -376,7 +389,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
         Contract: contract,
         WeeklyTimeTableID: undefined, // В SRS нет selectedContractId
         TypeOfLeaveID: typeOfLeaveID,
-        Title: typeOfLeaveID ? `Leave on ${date.toLocaleDateString()}` : `SRS Shift on ${date.toLocaleDateString()}`,
+        Title: typeOfLeaveID ? `Leave on ${SRSDateUtils.formatDateForDisplay(normalizedDate)}` : `SRS Shift on ${SRSDateUtils.formatDateForDisplay(normalizedDate)}`,
         // *** ИСПРАВЛЕНО: Holiday всегда 0 ***
         Holiday: holidayFlag // Всегда 0, праздники определяются из holidays list
       };
@@ -385,7 +398,13 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       const currentUserID = currentUserId;
       const staffGroupID = managingGroupId;
 
-      console.log('[useSRSTabLogic] *** CREATING NEW SRS SHIFT WITH NUMERIC TIME FIELDS AND NO HOLIDAY CHECK ***');
+      console.log('[useSRSTabLogic] *** CREATING NEW SRS SHIFT WITH NUMERIC TIME FIELDS AND DATE-ONLY FORMAT ***');
+      console.log('[useSRSTabLogic] Date-only processing:', {
+        originalDate: date.toISOString(),
+        normalizedDate: normalizedDate.toISOString(),
+        sharePointFormat: SRSDateUtils.formatDateForSharePoint(normalizedDate),
+        displayFormat: SRSDateUtils.formatDateForDisplay(normalizedDate)
+      });
       console.log('[useSRSTabLogic] Numeric time fields:', {
         ShiftDate1Hours: createData.ShiftDate1Hours,
         ShiftDate1Minutes: createData.ShiftDate1Minutes,
@@ -406,9 +425,9 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
         holidayLogic: 'Holidays determined from holidays list, not from Holiday field'
       });
       
-      console.log('[useSRSTabLogic] Calling staffRecordsService.createStaffRecord() with NUMERIC TIME FIELDS and Holiday=0...');
+      console.log('[useSRSTabLogic] Calling staffRecordsService.createStaffRecord() with NUMERIC TIME FIELDS and DATE-ONLY format...');
       
-      // *** РЕАЛЬНЫЙ ВЫЗОВ: createStaffRecord с числовыми полями времени ***
+      // *** РЕАЛЬНЫЙ ВЫЗОВ: createStaffRecord с числовыми полями времени и Date-only форматом ***
       const newRecordId = await staffRecordsService.createStaffRecord(
         createData, 
         currentUserID, 
@@ -417,18 +436,19 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       );
       
       if (newRecordId && typeof newRecordId === 'string') {
-        console.log('[useSRSTabLogic] *** REAL ADD SHIFT WITHOUT HOLIDAY CHECK SUCCESSFUL ***');
+        console.log('[useSRSTabLogic] *** REAL ADD SHIFT WITH DATE-ONLY FORMAT SUCCESSFUL ***');
         console.log('[useSRSTabLogic] New SRS record created with ID:', newRecordId);
-        console.log('[useSRSTabLogic] Record contains numeric time fields and Holiday=0:', {
+        console.log('[useSRSTabLogic] Record contains numeric time fields and Date-only format:', {
           ShiftDate1Hours: createData.ShiftDate1Hours,
           ShiftDate1Minutes: createData.ShiftDate1Minutes,
           ShiftDate2Hours: createData.ShiftDate2Hours,
           ShiftDate2Minutes: createData.ShiftDate2Minutes,
-          Holiday: createData.Holiday + ' (holidays from list only)'
+          Holiday: createData.Holiday + ' (holidays from list only)',
+          dateFormat: 'Date-only using SRSDateUtils normalization'
         });
         
         // Автоматически обновляем данные, чтобы показать новую запись
-        console.log('[useSRSTabLogic] Auto-refreshing data to show new shift with numeric time fields...');
+        console.log('[useSRSTabLogic] Auto-refreshing data to show new shift with Date-only format...');
         setTimeout(() => {
           void refreshSRSData();
         }, 500);
@@ -440,7 +460,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       }
       
     } catch (error) {
-      console.error('[useSRSTabLogic] Error during REAL add shift operation with numeric time fields:', error);
+      console.error('[useSRSTabLogic] Error during REAL add shift operation with Date-only format:', error);
       
       // Показываем ошибку пользователю через состояние
       SRSTabStateHelpers.setErrorSRS(setState, 
@@ -590,13 +610,12 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       });
     }
   }, [context, refreshSRSData, restoreOperations, setState]);
-
   // ===============================================
-  // ОБРАБОТЧИКИ ИЗМЕНЕНИЯ ДАТ
+  // ОБРАБОТЧИКИ ИЗМЕНЕНИЯ ДАТ (уже используют SRSDateUtils корректно)
   // ===============================================
 
   const handleFromDateChange = useCallback((date: Date | undefined): void => {
-    console.log('[useSRSTabLogic] handleFromDateChange called with date:', date?.toISOString());
+    console.log('[useSRSTabLogic] handleFromDateChange called with Date-only format:', date?.toISOString());
     
     if (!date) {
       console.log('[useSRSTabLogic] No date provided to handleFromDateChange');
@@ -604,13 +623,20 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     }
 
     const normalizedFromDate = SRSDateUtils.calculateWeekRange(date).start;
-    console.log('[useSRSTabLogic] Normalized fromDate:', normalizedFromDate.toISOString());
+    console.log('[useSRSTabLogic] Normalized fromDate (Date-only):', {
+      original: date.toISOString(),
+      normalized: normalizedFromDate.toISOString(),
+      display: SRSDateUtils.formatDateForDisplay(normalizedFromDate)
+    });
 
     const shouldUpdateTo = SRSDateUtils.shouldUpdateToDate(normalizedFromDate, state.toDate);
     
     if (shouldUpdateTo) {
       const newToDate = SRSDateUtils.getWeekEndAfterDate(normalizedFromDate);
-      console.log('[useSRSTabLogic] Auto-updating toDate to:', newToDate.toISOString());
+      console.log('[useSRSTabLogic] Auto-updating toDate (Date-only):', {
+        newToDate: newToDate.toISOString(),
+        display: SRSDateUtils.formatDateForDisplay(newToDate)
+      });
       
       SRSTabStateHelpers.updateDates(setState, normalizedFromDate, newToDate);
     } else {
@@ -623,11 +649,11 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     setAddShiftOperations(new Map());
 
     // *** ИСПРАВЛЕНО: Праздники загрузятся автоматически через useEffect ***
-    console.log('[useSRSTabLogic] Date changed - holidays will reload automatically via useEffect');
+    console.log('[useSRSTabLogic] Date changed - holidays will reload automatically via useEffect (Date-only format)');
   }, [state.toDate, setState]);
 
   const handleToDateChange = useCallback((date: Date | undefined): void => {
-    console.log('[useSRSTabLogic] handleToDateChange called with date:', date?.toISOString());
+    console.log('[useSRSTabLogic] handleToDateChange called with Date-only format:', date?.toISOString());
     
     if (!date) {
       console.log('[useSRSTabLogic] No date provided to handleToDateChange');
@@ -635,10 +661,14 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     }
 
     const normalizedToDate = SRSDateUtils.calculateWeekRange(date).end;
-    console.log('[useSRSTabLogic] Normalized toDate:', normalizedToDate.toISOString());
+    console.log('[useSRSTabLogic] Normalized toDate (Date-only):', {
+      original: date.toISOString(),
+      normalized: normalizedToDate.toISOString(),
+      display: SRSDateUtils.formatDateForDisplay(normalizedToDate)
+    });
 
     if (normalizedToDate < state.fromDate) {
-      console.warn('[useSRSTabLogic] toDate cannot be before fromDate, adjusting fromDate');
+      console.warn('[useSRSTabLogic] toDate cannot be before fromDate, adjusting fromDate (Date-only)');
       
       const newFromDate = SRSDateUtils.calculateWeekRange(normalizedToDate).start;
       SRSTabStateHelpers.updateDates(setState, newFromDate, normalizedToDate);
@@ -651,7 +681,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     setAddShiftOperations(new Map());
 
     // *** ИСПРАВЛЕНО: Праздники загрузятся автоматически через useEffect ***
-    console.log('[useSRSTabLogic] Date changed - holidays will reload automatically via useEffect');
+    console.log('[useSRSTabLogic] Date changed - holidays will reload automatically via useEffect (Date-only format)');
   }, [state.fromDate, setState]);
 
   // ===============================================
@@ -659,10 +689,11 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   // ===============================================
 
   const handleToggleShowDeleted = useCallback((checked: boolean): void => {
-    console.log('[useSRSTabLogic] *** HANDLE TOGGLE SHOW DELETED (FIXED LOADING ORDER) ***');
+    console.log('[useSRSTabLogic] *** HANDLE TOGGLE SHOW DELETED (FIXED LOADING ORDER + DATE-ONLY) ***');
     console.log('[useSRSTabLogic] Previous showDeleted state:', state.showDeleted);
     console.log('[useSRSTabLogic] New showDeleted value:', checked);
     console.log('[useSRSTabLogic] Total Hours will be recalculated in SRSTable automatically');
+    console.log('[useSRSTabLogic] Date format: Date-only using SRSDateUtils');
     
     SRSTabStateHelpers.setShowDeleted(setState, checked);
     
@@ -670,8 +701,8 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     SRSTabStateHelpers.setHasUnsavedChanges(setState, false);
     
     // *** ИСПРАВЛЕНО: SRS данные перезагрузятся автоматически через useEffect ***
-    console.log('[useSRSTabLogic] showDeleted state updated, SRS data will be automatically reloaded via useSRSData effect');
-    console.log('[useSRSTabLogic] *** TOGGLE SHOW DELETED COMPLETE (FIXED LOADING ORDER) ***');
+    console.log('[useSRSTabLogic] showDeleted state updated, SRS data will be automatically reloaded via useSRSData effect (Date-only format)');
+    console.log('[useSRSTabLogic] *** TOGGLE SHOW DELETED COMPLETE (FIXED LOADING ORDER + DATE-ONLY) ***');
     
   }, [state.showDeleted, setState]);
 
@@ -684,11 +715,12 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
    * Total Hours теперь вычисляется в реальном времени в SRSTable
    */
   const handleItemChange = useCallback((item: ISRSRecord, field: string, value: string | boolean | { hours: string; minutes: string }): void => {
-    console.log('[useSRSTabLogic] *** SIMPLIFIED ITEM CHANGE (NO TOTAL HOURS RECALC) ***');
+    console.log('[useSRSTabLogic] *** SIMPLIFIED ITEM CHANGE (NO TOTAL HOURS RECALC + DATE-ONLY) ***');
     console.log('[useSRSTabLogic] Item ID:', item.id);
     console.log('[useSRSTabLogic] Field:', field);
     console.log('[useSRSTabLogic] Value:', value);
     console.log('[useSRSTabLogic] Total Hours will be recalculated in SRSTable automatically');
+    console.log('[useSRSTabLogic] Date format: Date-only (item date operations use SRSDateUtils)');
     
     // Сохраняем изменения в локальном состоянии для сохранения
     setModifiedRecords(prev => {
@@ -726,9 +758,10 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   }, [setState, modifiedRecords.size]);
 
   const handleTypeOfLeaveChange = useCallback((item: ISRSRecord, value: string): void => {
-    console.log('[useSRSTabLogic] *** HANDLE TYPE OF LEAVE CHANGE (SIMPLIFIED) ***');
+    console.log('[useSRSTabLogic] *** HANDLE TYPE OF LEAVE CHANGE (SIMPLIFIED + DATE-ONLY) ***');
     console.log('[useSRSTabLogic] Item ID:', item.id);
     console.log('[useSRSTabLogic] New type of leave:', value);
+    console.log('[useSRSTabLogic] Date format: Date-only (no date operations in this handler)');
     
     handleItemChange(item, 'typeOfLeave', value);
     
@@ -736,9 +769,10 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   }, [handleItemChange]);
 
   const handleLunchTimeChange = useCallback((item: ISRSRecord, value: string): void => {
-    console.log('[useSRSTabLogic] *** SIMPLIFIED LUNCH TIME CHANGE ***');
+    console.log('[useSRSTabLogic] *** SIMPLIFIED LUNCH TIME CHANGE (DATE-ONLY) ***');
     console.log('[useSRSTabLogic] handleLunchTimeChange:', { itemId: item.id, value });
     console.log('[useSRSTabLogic] Total Hours will be recalculated in SRSTable automatically');
+    console.log('[useSRSTabLogic] Date format: Date-only (no date operations in this handler)');
     
     // Сохраняем только изменение времени обеда в локальном состоянии
     setModifiedRecords(prev => {
@@ -757,7 +791,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   }, [setState]);
 
   const handleContractNumberChange = useCallback((item: ISRSRecord, value: string): void => {
-    console.log('[useSRSTabLogic] handleContractNumberChange:', { itemId: item.id, value });
+    console.log('[useSRSTabLogic] handleContractNumberChange (Date-only format):', { itemId: item.id, value });
     
     setModifiedRecords(prev => {
       const newModified = new Map(prev);
@@ -779,8 +813,8 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   // ===============================================
 
   const handleRefreshData = useCallback((): void => {
-    console.log('[useSRSTabLogic] *** MANUAL REFRESH REQUESTED (FIXED LOADING ORDER) ***');
-    console.log('[useSRSTabLogic] Will reload: 1) Holidays, 2) TypesOfLeave, 3) SRS Data');
+    console.log('[useSRSTabLogic] *** MANUAL REFRESH REQUESTED (FIXED LOADING ORDER + DATE-ONLY) ***');
+    console.log('[useSRSTabLogic] Will reload: 1) Holidays (Date-only), 2) TypesOfLeave, 3) SRS Data (Date-only)');
     
     setModifiedRecords(new Map());
     SRSTabStateHelpers.setHasUnsavedChanges(setState, false);
@@ -792,25 +826,26 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     // *** ИСПРАВЛЕНО: Сбрасываем отслеживание попыток загрузки для принудительной перезагрузки ***
     setLoadAttempts({ holidays: false, typesOfLeave: false });
     
-    console.log('[useSRSTabLogic] Load attempts reset - dependencies will be reloaded');
+    console.log('[useSRSTabLogic] Load attempts reset - dependencies will be reloaded with Date-only format');
     
   }, [setState]);
 
   const handleExportAll = useCallback((): void => {
-    console.log('[useSRSTabLogic] *** EXPORT ALL SRS DATA (FIXED LOADING ORDER) ***');
+    console.log('[useSRSTabLogic] *** EXPORT ALL SRS DATA (FIXED LOADING ORDER + DATE-ONLY) ***');
     console.log('[useSRSTabLogic] Current SRS records count:', state.srsRecords.length);
     console.log('[useSRSTabLogic] Types of leave available:', state.typesOfLeave.length);
-    console.log('[useSRSTabLogic] Holidays available:', state.holidays.length);
+    console.log('[useSRSTabLogic] Holidays available (Date-only):', state.holidays.length);
     console.log('[useSRSTabLogic] Show deleted enabled:', state.showDeleted);
     console.log('[useSRSTabLogic] Total Hours: Calculated in real-time by SRSTable');
     console.log('[useSRSTabLogic] Data loading order: Fixed dependencies ready logic');
+    console.log('[useSRSTabLogic] Date format: Date-only using SRSDateUtils');
     
     if (state.srsRecords.length === 0) {
       console.warn('[useSRSTabLogic] No SRS records to export');
       return;
     }
 
-    console.log('[useSRSTabLogic] Exporting SRS records (fixed loading order):', {
+    console.log('[useSRSTabLogic] Exporting SRS records (fixed loading order + Date-only):', {
       recordsCount: state.srsRecords.length,
       dateRange: `${SRSDateUtils.formatDateForDisplay(state.fromDate)} - ${SRSDateUtils.formatDateForDisplay(state.toDate)}`,
       typesOfLeaveCount: state.typesOfLeave.length,
@@ -820,18 +855,19 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       activeRecordsCount: state.srsRecords.filter(r => r.Deleted !== 1).length,
       numericTimeFieldsEnabled: true,
       fixedLoadingOrder: true,
-      totalHoursCalculation: 'Real-time in SRSTable'
+      totalHoursCalculation: 'Real-time in SRSTable',
+      dateFormat: 'Date-only with SRSDateUtils'
     });
 
-    alert(`Export functionality will be implemented. Records to export: ${state.srsRecords.length}, Types of leave: ${state.typesOfLeave.length}, Holidays: ${state.holidays.length}, Show deleted: ${state.showDeleted}, Total Hours: Calculated in real-time, Loading order: Fixed (Dependencies ready logic)`);
+    alert(`Export functionality will be implemented. Records to export: ${state.srsRecords.length}, Types of leave: ${state.typesOfLeave.length}, Holidays: ${state.holidays.length}, Show deleted: ${state.showDeleted}, Total Hours: Calculated in real-time, Loading order: Fixed (Dependencies ready logic), Date format: Date-only`);
   }, [state.srsRecords, state.fromDate, state.toDate, state.typesOfLeave, state.holidays, state.showDeleted]);
 
   /**
-   * *** УПРОЩЕН: Обработчик сохранения всех изменений ***
+   * *** УПРОЩЕН: Обработчик сохранения всех изменений (Date-only format) ***
    * Убраны пересчеты totalHours - Total Hours теперь в SRSTable
    */
   const handleSave = useCallback(async (): Promise<void> => {
-    console.log('[useSRSTabLogic] *** SIMPLIFIED SAVE ALL CHANGES (NO TOTAL HOURS RECALC) ***');
+    console.log('[useSRSTabLogic] *** SIMPLIFIED SAVE ALL CHANGES (NO TOTAL HOURS RECALC + DATE-ONLY) ***');
     
     if (!state.hasUnsavedChanges) {
       console.log('[useSRSTabLogic] No unsaved changes to save');
@@ -843,10 +879,11 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       return;
     }
 
-    console.log('[useSRSTabLogic] Saving changes for modified records (simplified architecture):', {
+    console.log('[useSRSTabLogic] Saving changes for modified records (simplified architecture + Date-only):', {
       modifiedRecordsCount: modifiedRecords.size,
       modifiedIds: Array.from(modifiedRecords.keys()),
-      totalHoursHandling: 'Calculated in real-time by SRSTable'
+      totalHoursHandling: 'Calculated in real-time by SRSTable',
+      dateFormat: 'Date-only format for any date fields'
     });
 
     try {
@@ -860,7 +897,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       for (let i = 0; i < modifiedEntries.length; i++) {
         const [itemId, modifications] = modifiedEntries[i];
         try {
-          console.log(`[useSRSTabLogic] *** SAVING RECORD ${itemId} WITH MODIFICATIONS ***:`, modifications);
+          console.log(`[useSRSTabLogic] *** SAVING RECORD ${itemId} WITH MODIFICATIONS (DATE-ONLY) ***:`, modifications);
 
           // Находим оригинальную запись
           const originalRecord = state.srsRecords.find(r => r.ID === itemId);
@@ -920,6 +957,12 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
             console.log(`[useSRSTabLogic] Relief field ignored (UI only): ${modifications.relief}`);
           }
 
+          // *** ПРИМЕЧАНИЕ: Поле Date не изменяется через UI в SRS Tab ***
+          // Если в будущем понадобится изменять даты, использовать:
+          // if ('date' in modifications) {
+          //   updateData.Date = SRSDateUtils.normalizeDateToLocalMidnight(modifications.date as Date);
+          // }
+
           // Проверяем, есть ли что сохранять
           if (Object.keys(updateData).length === 0) {
             console.log(`[useSRSTabLogic] No server fields to update for record ${itemId}`);
@@ -927,14 +970,14 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
             continue;
           }
 
-          console.log(`[useSRSTabLogic] *** CALLING REAL StaffRecordsService.updateStaffRecord ***`);
+          console.log(`[useSRSTabLogic] *** CALLING REAL StaffRecordsService.updateStaffRecord (DATE-ONLY) ***`);
           console.log(`[useSRSTabLogic] Update data for record ${itemId}:`, updateData);
 
-          // *** РЕАЛЬНЫЙ ВЫЗОВ: updateStaffRecord с числовыми полями времени ***
+          // *** РЕАЛЬНЫЙ ВЫЗОВ: updateStaffRecord с числовыми полями времени и Date-only ***
           const success = await staffRecordsService.updateStaffRecord(itemId, updateData);
 
           if (success) {
-            console.log(`[useSRSTabLogic] *** REAL SAVE SUCCESSFUL *** for record ${itemId}`);
+            console.log(`[useSRSTabLogic] *** REAL SAVE SUCCESSFUL (DATE-ONLY) *** for record ${itemId}`);
             successCount++;
           } else {
             console.error(`[useSRSTabLogic] *** REAL SAVE FAILED *** for record ${itemId}`);
@@ -950,12 +993,13 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
         }
       }
 
-      console.log(`[useSRSTabLogic] *** SIMPLIFIED SAVE OPERATION COMPLETE ***:`, {
+      console.log(`[useSRSTabLogic] *** SIMPLIFIED SAVE OPERATION COMPLETE (DATE-ONLY) ***:`, {
         totalRecords: modifiedRecords.size,
         successCount,
         errorCount,
         errors: errors.length > 0 ? errors : 'None',
-        totalHoursHandling: 'Will be recalculated automatically in SRSTable'
+        totalHoursHandling: 'Will be recalculated automatically in SRSTable',
+        dateFormat: 'Date-only format maintained'
       });
 
       if (successCount > 0) {
@@ -973,7 +1017,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
         SRSTabStateHelpers.setHasUnsavedChanges(setState, errorCount > 0);
 
         // Обновляем данные с сервера
-        console.log('[useSRSTabLogic] Auto-refreshing data after save (Total Hours will recalculate in SRSTable)...');
+        console.log('[useSRSTabLogic] Auto-refreshing data after save (Total Hours will recalculate in SRSTable, Date-only format preserved)...');
         setTimeout(() => {
           void refreshSRSData();
         }, 500);
@@ -985,18 +1029,18 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
         SRSTabStateHelpers.setErrorSRS(setState, errorMessage);
       }
 
-      console.log('[useSRSTabLogic] *** SIMPLIFIED SAVE OPERATION COMPLETE ***');
+      console.log('[useSRSTabLogic] *** SIMPLIFIED SAVE OPERATION COMPLETE (DATE-ONLY) ***');
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('[useSRSTabLogic] Critical error during simplified save operation:', error);
+      console.error('[useSRSTabLogic] Critical error during simplified save operation (Date-only):', error);
       
       SRSTabStateHelpers.setErrorSRS(setState, `Save operation failed: ${errorMessage}`);
     }
   }, [state.hasUnsavedChanges, modifiedRecords, setState, context, state.srsRecords, refreshSRSData]);
 
   const handleSaveChecked = useCallback((): void => {
-    console.log('[useSRSTabLogic] Save checked items requested (simplified architecture)');
+    console.log('[useSRSTabLogic] Save checked items requested (simplified architecture + Date-only)');
     
     if (state.selectedItems.size === 0) {
       console.log('[useSRSTabLogic] No items selected for saving');
@@ -1004,7 +1048,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     }
 
     const selectedIds = Array.from(state.selectedItems);
-    console.log('[useSRSTabLogic] Saving changes for selected records:', selectedIds);
+    console.log('[useSRSTabLogic] Saving changes for selected records (Date-only format):', selectedIds);
     
     const selectedModifications = new Map();
     selectedIds.forEach(id => {
@@ -1013,10 +1057,11 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       }
     });
     
-    console.log('[useSRSTabLogic] Selected modifications to save:', {
+    console.log('[useSRSTabLogic] Selected modifications to save (Date-only):', {
       selectedCount: selectedIds.length,
       modifiedSelectedCount: selectedModifications.size,
-      totalHoursHandling: 'Will be recalculated automatically in SRSTable'
+      totalHoursHandling: 'Will be recalculated automatically in SRSTable',
+      dateFormat: 'Date-only format maintained'
     });
     
     // TODO: Реализовать сохранение выбранных записей
@@ -1029,11 +1074,11 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       return newModified;
     });
     
-    console.log('[useSRSTabLogic] Selected records saved successfully (mock) - Total Hours will update in SRSTable');
+    console.log('[useSRSTabLogic] Selected records saved successfully (mock, Date-only) - Total Hours will update in SRSTable');
   }, [state.selectedItems, setState, modifiedRecords]);
 
   const handleErrorDismiss = useCallback((): void => {
-    console.log('[useSRSTabLogic] Error dismiss requested');
+    console.log('[useSRSTabLogic] Error dismiss requested (Date-only format)');
     
     setState(prevState => ({
       ...prevState,
@@ -1043,7 +1088,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   }, [setState]);
 
   const handleItemCheck = useCallback((itemId: string, checked: boolean): void => {
-    console.log('[useSRSTabLogic] Item check changed:', { itemId, checked });
+    console.log('[useSRSTabLogic] Item check changed (Date-only format):', { itemId, checked });
     
     SRSTabStateHelpers.toggleItemSelection(setState, itemId);
     
@@ -1053,7 +1098,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   }, [setState, state.hasUnsavedChanges]);
 
   const handleSelectAll = useCallback((checked: boolean): void => {
-    console.log('[useSRSTabLogic] Select all changed:', checked);
+    console.log('[useSRSTabLogic] Select all changed (Date-only format):', checked);
     
     if (checked) {
       SRSTabStateHelpers.selectAll(setState);
@@ -1115,7 +1160,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     onDeleteRecord: handleDeleteRecord,
     onRestoreRecord: handleRestoreRecord,
     
-    // *** ОБНОВЛЕНО: Обработчик добавления смены с числовыми полями времени ***
+    // *** ОБНОВЛЕНО: Обработчик добавления смены с числовыми полями времени и Date-only ***
     onAddShift: handleAddShift,
     
     // Обработчик переключения отображения удаленных записей
@@ -1157,7 +1202,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     loadHolidaysWithTracking
   ]);
 
-  console.log('[useSRSTabLogic] *** FIXED DEPENDENCIES READY LOGIC HOOK RETURN OBJECT PREPARED ***:', {
+  console.log('[useSRSTabLogic] *** FIXED DEPENDENCIES READY LOGIC HOOK RETURN OBJECT PREPARED (DATE-ONLY) ***:', {
     recordsCount: state.srsRecords.length,
     hasCheckedItems,
     selectedItemsCount,
@@ -1190,16 +1235,20 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     hasAddShiftHandler: !!handleAddShift,
     numericTimeFieldsSupport: true,
     
-    // *** ИСПРАВЛЕНО: Architecture ***
+    // *** ИСПРАВЛЕНО: Architecture with Date-only format ***
     fixedDependenciesReadyLogic: 'Load attempts tracking + data presence check',
     dependenciesReadyFix: 'areDependenciesReady now waits for actual load attempts + completion',
     holidaysLoadingIssue: 'FIXED - no longer loads SRS before holidays are ready',
     realDeleteRestoreIntegration: 'StaffRecordsService.markRecordAsDeleted & restoreDeletedRecord',
-    realAddShiftIntegration: 'StaffRecordsService.createStaffRecord WITH NUMERIC TIME FIELDS AND NO HOLIDAY CHECK',
+    realAddShiftIntegration: 'StaffRecordsService.createStaffRecord WITH NUMERIC TIME FIELDS AND DATE-ONLY FORMAT',
     simplifiedArchitecture: true,
     totalHoursCalculation: 'Real-time in SRSTable',
     noProblematicUseEffects: true,
-    holidayFieldHandling: 'Always 0 - holidays from list only'
+    holidayFieldHandling: 'Always 0 - holidays from list only',
+    dateFormat: 'Date-only using SRSDateUtils for all date operations',
+    dateFieldType: 'SharePoint Date-only field (no time component)',
+    srsDateUtilsIntegration: 'All date operations use SRSDateUtils methods',
+    sharePointDateFormat: 'UTC midnight format to prevent timezone shifts'
   });
 
   return hookReturn;
