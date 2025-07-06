@@ -2,33 +2,33 @@
 import { IStaffRecord } from "../../../../services/StaffRecordsService";
 import { IScheduleItem } from "../components/ScheduleTable";
 import { IContract } from "../../../../models/IContract";
-import { DateUtils } from '../../../CustomDatePicker/CustomDatePicker';
 
 /**
- * *** ОБНОВЛЕННАЯ ФУНКЦИЯ: Date-only форматирование для совместимости с HolidaysService и DaysOfLeavesService ***
+ * *** ИСПРАВЛЕННАЯ ФУНКЦИЯ: UTC Date-only форматирование ***
  * Создает строку даты в формате YYYY-MM-DD для консистентного сравнения
- * Совместимо с Date-only форматом из SharePoint Holidays и DaysOfLeaves списков
+ * Совместимо с UTC Date-only форматом из SharePoint
  */
 export const formatDateForComparison = (date: Date): string => {
-  const year = date.getFullYear();
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  const day = date.getDate().toString().padStart(2, '0');
+  // *** ИСПОЛЬЗУЕМ UTC КОМПОНЕНТЫ ДЛЯ DATE-ONLY ПОЛЕЙ ***
+  const year = date.getUTCFullYear();
+  const month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
+  const day = date.getUTCDate().toString().padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
 
 /**
- * *** ОБНОВЛЕННАЯ ФУНКЦИЯ: Date-only совместимое сравнение дат ***
- * Сравнивает две даты только по компонентам года, месяца и дня
- * Игнорирует время и часовые пояса для совместимости с Date-only полями SharePoint
+ * *** ИСПРАВЛЕННАЯ ФУНКЦИЯ: UTC Date-only совместимое сравнение дат ***
+ * Сравнивает две даты только по UTC компонентам года, месяца и дня
+ * Игнорирует время и локальные часовые пояса для совместимости с SharePoint Date-only полями
  */
 export const isDateEqual = (date1: Date, date2: Date): boolean => {
-  return date1.getFullYear() === date2.getFullYear() &&
-         date1.getMonth() === date2.getMonth() &&
-         date1.getDate() === date2.getDate();
+  return date1.getUTCFullYear() === date2.getUTCFullYear() &&
+         date1.getUTCMonth() === date2.getUTCMonth() &&
+         date1.getUTCDate() === date2.getUTCDate();
 };
 
 /**
- * *** НОВАЯ ФУНКЦИЯ: Создание Date-only строки ***
+ * *** АЛЬТЕРНАТИВНОЕ НАЗВАНИЕ: Создание UTC Date-only строки ***
  * Альтернативное название для formatDateForComparison для ясности
  */
 export const formatDateOnly = (date: Date): string => {
@@ -36,8 +36,50 @@ export const formatDateOnly = (date: Date): string => {
 };
 
 /**
- * *** ОБНОВЛЕННАЯ ФУНКЦИЯ: Проверка является ли дата праздником (Date-only совместимо) ***
- * Использует Date-only сравнение для совместимости с новым форматом Holidays list
+ * *** ИСПРАВЛЕННАЯ ФУНКЦИЯ: UTC Date-only форматирование для SharePoint ***
+ * Создает UTC полночь для отправки в SharePoint Date-only поля
+ * Предотвращает проблемы с timezone и DST
+ */
+export const formatDateForSharePoint = (date: Date): Date => {
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const day = date.getDate();
+  
+  console.log(`[ScheduleTabDataUtils] *** FORMATTING DATE FOR SHAREPOINT (UTC) ***`);
+  console.log(`[ScheduleTabDataUtils] Input date: ${date.toISOString()}`);
+  console.log(`[ScheduleTabDataUtils] Extracted local components: ${year}-${month + 1}-${day}`);
+  
+  // Создаем UTC полночь чтобы предотвратить timezone конверсию SharePoint
+  const utcDate = new Date(`${year}-${(month + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}T00:00:00.000Z`);
+  
+  console.log(`[ScheduleTabDataUtils] Created UTC date: ${utcDate.toISOString()}`);
+  console.log(`[ScheduleTabDataUtils] UTC components: ${utcDate.getUTCFullYear()}-${utcDate.getUTCMonth() + 1}-${utcDate.getUTCDate()}`);
+  
+  return utcDate;
+};
+
+/**
+ * *** ИСПРАВЛЕННАЯ ФУНКЦИЯ: Парсинг UTC Date-only поля из SharePoint ***
+ * Интерпретирует дату из SharePoint как UTC Date-only
+ * Предотвращает проблемы с timezone при чтении
+ */
+export const parseDateFromSharePoint = (serverDate: Date): Date => {
+  console.log(`[ScheduleTabDataUtils] *** PARSING DATE FROM SHAREPOINT (UTC) ***`);
+  console.log(`[ScheduleTabDataUtils] Server date: ${serverDate.toISOString()}`);
+  
+  // SharePoint возвращает UTC полночь для Date-only полей
+  // Интерпретируем как UTC Date-only без timezone конверсий
+  const utcDate = new Date(`${serverDate.getUTCFullYear()}-${(serverDate.getUTCMonth() + 1).toString().padStart(2, '0')}-${serverDate.getUTCDate().toString().padStart(2, '0')}T00:00:00.000Z`);
+  
+  console.log(`[ScheduleTabDataUtils] Parsed UTC date: ${utcDate.toISOString()}`);
+  console.log(`[ScheduleTabDataUtils] UTC components: ${utcDate.getUTCFullYear()}-${utcDate.getUTCMonth() + 1}-${utcDate.getUTCDate()}`);
+  
+  return utcDate;
+};
+
+/**
+ * *** ИСПРАВЛЕННАЯ ФУНКЦИЯ: Проверка является ли дата праздником (UTC совместимо) ***
+ * Использует UTC Date-only сравнение для совместимости с новым форматом Holidays list
  */
 export const isHolidayDate = (date: Date, holidays: Array<{ date: Date; title: string }>): boolean => {
   if (!holidays || holidays.length === 0) {
@@ -51,7 +93,7 @@ export const isHolidayDate = (date: Date, holidays: Array<{ date: Date; title: s
     const isMatch = holidayDateString === targetDateString;
     
     if (isMatch) {
-      console.log(`[ScheduleTabDataUtils] Holiday match found via Date-only comparison: ${holiday.title} for ${targetDateString}`);
+      console.log(`[ScheduleTabDataUtils] Holiday match found via UTC Date-only comparison: ${holiday.title} for ${targetDateString}`);
     }
     
     return isMatch;
@@ -59,25 +101,33 @@ export const isHolidayDate = (date: Date, holidays: Array<{ date: Date; title: s
 };
 
 /**
- * *** ОБНОВЛЕННАЯ ФУНКЦИЯ: Проверка является ли дата днем отпуска (Date-only совместимо) ***
- * Использует Date-only сравнение и правильную логику для проверки периодов отпусков
+ * *** ИСПРАВЛЕННАЯ ФУНКЦИЯ: Проверка является ли дата днем отпуска (UTC совместимо) ***
+ * Использует UTC Date-only сравнение и правильную логику для проверки периодов отпусков
  */
 export const isLeaveDateInPeriod = (date: Date, leaves: Array<{ startDate: Date; endDate?: Date; title: string }>): boolean => {
   if (!leaves || leaves.length === 0) {
     return false;
   }
   
-  console.log(`[ScheduleTabDataUtils] *** CHECKING LEAVE DATE WITH DATE-ONLY COMPATIBILITY ***`);
+  console.log(`[ScheduleTabDataUtils] *** CHECKING LEAVE DATE WITH UTC DATE-ONLY COMPATIBILITY ***`);
   console.log(`[ScheduleTabDataUtils] Target date: ${formatDateForComparison(date)}`);
   
-  // Нормализуем проверяемую дату к полуночи
-  const checkDate = new Date(date);
-  checkDate.setHours(0, 0, 0, 0);
+  // *** ИСПОЛЬЗУЕМ UTC КОМПОНЕНТЫ ДЛЯ НОРМАЛИЗАЦИИ ***
+  const checkDate = new Date(Date.UTC(
+    date.getUTCFullYear(),
+    date.getUTCMonth(),
+    date.getUTCDate(),
+    12, 0, 0, 0 // UTC полдень для безопасного сравнения
+  ));
   
   return leaves.some(leave => {
-    // Нормализуем даты отпуска
-    const leaveStart = new Date(leave.startDate);
-    leaveStart.setHours(0, 0, 0, 0);
+    // *** НОРМАЛИЗУЕМ ДАТЫ ОТПУСКА К UTC ***
+    const leaveStart = new Date(Date.UTC(
+      leave.startDate.getUTCFullYear(),
+      leave.startDate.getUTCMonth(),
+      leave.startDate.getUTCDate(),
+      0, 0, 0, 0 // UTC полночь для начала
+    ));
     
     // Для открытых отпусков (без даты окончания)
     if (!leave.endDate) {
@@ -89,8 +139,12 @@ export const isLeaveDateInPeriod = (date: Date, leaves: Array<{ startDate: Date;
     }
     
     // Для закрытых отпусков с определенной датой окончания
-    const leaveEnd = new Date(leave.endDate);
-    leaveEnd.setHours(23, 59, 59, 999);
+    const leaveEnd = new Date(Date.UTC(
+      leave.endDate.getUTCFullYear(),
+      leave.endDate.getUTCMonth(),
+      leave.endDate.getUTCDate(),
+      23, 59, 59, 999 // UTC конец дня
+    ));
     
     const isInClosedLeave = checkDate >= leaveStart && checkDate <= leaveEnd;
     if (isInClosedLeave) {
@@ -102,9 +156,8 @@ export const isLeaveDateInPeriod = (date: Date, leaves: Array<{ startDate: Date;
 };
 
 /**
- * Вспомогательная функция для создания Date из часов и минут
- * ИСПРАВЛЕНО: Использует прямое создание времени БЕЗ DateUtils.createShiftDateTime
- * для избежания любой потенциальной корректировки часового пояса
+ * *** ИСПРАВЛЕННАЯ ФУНКЦИЯ: Создание времени без DateUtils ***
+ * Создает время напрямую в UTC для избежания timezone корректировок
  */
 export const createTimeFromScheduleItem = (baseDate: Date, hourStr: string, minuteStr: string): Date => {
   const hour = parseInt(hourStr, 10) || 0;
@@ -112,36 +165,47 @@ export const createTimeFromScheduleItem = (baseDate: Date, hourStr: string, minu
   
   console.log(`[ScheduleTabDataUtils] createTimeFromScheduleItem: base=${baseDate.toISOString()}, time=${hour}:${minute}`);
   
-  // *** ИСПРАВЛЕНО: Создаем время напрямую БЕЗ корректировки часового пояса ***
-  const result = new Date(baseDate);
+  // *** ИСПРАВЛЕНО: Создаем время в UTC БЕЗ timezone корректировки ***
+  const result = new Date(Date.UTC(
+    baseDate.getUTCFullYear(),
+    baseDate.getUTCMonth(),
+    baseDate.getUTCDate(),
+    hour,
+    minute,
+    0,
+    0
+  ));
   
   // Валидация диапазонов
   if (hour < 0 || hour > 23) {
-    console.warn(`[ScheduleTabDataUtils] Hours out of range: ${hour} (should be 0-23), setting to 0`);
-    result.setUTCHours(0, 0, 0, 0);
-    console.log(`[ScheduleTabDataUtils] createTimeFromScheduleItem result (invalid hours): ${result.toISOString()}`);
-    return result;
+    console.warn(`[ScheduleTabDataUtils] Hours out of range: ${hour} (should be 0-23), setting to UTC midnight`);
+    return new Date(Date.UTC(
+      baseDate.getUTCFullYear(),
+      baseDate.getUTCMonth(), 
+      baseDate.getUTCDate(),
+      0, 0, 0, 0
+    ));
   }
 
   if (minute < 0 || minute > 59) {
-    console.warn(`[ScheduleTabDataUtils] Minutes out of range: ${minute} (should be 0-59), setting to 0`);
-    result.setUTCHours(hour, 0, 0, 0);
-    console.log(`[ScheduleTabDataUtils] createTimeFromScheduleItem result (invalid minutes): ${result.toISOString()}`);
-    return result;
+    console.warn(`[ScheduleTabDataUtils] Minutes out of range: ${minute} (should be 0-59), setting minutes to 0`);
+    return new Date(Date.UTC(
+      baseDate.getUTCFullYear(),
+      baseDate.getUTCMonth(),
+      baseDate.getUTCDate(),
+      hour, 0, 0, 0
+    ));
   }
   
-  // *** УБИРАЕМ КОРРЕКТИРОВКУ ЧАСОВОГО ПОЯСА - устанавливаем время напрямую в UTC ***
-  result.setUTCHours(hour, minute, 0, 0);
-  
-  console.log(`[ScheduleTabDataUtils] *** DIRECT TIME SETTING WITHOUT TIMEZONE ADJUSTMENT ***`);
-  console.log(`[ScheduleTabDataUtils] Input: ${hour}:${minute} → Output UTC: ${hour}:${minute} (no adjustment)`);
+  console.log(`[ScheduleTabDataUtils] *** UTC TIME CREATED WITHOUT TIMEZONE ADJUSTMENT ***`);
+  console.log(`[ScheduleTabDataUtils] Input: ${hour}:${minute} → Output UTC: ${result.getUTCHours()}:${result.getUTCMinutes()}`);
   console.log(`[ScheduleTabDataUtils] createTimeFromScheduleItem result: ${result.toISOString()}`);
   return result;
 };
 
 /**
- * Преобразует данные записей расписания в формат для отображения в таблице
- * ОБНОВЛЕНО: Приоритет отдается числовым полям времени, fallback на ShiftDate1/ShiftDate2
+ * *** ИСПРАВЛЕННАЯ ФУНКЦИЯ: Преобразует данные записей расписания в формат для отображения ***
+ * ОБНОВЛЕНО: Использует UTC парсинг для Date-only полей из SharePoint
  * ИСПРАВЛЕНО: Больше НЕ копирует поле Holiday из StaffRecords
  */
 export const convertStaffRecordsToScheduleItems = (
@@ -152,29 +216,28 @@ export const convertStaffRecordsToScheduleItems = (
     return [];
   }
 
-  console.log(`[ScheduleTabDataUtils] Converting ${records.length} staff records to schedule items`);
-  console.log(`[ScheduleTabDataUtils] *** IMPORTANT: Holiday field is NO LONGER copied from StaffRecords ***`);
-  console.log(`[ScheduleTabDataUtils] *** Date-only compatibility: ENABLED for holiday detection ***`);
+  console.log(`[ScheduleTabDataUtils] *** CONVERTING ${records.length} STAFF RECORDS WITH UTC DATE-ONLY ***`);
+  console.log(`[ScheduleTabDataUtils] *** IMPORTANT: Using UTC parsing for Date-only fields from SharePoint ***`);
 
   return records.map((record, index) => {
-    // ИСПРАВЛЕНО: Нормализуем основную дату записи к UTC полуночи для консистентности
-    const normalizedDate = DateUtils.normalizeStaffRecordDate(record.Date);
+    // *** ИСПРАВЛЕНО: Используем UTC парсинг для Date-only поля из SharePoint ***
+    const normalizedDate = parseDateFromSharePoint(record.Date);
     
-    console.log(`[ScheduleTabDataUtils] Record ${index}: Original date=${record.Date.toISOString()}, Normalized date=${normalizedDate.toISOString()}`);
+    console.log(`[ScheduleTabDataUtils] Record ${index}: Original date=${record.Date.toISOString()}, UTC parsed date=${normalizedDate.toISOString()}`);
     
     // Специальная отладка для октября 2024
     if (record.Date.getUTCMonth() === 9 && record.Date.getUTCFullYear() === 2024 && record.Date.getUTCDate() === 1) {
-      console.log(`[ScheduleTabDataUtils] *** PROCESSING OCTOBER 1st RECORD ***`);
+      console.log(`[ScheduleTabDataUtils] *** PROCESSING OCTOBER 1st RECORD WITH UTC PARSING ***`);
       console.log(`[ScheduleTabDataUtils] Record ID: ${record.ID}`);
       console.log(`[ScheduleTabDataUtils] Original Date: ${record.Date.toISOString()}`);
-      console.log(`[ScheduleTabDataUtils] Normalized Date: ${normalizedDate.toISOString()}`);
-      console.log(`[ScheduleTabDataUtils] Date-only format: ${formatDateForComparison(normalizedDate)}`);
+      console.log(`[ScheduleTabDataUtils] UTC Parsed Date: ${normalizedDate.toISOString()}`);
+      console.log(`[ScheduleTabDataUtils] UTC Date-only format: ${formatDateForComparison(normalizedDate)}`);
     }
     
-    // Форматирование дня недели
-    const dayOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][normalizedDate.getDay()];
+    // *** ФОРМАТИРОВАНИЕ ДНЯ НЕДЕЛИ ЧЕРЕЗ UTC КОМПОНЕНТЫ ***
+    const dayOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][normalizedDate.getUTCDay()];
     
-    // *** НОВАЯ ЛОГИКА: Приоритет числовым полям времени ***
+    // *** ПРИОРИТЕТ ЧИСЛОВЫМ ПОЛЯМ ВРЕМЕНИ ***
     let startHour = '00';
     let startMinute = '00';
     let finishHour = '00';
@@ -211,10 +274,10 @@ export const convertStaffRecordsToScheduleItems = (
       typeOfLeaveValue = String(record.TypeOfLeaveID);
     }
     
-    // *** ИСПРАВЛЕНО: Формирование объекта IScheduleItem БЕЗ поля Holiday ***
+    // *** ИСПРАВЛЕНО: Формирование объекта IScheduleItem с UTC Date-only ***
     const scheduleItem: IScheduleItem = {
       id: record.ID,
-      date: normalizedDate, // ИСПРАВЛЕНО: используем нормализованную дату
+      date: normalizedDate, // *** ИСПРАВЛЕНО: используем UTC парсинг ***
       dayOfWeek,
       workingHours: record.WorkTime || '0.00',
       startHour,
@@ -222,7 +285,7 @@ export const convertStaffRecordsToScheduleItems = (
       finishHour,
       finishMinute,
       
-      // *** НОВОЕ: Добавляем числовые поля времени если они есть ***
+      // *** ДОБАВЛЯЕМ ЧИСЛОВЫЕ ПОЛЯ ВРЕМЕНИ ЕСЛИ ОНИ ЕСТЬ ***
       startHours: record.ShiftDate1Hours,
       startMinutes: record.ShiftDate1Minutes,
       finishHours: record.ShiftDate2Hours,
@@ -240,11 +303,11 @@ export const convertStaffRecordsToScheduleItems = (
     
     // Дополнительное логирование для октября 2024
     if (normalizedDate.getUTCMonth() === 9 && normalizedDate.getUTCFullYear() === 2024 && normalizedDate.getUTCDate() === 1) {
-      console.log(`[ScheduleTabDataUtils] *** CREATED OCTOBER 1st SCHEDULE ITEM ***`);
+      console.log(`[ScheduleTabDataUtils] *** CREATED OCTOBER 1st SCHEDULE ITEM WITH UTC PARSING ***`);
       console.log(`[ScheduleTabDataUtils] Schedule Item:`, {
         id: scheduleItem.id,
         date: scheduleItem.date.toISOString(),
-        dateOnly: formatDateForComparison(scheduleItem.date),
+        utcDateOnly: formatDateForComparison(scheduleItem.date),
         dayOfWeek: scheduleItem.dayOfWeek,
         startTime: `${scheduleItem.startHour}:${scheduleItem.startMinute}`,
         finishTime: `${scheduleItem.finishHour}:${scheduleItem.finishMinute}`,
@@ -259,33 +322,29 @@ export const convertStaffRecordsToScheduleItems = (
 };
 
 /**
- * Форматирует объект IStaffRecord для обновления из IScheduleItem
- * ОБНОВЛЕНО: Заполняет как числовые поля времени, так и ShiftDate1/ShiftDate2 для совместимости
+ * *** ИСПРАВЛЕННАЯ ФУНКЦИЯ: Форматирует объект IStaffRecord для обновления ***
+ * ОБНОВЛЕНО: Использует UTC Date-only для SharePoint совместимости
  * ИСПРАВЛЕНО: Больше НЕ включает поле Holiday в данные для обновления
  */
 export const formatItemForUpdate = (recordId: string, scheduleItem: IScheduleItem): Partial<IStaffRecord> => {
+  console.log(`[ScheduleTabDataUtils] *** FORMAT ITEM FOR UPDATE WITH UTC DATE-ONLY ***`);
   console.log(`[ScheduleTabDataUtils] formatItemForUpdate for record ID: ${recordId}`);
   console.log(`[ScheduleTabDataUtils] Input schedule item date: ${scheduleItem.date.toISOString()}`);
-  console.log(`[ScheduleTabDataUtils] Input schedule item date-only: ${formatDateForComparison(scheduleItem.date)}`);
-  console.log(`[ScheduleTabDataUtils] *** IMPORTANT: Holiday field is NO LONGER included in update data ***`);
+  console.log(`[ScheduleTabDataUtils] Input schedule item UTC date-only: ${formatDateForComparison(scheduleItem.date)}`);
+  console.log(`[ScheduleTabDataUtils] *** IMPORTANT: Using UTC Date-only field for SharePoint ***`);
   
-  // *** ИСПРАВЛЕНИЕ: Создаем дату с местной полуночью для поля Date ***
-  const localMidnightDate = new Date(
-    scheduleItem.date.getFullYear(),
-    scheduleItem.date.getMonth(),
-    scheduleItem.date.getDate(),
-    0, 0, 0, 0 // Местная полночь
-  );
+  // *** ИСПРАВЛЕНИЕ: Создаем UTC полночь для поля Date ***
+  const utcMidnightDate = formatDateForSharePoint(scheduleItem.date);
   
-  console.log(`[ScheduleTabDataUtils] Created local midnight date for Date field: ${localMidnightDate.toISOString()}`);
+  console.log(`[ScheduleTabDataUtils] Created UTC midnight date for Date field: ${utcMidnightDate.toISOString()}`);
   
   // Специальная отладка для октября 2024
   if (scheduleItem.date.getUTCMonth() === 9 && scheduleItem.date.getUTCFullYear() === 2024 && scheduleItem.date.getUTCDate() === 1) {
-    console.log(`[ScheduleTabDataUtils] *** FORMATTING OCTOBER 1st ITEM FOR UPDATE ***`);
+    console.log(`[ScheduleTabDataUtils] *** FORMATTING OCTOBER 1st ITEM FOR UPDATE WITH UTC ***`);
     console.log(`[ScheduleTabDataUtils] Record ID: ${recordId}`);
     console.log(`[ScheduleTabDataUtils] Original item date: ${scheduleItem.date.toISOString()}`);
-    console.log(`[ScheduleTabDataUtils] Original item date-only: ${formatDateForComparison(scheduleItem.date)}`);
-    console.log(`[ScheduleTabDataUtils] Local midnight date: ${localMidnightDate.toISOString()}`);
+    console.log(`[ScheduleTabDataUtils] Original item UTC date-only: ${formatDateForComparison(scheduleItem.date)}`);
+    console.log(`[ScheduleTabDataUtils] UTC midnight date: ${utcMidnightDate.toISOString()}`);
   }
   
   // *** ПРИОРИТЕТ ЧИСЛОВЫХ ПОЛЕЙ ДЛЯ ВРЕМЕНИ ***
@@ -313,24 +372,23 @@ export const formatItemForUpdate = (recordId: string, scheduleItem: IScheduleIte
     console.log(`[ScheduleTabDataUtils] Parsed string time values: ${startHour}:${startMinute} - ${finishHour}:${finishMinute}`);
   }
   
-  // *** ИСПРАВЛЕНО: Используем createTimeFromScheduleItem с прямым созданием времени ***
-  const shiftDate1 = createTimeFromScheduleItem(scheduleItem.date, startHour.toString().padStart(2, '0'), startMinute.toString().padStart(2, '0'));
-  const shiftDate2 = createTimeFromScheduleItem(scheduleItem.date, finishHour.toString().padStart(2, '0'), finishMinute.toString().padStart(2, '0'));
-
-  // *** ИСПРАВЛЕНО: updateData БЕЗ поля Holiday ***
+  // *** ИСПРАВЛЕНО: НЕ создаем ShiftDate1/ShiftDate2 поля времени ***
+  // Только числовые поля + UTC Date-only
+  
+  // *** ИСПРАВЛЕНО: updateData БЕЗ полей времени и Holiday ***
   const updateData: Partial<IStaffRecord> = {
-    // *** ИСПРАВЛЕНИЕ: Используем местную полночь для поля Date ***
-    Date: localMidnightDate,
+    // *** ИСПРАВЛЕНИЕ: Используем UTC полночь для поля Date ***
+    Date: utcMidnightDate,
     
-    // *** ОБНОВЛЕНО: Заполняем числовые поля времени (ПРИОРИТЕТ для ScheduleTab) ***
+    // *** ТОЛЬКО ЧИСЛОВЫЕ ПОЛЯ ВРЕМЕНИ (ПРИОРИТЕТ для ScheduleTab) ***
     ShiftDate1Hours: startHour,
     ShiftDate1Minutes: startMinute,
     ShiftDate2Hours: finishHour,
     ShiftDate2Minutes: finishMinute,
     
-    // *** ИСПРАВЛЕНО: Времена смен БЕЗ корректировки часового пояса (для обратной совместимости) ***
-    ShiftDate1: shiftDate1,
-    ShiftDate2: shiftDate2,
+    // *** НЕ СОЗДАЕМ ShiftDate1/ShiftDate2 ПОЛЯ ВРЕМЕНИ ***
+    // ShiftDate1: НЕ используется
+    // ShiftDate2: НЕ используется
     
     // Numeric values
     TimeForLunch: parseInt(scheduleItem.lunchTime, 10) || 0,
@@ -345,19 +403,18 @@ export const formatItemForUpdate = (recordId: string, scheduleItem: IScheduleIte
     // *** УДАЛЕНО: Holiday: scheduleItem.Holiday - больше НЕ включаем поле Holiday ***
   };
   
-  console.log(`[ScheduleTabDataUtils] *** UPDATE DATA WITHOUT HOLIDAY FIELD ***`);
+  console.log(`[ScheduleTabDataUtils] *** UPDATE DATA WITHOUT DATETIME FIELDS AND HOLIDAY ***`);
+  console.log(`[ScheduleTabDataUtils] UTC Date-only field:`, {
+    Date: updateData.Date?.toISOString(),
+    DateUTCComponents: updateData.Date ? `${updateData.Date.getUTCFullYear()}-${updateData.Date.getUTCMonth() + 1}-${updateData.Date.getUTCDate()}` : 'undefined'
+  });
   console.log(`[ScheduleTabDataUtils] Numeric time fields:`, {
     ShiftDate1Hours: updateData.ShiftDate1Hours,
     ShiftDate1Minutes: updateData.ShiftDate1Minutes,
     ShiftDate2Hours: updateData.ShiftDate2Hours,
     ShiftDate2Minutes: updateData.ShiftDate2Minutes
   });
-  console.log(`[ScheduleTabDataUtils] DateTime fields:`, {
-    ShiftDate1: updateData.ShiftDate1?.toISOString(),
-    ShiftDate2: updateData.ShiftDate2?.toISOString()
-  });
-  console.log(`[ScheduleTabDataUtils] Other fields (NO Holiday):`, {
-    Date: updateData.Date?.toISOString(),
+  console.log(`[ScheduleTabDataUtils] Other fields (NO Holiday, NO DateTime fields):`, {
     TimeForLunch: updateData.TimeForLunch,
     Contract: updateData.Contract,
     TypeOfLeaveID: updateData.TypeOfLeaveID,
@@ -368,23 +425,23 @@ export const formatItemForUpdate = (recordId: string, scheduleItem: IScheduleIte
 };
 
 /**
- * НОВАЯ ФУНКЦИЯ: Создает нормализованную дату для новой записи расписания
+ * *** ИСПРАВЛЕННАЯ ФУНКЦИЯ: Создает нормализованную UTC дату для новой записи расписания ***
  * Используется при создании записей из шаблона или вручную
  */
 export const createNormalizedScheduleDate = (inputDate: Date): Date => {
-  const normalizedDate = DateUtils.normalizeStaffRecordDate(inputDate);
+  const normalizedDate = formatDateForSharePoint(inputDate);
   
   console.log(`[ScheduleTabDataUtils] createNormalizedScheduleDate:
     Input: ${inputDate.toISOString()}
     Output: ${normalizedDate.toISOString()}
-    Date-only: ${formatDateForComparison(normalizedDate)}`);
+    UTC Date-only: ${formatDateForComparison(normalizedDate)}`);
   
   return normalizedDate;
 };
 
 /**
- * НОВАЯ ФУНКЦИЯ: Проверяет, является ли дата первым днем октября 2024
- * Вспомогательная функция для отладки
+ * *** ФУНКЦИЯ: Проверяет, является ли дата первым днем октября 2024 ***
+ * Вспомогательная функция для отладки с UTC компонентами
  */
 export const isOctober1st2024 = (date: Date): boolean => {
   const isOct1st = date.getUTCFullYear() === 2024 && 
@@ -392,24 +449,24 @@ export const isOctober1st2024 = (date: Date): boolean => {
                    date.getUTCDate() === 1;
                    
   if (isOct1st) {
-    console.log(`[ScheduleTabDataUtils] *** DETECTED OCTOBER 1st 2024 DATE: ${date.toISOString()} (Date-only: ${formatDateForComparison(date)}) ***`);
+    console.log(`[ScheduleTabDataUtils] *** DETECTED OCTOBER 1st 2024 DATE: ${date.toISOString()} (UTC Date-only: ${formatDateForComparison(date)}) ***`);
   }
   
   return isOct1st;
 };
 
 /**
- * НОВАЯ ФУНКЦИЯ: Логирует детальную информацию о преобразовании записи
- * Полезно для отладки проблем с датами
+ * *** ИСПРАВЛЕННАЯ ФУНКЦИЯ: Логирует детальную информацию о преобразовании записи ***
+ * Полезно для отладки проблем с UTC датами
  * ИСПРАВЛЕНО: Больше НЕ логирует поле Holiday
  */
 export const logScheduleItemConversion = (record: IStaffRecord, scheduleItem: IScheduleItem): void => {
-  console.log(`[ScheduleTabDataUtils] *** SCHEDULE ITEM CONVERSION LOG ***`);
+  console.log(`[ScheduleTabDataUtils] *** SCHEDULE ITEM CONVERSION LOG (UTC) ***`);
   console.log(`Record ID: ${record.ID}`);
   console.log(`Original StaffRecord Date: ${record.Date.toISOString()}`);
   console.log(`Converted ScheduleItem Date: ${scheduleItem.date.toISOString()}`);
-  console.log(`Date-only format: ${formatDateForComparison(scheduleItem.date)}`);
-  console.log(`Date components match: ${
+  console.log(`UTC Date-only format: ${formatDateForComparison(scheduleItem.date)}`);
+  console.log(`UTC Date components match: ${
     record.Date.getUTCFullYear() === scheduleItem.date.getUTCFullYear() &&
     record.Date.getUTCMonth() === scheduleItem.date.getUTCMonth() &&
     record.Date.getUTCDate() === scheduleItem.date.getUTCDate()
@@ -431,13 +488,13 @@ export const logScheduleItemConversion = (record: IStaffRecord, scheduleItem: IS
   // Проверяем на октябрь 2024
   if (isOctober1st2024(scheduleItem.date)) {
     console.log(`[ScheduleTabDataUtils] *** THIS IS AN OCTOBER 1st 2024 RECORD - SHOULD BE VISIBLE IN SCHEDULE ***`);
-    console.log(`[ScheduleTabDataUtils] *** Date-only format: ${formatDateForComparison(scheduleItem.date)} ***`);
+    console.log(`[ScheduleTabDataUtils] *** UTC Date-only format: ${formatDateForComparison(scheduleItem.date)} ***`);
   }
 };
 
 /**
- * НОВАЯ ФУНКЦИЯ: Валидирует корректность дат в ScheduleItem
- * Проверяет, что даты нормализованы правильно
+ * *** ИСПРАВЛЕННАЯ ФУНКЦИЯ: Валидирует корректность UTC дат в ScheduleItem ***
+ * Проверяет, что даты нормализованы правильно к UTC
  */
 export const validateScheduleItemDates = (scheduleItem: IScheduleItem): {
   isValid: boolean;
@@ -445,7 +502,7 @@ export const validateScheduleItemDates = (scheduleItem: IScheduleItem): {
 } => {
   const errors: string[] = [];
   
-  // Проверяем, что основная дата нормализована к UTC полуночи
+  // *** ПРОВЕРЯЕМ, ЧТО ОСНОВНАЯ ДАТА НОРМАЛИЗОВАНА К UTC ПОЛУНОЧИ ***
   const mainDate = scheduleItem.date;
   if (mainDate.getUTCHours() !== 0 || mainDate.getUTCMinutes() !== 0 || 
       mainDate.getUTCSeconds() !== 0 || mainDate.getUTCMilliseconds() !== 0) {
@@ -492,15 +549,15 @@ export const validateScheduleItemDates = (scheduleItem: IScheduleItem): {
 };
 
 /**
- * НОВАЯ ФУНКЦИЯ: Массовая валидация массива ScheduleItem
- * Полезно для проверки корректности всей коллекции
+ * *** ИСПРАВЛЕННАЯ ФУНКЦИЯ: Массовая валидация массива ScheduleItem ***
+ * Полезно для проверки корректности всей коллекции с UTC датами
  */
 export const validateScheduleItems = (scheduleItems: IScheduleItem[]): {
   validItems: IScheduleItem[];
   invalidItems: { item: IScheduleItem; errors: string[] }[];
   summary: { total: number; valid: number; invalid: number; };
 } => {
-  console.log(`[ScheduleTabDataUtils] Validating ${scheduleItems.length} schedule items`);
+  console.log(`[ScheduleTabDataUtils] Validating ${scheduleItems.length} schedule items with UTC dates`);
   
   const validItems: IScheduleItem[] = [];
   const invalidItems: { item: IScheduleItem; errors: string[] }[] = [];
@@ -533,14 +590,14 @@ export const validateScheduleItems = (scheduleItems: IScheduleItem[]): {
 };
 
 /**
- * ОТЛАДОЧНАЯ ФУНКЦИЯ: Выводит статистику по датам в коллекции ScheduleItem
+ * *** ИСПРАВЛЕННАЯ ФУНКЦИЯ: Выводит статистику по UTC датам в коллекции ScheduleItem ***
  * ИСПРАВЛЕНО: Больше НЕ включает статистику по Holiday полю
  */
 export const logScheduleItemsDateStatistics = (scheduleItems: IScheduleItem[]): void => {
-  console.log(`[ScheduleTabDataUtils] *** SCHEDULE ITEMS DATE STATISTICS WITH DATE-ONLY COMPATIBILITY ***`);
+  console.log(`[ScheduleTabDataUtils] *** SCHEDULE ITEMS DATE STATISTICS WITH UTC DATE-ONLY COMPATIBILITY ***`);
   console.log(`Total items: ${scheduleItems.length}`);
   
-  // Группируем по дням используя Date-only формат
+  // *** ГРУППИРУЕМ ПО ДНЯМ ИСПОЛЬЗУЯ UTC DATE-ONLY ФОРМАТ ***
   const dateGroups = scheduleItems.reduce((groups, item) => {
     const dateKey = formatDateForComparison(item.date);
     if (!groups[dateKey]) {
@@ -555,7 +612,7 @@ export const logScheduleItemsDateStatistics = (scheduleItems: IScheduleItem[]): 
   console.log(`Dates represented: ${sortedDateKeys.length}`);
   console.log(`Date range: ${sortedDateKeys[0] || 'none'} to ${sortedDateKeys[sortedDateKeys.length - 1] || 'none'}`);
   
-  // Проверяем наличие записей за 1 октября 2024
+  // *** ПРОВЕРЯЕМ НАЛИЧИЕ ЗАПИСЕЙ ЗА 1 ОКТЯБРЯ 2024 ***
   const oct1Key = '2024-10-01';
   if (dateGroups[oct1Key]) {
     console.log(`*** OCTOBER 1st 2024 FOUND: ${dateGroups[oct1Key].length} items ***`);
@@ -582,7 +639,7 @@ export const logScheduleItemsDateStatistics = (scheduleItems: IScheduleItem[]): 
     console.log(`  ${month}: ${count} items`);
   });
   
-  // Статистика по статусам (БЕЗ holiday)
+  // *** СТАТИСТИКА ПО СТАТУСАМ (БЕЗ HOLIDAY) ***
   const deletedCount = scheduleItems.filter(item => item.deleted).length;
   const leaveCount = scheduleItems.filter(item => item.typeOfLeave && item.typeOfLeave !== '').length;
   const numericFieldsCount = scheduleItems.filter(item => 
@@ -605,8 +662,8 @@ export const logScheduleItemsDateStatistics = (scheduleItems: IScheduleItem[]): 
     console.log(`  ${index + 1}. ID ${item.id}: ${item.startHour}:${item.startMinute}-${item.finishHour}:${item.finishMinute} (${item.workingHours}) [Numeric: ${numericTime}]`);
   });
   
-  // Date-only format статистика
-  console.log('Date-only format samples (first 3 dates):');
+  // *** UTC DATE-ONLY FORMAT СТАТИСТИКА ***
+  console.log('UTC Date-only format samples (first 3 dates):');
   sortedDateKeys.slice(0, 3).forEach(dateKey => {
     const itemsForDate = dateGroups[dateKey];
     console.log(`  ${dateKey}: ${itemsForDate.length} items`);

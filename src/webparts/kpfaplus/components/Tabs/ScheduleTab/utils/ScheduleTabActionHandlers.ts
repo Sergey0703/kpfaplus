@@ -14,25 +14,43 @@ export interface IActionHandlerParams {
 }
 
 /**
-* *** ОБНОВЛЕННАЯ ФУНКЦИЯ formatItemForUpdate ТОЛЬКО С ЧИСЛОВЫМИ ПОЛЯМИ И DATE-ONLY ***
+* *** ИСПРАВЛЕННАЯ ФУНКЦИЯ formatDateForSharePoint ***
+* Создает UTC полночь для Date-only полей SharePoint
+* Предотвращает проблемы с timezone и DST
+*/
+const formatDateForSharePoint = (date: Date): Date => {
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const day = date.getDate();
+  
+  console.log(`[ScheduleTabActionHandlers] *** FORMATTING DATE FOR SHAREPOINT (UTC) ***`);
+  console.log(`[ScheduleTabActionHandlers] Input date: ${date.toISOString()}`);
+  console.log(`[ScheduleTabActionHandlers] Extracted components: ${year}-${month + 1}-${day}`);
+  
+  // Создаем UTC полночь чтобы предотвратить timezone конверсию SharePoint
+  const utcDate = new Date(`${year}-${(month + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}T00:00:00.000Z`);
+  
+  console.log(`[ScheduleTabActionHandlers] Created UTC date: ${utcDate.toISOString()}`);
+  console.log(`[ScheduleTabActionHandlers] UTC components: ${utcDate.getUTCFullYear()}-${utcDate.getUTCMonth() + 1}-${utcDate.getUTCDate()}`);
+  
+  return utcDate;
+};
+
+/**
+* *** ОБНОВЛЕННАЯ ФУНКЦИЯ formatItemForUpdate С UTC DATE-ONLY ***
 * Приоритет числовых полей при формировании данных для обновления
-* УДАЛЕНО: Создание ShiftDate1/ShiftDate2/ShiftDate3/ShiftDate4 полей
+* ИСПРАВЛЕНО: Использует UTC полночь для Date-only поля
 */
 export const formatItemForUpdate = (recordId: string, scheduleItem: IScheduleItem): Partial<IStaffRecord> => {
- console.log(`[ScheduleTabActionHandlers] *** formatItemForUpdate WITH NUMERIC FIELDS ONLY ***`);
+ console.log(`[ScheduleTabActionHandlers] *** formatItemForUpdate WITH UTC DATE-ONLY FIELD ***`);
  console.log(`[ScheduleTabActionHandlers] formatItemForUpdate for record ID: ${recordId}`);
  console.log(`[ScheduleTabActionHandlers] Input schedule item date: ${scheduleItem.date.toISOString()}`);
- console.log(`[ScheduleTabActionHandlers] *** IMPORTANT: Only Date-only + numeric time fields ***`);
+ console.log(`[ScheduleTabActionHandlers] *** IMPORTANT: Using UTC midnight for Date-only field ***`);
 
- // *** СОЗДАЕМ ДАТУ С МЕСТНОЙ ПОЛУНОЧЬЮ ДЛЯ ПОЛЯ DATE (DATE-ONLY) ***
- const localMidnightDate = new Date(
-   scheduleItem.date.getFullYear(),
-   scheduleItem.date.getMonth(),
-   scheduleItem.date.getDate(),
-   0, 0, 0, 0 // Местная полночь
- );
+ // *** ИСПРАВЛЕНО: Создаем UTC полночь для Date-only поля ***
+ const utcMidnightDate = formatDateForSharePoint(scheduleItem.date);
 
- console.log(`[ScheduleTabActionHandlers] Created local midnight date for Date-only field: ${localMidnightDate.toISOString()}`);
+ console.log(`[ScheduleTabActionHandlers] Created UTC midnight date for Date-only field: ${utcMidnightDate.toISOString()}`);
 
  // *** ПРИОРИТЕТ ЧИСЛОВЫХ ПОЛЕЙ ДЛЯ ВРЕМЕНИ ***
  let startHour: number, startMinute: number, finishHour: number, finishMinute: number;
@@ -60,8 +78,8 @@ export const formatItemForUpdate = (recordId: string, scheduleItem: IScheduleIte
  }
 
  const updateData: Partial<IStaffRecord> = {
-   // *** DATE-ONLY ПОЛЕ: Используем местную полночь ***
-   Date: localMidnightDate,
+   // *** ИСПРАВЛЕНО: Используем UTC полночь для Date-only поля ***
+   Date: utcMidnightDate,
    
    // *** ТОЛЬКО ЧИСЛОВЫЕ ПОЛЯ ВРЕМЕНИ ***
    ShiftDate1Hours: startHour,
@@ -80,15 +98,16 @@ export const formatItemForUpdate = (recordId: string, scheduleItem: IScheduleIte
    WorkTime: scheduleItem.workingHours
  };
 
- console.log(`[ScheduleTabActionHandlers] *** FINAL UPDATE DATA - DATE-ONLY + NUMERIC FIELDS ONLY ***`);
+ console.log(`[ScheduleTabActionHandlers] *** FINAL UPDATE DATA - UTC DATE-ONLY + NUMERIC FIELDS ONLY ***`);
  console.log(`[ScheduleTabActionHandlers] Numeric fields:`, {
    ShiftDate1Hours: updateData.ShiftDate1Hours,
    ShiftDate1Minutes: updateData.ShiftDate1Minutes,
    ShiftDate2Hours: updateData.ShiftDate2Hours,
    ShiftDate2Minutes: updateData.ShiftDate2Minutes
  });
- console.log(`[ScheduleTabActionHandlers] Date-only field:`, {
-   Date: updateData.Date?.toISOString()
+ console.log(`[ScheduleTabActionHandlers] UTC Date-only field:`, {
+   Date: updateData.Date?.toISOString(),
+   DateUTCComponents: updateData.Date ? `${updateData.Date.getUTCFullYear()}-${updateData.Date.getUTCMonth() + 1}-${updateData.Date.getUTCDate()}` : 'undefined'
  });
  console.log(`[ScheduleTabActionHandlers] Other fields:`, {
    TimeForLunch: updateData.TimeForLunch,
@@ -133,7 +152,7 @@ export const handleSaveAllChanges = async (
      return;
    }
    
-   console.log(`[ScheduleTabActionHandlers] *** SAVING ${modifiedIds.length} MODIFIED RECORDS WITH NUMERIC FIELDS ***`);
+   console.log(`[ScheduleTabActionHandlers] *** SAVING ${modifiedIds.length} MODIFIED RECORDS WITH UTC DATE-ONLY + NUMERIC FIELDS ***`);
    
    let successCount = 0;
    const failedRecords: string[] = [];
@@ -157,10 +176,11 @@ export const handleSaveAllChanges = async (
          startMinutes: scheduleItem.startMinutes,
          finishHours: scheduleItem.finishHours,
          finishMinutes: scheduleItem.finishMinutes,
-         workingHours: scheduleItem.workingHours
+         workingHours: scheduleItem.workingHours,
+         date: scheduleItem.date.toISOString()
        });
        
-       // *** ИСПОЛЬЗУЕМ ОБНОВЛЕННУЮ formatItemForUpdate ТОЛЬКО С ЧИСЛОВЫМИ ПОЛЯМИ ***
+       // *** ИСПОЛЬЗУЕМ ОБНОВЛЕННУЮ formatItemForUpdate С UTC DATE-ONLY ***
        const updateData = formatItemForUpdate(recordId, scheduleItem);
        
        console.log(`[ScheduleTabActionHandlers] *** FORMATTED UPDATE DATA FOR ${recordId} ***`);
@@ -170,7 +190,7 @@ export const handleSaveAllChanges = async (
          
          if (success) {
            successCount++;
-           console.log(`[ScheduleTabActionHandlers] ✓ Successfully updated record ${recordId} with numeric fields`);
+           console.log(`[ScheduleTabActionHandlers] ✓ Successfully updated record ${recordId} with UTC date-only + numeric fields`);
            return { recordId, success: true };
          } else {
            failedRecords.push(recordId);
@@ -196,7 +216,7 @@ export const handleSaveAllChanges = async (
    // Show appropriate message based on results
    if (successCount === modifiedIds.length) {
      setOperationMessage({
-       text: `All ${successCount} changes saved successfully with numeric time fields`,
+       text: `All ${successCount} changes saved successfully with UTC date-only + numeric time fields`,
        type: MessageBarType.success
      });
      // Clear all modified records since they've been saved
