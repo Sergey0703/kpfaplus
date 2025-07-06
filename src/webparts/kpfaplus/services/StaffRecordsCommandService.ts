@@ -1,15 +1,14 @@
 // src/webparts/kpfaplus/services/StaffRecordsCommandService.ts
 import { IStaffRecord } from "./StaffRecordsInterfaces";
 import { RemoteSiteService } from "./RemoteSiteService";
-import { DateUtils } from "../components/CustomDatePicker/CustomDatePicker";
 
 /**
  * Сервис для операций записи данных расписания персонала
  * Отвечает за создание, обновление и удаление записей
  * 
+ * ОБНОВЛЕНО: Поле Date теперь Date-only (без времени)
+ * УДАЛЕНО: Поддержка полей ShiftDate1-4 (больше не используются)
  * ОБНОВЛЕНО: Добавлена поддержка числовых полей времени для ScheduleTab
- * ОБНОВЛЕНО: Убрана двойная нормализация дат для решения проблемы смещения времени
- * Теперь использует даты как есть, если они уже правильно нормализованы
  */
 export class StaffRecordsCommandService {
   private _logSource: string;
@@ -30,12 +29,13 @@ export class StaffRecordsCommandService {
     this._remoteSiteService = remoteSiteService;
     this._listName = listName;
     this._logSource = logSource + ".Command";
-    this.logInfo("StaffRecordsCommandService инициализирован с поддержкой числовых полей времени и исправленной обработкой UTC дат");
+    this.logInfo("StaffRecordsCommandService инициализирован с Date-only полями и числовыми полями времени");
   }
 
   /**
    * Обновляет запись расписания
-   * ИСПРАВЛЕНО: Убрана повторная нормализация дат через DateUtils для времен смен
+   * ОБНОВЛЕНО: Поле Date теперь Date-only (без времени)
+   * УДАЛЕНО: Поддержка полей ShiftDate1-4
    * ОБНОВЛЕНО: Добавлена поддержка числовых полей времени
    *
    * @param recordId ID записи для обновления
@@ -52,58 +52,11 @@ export class StaffRecordsCommandService {
       // Convert the updateData to the format expected by the SharePoint API
       const fields: Record<string, unknown> = {};
 
-      // ИСПРАВЛЕНО: Process Date fields with DateUtils normalization ТОЛЬКО для основной даты
+      // ОБНОВЛЕНО: Process Date field as Date-only (без нормализации времени)
       if (updateData.Date) {
-        const normalizedDate = DateUtils.normalizeDateToUTCMidnight(updateData.Date);
-        fields.Date = normalizedDate.toISOString();
-        this.logInfo(`[DEBUG] Normalized main Date: ${updateData.Date.toISOString()} → ${normalizedDate.toISOString()}`);
-      }
-
-      // ИСПРАВЛЕНО: Process shift times WITHOUT additional normalization 
-      // Времена смен уже должны быть правильно нормализованы в вызывающем коде
-      if (updateData.ShiftDate1 !== undefined) {
-        if (updateData.ShiftDate1) {
-          // УБРАНО: Дополнительная нормализация через DateUtils.createShiftDateTime()
-          // Используем дату как есть, так как она уже должна быть правильно создана
-          fields.ShiftDate1 = updateData.ShiftDate1.toISOString();
-          this.logInfo(`[DEBUG] Using ShiftDate1 as-is (already normalized): ${updateData.ShiftDate1.toISOString()}`);
-        } else {
-          fields.ShiftDate1 = null;
-          this.logInfo(`[DEBUG] ShiftDate1 set to null`);
-        }
-      }
-
-      if (updateData.ShiftDate2 !== undefined) {
-        if (updateData.ShiftDate2) {
-          // УБРАНО: Дополнительная нормализация через DateUtils.createShiftDateTime()
-          fields.ShiftDate2 = updateData.ShiftDate2.toISOString();
-          this.logInfo(`[DEBUG] Using ShiftDate2 as-is (already normalized): ${updateData.ShiftDate2.toISOString()}`);
-        } else {
-          fields.ShiftDate2 = null;
-          this.logInfo(`[DEBUG] ShiftDate2 set to null`);
-        }
-      }
-
-      if (updateData.ShiftDate3 !== undefined) {
-        if (updateData.ShiftDate3) {
-          // УБРАНО: Дополнительная нормализация через DateUtils.createShiftDateTime()
-          fields.ShiftDate3 = updateData.ShiftDate3.toISOString();
-          this.logInfo(`[DEBUG] Using ShiftDate3 as-is (already normalized): ${updateData.ShiftDate3.toISOString()}`);
-        } else {
-          fields.ShiftDate3 = null;
-          this.logInfo(`[DEBUG] ShiftDate3 set to null`);
-        }
-      }
-
-      if (updateData.ShiftDate4 !== undefined) {
-        if (updateData.ShiftDate4) {
-          // УБРАНО: Дополнительная нормализация через DateUtils.createShiftDateTime()
-          fields.ShiftDate4 = updateData.ShiftDate4.toISOString();
-          this.logInfo(`[DEBUG] Using ShiftDate4 as-is (already normalized): ${updateData.ShiftDate4.toISOString()}`);
-        } else {
-          fields.ShiftDate4 = null;
-          this.logInfo(`[DEBUG] ShiftDate4 set to null`);
-        }
+        // Поле Date теперь Date-only - сохраняем как есть без нормализации времени
+        fields.Date = updateData.Date.toISOString();
+        this.logInfo(`[DEBUG] Date-only field: ${updateData.Date.toISOString()}`);
       }
 
       // НОВОЕ: Process numeric time fields
@@ -239,7 +192,8 @@ export class StaffRecordsCommandService {
 
   /**
    * Creates a new staff record
-   * ИСПРАВЛЕНО: Убрана повторная нормализация дат через DateUtils для времен смен
+   * ОБНОВЛЕНО: Поле Date теперь Date-only (без времени)
+   * УДАЛЕНО: Поддержка полей ShiftDate1-4
    * ОБНОВЛЕНО: Добавлена поддержка числовых полей времени
    *
    * @param createParams Параметры для staff record creation
@@ -267,57 +221,14 @@ export class StaffRecordsCommandService {
       // Set default title if not provided
       fields.Title = createParams.Title || `Record ${new Date().toISOString()}`;
 
-      // ИСПРАВЛЕНО: Process Date field (required) with DateUtils normalization ТОЛЬКО для основной даты
+      // ОБНОВЛЕНО: Process Date field (required) as Date-only (без нормализации времени)
       if (createParams.Date) {
-      //  const normalizedDate = DateUtils.normalizeDateToUTCMidnight(createParams.Date);
-      fields.Date = createParams.Date.toISOString(); //  fields.Date = normalizedDate.toISOString();
-        console.log(`[DEBUG] create main Date: ${createParams.Date.toISOString()}`);
+        // Поле Date теперь Date-only - сохраняем как есть без нормализации времени
+        fields.Date = createParams.Date.toISOString();
+        this.logInfo(`[DEBUG] create Date-only field: ${createParams.Date.toISOString()}`);
       } else {
         this.logError(`[ERROR] Create failed: Date is a required field for a new record but was not provided in createParams.`);
         throw new Error("Date is required to create a staff record.");
-      }
-
-      // ИСПРАВЛЕНО: Process shift times WITHOUT additional normalization using DateUtils
-      // Времена смен уже должны быть правильно нормализованы в вызывающем коде (например, в createDateWithTime)
-      if (createParams.ShiftDate1) {
-        // УБРАНО: Дополнительная нормализация через DateUtils.createShiftDateTime()
-        // Используем дату как есть, так как она уже должна быть правильно создана в UTC
-        fields.ShiftDate1 = createParams.ShiftDate1.toISOString();
-        console.log(`[DEBUG] Using create ShiftDate1 as-is (already normalized): ${createParams.ShiftDate1.toISOString()}`);
-      } else if (createParams.ShiftDate1 === null) { 
-        fields.ShiftDate1 = null;
-        this.logInfo(`[DEBUG] Create ShiftDate1 set to null`);
-      }
-
-      if (createParams.ShiftDate2) {
-        // УБРАНО: Дополнительная нормализация через DateUtils.createShiftDateTime()
-        fields.ShiftDate2 = createParams.ShiftDate2.toISOString();
-        this.logInfo(`[DEBUG] Using create ShiftDate2 as-is (already normalized): ${createParams.ShiftDate2.toISOString()}`);
-      } else if (createParams.ShiftDate2 === null) { 
-        fields.ShiftDate2 = null;
-        this.logInfo(`[DEBUG] Create ShiftDate2 set to null`);
-      }
-
-      if (createParams.ShiftDate3 !== undefined) {
-        if (createParams.ShiftDate3) {
-          // УБРАНО: Дополнительная нормализация через DateUtils.createShiftDateTime()
-          fields.ShiftDate3 = createParams.ShiftDate3.toISOString();
-          this.logInfo(`[DEBUG] Using create ShiftDate3 as-is (already normalized): ${createParams.ShiftDate3.toISOString()}`);
-        } else {
-          fields.ShiftDate3 = null;
-          this.logInfo(`[DEBUG] Create ShiftDate3 set to null`);
-        }
-      }
-
-      if (createParams.ShiftDate4 !== undefined) {
-        if (createParams.ShiftDate4) {
-          // УБРАНО: Дополнительная нормализация через DateUtils.createShiftDateTime()
-          fields.ShiftDate4 = createParams.ShiftDate4.toISOString();
-          this.logInfo(`[DEBUG] Using create ShiftDate4 as-is (already normalized): ${createParams.ShiftDate4.toISOString()}`);
-        } else {
-          fields.ShiftDate4 = null;
-          this.logInfo(`[DEBUG] Create ShiftDate4 set to null`);
-        }
       }
 
       // НОВОЕ: Process numeric time fields for creation
@@ -470,9 +381,7 @@ export class StaffRecordsCommandService {
 
       // Log the complete field set for debugging
       this.logInfo(`[DEBUG] *** FINAL CREATE FIELDS WITH NUMERIC TIME FIELDS ***`);
-      this.logInfo(`[DEBUG] Main Date: ${fields.Date}`);
-      this.logInfo(`[DEBUG] ShiftDate1 (start): ${fields.ShiftDate1}`);
-      this.logInfo(`[DEBUG] ShiftDate2 (end): ${fields.ShiftDate2}`);
+      this.logInfo(`[DEBUG] Date-only field: ${fields.Date}`);
       this.logInfo(`[DEBUG] Numeric time fields: Start=${fields.ShiftDate1Hours}:${fields.ShiftDate1Minutes}, End=${fields.ShiftDate2Hours}:${fields.ShiftDate2Minutes}`);
       this.logInfo(`[DEBUG] All fields: ${JSON.stringify(fields)}`);
 
@@ -481,7 +390,7 @@ export class StaffRecordsCommandService {
 
       if (result && result.id) {
         this.logInfo(`[DEBUG] Successfully created staff record with ID: ${result.id}`);
-        this.logInfo(`[DEBUG] *** RECORD CREATED WITH NUMERIC TIME FIELDS AND FIXED UTC TIMES ***`);
+        this.logInfo(`[DEBUG] *** RECORD CREATED WITH NUMERIC TIME FIELDS AND DATE-ONLY ***`);
         return result.id.toString();
       } else {
         this.logError(`[DEBUG] Failed to create staff record, no ID returned in result`);

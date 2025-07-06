@@ -15,9 +15,9 @@ type IFetchStaffRecordsResult = IRemotePaginatedItemsResponse;
  * Сервис для получения записей сотрудников из SharePoint
  * Отвечает за формирование запросов, фильтров и получение данных через API
  * 
+ * ОБНОВЛЕНО: Поле Date теперь Date-only (без времени)
+ * УДАЛЕНО: Поддержка полей ShiftDate1-4 (больше не используются)
  * ОБНОВЛЕНО: Добавлена поддержка числовых полей времени для ScheduleTab
- * Теперь получает как существующие поля даты-времени (ShiftDate1, ShiftDate2), 
- * так и новые числовые поля (ShiftDate1Hours, ShiftDate1Minutes, ShiftDate2Hours, ShiftDate2Minutes)
  */
 export class StaffRecordsFetchService {
   private _remoteSiteService: RemoteSiteService;
@@ -38,13 +38,13 @@ export class StaffRecordsFetchService {
     this._remoteSiteService = remoteSiteService;
     this._listName = listName;
     this._logSource = logSource + ".Fetch";
-    this.logInfo("StaffRecordsFetchService инициализирован с поддержкой числовых полей времени");
+    this.logInfo("StaffRecordsFetchService инициализирован с Date-only полями и числовыми полями времени");
   }
 
   /**
    * Получает записи расписания персонала из SharePoint с поддержкой пагинации.
    * Использует метод getPaginatedItemsFromList из RemoteSiteService.
-   * ОБНОВЛЕНО: Теперь получает как существующие поля даты-времени, так и новые числовые поля времени
+   * ОБНОВЛЕНО: Поле Date теперь Date-only, числовые поля времени получаются
    *
    * @param queryParams Параметры запроса, включая skip и top для пагинации, а также filter и orderBy
    * @returns Promise с объектом IRemotePaginatedItemsResponse, содержащим массив сырых записей для страницы и общее количество
@@ -66,7 +66,7 @@ export class StaffRecordsFetchService {
 
       // Расширенное логирование параметров запроса, включая пагинацию
       this.logInfo(
-        `[DEBUG] fetchStaffRecords ВЫЗВАН С ПАРАМЕТРАМИ (с поддержкой числовых полей времени):` +
+        `[DEBUG] fetchStaffRecords ВЫЗВАН С ПАРАМЕТРАМИ (с Date-only и числовыми полями времени):` +
         `\n  startDate: ${startDate.toISOString()}` +
         `\n  endDate: ${endDate.toISOString()}` +
         `\n  currentUserID: ${currentUserID} (тип: ${typeof currentUserID})` +
@@ -96,11 +96,11 @@ export class StaffRecordsFetchService {
         throw new Error(errorMsg); // Бросаем ошибку, если имя списка не определено
       }
 
-      // ИСПРАВЛЕНО: НЕ переформатируем даты, если они уже в правильном формате
-      const startDateStr = this.formatDateForFilterFixed(startDate);
-      const endDateStr = this.formatDateForFilterFixed(endDate);
+      // ОБНОВЛЕНО: Даты уже в правильном формате Date-only, используем без дополнительного форматирования
+      const startDateStr = this.formatDateForFilter(startDate);
+      const endDateStr = this.formatDateForFilter(endDate);
       this.logInfo(
-        `[DEBUG] Форматированные даты для запроса: ${startDateStr} - ${endDateStr}`
+        `[DEBUG] Форматированные даты для запроса (Date-only): ${startDateStr} - ${endDateStr}`
       );
 
       // Проверка валидности дат после форматирования
@@ -186,12 +186,11 @@ export class StaffRecordsFetchService {
       throw new Error(`Failed to fetch staff records: ${errorMessage}`);
     }
   }
-
   /**
    * --- НОВЫЙ МЕТОД ДЛЯ TIMETABLE ---
    * Получает ВСЕ записи расписания персонала за период БЕЗ ПАГИНАЦИИ.
    * Использует getAllFilteredItemsFromList вместо getPaginatedItemsFromList.
-   * ОБНОВЛЕНО: Включает поддержку числовых полей времени
+   * ОБНОВЛЕНО: Поле Date теперь Date-only, включает поддержку числовых полей времени
    *
    * @param queryParams Параметры запроса (без skip/top - не нужны)
    * @returns Promise с объектом содержащим ВСЕ записи и общее количество
@@ -211,7 +210,7 @@ export class StaffRecordsFetchService {
 
       // Расширенное логирование параметров запроса
       this.logInfo(
-        `[DEBUG] fetchAllStaffRecordsForTimetable ВЫЗВАН С ПАРАМЕТРАМИ (с числовыми полями времени):` +
+        `[DEBUG] fetchAllStaffRecordsForTimetable ВЫЗВАН С ПАРАМЕТРАМИ (с Date-only и числовыми полями времени):` +
         `\n  startDate: ${startDate.toISOString()}` +
         `\n  endDate: ${endDate.toISOString()}` +
         `\n  currentUserID: ${currentUserID} (тип: ${typeof currentUserID})` +
@@ -234,11 +233,11 @@ export class StaffRecordsFetchService {
         throw new Error(errorMsg);
       }
 
-      // ИСПРАВЛЕНО: НЕ переформатируем даты, если они уже в правильном формате
-      const startDateStr = this.formatDateForFilterFixed(startDate);
-      const endDateStr = this.formatDateForFilterFixed(endDate);
+      // ОБНОВЛЕНО: Даты уже в правильном формате Date-only, используем без дополнительного форматирования
+      const startDateStr = this.formatDateForFilter(startDate);
+      const endDateStr = this.formatDateForFilter(endDate);
       this.logInfo(
-        `[DEBUG] Форматированные даты для запроса: ${startDateStr} - ${endDateStr}`
+        `[DEBUG] Форматированные даты для запроса (Date-only): ${startDateStr} - ${endDateStr}`
       );
 
       // Проверка валидности дат после форматирования
@@ -320,7 +319,7 @@ export class StaffRecordsFetchService {
    * Получает ВСЕ активные записи расписания персонала за период БЕЗ ПАГИНАЦИИ.
    * Исключает записи с Deleted=1.
    * Использует getAllFilteredItemsFromList вместо getPaginatedItemsFromList.
-   * ОБНОВЛЕНО: Включает поддержку числовых полей времени
+   * ОБНОВЛЕНО: Поле Date теперь Date-only, включает поддержку числовых полей времени
    *
    * @param queryParams Параметры запроса (без skip/top - не нужны)
    * @returns Promise с объектом содержащим ВСЕ активные записи и общее количество
@@ -340,7 +339,7 @@ export class StaffRecordsFetchService {
 
       // Расширенное логирование параметров запроса
       this.logInfo(
-        `[DEBUG] fetchAllActiveStaffRecordsForTimetable ВЫЗВАН С ПАРАМЕТРАМИ (с числовыми полями времени):` +
+        `[DEBUG] fetchAllActiveStaffRecordsForTimetable ВЫЗВАН С ПАРАМЕТРАМИ (с Date-only и числовыми полями времени):` +
         `\n  startDate: ${startDate.toISOString()}` +
         `\n  endDate: ${endDate.toISOString()}` +
         `\n  currentUserID: ${currentUserID} (тип: ${typeof currentUserID})` +
@@ -363,11 +362,11 @@ export class StaffRecordsFetchService {
         throw new Error(errorMsg);
       }
 
-      // ИСПРАВЛЕНО: НЕ переформатируем даты, если они уже в правильном формате
-      const startDateStr = this.formatDateForFilterFixed(startDate);
-      const endDateStr = this.formatDateForFilterFixed(endDate);
+      // ОБНОВЛЕНО: Даты уже в правильном формате Date-only, используем без дополнительного форматирования
+      const startDateStr = this.formatDateForFilter(startDate);
+      const endDateStr = this.formatDateForFilter(endDate);
       this.logInfo(
-        `[DEBUG] Форматированные даты для запроса: ${startDateStr} - ${endDateStr}`
+        `[DEBUG] Форматированные даты для запроса (Date-only): ${startDateStr} - ${endDateStr}`
       );
 
       // Проверка валидности дат после форматирования
@@ -447,13 +446,13 @@ export class StaffRecordsFetchService {
   /**
    * НОВЫЙ МЕТОД ДЛЯ SRS REPORTS: Получает записи с заполненным типом отпуска
    * Базируется на fetchAllActiveStaffRecordsForTimetable + фильтр TypeOfLeaveLookupId IS NOT NULL
-   * ОБНОВЛЕНО: Включает поддержку числовых полей времени
+   * ОБНОВЛЕНО: Поле Date теперь Date-only, включает поддержку числовых полей времени
    */
   public async fetchStaffRecordsForSRSReports(
     queryParams: Omit<IStaffRecordsQueryParams, 'skip' | 'top' | 'nextLink'>
   ): Promise<{ items: IRemoteListItemResponse[], totalCount: number }> {
     try {
-      this.logInfo('[DEBUG] fetchStaffRecordsForSRSReports НАЧИНАЕТСЯ (с числовыми полями времени)');
+      this.logInfo('[DEBUG] fetchStaffRecordsForSRSReports НАЧИНАЕТСЯ (с Date-only и числовыми полями времени)');
       this.logInfo(`[DEBUG] Параметры запроса для SRS Reports: ${JSON.stringify({
         startDate: queryParams.startDate.toISOString(),
         endDate: queryParams.endDate.toISOString(),
@@ -476,11 +475,11 @@ export class StaffRecordsFetchService {
         throw new Error(errorMsg);
       }
 
-      // ИСПРАВЛЕНО: НЕ переформатируем даты, если они уже в правильном формате
-      const startDateStr = this.formatDateForFilterFixed(queryParams.startDate);
-      const endDateStr = this.formatDateForFilterFixed(queryParams.endDate);
+      // ОБНОВЛЕНО: Даты уже в правильном формате Date-only, используем без дополнительного форматирования
+      const startDateStr = this.formatDateForFilter(queryParams.startDate);
+      const endDateStr = this.formatDateForFilter(queryParams.endDate);
       this.logInfo(
-        `[DEBUG] Форматированные даты для запроса: ${startDateStr} - ${endDateStr}`
+        `[DEBUG] Форматированные даты для запроса (Date-only): ${startDateStr} - ${endDateStr}`
       );
 
       // Проверка валидности дат после форматирования
@@ -596,7 +595,6 @@ export class StaffRecordsFetchService {
       return 'fields/TypeOfLeaveLookupId ne null';
     }
   }
-
   /**
    * ВСПОМОГАТЕЛЬНЫЙ МЕТОД: Строит выражение фильтра с исключением удаленных записей (Deleted=1)
    *
@@ -636,7 +634,7 @@ export class StaffRecordsFetchService {
   /**
    * Получает одну запись расписания по ID
    * Использует публичный метод RemoteSiteService.getListItem
-   * ОБНОВЛЕНО: Получает числовые поля времени
+   * ОБНОВЛЕНО: Поле Date теперь Date-only, получает числовые поля времени
    *
    * @param recordId ID записи для получения
    * @returns Promise с объектом записи или null при ошибке
@@ -645,7 +643,7 @@ export class StaffRecordsFetchService {
     recordId: string | number
   ): Promise<IRawStaffRecord | undefined> { // Возвращаем IRawStaffRecord
     try {
-      this.logInfo(`[DEBUG] Получение записи по ID: ${recordId} через RemoteSiteService (с числовыми полями времени)...`);
+      this.logInfo(`[DEBUG] Получение записи по ID: ${recordId} через RemoteSiteService (с Date-only и числовыми полями времени)...`);
 
       // Проверка наличия RemoteSiteService
       if (!this._remoteSiteService) {
@@ -665,7 +663,7 @@ export class StaffRecordsFetchService {
         return undefined;
       }
 
-      this.logInfo(`[DEBUG] Запись с ID: ${recordId} успешно получена (включая числовые поля времени)`);
+      this.logInfo(`[DEBUG] Запись с ID: ${recordId} успешно получена (включая Date-only и числовые поля времени)`);
       
       // Проверяем наличие числовых полей времени в полученных данных
       this.logNumericTimeFieldsAvailability(rawItem);
@@ -701,8 +699,8 @@ export class StaffRecordsFetchService {
       const { startDate, endDate, currentUserID, staffGroupID, employeeID, timeTableID } = queryParams;
 
       // Формируем фильтр
-      const startDateStr = this.formatDateForFilterFixed(startDate);
-      const endDateStr = this.formatDateForFilterFixed(endDate);
+      const startDateStr = this.formatDateForFilter(startDate);
+      const endDateStr = this.formatDateForFilter(endDate);
 
       const filter = this.buildFilterExpression(startDateStr, endDateStr, employeeID, staffGroupID, currentUserID, timeTableID);
 
@@ -781,31 +779,30 @@ export class StaffRecordsFetchService {
   }
 
   /**
-   * ИСПРАВЛЕННЫЙ МЕТОД: Форматирует дату для использования в фильтре запроса
-   * НЕ ПЕРЕФОРМАТИРУЕТ уже правильные даты из DateUtils
+   * ОБНОВЛЕННЫЙ МЕТОД: Форматирует дату для использования в фильтре запроса
+   * ОБНОВЛЕНО: Поле Date теперь Date-only - используем дату как есть
    * @param date Дата для форматирования
    * @returns Строка даты в формате для фильтра SharePoint
    */
-  private formatDateForFilterFixed(date: Date): string {
+  private formatDateForFilter(date: Date): string {
     if (!date || isNaN(date.getTime())) {
-      this.logError('[ОШИБКА] formatDateForFilterFixed: Получена недействительная дата.');
+      this.logError('[ОШИБКА] formatDateForFilter: Получена недействительная дата.');
       const fallbackDate = new Date();
-      this.logError(`[ОШИБКА] formatDateForFilterFixed: Используется запасная дата ${fallbackDate.toISOString()}`);
+      this.logError(`[ОШИБКА] formatDateForFilter: Используется запасная дата ${fallbackDate.toISOString()}`);
       return fallbackDate.toISOString();
     }
     
     try {
-      // ИСПРАВЛЕНИЕ: НЕ переформатируем дату, используем как есть
-      // DateUtils уже подготовил правильную дату в формате ISO
+      // ОБНОВЛЕНО: Поле Date теперь Date-only - используем дату как есть без дополнительного форматирования
       const formattedDate = date.toISOString();
       
-      this.logInfo(`[DEBUG] formatDateForFilterFixed: вход=${date.toISOString()}, выход=${formattedDate}`);
+      this.logInfo(`[DEBUG] formatDateForFilter (Date-only): вход=${date.toISOString()}, выход=${formattedDate}`);
       return formattedDate;
       
     } catch (error) {
       this.logError(`[ОШИБКА] Ошибка форматирования даты ${date}: ${error instanceof Error ? error.message : String(error)}`);
       const fallbackDate = new Date();
-      this.logError(`[ОШИБКА] formatDateForFilterFixed: Используется запасная дата ${fallbackDate.toISOString()}`);
+      this.logError(`[ОШИБКА] formatDateForFilter: Используется запасная дата ${fallbackDate.toISOString()}`);
       return fallbackDate.toISOString();
     }
   }
@@ -816,7 +813,7 @@ export class StaffRecordsFetchService {
    * @param item Элемент данных для логирования
    */
   private logDetailedDataInfoWithNumericFields(item: IRemoteListItemResponse): void {
-    this.logInfo(`[DEBUG] Пример ПЕРВОГО элемента (сырые данные с числовыми полями времени): ${JSON.stringify(item, null, 2)}`);
+    this.logInfo(`[DEBUG] Пример ПЕРВОГО элемента (сырые данные с Date-only и числовыми полями времени): ${JSON.stringify(item, null, 2)}`);
 
     // Проверка наличия полей (используя оператор ?)
     if (item && item.fields) {
@@ -827,8 +824,8 @@ export class StaffRecordsFetchService {
       const lookupFields = Object.keys(fields).filter(key => key.endsWith('LookupId') || key.includes('Lookup'));
       this.logInfo(`[DEBUG] Поля LookupId/Lookup: ${lookupFields.join(', ')}`);
 
-      // Проверка важных существующих полей
-      ['ID', 'Title', 'Date', 'ShiftDate1', 'ShiftDate2', 'TimeForLunch', 'Deleted', 'TypeOfLeave', 'WeeklyTimeTable'].forEach(field => {
+      // Проверка важных существующих полей (без ShiftDate1-4)
+      ['ID', 'Title', 'Date', 'TimeForLunch', 'Deleted', 'TypeOfLeave', 'WeeklyTimeTable'].forEach(field => {
         const hasField = fields[field] !== undefined;
         this.logInfo(`[DEBUG] Поле ${field}: ${hasField ? 'присутствует' : 'отсутствует'}`);
         if (hasField) {
@@ -836,8 +833,8 @@ export class StaffRecordsFetchService {
         }
       });
 
-      // *** НОВАЯ ПРОВЕРКА: Числовые поля времени ***
-      this.logInfo(`[DEBUG] *** ПРОВЕРКА ЧИСЛОВЫХ ПОЛЕЙ ВРЕМЕНИ ***`);
+      // *** ПРОВЕРКА: Числовые поля времени ***
+      this.logInfo(`[DEBUG] *** ПРОВЕРКА ЧИСЛОВЫХ ПОЛЕЙ ВРЕМЕНИ (Date-only) ***`);
       const numericTimeFields = [
         'ShiftDate1Hours', 'ShiftDate1Minutes', 
         'ShiftDate2Hours', 'ShiftDate2Minutes',
@@ -860,6 +857,13 @@ export class StaffRecordsFetchService {
         this.logInfo(`[DEBUG] ✅ УСПЕХ: Обнаружены числовые поля времени в данных SharePoint`);
       } else {
         this.logError(`[DEBUG] ❌ ПРЕДУПРЕЖДЕНИЕ: Числовые поля времени НЕ найдены в данных SharePoint`);
+      }
+
+      // Проверка поля Date (должно быть Date-only)
+      if (fields.Date) {
+        this.logInfo(`[DEBUG] ✅ Поле Date присутствует (Date-only): ${fields.Date}`);
+      } else {
+        this.logError(`[DEBUG] ❌ Поле Date отсутствует`);
       }
 
     } else {
@@ -885,7 +889,7 @@ export class StaffRecordsFetchService {
       'ShiftDate4Hours', 'ShiftDate4Minutes'
     ];
 
-    this.logInfo(`[DEBUG] *** ПРОВЕРКА ЧИСЛОВЫХ ПОЛЕЙ ВРЕМЕНИ ДЛЯ ЗАПИСИ ID: ${rawItem.id} ***`);
+    this.logInfo(`[DEBUG] *** ПРОВЕРКА ЧИСЛОВЫХ ПОЛЕЙ ВРЕМЕНИ ДЛЯ ЗАПИСИ ID: ${rawItem.id} (Date-only) ***`);
     
     const presentFields: string[] = [];
     const missingFields: string[] = [];
@@ -915,17 +919,14 @@ export class StaffRecordsFetchService {
     } else {
       this.logError(`[DEBUG] ❌ ПРОБЛЕМА: Не все основные числовые поля времени найдены для ScheduleTab`);
     }
-  }
 
-  /**
-   * LEGACY: Логирует подробную информацию о полученных данных для диагностики
-   * @deprecated Используйте logDetailedDataInfoWithNumericFields вместо этого метода
-   * @param item Элемент данных для логирования
-   */
-  // private logDetailedDataInfo(item: IRemoteListItemResponse): void {
-  //   // Перенаправляем на новый метод с поддержкой числовых полей
-  //   this.logDetailedDataInfoWithNumericFields(item);
-  // }
+    // Проверка поля Date
+    if (fields.Date) {
+      this.logInfo(`[DEBUG] ✅ Поле Date присутствует (Date-only): ${fields.Date}`);
+    } else {
+      this.logError(`[DEBUG] ❌ Поле Date отсутствует`);
+    }
+  }
 
   /**
    * Логирование информационных сообщений
