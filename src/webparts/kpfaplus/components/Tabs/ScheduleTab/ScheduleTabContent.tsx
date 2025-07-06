@@ -804,7 +804,7 @@ const itemsForTable = getScheduleItemsWithModifications();
      {(error || errorStaffRecords) && (
        <MessageBar
          messageBarType={MessageBarType.error}
-         isMultiline={false}
+         isMultiline={true}
          onDismiss={onErrorDismiss}
         dismissButtonAriaLabel="Close"
       >
@@ -816,7 +816,7 @@ const itemsForTable = getScheduleItemsWithModifications();
     {operationMessage && (
       <MessageBar
         messageBarType={operationMessage.type}
-        isMultiline={false}
+        isMultiline={true}
         onDismiss={(): void => setOperationMessage(undefined)}
         dismissButtonAriaLabel="Close"
       >
