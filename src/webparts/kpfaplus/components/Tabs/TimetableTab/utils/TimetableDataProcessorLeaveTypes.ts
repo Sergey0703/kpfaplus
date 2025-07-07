@@ -1,17 +1,19 @@
 // src/webparts/kpfaplus/components/Tabs/TimetableTab/utils/TimetableDataProcessorLeaveTypes.ts
+// ОБНОВЛЕНО v5.0: Полная поддержка Date-only формата + числовые поля времени
+// Date-only: Поле Date больше не содержит время, используются числовые поля для времени
+
 import { IStaffRecord } from '../../../../services/StaffRecordsService';
 
 /**
  * Specialized module for leave types analysis and processing
  * Extracted from TimetableDataProcessorCore for better maintainability
- * Version 4.2 - UPDATED: Migrated to numeric time fields (ShiftDate1Hours/Minutes, ShiftDate2Hours/Minutes)
+ * ОБНОВЛЕНО v5.0: Migrated to Date-only fields + numeric time fields (ShiftDate1Hours/Minutes, ShiftDate2Hours/Minutes)
  */
 export class TimetableDataProcessorLeaveTypes {
 
   /**
-   * *** UPDATED v4.2 - MIGRATED TO NUMERIC FIELDS ***
-   * Извлекает время из записи используя числовые поля
-   * НОВЫЙ МЕТОД: Использует ShiftDate1Hours/Minutes и ShiftDate2Hours/Minutes вместо ShiftDate1/ShiftDate2
+   * ОБНОВЛЕНО v5.0: Извлекает время из записи используя числовые поля
+   * Date-only: Поле Date теперь содержит только дату
    */
   private static extractTimeFromRecord(record: IStaffRecord): {
     startHours: number;
@@ -20,24 +22,30 @@ export class TimetableDataProcessorLeaveTypes {
     endMinutes: number;
     isValidTime: boolean;
     hasWorkTime: boolean;
+    recordDate: Date; // Date-only field
   } {
-    console.log(`[TimetableDataProcessorLeaveTypes] *** v4.2: EXTRACTING TIME FROM NUMERIC FIELDS ***`);
+    console.log(`[TimetableDataProcessorLeaveTypes] v5.0: Extracting time from numeric fields for record ${record.ID}`);
     
-    // *** ИСПОЛЬЗУЕМ ЧИСЛОВЫЕ ПОЛЯ ВРЕМЕНИ ***
+    // *** ЧИСЛОВЫЕ ПОЛЯ ВРЕМЕНИ ***
     const startHours = record.ShiftDate1Hours ?? 0;
     const startMinutes = record.ShiftDate1Minutes ?? 0;
     const endHours = record.ShiftDate2Hours ?? 0;
     const endMinutes = record.ShiftDate2Minutes ?? 0;
     
-    console.log(`[TimetableDataProcessorLeaveTypes] Record ${record.ID} numeric fields:`, {
+    // *** Date-only поле ***
+    const recordDate = new Date(record.Date);
+    
+    console.log(`[TimetableDataProcessorLeaveTypes] v5.0: Record ${record.ID} extraction:`, {
+      dateOnly: recordDate.toLocaleDateString(),
+      dateISO: recordDate.toISOString(),
+      numericTime: `${startHours}:${startMinutes.toString().padStart(2, '0')} - ${endHours}:${endMinutes.toString().padStart(2, '0')}`,
       ShiftDate1Hours: record.ShiftDate1Hours,
       ShiftDate1Minutes: record.ShiftDate1Minutes,
       ShiftDate2Hours: record.ShiftDate2Hours,
-      ShiftDate2Minutes: record.ShiftDate2Minutes,
-      extracted: `${startHours}:${startMinutes} - ${endHours}:${endMinutes}`
+      ShiftDate2Minutes: record.ShiftDate2Minutes
     });
     
-    // Валидация числовых значений
+    // Валидация числовых значений времени
     const isValidTime = (
       startHours >= 0 && startHours <= 23 &&
       startMinutes >= 0 && startMinutes <= 59 &&
@@ -45,20 +53,19 @@ export class TimetableDataProcessorLeaveTypes {
       endMinutes >= 0 && endMinutes <= 59
     );
     
-    // *** ОБНОВЛЕНО: Проверяем наличие рабочего времени через числовые поля (не 00:00 - 00:00) ***
+    // Проверяем наличие рабочего времени (не 00:00 - 00:00)
     const hasWorkTime = !(startHours === 0 && startMinutes === 0 && endHours === 0 && endMinutes === 0);
     
     if (!isValidTime) {
-      console.warn(`[TimetableDataProcessorLeaveTypes] Invalid numeric time values in record ${record.ID}:`, {
+      console.warn(`[TimetableDataProcessorLeaveTypes] v5.0: Invalid numeric time in record ${record.ID}:`, {
         startHours, startMinutes, endHours, endMinutes
       });
     }
     
-    console.log(`[TimetableDataProcessorLeaveTypes] *** v4.2: Time analysis for record ${record.ID} ***`, {
-      isValidTime,
-      hasWorkTime,
-      timeDisplay: `${startHours}:${startMinutes.toString().padStart(2, '0')} - ${endHours}:${endMinutes.toString().padStart(2, '0')}`
-    });
+    // *** Date-only валидация ***
+    if (isNaN(recordDate.getTime())) {
+      console.warn(`[TimetableDataProcessorLeaveTypes] v5.0: Invalid date-only field in record ${record.ID}`);
+    }
     
     return {
       startHours,
@@ -66,15 +73,15 @@ export class TimetableDataProcessorLeaveTypes {
       endHours,
       endMinutes,
       isValidTime,
-      hasWorkTime
+      hasWorkTime,
+      recordDate
     };
   }
 
   /**
-   * *** КЛЮЧЕВОЙ МЕТОД v4.2 - UPDATED FOR NUMERIC FIELDS ***
-   * Улучшенное извлечение информации о типе отпуска из записей дня
+   * ОБНОВЛЕНО v5.0: Улучшенное извлечение информации о типе отпуска из записей дня
    * CRITICAL FIX: Правильное получение полных названий типов отпусков
-   * UPDATED: Migrated from ShiftDate1/ShiftDate2 to numeric time fields
+   * Date-only: Migrated from DateTime to Date-only + numeric time fields
    */
   public static analyzeLeaveInfoFromRecordsEnhanced(
     allDayRecords: IStaffRecord[],
@@ -85,31 +92,34 @@ export class TimetableDataProcessorLeaveTypes {
     leaveTypeTitle?: string;
     leaveTypeColor?: string;
   } {
-    console.log(`[TimetableDataProcessorLeaveTypes] *** ANALYZING LEAVE INFO v4.2 WITH NUMERIC FIELDS *** from ${allDayRecords.length} records with ENHANCED TITLE EXTRACTION`);
+    console.log(`[TimetableDataProcessorLeaveTypes] v5.0: ANALYZING LEAVE INFO WITH DATE-ONLY + NUMERIC FIELDS from ${allDayRecords.length} records with ENHANCED TITLE EXTRACTION`);
     
-    // *** UPDATED v4.2: Ищем записи без рабочего времени, но с типом отпуска используя числовые поля ***
+    // *** ОБНОВЛЕНО v5.0: Ищем записи без рабочего времени, но с типом отпуска используя числовые поля + date-only ***
     const nonWorkLeaveRecords = allDayRecords.filter(record => {
-      // *** НОВОЕ v4.2: Проверяем что нет рабочего времени через числовые поля ***
+      // *** НОВОЕ v5.0: Проверяем что нет рабочего времени через числовые поля + валидная date-only дата ***
       const timeData = this.extractTimeFromRecord(record);
       const hasWorkTime = timeData.hasWorkTime;
+      const hasValidDate = !isNaN(timeData.recordDate.getTime());
       
       // Но есть тип отпуска
       const hasLeaveType = record.TypeOfLeaveID && record.TypeOfLeaveID !== '0';
       
-      console.log(`[TimetableDataProcessorLeaveTypes] *** v4.2: Record ${record.ID} analysis WITH NUMERIC FIELDS ***`, {
+      console.log(`[TimetableDataProcessorLeaveTypes] v5.0: Record ${record.ID} analysis WITH NUMERIC FIELDS + DATE-ONLY:`, {
         hasWorkTime,
         hasLeaveType,
+        hasValidDate,
         leaveTypeId: record.TypeOfLeaveID,
+        dateOnly: timeData.recordDate.toLocaleDateString(),
         numericTime: `${timeData.startHours}:${timeData.startMinutes} - ${timeData.endHours}:${timeData.endMinutes}`,
         typeOfLeaveObject: record.TypeOfLeave,
         leaveTypeTitle: record.TypeOfLeave?.Title
       });
       
-      return !hasWorkTime && hasLeaveType;
+      return !hasWorkTime && hasLeaveType && hasValidDate;
     });
 
     if (nonWorkLeaveRecords.length === 0) {
-      console.log(`[TimetableDataProcessorLeaveTypes] *** v4.2: No non-work leave records found ***`);
+      console.log(`[TimetableDataProcessorLeaveTypes] v5.0: No non-work leave records found with valid date-only fields`);
       return { hasNonWorkLeave: false };
     }
 
@@ -117,45 +127,46 @@ export class TimetableDataProcessorLeaveTypes {
     const leaveRecord = nonWorkLeaveRecords[0];
     const leaveTypeId = leaveRecord.TypeOfLeaveID;
     
-    // *** КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ v4.2: Улучшенное получение названия типа отпуска ***
+    // *** КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ v5.0: Улучшенное получение названия типа отпуска ***
     let leaveTypeTitle: string | undefined = undefined;
     
-    console.log(`[TimetableDataProcessorLeaveTypes] *** v4.2: EXTRACTING LEAVE TYPE TITLE WITH NUMERIC FIELDS ***`, {
+    console.log(`[TimetableDataProcessorLeaveTypes] v5.0: EXTRACTING LEAVE TYPE TITLE WITH DATE-ONLY + NUMERIC FIELDS:`, {
       leaveTypeId,
       typeOfLeaveObject: leaveRecord.TypeOfLeave,
       hasTypeOfLeaveObject: !!leaveRecord.TypeOfLeave,
-      typeOfLeaveObjectTitle: leaveRecord.TypeOfLeave?.Title
+      typeOfLeaveObjectTitle: leaveRecord.TypeOfLeave?.Title,
+      recordDate: new Date(leaveRecord.Date).toLocaleDateString()
     });
     
     // Приоритет 1: Название из связанного объекта TypeOfLeave (самый надежный)
     if (leaveRecord.TypeOfLeave && leaveRecord.TypeOfLeave.Title) {
       leaveTypeTitle = leaveRecord.TypeOfLeave.Title;
-      console.log(`[TimetableDataProcessorLeaveTypes] *** v4.2 SUCCESS: FOUND LEAVE TITLE FROM LINKED OBJECT: ${leaveTypeTitle} ***`);
+      console.log(`[TimetableDataProcessorLeaveTypes] v5.0 SUCCESS: FOUND LEAVE TITLE FROM LINKED OBJECT: ${leaveTypeTitle}`);
     }
     // Приоритет 2: Поиск в дополнительных полях записи
     else if ((leaveRecord as unknown as Record<string, unknown>).Title && typeof (leaveRecord as unknown as Record<string, unknown>).Title === 'string') {
       leaveTypeTitle = (leaveRecord as unknown as Record<string, unknown>).Title as string;
-      console.log(`[TimetableDataProcessorLeaveTypes] *** v4.2 SUCCESS: FOUND LEAVE TITLE FROM RECORD.TITLE: ${leaveTypeTitle} ***`);
+      console.log(`[TimetableDataProcessorLeaveTypes] v5.0 SUCCESS: FOUND LEAVE TITLE FROM RECORD.TITLE: ${leaveTypeTitle}`);
     }
     // Приоритет 3: ID как название (fallback - что даст "Type X")
     else if (leaveTypeId) {
       leaveTypeTitle = leaveTypeId;
-      console.log(`[TimetableDataProcessorLeaveTypes] *** v4.2 FALLBACK: USING LEAVE ID AS TITLE: ${leaveTypeTitle} ***`);
+      console.log(`[TimetableDataProcessorLeaveTypes] v5.0 FALLBACK: USING LEAVE ID AS TITLE: ${leaveTypeTitle}`);
     }
     
-    // *** КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ v4.2: Получение цвета типа отпуска ***
+    // *** КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ v5.0: Получение цвета типа отпуска ***
     let leaveTypeColor: string | undefined = undefined;
     
     if (getLeaveTypeColor && leaveTypeId) {
       leaveTypeColor = getLeaveTypeColor(leaveTypeId);
-      console.log(`[TimetableDataProcessorLeaveTypes] *** v4.2: LEAVE COLOR LOOKUP WITH NUMERIC FIELDS ***`, {
+      console.log(`[TimetableDataProcessorLeaveTypes] v5.0: LEAVE COLOR LOOKUP WITH DATE-ONLY + NUMERIC FIELDS:`, {
         leaveTypeId,
         leaveTypeColor,
         hasColorFunction: !!getLeaveTypeColor,
         colorFound: !!leaveTypeColor
       });
     } else {
-      console.warn(`[TimetableDataProcessorLeaveTypes] *** v4.2: WARNING: No color function or leave type ID for color lookup ***`);
+      console.warn(`[TimetableDataProcessorLeaveTypes] v5.0: WARNING: No color function or leave type ID for color lookup`);
     }
 
     const result = {
@@ -165,8 +176,9 @@ export class TimetableDataProcessorLeaveTypes {
       leaveTypeColor
     };
 
-    console.log(`[TimetableDataProcessorLeaveTypes] *** v4.2: COMPLETE LEAVE TYPE INFO EXTRACTED WITH NUMERIC FIELDS ***`, {
+    console.log(`[TimetableDataProcessorLeaveTypes] v5.0: COMPLETE LEAVE TYPE INFO EXTRACTED WITH DATE-ONLY + NUMERIC FIELDS:`, {
       recordId: leaveRecord.ID,
+      recordDate: new Date(leaveRecord.Date).toLocaleDateString(),
       leaveTypeId,
       leaveTypeTitle,
       leaveTypeColor,
@@ -174,32 +186,59 @@ export class TimetableDataProcessorLeaveTypes {
       hasTitle: !!leaveTypeTitle,
       titleSource: leaveRecord.TypeOfLeave?.Title ? 'TypeOfLeave.Title' : 
                    (leaveRecord as unknown as Record<string, unknown>).Title ? 'Record.Title' : 'LeaveTypeId',
-      enhancement: 'v4.2 - Full leave type information preserved for UI display with numeric time fields architecture'
+      enhancement: 'v5.0 - Full leave type information preserved for UI display with date-only + numeric time fields architecture'
     });
 
     return result;
   }
 
   /**
-   * *** UPDATED v4.2 - MIGRATED TO NUMERIC FIELDS ***
-   * Анализирует записи на предмет отпусков без рабочего времени
-   * REFACTORED v4.2: Extracted from core for better organization with numeric fields support
+   * ОБНОВЛЕНО v5.0: Анализирует записи на предмет отпусков без рабочего времени
+   * Date-only: Extracted from core for better organization with date-only + numeric fields support
    */
   public static analyzeRecordsForLeaveMarkers(records: IStaffRecord[]): {
     totalRecords: number;
     recordsWithLeaveType: number;
     nonWorkLeaveRecords: number;
     leaveTypesFound: Array<{ id: string; title?: string; count: number }>;
+    dateOnlyStatistics: {
+      recordsWithValidDates: number;
+      recordsWithInvalidDates: number;
+      dateRange: {
+        earliest?: string;
+        latest?: string;
+        spanDays: number;
+      };
+    };
   } {
-    console.log(`[TimetableDataProcessorLeaveTypes] *** v4.2: ANALYZING RECORDS FOR LEAVE MARKERS WITH NUMERIC FIELDS ***`);
+    console.log(`[TimetableDataProcessorLeaveTypes] v5.0: ANALYZING RECORDS FOR LEAVE MARKERS WITH DATE-ONLY + NUMERIC FIELDS`);
     
     const totalRecords = records.length;
     let recordsWithLeaveType = 0;
     let nonWorkLeaveRecords = 0;
     
+    // *** НОВОЕ v5.0: Date-only статистика ***
+    let recordsWithValidDates = 0;
+    let recordsWithInvalidDates = 0;
+    const validDates: Date[] = [];
+    
     const leaveTypesMap = new Map<string, { id: string; title?: string; count: number }>();
 
     records.forEach(record => {
+      // *** ОБНОВЛЕНО v5.0: Date-only валидация ***
+      const timeData = this.extractTimeFromRecord(record);
+      const recordDate = timeData.recordDate;
+      
+      if (isNaN(recordDate.getTime())) {
+        recordsWithInvalidDates++;
+        console.warn(`[TimetableDataProcessorLeaveTypes] v5.0: Invalid date-only field in record ${record.ID}`);
+      } else {
+        recordsWithValidDates++;
+        // Нормализуем к date-only для статистики
+        const normalizedDate = new Date(recordDate.getFullYear(), recordDate.getMonth(), recordDate.getDate());
+        validDates.push(normalizedDate);
+      }
+
       if (record.TypeOfLeaveID && record.TypeOfLeaveID !== '0') {
         recordsWithLeaveType++;
         
@@ -214,13 +253,12 @@ export class TimetableDataProcessorLeaveTypes {
         }
         leaveTypesMap.get(leaveTypeId)!.count++;
 
-        // *** UPDATED v4.2: Проверяем есть ли рабочее время через числовые поля ***
-        const timeData = this.extractTimeFromRecord(record);
+        // *** ОБНОВЛЕНО v5.0: Проверяем есть ли рабочее время через числовые поля ***
         const hasWorkTime = timeData.hasWorkTime;
 
         if (!hasWorkTime) {
           nonWorkLeaveRecords++;
-          console.log(`[TimetableDataProcessorLeaveTypes] *** v4.2: Found non-work leave record ${record.ID} with numeric time ${timeData.startHours}:${timeData.startMinutes} - ${timeData.endHours}:${timeData.endMinutes} ***`);
+          console.log(`[TimetableDataProcessorLeaveTypes] v5.0: Found non-work leave record ${record.ID} with date-only ${recordDate.toLocaleDateString()} and numeric time ${timeData.startHours}:${timeData.startMinutes} - ${timeData.endHours}:${timeData.endMinutes}`);
         }
       }
     });
@@ -230,25 +268,53 @@ export class TimetableDataProcessorLeaveTypes {
       leaveTypesFound.push(leaveType);
     });
 
-    console.log(`[TimetableDataProcessorLeaveTypes] *** v4.2: LEAVE MARKERS ANALYSIS COMPLETED WITH NUMERIC FIELDS ***`, {
+    // *** НОВОЕ v5.0: Date-only диапазон дат ***
+    let dateRange = {
+      earliest: undefined as string | undefined,
+      latest: undefined as string | undefined,
+      spanDays: 0
+    };
+
+    if (validDates.length > 0) {
+      const sortedDates = validDates.sort((a, b) => a.getTime() - b.getTime());
+      const earliestDate = sortedDates[0];
+      const latestDate = sortedDates[sortedDates.length - 1];
+      
+      dateRange = {
+        earliest: earliestDate.toLocaleDateString(),
+        latest: latestDate.toLocaleDateString(),
+        spanDays: Math.ceil((latestDate.getTime() - earliestDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
+      };
+    }
+
+    console.log(`[TimetableDataProcessorLeaveTypes] v5.0: LEAVE MARKERS ANALYSIS COMPLETED WITH DATE-ONLY + NUMERIC FIELDS:`, {
       totalRecords,
       recordsWithLeaveType,
       nonWorkLeaveRecords,
-      leaveTypesFound: leaveTypesFound.length
+      leaveTypesFound: leaveTypesFound.length,
+      dateOnlyStatistics: {
+        recordsWithValidDates,
+        recordsWithInvalidDates,
+        dateRange
+      }
     });
 
     return {
       totalRecords,
       recordsWithLeaveType,
       nonWorkLeaveRecords,
-      leaveTypesFound
+      leaveTypesFound,
+      dateOnlyStatistics: {
+        recordsWithValidDates,
+        recordsWithInvalidDates,
+        dateRange
+      }
     };
   }
 
   /**
-   * *** UPDATED v4.2 - MIGRATED TO NUMERIC FIELDS ***
-   * Извлекает полную информацию о типе отпуска из записи
-   * REFACTORED v4.2: Specialized method for single record analysis with numeric fields
+   * ОБНОВЛЕНО v5.0: Извлекает полную информацию о типе отпуска из записи
+   * Date-only: Specialized method for single record analysis with date-only + numeric fields
    */
   public static extractLeaveTypeInfoFromRecord(
     record: IStaffRecord,
@@ -258,9 +324,20 @@ export class TimetableDataProcessorLeaveTypes {
     leaveTypeId?: string;
     leaveTypeTitle?: string;
     leaveTypeColor?: string;
+    recordDate?: string; // Date-only field as string
+    isValidRecord: boolean;
   } {
+    // *** ОБНОВЛЕНО v5.0: Date-only валидация ***
+    const timeData = this.extractTimeFromRecord(record);
+    const isValidRecord = timeData.isValidTime && !isNaN(timeData.recordDate.getTime());
+    const recordDate = isValidRecord ? timeData.recordDate.toLocaleDateString() : undefined;
+
     if (!record.TypeOfLeaveID || record.TypeOfLeaveID === '0') {
-      return { hasLeaveType: false };
+      return { 
+        hasLeaveType: false, 
+        recordDate,
+        isValidRecord 
+      };
     }
 
     const leaveTypeId = record.TypeOfLeaveID;
@@ -279,10 +356,12 @@ export class TimetableDataProcessorLeaveTypes {
       leaveTypeColor = getLeaveTypeColor(leaveTypeId);
     }
 
-    console.log(`[TimetableDataProcessorLeaveTypes] *** v4.2: EXTRACTED LEAVE INFO FROM RECORD ${record.ID} ***`, {
+    console.log(`[TimetableDataProcessorLeaveTypes] v5.0: EXTRACTED LEAVE INFO FROM RECORD ${record.ID} WITH DATE-ONLY:`, {
       leaveTypeId,
       leaveTypeTitle,
       leaveTypeColor,
+      recordDate,
+      isValidRecord,
       hasColor: !!leaveTypeColor
     });
 
@@ -290,14 +369,15 @@ export class TimetableDataProcessorLeaveTypes {
       hasLeaveType: true,
       leaveTypeId,
       leaveTypeTitle,
-      leaveTypeColor
+      leaveTypeColor,
+      recordDate,
+      isValidRecord
     };
   }
 
   /**
-   * *** UPDATED v4.2 - ENHANCED VALIDATION WITH NUMERIC FIELDS ***
-   * Валидирует качество информации о типах отпусков
-   * REFACTORED v4.2: Extracted validation logic with numeric fields support
+   * ОБНОВЛЕНО v5.0: Валидирует качество информации о типах отпусков
+   * Date-only: Extracted validation logic with date-only + numeric fields support
    */
   public static validateLeaveTypesData(
     records: IStaffRecord[],
@@ -312,10 +392,11 @@ export class TimetableDataProcessorLeaveTypes {
       recordsWithValidTitles: number;
       recordsWithValidColors: number;
       recordsWithValidNumericTime: number;
+      recordsWithValidDates: number;
       missingColorMappings: string[];
     };
   } {
-    console.log(`[TimetableDataProcessorLeaveTypes] *** v4.2: VALIDATING LEAVE TYPES DATA WITH NUMERIC FIELDS ***`);
+    console.log(`[TimetableDataProcessorLeaveTypes] v5.0: VALIDATING LEAVE TYPES DATA WITH DATE-ONLY + NUMERIC FIELDS`);
     
     const issues: string[] = [];
     const warnings: string[] = [];
@@ -325,15 +406,24 @@ export class TimetableDataProcessorLeaveTypes {
     let recordsWithValidTitles = 0;
     let recordsWithValidColors = 0;
     let recordsWithValidNumericTime = 0;
+    let recordsWithValidDates = 0;
     const missingColorMappings = new Set<string>();
 
     records.forEach(record => {
-      // *** NEW v4.2: Валидация числовых полей времени ***
+      // *** НОВОЕ v5.0: Валидация date-only + числовых полей времени ***
       const timeData = this.extractTimeFromRecord(record);
+      
       if (timeData.isValidTime) {
         recordsWithValidNumericTime++;
       } else {
         issues.push(`Record ${record.ID} has invalid numeric time fields: ${timeData.startHours}:${timeData.startMinutes} - ${timeData.endHours}:${timeData.endMinutes}`);
+      }
+
+      // *** Date-only валидация ***
+      if (!isNaN(timeData.recordDate.getTime())) {
+        recordsWithValidDates++;
+      } else {
+        issues.push(`Record ${record.ID} has invalid date-only field`);
       }
 
       if (record.TypeOfLeaveID && record.TypeOfLeaveID !== '0') {
@@ -369,10 +459,11 @@ export class TimetableDataProcessorLeaveTypes {
 
     const isValid = issues.length === 0 && warnings.length < totalRecords * 0.1; // Менее 10% предупреждений
 
-    console.log(`[TimetableDataProcessorLeaveTypes] *** v4.2: VALIDATION COMPLETED WITH NUMERIC FIELDS ***`, {
+    console.log(`[TimetableDataProcessorLeaveTypes] v5.0: VALIDATION COMPLETED WITH DATE-ONLY + NUMERIC FIELDS:`, {
       isValid,
       totalRecords,
       recordsWithLeaveType,
+      recordsWithValidDates,
       recordsWithValidNumericTime,
       issuesCount: issues.length,
       warningsCount: warnings.length
@@ -388,15 +479,15 @@ export class TimetableDataProcessorLeaveTypes {
         recordsWithValidTitles,
         recordsWithValidColors,
         recordsWithValidNumericTime,
+        recordsWithValidDates,
         missingColorMappings: Array.from(missingColorMappings)
       }
     };
   }
 
   /**
-   * *** UPDATED v4.2 - COMPREHENSIVE SUMMARY WITH NUMERIC FIELDS ***
-   * Создает сводку по типам отпусков
-   * REFACTORED v4.2: Comprehensive summary generation with numeric fields support
+   * ОБНОВЛЕНО v5.0: Создает сводку по типам отпусков
+   * Date-only: Comprehensive summary generation with date-only + numeric fields support
    */
   public static createLeaveTypesSummary(
     records: IStaffRecord[],
@@ -411,6 +502,11 @@ export class TimetableDataProcessorLeaveTypes {
       count: number;
       percentage: number;
     }>;
+    dateOnlyStatistics: {
+      recordsWithValidDates: number;
+      recordsWithInvalidDates: number;
+      dateRangeSpanDays: number;
+    };
     numericFieldsStatistics: {
       recordsWithValidTime: number;
       recordsWithInvalidTime: number;
@@ -419,19 +515,31 @@ export class TimetableDataProcessorLeaveTypes {
     qualityScore: number;
     recommendations: string[];
   } {
-    console.log(`[TimetableDataProcessorLeaveTypes] *** v4.2: CREATING LEAVE TYPES SUMMARY WITH NUMERIC FIELDS ***`);
+    console.log(`[TimetableDataProcessorLeaveTypes] v5.0: CREATING LEAVE TYPES SUMMARY WITH DATE-ONLY + NUMERIC FIELDS`);
     
     const leaveTypesMap = new Map<string, { id: string; title: string; color?: string; count: number }>();
     let totalLeaveRecords = 0;
     
-    // *** NEW v4.2: Статистика по числовым полям ***
+    // *** НОВОЕ v5.0: Статистика по date-only + числовым полям ***
+    let recordsWithValidDates = 0;
+    let recordsWithInvalidDates = 0;
     let recordsWithValidTime = 0;
     let recordsWithInvalidTime = 0;
     let zeroTimeRecords = 0;
+    const validDates: Date[] = [];
 
     records.forEach(record => {
-      // *** NEW v4.2: Анализ числовых полей времени ***
+      // *** НОВОЕ v5.0: Анализ date-only + числовых полей времени ***
       const timeData = this.extractTimeFromRecord(record);
+      
+      if (!isNaN(timeData.recordDate.getTime())) {
+        recordsWithValidDates++;
+        const normalizedDate = new Date(timeData.recordDate.getFullYear(), timeData.recordDate.getMonth(), timeData.recordDate.getDate());
+        validDates.push(normalizedDate);
+      } else {
+        recordsWithInvalidDates++;
+      }
+      
       if (timeData.isValidTime) {
         recordsWithValidTime++;
       } else {
@@ -480,7 +588,16 @@ export class TimetableDataProcessorLeaveTypes {
     // Сортируем по количеству использований
     leaveTypesBreakdown.sort((a, b) => b.count - a.count);
 
-    // *** UPDATED v4.2: Вычисляем качественный балл с учетом числовых полей ***
+    // *** НОВОЕ v5.0: Date-only диапазон ***
+    let dateRangeSpanDays = 0;
+    if (validDates.length > 0) {
+      const sortedDates = validDates.sort((a, b) => a.getTime() - b.getTime());
+      const earliestDate = sortedDates[0];
+      const latestDate = sortedDates[sortedDates.length - 1];
+      dateRangeSpanDays = Math.ceil((latestDate.getTime() - earliestDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    }
+
+    // *** ОБНОВЛЕНО v5.0: Вычисляем качественный балл с учетом date-only + числовых полей ***
     const typesWithTitles = leaveTypesBreakdown.filter(lt => lt.title !== lt.id).length;
     const typesWithColors = leaveTypesBreakdown.filter(lt => lt.color).length;
     
@@ -488,12 +605,13 @@ export class TimetableDataProcessorLeaveTypes {
     if (leaveTypesBreakdown.length > 0) {
       const titlesCoverage = typesWithTitles / leaveTypesBreakdown.length;
       const colorsCoverage = typesWithColors / leaveTypesBreakdown.length;
-      const numericTimeCoverage = records.length > 0 ? recordsWithValidTime / records.length : 1;
+      const dateValidationRate = records.length > 0 ? recordsWithValidDates / records.length : 1;
+      const timeValidationRate = records.length > 0 ? recordsWithValidTime / records.length : 1;
       
-      qualityScore = Math.round((titlesCoverage * 40) + (colorsCoverage * 40) + (numericTimeCoverage * 20));
+      qualityScore = Math.round((titlesCoverage * 30) + (colorsCoverage * 30) + (dateValidationRate * 20) + (timeValidationRate * 20));
     }
 
-    // *** UPDATED v4.2: Генерируем рекомендации с учетом числовых полей ***
+    // *** ОБНОВЛЕНО v5.0: Генерируем рекомендации с учетом date-only + числовых полей ***
     const recommendations: string[] = [];
     if (typesWithTitles < leaveTypesBreakdown.length) {
       recommendations.push('Some leave types are missing proper titles - check TypeOfLeave.Title field');
@@ -501,26 +619,37 @@ export class TimetableDataProcessorLeaveTypes {
     if (typesWithColors < leaveTypesBreakdown.length) {
       recommendations.push('Some leave types are missing color mappings - update getLeaveTypeColor function');
     }
+    if (recordsWithInvalidDates > 0) {
+      recommendations.push(`${recordsWithInvalidDates} records have invalid date-only fields - verify SharePoint configuration`);
+    }
     if (recordsWithInvalidTime > 0) {
       recommendations.push(`${recordsWithInvalidTime} records have invalid numeric time fields - verify data integrity`);
     }
     if (qualityScore < 80) {
-      recommendations.push('Overall leave types data quality is below 80% - review configuration');
+      recommendations.push('Overall leave types data quality is below 80% - review v5.0 configuration');
     }
 
-    console.log(`[TimetableDataProcessorLeaveTypes] *** v4.2: SUMMARY COMPLETED WITH NUMERIC FIELDS ***`, {
+    console.log(`[TimetableDataProcessorLeaveTypes] v5.0: SUMMARY COMPLETED WITH DATE-ONLY + NUMERIC FIELDS:`, {
       totalLeaveRecords,
       uniqueLeaveTypes: leaveTypesBreakdown.length,
       qualityScore,
+      recordsWithValidDates,
+      recordsWithInvalidDates,
       recordsWithValidTime,
       recordsWithInvalidTime,
-      zeroTimeRecords
+      zeroTimeRecords,
+      dateRangeSpanDays
     });
 
     return {
       totalLeaveRecords,
       uniqueLeaveTypes: leaveTypesBreakdown.length,
       leaveTypesBreakdown,
+      dateOnlyStatistics: {
+        recordsWithValidDates,
+        recordsWithInvalidDates,
+        dateRangeSpanDays
+      },
       numericFieldsStatistics: {
         recordsWithValidTime,
         recordsWithInvalidTime,
@@ -532,9 +661,8 @@ export class TimetableDataProcessorLeaveTypes {
   }
 
   /**
-   * *** UPDATED v4.2 - USAGE STATISTICS WITH NUMERIC FIELDS ***
-   * Получает статистику по использованию типов отпусков
-   * REFACTORED v4.2: Usage pattern analysis with numeric fields support
+   * ОБНОВЛЕНО v5.0: Получает статистику по использованию типов отпусков
+   * Date-only: Usage pattern analysis with date-only + numeric fields support
    */
   public static getLeaveTypesUsageStatistics(
     records: IStaffRecord[]
@@ -548,13 +676,18 @@ export class TimetableDataProcessorLeaveTypes {
       nonWorkDaysWithLeave: number;
       mixedUsage: number;
     };
+    dateOnlyAnalysis: {
+      validDateRecords: number;
+      invalidDateRecords: number;
+      dateValidationRate: number;
+    };
     numericFieldsAnalysis: {
       validTimeRecords: number;
       invalidTimeRecords: number;
       timeValidationRate: number;
     };
   } {
-    console.log(`[TimetableDataProcessorLeaveTypes] *** v4.2: ANALYZING USAGE STATISTICS WITH NUMERIC FIELDS ***`);
+    console.log(`[TimetableDataProcessorLeaveTypes] v5.0: ANALYZING USAGE STATISTICS WITH DATE-ONLY + NUMERIC FIELDS`);
     
     const totalRecords = records.length;
     let recordsWithLeave = 0;
@@ -562,15 +695,24 @@ export class TimetableDataProcessorLeaveTypes {
     let nonWorkDaysWithLeave = 0;
     let mixedUsage = 0;
     
-    // *** NEW v4.2: Анализ числовых полей ***
+    // *** НОВОЕ v5.0: Анализ date-only + числовых полей ***
+    let validDateRecords = 0;
+    let invalidDateRecords = 0;
     let validTimeRecords = 0;
     let invalidTimeRecords = 0;
 
     const leaveUsageMap = new Map<string, { id: string; title?: string; count: number }>();
 
     records.forEach(record => {
-      // *** NEW v4.2: Валидация числовых полей времени ***
+      // *** НОВОЕ v5.0: Валидация date-only + числовых полей времени ***
       const timeData = this.extractTimeFromRecord(record);
+      
+      if (!isNaN(timeData.recordDate.getTime())) {
+        validDateRecords++;
+      } else {
+        invalidDateRecords++;
+      }
+      
       if (timeData.isValidTime) {
         validTimeRecords++;
       } else {
@@ -590,7 +732,7 @@ export class TimetableDataProcessorLeaveTypes {
         }
         leaveUsageMap.get(leaveTypeId)!.count++;
 
-        // *** UPDATED v4.2: Анализируем паттерн использования через числовые поля ***
+        // *** ОБНОВЛЕНО v5.0: Анализируем паттерн использования через числовые поля ***
         const hasWorkTime = timeData.hasWorkTime;
 
         if (hasWorkTime) {
@@ -607,6 +749,7 @@ export class TimetableDataProcessorLeaveTypes {
     });
 
     const leaveUsagePercentage = totalRecords > 0 ? Math.round((recordsWithLeave / totalRecords) * 100) : 0;
+    const dateValidationRate = totalRecords > 0 ? Math.round((validDateRecords / totalRecords) * 100) : 0;
     const timeValidationRate = totalRecords > 0 ? Math.round((validTimeRecords / totalRecords) * 100) : 0;
 
     const mostUsedLeaveTypes: Array<{ id: string; title?: string; count: number; percentage: number }> = [];
@@ -620,10 +763,11 @@ export class TimetableDataProcessorLeaveTypes {
     // Сортируем по использованию
     mostUsedLeaveTypes.sort((a, b) => b.count - a.count);
 
-    console.log(`[TimetableDataProcessorLeaveTypes] *** v4.2: USAGE STATISTICS COMPLETED WITH NUMERIC FIELDS ***`, {
+    console.log(`[TimetableDataProcessorLeaveTypes] v5.0: USAGE STATISTICS COMPLETED WITH DATE-ONLY + NUMERIC FIELDS:`, {
       totalRecords,
       recordsWithLeave,
       leaveUsagePercentage,
+      dateValidationRate,
       timeValidationRate,
       workDaysWithLeave,
       nonWorkDaysWithLeave
@@ -638,6 +782,11 @@ export class TimetableDataProcessorLeaveTypes {
         workDaysWithLeave,
         nonWorkDaysWithLeave,
         mixedUsage
+      },
+      dateOnlyAnalysis: {
+        validDateRecords,
+        invalidDateRecords,
+        dateValidationRate
       },
       numericFieldsAnalysis: {
         validTimeRecords,

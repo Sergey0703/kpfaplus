@@ -1,4 +1,6 @@
 // src/webparts/kpfaplus/components/Tabs/TimetableTab/utils/TimetableDataProcessorDiagnostics.ts
+// ОБНОВЛЕНО v5.0: Date-only поддержка для поля Date
+
 import { IStaffRecord } from '../../../../services/StaffRecordsService';
 import { IWeeklyStaffData, IWeekInfo, IDayInfo } from '../interfaces/TimetableInterfaces';
 import { TimetableDataUtils } from './TimetableDataUtils';
@@ -23,6 +25,12 @@ export class TimetableDataProcessorDiagnostics {
     let recordsWithHoliday = 0;
 
     weekRecords.forEach(record => {
+      // *** ОБНОВЛЕНО v5.0: Date-only валидация ***
+      const recordDate = new Date(record.Date);
+      if (isNaN(recordDate.getTime())) {
+        console.warn(`[TimetableDataProcessorDiagnostics] v5.0: Invalid date-only field in record ${record.ID}`);
+      }
+
       if (record.TypeOfLeaveID && record.TypeOfLeaveID !== '0') {
         recordsWithLeave++;
       }
@@ -108,6 +116,11 @@ export class TimetableDataProcessorDiagnostics {
     days.forEach((day, index) => {
       if (!Array.isArray(day.shifts)) {
         issues.push(`Day ${index + 1} has invalid shifts array`);
+      }
+
+      // *** ОБНОВЛЕНО v5.0: Date-only валидация ***
+      if (day.date && isNaN(day.date.getTime())) {
+        issues.push(`Day ${index + 1} has invalid date-only field`);
       }
 
       if (day.hasLeave && day.formattedContent?.startsWith('Type ')) {
