@@ -1,5 +1,5 @@
 // src/webparts/kpfaplus/components/Tabs/TimetableTab/useTimetableLogic.ts
-// ФИНАЛЬНАЯ АВТОНОМНАЯ ВЕРСИЯ С ПОДДЕРЖКОЙ DATE-ONLY HOLIDAYS SERVICE
+// ОБНОВЛЕНО v5.0: Полная поддержка Date-only формата + числовые поля времени
 
 import { useEffect, useMemo, useCallback, useState } from 'react';
 import * as ExcelJS from 'exceljs';
@@ -30,31 +30,58 @@ export interface ITimetableLogicProps extends ITabProps {
 }
 
 /**
- * ИСПРАВЛЕНО: Создает правильные границы месяца для Date-only Holiday фильтрации
+ * ОБНОВЛЕНО v5.0: Создает правильные границы месяца для Date-only Holiday фильтрации
+ * Date-only: Все операции с датами нормализованы к полуночи
  */
 const createMonthBoundariesForHolidays = (selectedDate: Date): { 
   startOfMonth: Date; 
   endOfMonth: Date; 
 } => {
-  console.log('[useTimetableLogic] *** CREATING MONTH BOUNDARIES FOR DATE-ONLY HOLIDAYS ***');
-  console.log('[useTimetableLogic] Input selectedDate:', selectedDate.toISOString());
+  console.log('[useTimetableLogic] v5.0: Creating month boundaries for date-only holidays');
+  console.log('[useTimetableLogic] v5.0: Input selectedDate:', {
+    date: selectedDate.toLocaleDateString(),
+    iso: selectedDate.toISOString()
+  });
+  
+  // *** ОБНОВЛЕНО v5.0: Нормализуем selectedDate к date-only ***
+  const normalizedSelectedDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
   
   // Используем локальные компоненты даты для избежания проблем с часовыми поясами
-  const year = selectedDate.getFullYear();
-  const month = selectedDate.getMonth(); // 0-11
+  const year = normalizedSelectedDate.getFullYear();
+  const month = normalizedSelectedDate.getMonth(); // 0-11
   
-  console.log('[useTimetableLogic] Date components:', { year, month: month + 1 });
+  console.log('[useTimetableLogic] v5.0: Date components:', { year, month: month + 1 });
   
-  // ИСПРАВЛЕНО: Создаем правильные границы месяца
-  const startOfMonth = new Date(year, month, 1); // Первый день месяца
-  const endOfMonth = new Date(year, month + 1, 0); // Последний день месяца (0-й день следующего месяца)
+  // *** Date-only границы месяца ***
+  const startOfMonth = new Date(year, month, 1); // Первый день месяца (полночь)
+  const endOfMonth = new Date(year, month + 1, 0); // Последний день месяца (полночь)
   
-  console.log('[useTimetableLogic] Month boundaries created:');
-  console.log('[useTimetableLogic] - Start of month:', startOfMonth.toLocaleDateString(), startOfMonth.toISOString());
-  console.log('[useTimetableLogic] - End of month:', endOfMonth.toLocaleDateString(), endOfMonth.toISOString());
-  console.log('[useTimetableLogic] - Days in month:', endOfMonth.getDate());
+  console.log('[useTimetableLogic] v5.0: Date-only month boundaries created:');
+  console.log('[useTimetableLogic] v5.0: - Start of month:', {
+    date: startOfMonth.toLocaleDateString(),
+    iso: startOfMonth.toISOString()
+  });
+  console.log('[useTimetableLogic] v5.0: - End of month:', {
+    date: endOfMonth.toLocaleDateString(),
+    iso: endOfMonth.toISOString()
+  });
+  console.log('[useTimetableLogic] v5.0: - Days in month:', endOfMonth.getDate());
   
   return { startOfMonth, endOfMonth };
+};
+
+/**
+ * НОВЫЙ МЕТОД v5.0: Нормализует дату к date-only формату
+ */
+const normalizeDateToDateOnly = (date: Date): Date => {
+  const normalized = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  console.log('[useTimetableLogic] v5.0: Date normalization:', {
+    original: date.toLocaleDateString(),
+    originalISO: date.toISOString(),
+    normalized: normalized.toLocaleDateString(),
+    normalizedISO: normalized.toISOString()
+  });
+  return normalized;
 };
 
 export const useTimetableLogic = (props: ITimetableLogicProps): {
@@ -140,68 +167,74 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
         setIsLoadingTypesOfLeave(true);
         const types = await typeOfLeaveService.getAllTypesOfLeave();
         setTypesOfLeave(types);
-        console.log('[useTimetableLogic] Loaded types of leave:', types.length);
+        console.log('[useTimetableLogic] v5.0: Loaded types of leave:', types.length);
       } catch (error) {
-        console.error('[useTimetableLogic] Error loading types of leave:', error);
+        console.error('[useTimetableLogic] v5.0: Error loading types of leave:', error);
         setTypesOfLeave([]);
       } finally {
         setIsLoadingTypesOfLeave(false);
       }
     };
-    loadTypesOfLeave().catch((error: unknown) => console.error('[useTimetableLogic] Failed to load types of leave:', error));
+    loadTypesOfLeave().catch((error: unknown) => console.error('[useTimetableLogic] v5.0: Failed to load types of leave:', error));
   }, [typeOfLeaveService]);
 
-  // ИСПРАВЛЕНО: ЗАГРУЗКА HOLIDAYS С DATE-ONLY ПОДДЕРЖКОЙ
+  // ОБНОВЛЕНО v5.0: ЗАГРУЗКА HOLIDAYS С DATE-ONLY ПОДДЕРЖКОЙ
   useEffect(() => {
     const loadHolidays = async (): Promise<void> => {
       if (!holidaysService) return;
       try {
         setIsLoadingHolidays(true);
         
-        console.log('[useTimetableLogic] *** LOADING HOLIDAYS WITH DATE-ONLY SUPPORT ***');
-        console.log('[useTimetableLogic] Selected date for holiday loading:', state.selectedDate.toISOString());
-        console.log('[useTimetableLogic] Selected month:', state.selectedDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }));
+        console.log('[useTimetableLogic] v5.0: Loading holidays with date-only support');
+        console.log('[useTimetableLogic] v5.0: Selected date for holiday loading:', {
+          date: state.selectedDate.toLocaleDateString(),
+          iso: state.selectedDate.toISOString(),
+          month: state.selectedDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+        });
         
-        // ИСПРАВЛЕНО: Создаем правильные границы месяца для Date-only формата
+        // *** ОБНОВЛЕНО v5.0: Создаем правильные границы месяца для Date-only формата ***
         const { startOfMonth } = createMonthBoundariesForHolidays(state.selectedDate);
         
-        // ИСПРАВЛЕНО: Используем startOfMonth вместо selectedDate для гарантии правильного месяца
+        // *** Date-only запрос holidays ***
         const monthHolidays = await holidaysService.getHolidaysByMonthAndYear(startOfMonth);
         setHolidays(monthHolidays);
         
-        console.log('[useTimetableLogic] *** HOLIDAYS LOADED SUCCESSFULLY WITH DATE-ONLY SUPPORT ***');
-        console.log('[useTimetableLogic] Holidays count:', monthHolidays.length);
-        console.log('[useTimetableLogic] Holidays list:', monthHolidays.map(h => ({ 
+        console.log('[useTimetableLogic] v5.0: Holidays loaded successfully with date-only support');
+        console.log('[useTimetableLogic] v5.0: Holidays count:', monthHolidays.length);
+        console.log('[useTimetableLogic] v5.0: Holidays list:', monthHolidays.map(h => ({ 
           title: h.title, 
           date: h.date.toLocaleDateString(),
           dateISO: h.date.toISOString()
         })));
         
-        // Проверяем, что все загруженные праздники действительно попадают в выбранный месяц
+        // *** ОБНОВЛЕНО v5.0: Проверяем, что все загруженные праздники попадают в выбранный месяц ***
         const expectedMonth = startOfMonth.getMonth();
         const expectedYear = startOfMonth.getFullYear();
         
-        const holidaysInCorrectMonth = monthHolidays.filter(h => 
-          h.date.getMonth() === expectedMonth && h.date.getFullYear() === expectedYear
-        );
+        const holidaysInCorrectMonth = monthHolidays.filter(h => {
+          const normalizedHolidayDate = normalizeDateToDateOnly(h.date);
+          return normalizedHolidayDate.getMonth() === expectedMonth && normalizedHolidayDate.getFullYear() === expectedYear;
+        });
         
         if (holidaysInCorrectMonth.length !== monthHolidays.length) {
-          console.warn('[useTimetableLogic] Some holidays are outside expected month range!');
-          console.warn('[useTimetableLogic] Expected month/year:', expectedMonth + 1, expectedYear);
-          console.warn('[useTimetableLogic] Holidays outside range:', 
-            monthHolidays.filter(h => h.date.getMonth() !== expectedMonth || h.date.getFullYear() !== expectedYear)
-              .map(h => ({ title: h.title, date: h.date.toLocaleDateString() }))
+          console.warn('[useTimetableLogic] v5.0: Some holidays are outside expected month range!');
+          console.warn('[useTimetableLogic] v5.0: Expected month/year:', expectedMonth + 1, expectedYear);
+          console.warn('[useTimetableLogic] v5.0: Holidays outside range:', 
+            monthHolidays.filter(h => {
+              const normalizedHolidayDate = normalizeDateToDateOnly(h.date);
+              return normalizedHolidayDate.getMonth() !== expectedMonth || normalizedHolidayDate.getFullYear() !== expectedYear;
+            }).map(h => ({ title: h.title, date: h.date.toLocaleDateString() }))
           );
         }
         
       } catch (error) {
-        console.error('[useTimetableLogic] Error loading holidays:', error);
+        console.error('[useTimetableLogic] v5.0: Error loading holidays:', error);
         setHolidays([]);
       } finally {
         setIsLoadingHolidays(false);
       }
     };
-    loadHolidays().catch((error: unknown) => console.error('[useTimetableLogic] Failed to load holidays:', error));
+    loadHolidays().catch((error: unknown) => console.error('[useTimetableLogic] v5.0: Failed to load holidays:', error));
   }, [holidaysService, state.selectedDate]);
 
   const getLeaveTypeColor = useCallback((typeOfLeaveId: string): string | undefined => {
@@ -230,17 +263,22 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
     return typesOfLeave.find(t => t.id === typeOfLeaveId);
   }, [typesOfLeave]);
 
-  // СТАБИЛЬНЫЙ РАСЧЕТ НЕДЕЛЬ
+  // СТАБИЛЬНЫЙ РАСЧЕТ НЕДЕЛЬ С DATE-ONLY ПОДДЕРЖКОЙ
   const weeks: IWeekInfo[] = useMemo(() => {
+    console.log('[useTimetableLogic] v5.0: Calculating weeks with date-only support');
+    
+    // *** ОБНОВЛЕНО v5.0: Нормализуем selectedDate к date-only ***
+    const normalizedSelectedDate = normalizeDateToDateOnly(state.selectedDate);
+    
     const weekCalculationParams: IWeekCalculationParams = {
-      selectedDate: state.selectedDate,
+      selectedDate: normalizedSelectedDate,
       startWeekDay: dayOfStartWeek || 7
     };
     
     const calculatedWeeks = TimetableWeekCalculator.calculateWeeksForMonth(weekCalculationParams);
     
-    console.log('[useTimetableLogic] *** WEEKS CALCULATED ***', {
-      selectedMonth: state.selectedDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }),
+    console.log('[useTimetableLogic] v5.0: Weeks calculated with date-only support', {
+      selectedMonth: normalizedSelectedDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }),
       weeksCount: calculatedWeeks.length,
       firstWeek: calculatedWeeks[0]?.weekLabel
     });
@@ -251,7 +289,7 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
   // ОБНОВЛЕНИЕ WEEKS В STATE
   useEffect(() => {
     if (weeks.length > 0 && weeks !== state.weeks) {
-      console.log('[useTimetableLogic] *** UPDATING WEEKS IN STATE ***', {
+      console.log('[useTimetableLogic] v5.0: Updating weeks in state with date-only support', {
         weeksCount: weeks.length,
         firstWeek: weeks[0]?.weekLabel
       });
@@ -261,18 +299,20 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
 
   // ОБНОВЛЕННАЯ ФУНКЦИЯ ЗАГРУЗКИ ДАННЫХ С DATE-ONLY HOLIDAYS
   const loadDataInternal = useCallback(async (forceReload = false): Promise<void> => {
+    console.log('[useTimetableLogic] v5.0: Loading data with date-only support');
+    
     // Создаем уникальный ключ для текущего состояния (включая holidays)
     const currentKey = `${state.selectedDate.getTime()}-${managingGroupId}-${weeks.length}-${staffMembers.length}-${holidays.length}`;
     
     // Проверяем, нужна ли загрузка
     if (!forceReload && currentKey === dataLoadKey) {
-      console.log('[useTimetableLogic] *** DATA ALREADY LOADED FOR THIS STATE ***', { currentKey });
+      console.log('[useTimetableLogic] v5.0: Data already loaded for this state', { currentKey });
       return;
     }
 
     // Проверяем обязательные условия (добавлена проверка holidays загружены)
     if (!context || !staffRecordsService || !managingGroupId || !currentUserId || weeks.length === 0 || staffMembers.length === 0) {
-      console.log('[useTimetableLogic] *** CLEARING DATA - MISSING REQUIREMENTS ***');
+      console.log('[useTimetableLogic] v5.0: Clearing data - missing requirements');
       setStaffRecords([]);
       setWeeksData([]);
       setIsLoadingStaffRecords(false);
@@ -282,12 +322,12 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
 
     // Ждем загрузки holidays перед обработкой данных
     if (isLoadingHolidays) {
-      console.log('[useTimetableLogic] *** WAITING FOR HOLIDAYS TO LOAD ***');
+      console.log('[useTimetableLogic] v5.0: Waiting for holidays to load');
       return;
     }
 
     if (isManualLoading) {
-      console.log('[useTimetableLogic] *** SKIPPING - ALREADY LOADING ***');
+      console.log('[useTimetableLogic] v5.0: Skipping - already loading');
       return;
     }
 
@@ -296,7 +336,7 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
       setIsLoadingStaffRecords(true);
       setErrorStaffRecords(undefined);
       
-      console.log('[useTimetableLogic] *** LOADING DATA WITH DATE-ONLY HOLIDAYS ***', {
+      console.log('[useTimetableLogic] v5.0: Loading data with date-only holidays', {
         selectedMonth: state.selectedDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }),
         weeksCount: weeks.length,
         staffMembersCount: staffMembers.length,
@@ -305,7 +345,7 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
         forceReload
       });
 
-      // ИСПРАВЛЕНО: Получаем оба значения но используем только нужные
+      // *** ОБНОВЛЕНО v5.0: Получаем date-only границы месяца ***
       const monthBoundaries = createMonthBoundariesForHolidays(state.selectedDate);
       const startOfMonth = monthBoundaries.startOfMonth;
       const endOfMonth = monthBoundaries.endOfMonth;
@@ -317,7 +357,7 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
       });
 
       if (activeStaffMembers.length === 0) {
-        console.log('[useTimetableLogic] *** NO ACTIVE STAFF MEMBERS ***');
+        console.log('[useTimetableLogic] v5.0: No active staff members');
         setStaffRecords([]);
         setWeeksData([]);
         setDataLoadKey(currentKey);
@@ -333,9 +373,11 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
         timeTableID: undefined
       };
 
-      console.log('[useTimetableLogic] *** STAFF RECORDS QUERY PARAMS ***', {
-        startDate: queryParams.startDate.toISOString(),
-        endDate: queryParams.endDate.toISOString(),
+      console.log('[useTimetableLogic] v5.0: Staff records query params with date-only boundaries', {
+        startDate: queryParams.startDate.toLocaleDateString(),
+        startDateISO: queryParams.startDate.toISOString(),
+        endDate: queryParams.endDate.toLocaleDateString(),
+        endDateISO: queryParams.endDate.toISOString(),
         staffGroupID: queryParams.staffGroupID,
         currentUserID: queryParams.currentUserID
       });
@@ -357,13 +399,13 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
 
       setStaffRecords(filteredRecords);
 
-      console.log('[useTimetableLogic] *** PROCESSING DATA WITH DATE-ONLY HOLIDAYS ***', {
+      console.log('[useTimetableLogic] v5.0: Processing data with date-only holidays', {
         totalRecords: allRecords.length,
         filteredRecords: filteredRecords.length,
         holidaysForProcessing: holidays.length
       });
 
-      // Передаем holidays в обработку данных
+      // *** ОБНОВЛЕНО v5.0: Передаем date-only holidays в обработку данных ***
       const weeksData = TimetableDataProcessor.processDataByWeeks({
         staffRecords: filteredRecords,
         staffMembers: activeStaffMembers,
@@ -426,7 +468,7 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
       setWeeksData(enhancedWeeksData);
       setDataLoadKey(currentKey);
 
-      console.log('[useTimetableLogic] *** DATA LOADED SUCCESSFULLY WITH DATE-ONLY HOLIDAYS ***', {
+      console.log('[useTimetableLogic] v5.0: Data loaded successfully with date-only holidays', {
         recordsCount: filteredRecords.length,
         weeksDataCount: enhancedWeeksData.length,
         holidaysUsed: holidays.length,
@@ -435,7 +477,7 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('[useTimetableLogic] *** ERROR LOADING DATA ***', errorMessage);
+      console.error('[useTimetableLogic] v5.0: Error loading data', errorMessage);
       setErrorStaffRecords(`Failed to load timetable data: ${errorMessage}`);
       setStaffRecords([]);
       setWeeksData([]);
@@ -470,7 +512,7 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
     
     // Добавлена проверка что holidays загружены
     if (currentKey !== dataLoadKey && weeks.length > 0 && staffMembers.length > 0 && !isManualLoading && !isLoadingHolidays) {
-      console.log('[useTimetableLogic] *** AUTO TRIGGER DATA LOAD WITH DATE-ONLY HOLIDAYS ***', {
+      console.log('[useTimetableLogic] v5.0: Auto trigger data load with date-only holidays', {
         currentKey,
         dataLoadKey,
         holidaysCount: holidays.length,
@@ -479,7 +521,7 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
       
       const timeoutId = window.setTimeout(() => {
         loadDataInternal(false).catch((error: unknown) => {
-          console.error('[useTimetableLogic] Error in auto load:', error);
+          console.error('[useTimetableLogic] v5.0: Error in auto load:', error);
         });
       }, 300);
 
@@ -491,21 +533,25 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
 
   // ПУБЛИЧНЫЕ ФУНКЦИИ
   const refreshTimetableData = useCallback(async (): Promise<void> => {
-    console.log('[useTimetableLogic] *** MANUAL REFRESH ***');
+    console.log('[useTimetableLogic] v5.0: Manual refresh');
     await loadDataInternal(true);
   }, [loadDataInternal]);
 
-  // ИСПРАВЛЕНО: ОБРАБОТКА СМЕНЫ МЕСЯЦА С DATE-ONLY ПОДДЕРЖКОЙ
+  // ОБНОВЛЕНО v5.0: ОБРАБОТКА СМЕНЫ МЕСЯЦА С DATE-ONLY ПОДДЕРЖКОЙ
   const handleMonthChange = useCallback((date: Date | undefined): void => {
     if (date) {
-      console.log('[useTimetableLogic] *** MONTH CHANGE WITH DATE-ONLY HOLIDAYS ***', {
-        newDate: date.toISOString(),
+      console.log('[useTimetableLogic] v5.0: Month change with date-only holidays', {
+        newDate: date.toLocaleDateString(),
+        newDateISO: date.toISOString(),
         newMonth: date.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
       });
       
-      // ИСПРАВЛЕНО: Нормализуем дату к первому дню месяца для консистентности
+      // *** ОБНОВЛЕНО v5.0: Нормализуем дату к первому дню месяца для консистентности ***
       const normalizedDate = new Date(date.getFullYear(), date.getMonth(), 1);
-      console.log('[useTimetableLogic] Normalized to first day of month:', normalizedDate.toISOString());
+      console.log('[useTimetableLogic] v5.0: Normalized to first day of month:', {
+        normalized: normalizedDate.toLocaleDateString(),
+        normalizedISO: normalizedDate.toISOString()
+      });
       
       saveTimetableDate(normalizedDate);
       
@@ -530,13 +576,13 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
       const department = departments.find(d => d.ID.toString() === managingGroupId);
       const groupName = department?.Title || `Group ${managingGroupId}`;
       
-      console.log('[useTimetableLogic] *** EXCEL EXPORT WITH DATE-ONLY HOLIDAYS ***', {
+      console.log('[useTimetableLogic] v5.0: Excel export with date-only holidays', {
         groupName,
         weeksData: state.weeksData.length,
         holidays: holidays.length
       });
       
-      // Передаем Date-only holidays в Excel export
+      // *** ОБНОВЛЕНО v5.0: Передаем Date-only holidays в Excel export ***
       const excelWeeksData = TimetableDataProcessor.processDataForExcelExport({
         staffRecords: state.staffRecords,
         staffMembers: staffMembers.filter(sm => sm.deleted !== 1),
@@ -582,21 +628,6 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
         }
         currentRow++;
         
-        worksheet.getCell(currentRow, 1).value = 'Employee';
-        orderedDays.forEach((dayNum, dayIndex) => {
-          const dayDate = TimetableWeekCalculator.getDateForDayInWeek(weekInfo.weekStart, dayNum);
-          worksheet.getCell(currentRow, dayIndex + 2).value = formatDateForExcel(dayDate);
-        });
-        for (let col = 1; col <= orderedDays.length + 1; col++) {
-          worksheet.getCell(currentRow, col).style = {
-            font: { bold: true },
-            fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F0F0' } },
-            alignment: { horizontal: 'center' },
-            border: { top: { style: 'thin' }, bottom: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' } }
-          };
-        }
-        currentRow++;
-        
         for (const staffRow of staffRows) {
           const nameCell = worksheet.getCell(currentRow, 1);
           nameCell.value = `${staffRow.staffName}\n${staffRow.weekData.formattedWeekTotal.trim()}`;
@@ -609,7 +640,7 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
           orderedDays.forEach((dayNum, dayIndex) => {
             const dayData = staffRow.weekData.days[dayNum];
             
-            // Excel cell content с поддержкой Date-only holidays
+            // *** ОБНОВЛЕНО v5.0: Excel cell content с поддержкой Date-only holidays ***
             const cellContent = formatDayCellWithMarkers(dayData, typesOfLeave);
             
             const dayCell = worksheet.getCell(currentRow, dayIndex + 2);
@@ -645,11 +676,11 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
 
       const fileName = generateFileName(groupName, excelWeeksData);
       
-      console.log('[useTimetableLogic] *** СОЗДАНИЕ EXCEL ФАЙЛА С DATE-ONLY HOLIDAYS ***');
-      console.log(`Имя файла: ${fileName}`);
-      console.log(`Всего строк: ${currentRow}`);
-      console.log(`Date-only Holidays используемые: ${holidays.length}`);
-      console.log('============================');
+      console.log('[useTimetableLogic] v5.0: Creating Excel file with date-only holidays');
+      console.log(`[useTimetableLogic] v5.0: File name: ${fileName}`);
+      console.log(`[useTimetableLogic] v5.0: Total rows: ${currentRow}`);
+      console.log(`[useTimetableLogic] v5.0: Date-only holidays used: ${holidays.length}`);
+      console.log('[useTimetableLogic] v5.0: ============================');
       
       const buffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -662,10 +693,10 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
       
-      console.log('[useTimetableLogic] Excel файл создан и загружен с Date-only holidays поддержкой');
+      console.log('[useTimetableLogic] v5.0: Excel file created and downloaded with date-only holidays support');
       
     } catch (error) {
-      console.error('[useTimetableLogic] Excel export failed:', error);
+      console.error('[useTimetableLogic] v5.0: Excel export failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown export error';
       setState(prevState => ({ ...prevState, errorStaffRecords: `Export failed: ${errorMessage}` }));
     }
@@ -713,4 +744,4 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
     getLeaveTypeTitle,
     getLeaveTypeById
   };
-};
+}; 

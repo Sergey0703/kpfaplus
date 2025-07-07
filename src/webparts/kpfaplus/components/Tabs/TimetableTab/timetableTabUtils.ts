@@ -1,4 +1,6 @@
 // src/webparts/kpfaplus/components/Tabs/TimetableTab/timetableTabUtils.ts
+// ОБНОВЛЕНО v5.0: Полная поддержка Date-only формата + числовые поля времени
+
 import { ITypeOfLeave } from '../../../services/TypeOfLeaveService';
 import { IDayInfo, IShiftInfo } from './interfaces/TimetableInterfaces';
 
@@ -30,29 +32,47 @@ export const datePickerStringsEN = {
   yearPickerHeaderAriaLabel: '{0}, select to change the month'
 };
 
-// Форматирование даты в формате dd.mm.yyyy
+// ОБНОВЛЕНО v5.0: Форматирование даты в формате dd.mm.yyyy с Date-only поддержкой
 export const formatDate = (date?: Date): string => {
   if (!date) return '';
   
-  const day = date.getDate().toString().padStart(2, '0');
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  const year = date.getFullYear();
+  // *** Date-only нормализация ***
+  const normalizedDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  
+  const day = normalizedDate.getDate().toString().padStart(2, '0');
+  const month = (normalizedDate.getMonth() + 1).toString().padStart(2, '0');
+  const year = normalizedDate.getFullYear();
+  
+  console.log('[timetableTabUtils] v5.0: Date formatting with date-only support:', {
+    original: date.toLocaleDateString(),
+    originalISO: date.toISOString(),
+    normalized: normalizedDate.toLocaleDateString(),
+    formatted: `${day}.${month}.${year}`
+  });
   
   return `${day}.${month}.${year}`;
 };
 
-// *** НОВЫЕ ФУНКЦИИ ДЛЯ ЗАПОМИНАНИЯ ДАТЫ ***
+// *** НОВЫЕ ФУНКЦИИ v5.0 ДЛЯ ЗАПОМИНАНИЯ ДАТЫ С DATE-ONLY ПОДДЕРЖКОЙ ***
 
 /**
- * Получает первый день текущего месяца
+ * ОБНОВЛЕНО v5.0: Получает первый день текущего месяца с Date-only поддержкой
  */
 const getFirstDayOfCurrentMonth = (): Date => {
   const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), 1);
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+  
+  console.log('[timetableTabUtils] v5.0: First day of current month (date-only):', {
+    current: now.toLocaleDateString(),
+    firstDay: firstDay.toLocaleDateString(),
+    firstDayISO: firstDay.toISOString()
+  });
+  
+  return firstDay;
 };
 
 /**
- * Получает сохраненную дату для Timetable из sessionStorage
+ * ОБНОВЛЕНО v5.0: Получает сохраненную дату для Timetable с Date-only поддержкой
  */
 export const getSavedTimetableDate = (): Date => {
   try {
@@ -60,42 +80,76 @@ export const getSavedTimetableDate = (): Date => {
     if (savedDate) {
       const parsedDate = new Date(savedDate);
       if (!isNaN(parsedDate.getTime())) {
-        console.log('[TimetableTab] Restored selected date from sessionStorage:', parsedDate.toISOString());
-        return parsedDate;
+        // *** Date-only нормализация сохраненной даты ***
+        const normalizedDate = new Date(parsedDate.getFullYear(), parsedDate.getMonth(), parsedDate.getDate());
+        
+        console.log('[timetableTabUtils] v5.0: Restored selected date from sessionStorage with date-only support:', {
+          saved: savedDate,
+          parsed: parsedDate.toISOString(),
+          normalized: normalizedDate.toISOString(),
+          display: normalizedDate.toLocaleDateString()
+        });
+        
+        return normalizedDate;
       } else {
-        console.warn('[TimetableTab] Invalid date found in sessionStorage, using first day of current month');
+        console.warn('[timetableTabUtils] v5.0: Invalid date found in sessionStorage, using first day of current month');
       }
     } else {
-      console.log('[TimetableTab] No saved date found in sessionStorage, using first day of current month');
+      console.log('[timetableTabUtils] v5.0: No saved date found in sessionStorage, using first day of current month');
     }
   } catch (error) {
-    console.warn('[TimetableTab] Error reading saved date from sessionStorage:', error);
+    console.warn('[timetableTabUtils] v5.0: Error reading saved date from sessionStorage:', error);
   }
   
   const firstDay = getFirstDayOfCurrentMonth();
-  console.log('[TimetableTab] Using first day of current month as default:', firstDay.toISOString());
+  console.log('[timetableTabUtils] v5.0: Using first day of current month as default:', {
+    date: firstDay.toLocaleDateString(),
+    iso: firstDay.toISOString()
+  });
   return firstDay;
 };
 
 /**
- * Сохраняет дату Timetable в sessionStorage
+ * ОБНОВЛЕНО v5.0: Сохраняет дату Timetable с Date-only поддержкой
  */
 export const saveTimetableDate = (date: Date): void => {
   try {
-    sessionStorage.setItem('timetableTab_selectedDate', date.toISOString());
-    console.log('[TimetableTab] Date saved to sessionStorage:', date.toISOString());
+    // *** Date-only нормализация перед сохранением ***
+    const normalizedDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    
+    sessionStorage.setItem('timetableTab_selectedDate', normalizedDate.toISOString());
+    
+    console.log('[timetableTabUtils] v5.0: Date saved to sessionStorage with date-only support:', {
+      original: date.toLocaleDateString(),
+      originalISO: date.toISOString(),
+      normalized: normalizedDate.toLocaleDateString(),
+      normalizedISO: normalizedDate.toISOString(),
+      saved: normalizedDate.toISOString()
+    });
   } catch (error) {
-    console.warn('[TimetableTab] Error saving date to sessionStorage:', error);
+    console.warn('[timetableTabUtils] v5.0: Error saving date to sessionStorage:', error);
   }
 };
 
 /**
- * Форматирует дату для Excel в формате dd/mm
+ * ОБНОВЛЕНО v5.0: Форматирует дату для Excel в формате dd/mm с Date-only поддержкой
  */
 export function formatDateForExcel(date: Date): string {
-  const day = date.getDate().toString().padStart(2, '0');
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  return `${day}/${month}`;
+  // *** Date-only нормализация ***
+  const normalizedDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  
+  const day = normalizedDate.getDate().toString().padStart(2, '0');
+  const month = (normalizedDate.getMonth() + 1).toString().padStart(2, '0');
+  
+  const result = `${day}/${month}`;
+  
+  console.log('[timetableTabUtils] v5.0: Excel date formatting with date-only support:', {
+    original: date.toLocaleDateString(),
+    normalized: normalizedDate.toLocaleDateString(),
+    formatted: result
+  });
+  
+  return result;
 }
 
 /**
@@ -126,37 +180,48 @@ export function formatDurationForExcel(minutes: number): string {
 }
 
 /**
- * Генерирует имя файла для Excel экспорта
+ * ОБНОВЛЕНО v5.0: Генерирует имя файла для Excel экспорта с Date-only поддержкой
  */
 export function generateFileName(groupName: string, weeksData: Array<{ weekInfo: { weekStart: Date; weekEnd: Date } }>): string {
   if (weeksData.length === 0) {
-    return `Timetable_${groupName.replace(/[^a-zA-Z0-9]/g, '_')}_v3.6.xlsx`;
+    return `Timetable_${groupName.replace(/[^a-zA-Z0-9]/g, '_')}_v5.0.xlsx`;
   }
   
   const firstWeek = weeksData[0];
   const lastWeek = weeksData[weeksData.length - 1];
   
-  const startDate = firstWeek.weekInfo.weekStart;
-  const endDate = lastWeek.weekInfo.weekEnd;
+  // *** Date-only нормализация для имени файла ***
+  const startDate = new Date(firstWeek.weekInfo.weekStart.getFullYear(), firstWeek.weekInfo.weekStart.getMonth(), firstWeek.weekInfo.weekStart.getDate());
+  const endDate = new Date(lastWeek.weekInfo.weekEnd.getFullYear(), lastWeek.weekInfo.weekEnd.getMonth(), lastWeek.weekInfo.weekEnd.getDate());
   
   const startStr = formatDateForExcel(startDate).replace('/', '-');
   const endStr = formatDateForExcel(endDate).replace('/', '-');
   
   const cleanGroupName = groupName.replace(/[^a-zA-Z0-9]/g, '_');
   
-  return `Timetable_${cleanGroupName}_${startStr}_to_${endStr}.xlsx`;
+  const fileName = `Timetable_${cleanGroupName}_${startStr}_to_${endStr}_v5.0.xlsx`;
+  
+  console.log('[timetableTabUtils] v5.0: Generated Excel filename with date-only support:', {
+    groupName,
+    startDate: startDate.toLocaleDateString(),
+    endDate: endDate.toLocaleDateString(),
+    fileName
+  });
+  
+  return fileName;
 }
 
 /**
- * UPDATED FUNCTION v3.6: Форматирует ячейку дня с поддержкой отметок праздников/отпусков
- * FIXED: Правильное отображение названий типов отпусков вместо ID (Type 2, Type 13 и т.д.)
+ * ОБНОВЛЕННАЯ ФУНКЦИЯ v5.0: Форматирует ячейку дня с поддержкой отметок праздников/отпусков
+ * Date-only: Работает с нормализованными датами и числовыми полями времени
+ * ИСПРАВЛЕНО: Правильное отображение названий типов отпусков вместо ID (Type 2, Type 13 и т.д.)
  */
 export function formatDayCellWithMarkers(dayData: IDayInfo | undefined, typesOfLeave: ITypeOfLeave[]): string {
   if (!dayData) {
     return '';
   }
   
-  console.log('[formatDayCellWithMarkers] *** FIXED v3.6: Processing day cell with LEAVE TYPE NAMES support ***:', {
+  console.log('[formatDayCellWithMarkers] v5.0: Processing day cell with date-only + numeric fields support:', {
     hasShifts: dayData.shifts?.length > 0,
     hasData: dayData.hasData,
     hasHoliday: dayData.hasHoliday,
@@ -164,7 +229,8 @@ export function formatDayCellWithMarkers(dayData: IDayInfo | undefined, typesOfL
     shiftsCount: dayData.shifts?.length || 0,
     formattedContent: dayData.formattedContent,
     leaveTypeColor: dayData.leaveTypeColor,
-    currentlyShows: dayData.formattedContent?.startsWith('Type ') ? 'ID instead of name (needs conversion)' : 'proper content'
+    dateOnly: dayData.date?.toLocaleDateString() || 'Unknown',
+    enhancement: 'v5.0 - Date-only + numeric time fields architecture'
   });
   
   const hasWorkShifts = dayData.shifts && dayData.shifts.length > 0;
@@ -181,79 +247,79 @@ export function formatDayCellWithMarkers(dayData: IDayInfo | undefined, typesOfL
       const startTime = formatTimeForExcel(shift.startTime);
       const endTime = formatTimeForExcel(shift.endTime);
       
-      // *** NEW: Skip showing 00:00 - 00:00 times, only show markers ***
+      // *** Пропускаем отображение 00:00 - 00:00 времени, показываем только отметки ***
       if (startTime === "00:00" && endTime === "00:00" && shift.workMinutes === 0) {
-        console.log('[formatDayCellWithMarkers] *** FIXED v3.6: Skipping 00:00-00:00 time display, showing only markers ***');
+        console.log('[formatDayCellWithMarkers] v5.0: Skipping 00:00-00:00 time display, showing only markers');
         
-        // Show holiday first (highest priority)
+        // Показываем праздник первым (высший приоритет)
         if (shift.isHoliday) {
           return 'Holiday';
         }
         
-        // *** ИСПРАВЛЕНО: Показываем название типа отпуска вместо ID ***
+        // *** ИСПРАВЛЕНО v5.0: Показываем название типа отпуска вместо ID ***
         if (shift.typeOfLeaveId && typesOfLeave.length > 0) {
           const leaveType = typesOfLeave.find(lt => lt.id === shift.typeOfLeaveId);
           if (leaveType && leaveType.title) {
-            console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: FOUND LEAVE TYPE NAME: ${leaveType.title} (was: ${shift.typeOfLeaveId}) ***`);
+            console.log(`[formatDayCellWithMarkers] v5.0: FOUND LEAVE TYPE NAME: ${leaveType.title} (was: ${shift.typeOfLeaveId})`);
             return leaveType.title; // Возвращаем название без скобок
           } else if (shift.typeOfLeaveTitle) {
-            console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: USING SHIFT LEAVE TITLE: ${shift.typeOfLeaveTitle} ***`);
+            console.log(`[formatDayCellWithMarkers] v5.0: USING SHIFT LEAVE TITLE: ${shift.typeOfLeaveTitle}`);
             return shift.typeOfLeaveTitle; // Возвращаем название без скобок
           } else {
-            console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: FALLBACK: No name found, keeping ID: ${shift.typeOfLeaveId} ***`);
+            console.log(`[formatDayCellWithMarkers] v5.0: FALLBACK: No name found, keeping ID: ${shift.typeOfLeaveId}`);
             return shift.typeOfLeaveId; // Fallback к ID
           }
         }
         
-        // If no markers, return empty (don't show 00:00 - 00:00)
+        // Если нет отметок, возвращаем пустую строку (не показываем 00:00 - 00:00)
         return '';
       }
       
-      // *** EXISTING: Normal time display for actual work shifts ***
+      // *** Обычное отображение времени для рабочих смен ***
       const duration = formatDurationForExcel(shift.workMinutes);
       
       let leaveIndicator = '';
       if (shift.isHoliday) {
         leaveIndicator = ' [Holiday]';
-        console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: Applied holiday indicator (priority over leave type) ***`);
+        console.log(`[formatDayCellWithMarkers] v5.0: Applied holiday indicator (priority over leave type)`);
       } else if (shift.typeOfLeaveId && typesOfLeave.length > 0) {
-        // *** ИСПРАВЛЕНО: Улучшенное определение названия типа отпуска ***
+        // *** ИСПРАВЛЕНО v5.0: Улучшенное определение названия типа отпуска ***
         const leaveType = typesOfLeave.find(lt => lt.id === shift.typeOfLeaveId);
         let leaveName = '';
         
         if (leaveType && leaveType.title) {
           leaveName = leaveType.title;
-          console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: Found full leave name: ${leaveName} (for ID: ${shift.typeOfLeaveId}) ***`);
+          console.log(`[formatDayCellWithMarkers] v5.0: Found full leave name: ${leaveName} (for ID: ${shift.typeOfLeaveId})`);
         } else if (shift.typeOfLeaveTitle) {
           leaveName = shift.typeOfLeaveTitle;
-          console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: Using shift title: ${leaveName} ***`);
+          console.log(`[formatDayCellWithMarkers] v5.0: Using shift title: ${leaveName}`);
         } else {
           leaveName = shift.typeOfLeaveId;
-          console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: Fallback to ID: ${leaveName} ***`);
+          console.log(`[formatDayCellWithMarkers] v5.0: Fallback to ID: ${leaveName}`);
         }
         
         leaveIndicator = ` [${leaveName}]`;
-        console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: Applied leave indicator with name: ${leaveName} ***`);
+        console.log(`[formatDayCellWithMarkers] v5.0: Applied leave indicator with name: ${leaveName}`);
       }
       
       return `${startTime} - ${endTime} (${duration})${leaveIndicator}`;
     } else {
-      // *** MULTIPLE SHIFTS: Filter out 00:00-00:00 shifts ***
+      // *** МНОЖЕСТВЕННЫЕ СМЕНЫ: Фильтруем 00:00-00:00 смены ***
       const validShifts = dayData.shifts.filter((shift: IShiftInfo) => {
         const startTime = formatTimeForExcel(shift.startTime);
         const endTime = formatTimeForExcel(shift.endTime);
         
-        // Keep shift if it's not 00:00-00:00 OR if it has meaningful markers
+        // Оставляем смену если это не 00:00-00:00 ИЛИ если у неё есть значимые отметки
         if (startTime !== "00:00" || endTime !== "00:00" || shift.workMinutes > 0) {
-          return true; // Real work shift
+          return true; // Реальная рабочая смена
         }
         
-        // For 00:00-00:00 shifts, only keep if they have holiday/leave markers
+        // Для 00:00-00:00 смен, оставляем только если у них есть отметки праздника/отпуска
         return shift.isHoliday || shift.typeOfLeaveId;
       });
       
       if (validShifts.length === 0) {
-        // All shifts were 00:00-00:00 without markers
+        // Все смены были 00:00-00:00 без отметок
         return '';
       }
       
@@ -261,16 +327,16 @@ export function formatDayCellWithMarkers(dayData: IDayInfo | undefined, typesOfL
         const startTime = formatTimeForExcel(shift.startTime);
         const endTime = formatTimeForExcel(shift.endTime);
         
-        // Check if this is a 00:00-00:00 marker-only shift
+        // Проверяем, является ли это 00:00-00:00 смена только с отметками
         if (startTime === "00:00" && endTime === "00:00" && shift.workMinutes === 0) {
           if (shift.isHoliday) {
             return 'Holiday';
           }
           if (shift.typeOfLeaveId && typesOfLeave.length > 0) {
-            // *** ИСПРАВЛЕНО: Улучшенное определение названия типа отпуска для множественных смен ***
+            // *** ИСПРАВЛЕНО v5.0: Улучшенное определение названия типа отпуска для множественных смен ***
             const leaveType = typesOfLeave.find(lt => lt.id === shift.typeOfLeaveId);
             if (leaveType && leaveType.title) {
-              console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: Multiple shifts - found leave name: ${leaveType.title} ***`);
+              console.log(`[formatDayCellWithMarkers] v5.0: Multiple shifts - found leave name: ${leaveType.title}`);
               return leaveType.title; // Без скобок для marker-only смен
             } else if (shift.typeOfLeaveTitle) {
               return shift.typeOfLeaveTitle;
@@ -278,17 +344,17 @@ export function formatDayCellWithMarkers(dayData: IDayInfo | undefined, typesOfL
               return shift.typeOfLeaveId;
             }
           }
-          return ''; // Should not happen due to filtering above
+          return ''; // Не должно происходить из-за фильтрации выше
         }
         
-        // Normal shift with actual time
+        // Обычная смена с реальным временем
         const duration = formatDurationForExcel(shift.workMinutes);
         
         let leaveIndicator = '';
         if (shift.isHoliday) {
           leaveIndicator = ' [Holiday]';
         } else if (shift.typeOfLeaveId && typesOfLeave.length > 0) {
-          // *** ИСПРАВЛЕНО: Улучшенное определение названия типа отпуска ***
+          // *** ИСПРАВЛЕНО v5.0: Улучшенное определение названия типа отпуска ***
           const leaveType = typesOfLeave.find(lt => lt.id === shift.typeOfLeaveId);
           let leaveName = '';
           
@@ -304,22 +370,22 @@ export function formatDayCellWithMarkers(dayData: IDayInfo | undefined, typesOfL
         }
         
         return `${startTime} - ${endTime} (${duration})${leaveIndicator}`;
-      }).filter(line => line !== ''); // Remove empty lines
+      }).filter(line => line !== ''); // Удаляем пустые строки
       
       return shiftLines.join('\n');
     }
   }
   
-  // *** ИСПРАВЛЕНО: NON-WORK MARKERS с правильными названиями типов отпусков ***
+  // *** ИСПРАВЛЕНО v5.0: ОТМЕТКИ БЕЗ РАБОЧИХ СМЕН с правильными названиями типов отпусков ***
   if (hasHolidayMarker && !hasWorkShifts) {
-    console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: Showing holiday marker without work shifts ***`);
+    console.log(`[formatDayCellWithMarkers] v5.0: Showing holiday marker without work shifts`);
     return 'Holiday';
   }
   
   if (hasLeaveMarker && !hasWorkShifts && !hasHolidayMarker) {
-    console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: Showing leave marker without work shifts ***`);
+    console.log(`[formatDayCellWithMarkers] v5.0: Showing leave marker without work shifts`);
     
-    // *** ИСПРАВЛЕНО: Попытка найти название типа отпуска разными способами ***
+    // *** ИСПРАВЛЕНО v5.0: Попытка найти название типа отпуска разными способами ***
     
     // Способ 1: Используем formattedContent если оно содержит название (не "Leave" и не ID)
     if (dayData.formattedContent && 
@@ -327,23 +393,23 @@ export function formatDayCellWithMarkers(dayData: IDayInfo | undefined, typesOfL
         dayData.formattedContent !== '' &&
         dayData.formattedContent !== '-') {
       
-      // *** НОВОЕ: Проверяем если это ID типа отпуска (Type 2, Type 13 и т.д.) ***
+      // *** НОВОЕ v5.0: Проверяем если это ID типа отпуска (Type 2, Type 13 и т.д.) ***
       if (dayData.formattedContent.startsWith('Type ')) {
-        console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: Found leave type ID in formattedContent: ${dayData.formattedContent} - converting to name ***`);
+        console.log(`[formatDayCellWithMarkers] v5.0: Found leave type ID in formattedContent: ${dayData.formattedContent} - converting to name`);
         
         // Пытаемся найти полное название по ID
         const leaveTypeId = dayData.formattedContent;
         const leaveType = typesOfLeave.find(lt => lt.id === leaveTypeId);
         if (leaveType && leaveType.title) {
-          console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: SUCCESS: Converted ID to name: ${leaveTypeId} → ${leaveType.title} ***`);
+          console.log(`[formatDayCellWithMarkers] v5.0: SUCCESS: Converted ID to name: ${leaveTypeId} → ${leaveType.title}`);
           return leaveType.title;
         } else {
-          console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: WARNING: Could not find name for ID: ${leaveTypeId} ***`);
+          console.log(`[formatDayCellWithMarkers] v5.0: WARNING: Could not find name for ID: ${leaveTypeId}`);
           return dayData.formattedContent; // Возвращаем ID если название не найдено
         }
       } else {
         // Уже содержит правильное название
-        console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: Using formattedContent as is: ${dayData.formattedContent} ***`);
+        console.log(`[formatDayCellWithMarkers] v5.0: Using formattedContent as is: ${dayData.formattedContent}`);
         return dayData.formattedContent;
       }
     }
@@ -352,7 +418,7 @@ export function formatDayCellWithMarkers(dayData: IDayInfo | undefined, typesOfL
     if (dayData.leaveTypeColor && typesOfLeave.length > 0) {
       const leaveType = typesOfLeave.find(lt => lt.color === dayData.leaveTypeColor);
       if (leaveType && leaveType.title) {
-        console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: Found leave type by color: ${leaveType.title} ***`);
+        console.log(`[formatDayCellWithMarkers] v5.0: Found leave type by color: ${leaveType.title}`);
         return leaveType.title;
       }
     }
@@ -362,12 +428,12 @@ export function formatDayCellWithMarkers(dayData: IDayInfo | undefined, typesOfL
       const leaveShift = dayData.shifts.find(shift => shift.typeOfLeaveId);
       if (leaveShift) {
         if (leaveShift.typeOfLeaveTitle) {
-          console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: Found leave title in shifts: ${leaveShift.typeOfLeaveTitle} ***`);
+          console.log(`[formatDayCellWithMarkers] v5.0: Found leave title in shifts: ${leaveShift.typeOfLeaveTitle}`);
           return leaveShift.typeOfLeaveTitle;
         } else if (leaveShift.typeOfLeaveId && typesOfLeave.length > 0) {
           const leaveType = typesOfLeave.find(lt => lt.id === leaveShift.typeOfLeaveId);
           if (leaveType && leaveType.title) {
-            console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: Found leave type by ID in shifts: ${leaveType.title} ***`);
+            console.log(`[formatDayCellWithMarkers] v5.0: Found leave type by ID in shifts: ${leaveType.title}`);
             return leaveType.title;
           }
         }
@@ -375,7 +441,7 @@ export function formatDayCellWithMarkers(dayData: IDayInfo | undefined, typesOfL
     }
     
     // Fallback: показываем общее "Leave"
-    console.log(`[formatDayCellWithMarkers] *** FIXED v3.6: Fallback to generic 'Leave' - could not determine specific type ***`);
+    console.log(`[formatDayCellWithMarkers] v5.0: Fallback to generic 'Leave' - could not determine specific type`);
     return 'Leave';
   }
   

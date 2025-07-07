@@ -3,48 +3,59 @@ import { IWeekInfo, IWeekCalculationParams } from '../interfaces/TimetableInterf
 
 /**
  * Утилита для расчета недель месяца
+ * ОБНОВЛЕНО v5.0: Полная поддержка Date-only формата
  * Реплицирует логику из Power Apps для создания WeeksCollection
+ * Date-only: Все операции с датами используют нормализованные даты без времени
  */
 export class TimetableWeekCalculator {
   
   /**
-   * Рассчитывает недели для выбранного месяца
+   * ОБНОВЛЕНО v5.0: Рассчитывает недели для выбранного месяца с Date-only поддержкой
    * Реплицирует логику Set(varWeeksCount, ...) из Power Apps
    */
   public static calculateWeeksForMonth(params: IWeekCalculationParams): IWeekInfo[] {
     const { selectedDate, startWeekDay } = params;
     
-    console.log('[TimetableWeekCalculator] Calculating weeks for:', {
-      selectedDate: selectedDate.toISOString(),
+    console.log('[TimetableWeekCalculator] v5.0: Calculating weeks with date-only support for:', {
+      selectedDate: selectedDate.toLocaleDateString(),
+      selectedDateISO: selectedDate.toISOString(),
       startWeekDay
     });
 
-    // Получаем первый и последний день месяца
-    const monthStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
-    const monthEnd = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0);
+    // ОБНОВЛЕНО v5.0: Нормализуем selectedDate к date-only
+    const normalizedSelectedDate = this.normalizeDateToDateOnly(selectedDate);
     
-    console.log('[TimetableWeekCalculator] Month range:', {
-      monthStart: monthStart.toISOString(),
-      monthEnd: monthEnd.toISOString()
+    // Получаем первый и последний день месяца (date-only)
+    const monthStart = new Date(normalizedSelectedDate.getFullYear(), normalizedSelectedDate.getMonth(), 1);
+    const monthEnd = new Date(normalizedSelectedDate.getFullYear(), normalizedSelectedDate.getMonth() + 1, 0);
+    
+    console.log('[TimetableWeekCalculator] v5.0: Date-only month range:', {
+      monthStart: monthStart.toLocaleDateString(),
+      monthEnd: monthEnd.toLocaleDateString(),
+      monthStartISO: monthStart.toISOString(),
+      monthEndISO: monthEnd.toISOString()
     });
 
     // Рассчитываем количество недель (аналогично Power Apps формуле)
     const weeksCount = this.calculateWeeksCount(monthStart, monthEnd, startWeekDay);
     
-    console.log('[TimetableWeekCalculator] Calculated weeks count:', weeksCount);
+    console.log('[TimetableWeekCalculator] v5.0: Calculated weeks count:', weeksCount);
 
     // Находим начало первой недели (аналогично selectedDay в Power Apps)
-    const firstWeekStart = this.calculateFirstWeekStart(selectedDate, startWeekDay);
+    const firstWeekStart = this.calculateFirstWeekStart(normalizedSelectedDate, startWeekDay);
     
-    console.log('[TimetableWeekCalculator] First week start:', firstWeekStart.toISOString());
+    console.log('[TimetableWeekCalculator] v5.0: First week start (date-only):', {
+      firstWeekStart: firstWeekStart.toLocaleDateString(),
+      firstWeekStartISO: firstWeekStart.toISOString()
+    });
 
     // Создаем массив недель (аналогично ForAll(Sequence(varWeeksCount), ...))
     const weeks: IWeekInfo[] = [];
     for (let i = 0; i < weeksCount; i++) {
-      const weekStart = new Date(firstWeekStart);
+      const weekStart = new Date(firstWeekStart.getFullYear(), firstWeekStart.getMonth(), firstWeekStart.getDate());
       weekStart.setDate(firstWeekStart.getDate() + (i * 7));
       
-      const weekEnd = new Date(weekStart);
+      const weekEnd = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate());
       weekEnd.setDate(weekStart.getDate() + 6);
       
       const weekLabel = `Week ${i + 1}: ${this.formatDate(weekStart)} - ${this.formatDate(weekEnd)}`;
@@ -57,21 +68,39 @@ export class TimetableWeekCalculator {
       });
     }
 
-    console.log('[TimetableWeekCalculator] Generated weeks:', weeks.map(w => ({
+    console.log('[TimetableWeekCalculator] v5.0: Generated date-only weeks:', weeks.map(w => ({
       weekNum: w.weekNum,
-      weekStart: w.weekStart.toISOString(),
-      weekEnd: w.weekEnd.toISOString()
+      weekStart: w.weekStart.toLocaleDateString(),
+      weekEnd: w.weekEnd.toLocaleDateString(),
+      weekStartISO: w.weekStart.toISOString(),
+      weekEndISO: w.weekEnd.toISOString()
     })));
 
     return weeks;
   }
 
   /**
-   * Рассчитывает количество недель в месяце
+   * НОВЫЙ МЕТОД v5.0: Нормализует дату к date-only формату
+   */
+  private static normalizeDateToDateOnly(date: Date): Date {
+    const normalized = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    console.log('[TimetableWeekCalculator] v5.0: Date normalization:', {
+      original: date.toISOString(),
+      normalized: normalized.toISOString(),
+      originalLocal: date.toLocaleDateString(),
+      normalizedLocal: normalized.toLocaleDateString()
+    });
+    return normalized;
+  }
+
+  /**
+   * ОБНОВЛЕНО v5.0: Рассчитывает количество недель в месяце с Date-only поддержкой
    * Реплицирует формулу RoundUp(...) из Power Apps
    */
   private static calculateWeeksCount(monthStart: Date, monthEnd: Date, startWeekDay: number): number {
-    // Количество дней в месяце
+    console.log('[TimetableWeekCalculator] v5.0: Calculating weeks count with date-only support');
+    
+    // Количество дней в месяце (date-only расчет)
     const monthDays = Math.ceil((monthEnd.getTime() - monthStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
     
     // День начала первой недели относительно startWeekDay
@@ -100,23 +129,28 @@ export class TimetableWeekCalculator {
     // Количество недель (округление вверх)
     const weeksCount = Math.ceil(totalDays / 7);
     
-    console.log('[TimetableWeekCalculator] Weeks calculation:', {
+    console.log('[TimetableWeekCalculator] v5.0: Date-only weeks calculation:', {
       monthDays,
       startWeekOffset,
       endWeekOffset,
       totalDays,
-      weeksCount
+      weeksCount,
+      monthStartWeekday,
+      monthEndWeekday,
+      startWeekDay
     });
 
     return weeksCount;
   }
 
   /**
-   * Находит начало первой недели
+   * ОБНОВЛЕНО v5.0: Находит начало первой недели с Date-only поддержкой
    * Реплицирует логику selectedDay из Power Apps
    */
   private static calculateFirstWeekStart(selectedDate: Date, startWeekDay: number): Date {
-    const selectedDay = new Date(selectedDate);
+    console.log('[TimetableWeekCalculator] v5.0: Calculating first week start with date-only support');
+    
+    const selectedDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
     const currentWeekday = this.convertJSWeekdayToPowerApps(selectedDate.getDay());
     
     let daysToSubtract = 0;
@@ -141,33 +175,42 @@ export class TimetableWeekCalculator {
       }
     }
 
-    // Перемещаемся к началу недели
+    // Перемещаемся к началу недели (date-only операция)
     selectedDay.setDate(selectedDate.getDate() - daysToSubtract);
     
-    // Находим первый день месяца
+    // Находим первый день месяца (date-only)
     const monthStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
     
-    // FIXED: Избегаем потенциально бесконечного цикла
-    // Если начало недели после начала месяца, двигаемся назад на неделю
+    // Защита от бесконечного цикла
     let iterationCount = 0;
-    const maxIterations = 10; // Защита от бесконечного цикла
+    const maxIterations = 10;
     
+    // Если начало недели после начала месяца, двигаемся назад на неделю
     while (selectedDay.getTime() > monthStart.getTime() && iterationCount < maxIterations) {
       selectedDay.setDate(selectedDay.getDate() - 7);
       iterationCount++;
     }
     
     if (iterationCount >= maxIterations) {
-      console.warn('[TimetableWeekCalculator] Maximum iterations reached in calculateFirstWeekStart');
+      console.warn('[TimetableWeekCalculator] v5.0: Maximum iterations reached in calculateFirstWeekStart');
     }
     
     // Убеждаемся, что мы находимся в правильной неделе относительно месяца
-    const testDate = new Date(selectedDay);
+    const testDate = new Date(selectedDay.getFullYear(), selectedDay.getMonth(), selectedDay.getDate());
     testDate.setDate(testDate.getDate() + 6); // Конец недели
     
     if (testDate.getTime() < monthStart.getTime()) {
       selectedDay.setDate(selectedDay.getDate() + 7);
     }
+
+    console.log('[TimetableWeekCalculator] v5.0: First week start calculation result:', {
+      selectedDate: selectedDate.toLocaleDateString(),
+      currentWeekday,
+      startWeekDay,
+      daysToSubtract,
+      resultDate: selectedDay.toLocaleDateString(),
+      resultISO: selectedDay.toISOString()
+    });
 
     return selectedDay;
   }
@@ -196,17 +239,43 @@ export class TimetableWeekCalculator {
   }
 
   /**
-   * Получает номер дня недели для конкретной даты (аналогично GetDayNumber в Power Apps)
+   * ОБНОВЛЕНО v5.0: Получает номер дня недели для конкретной даты с Date-only поддержкой
+   * (аналогично GetDayNumber в Power Apps)
    */
   public static getDayNumber(date: Date): number {
-    return this.convertJSWeekdayToPowerApps(date.getDay());
+    // Нормализуем дату для точного определения дня недели
+    const normalizedDate = this.normalizeDateToDateOnly(date);
+    const result = this.convertJSWeekdayToPowerApps(normalizedDate.getDay());
+    
+    console.log('[TimetableWeekCalculator] v5.0: Date-only day number calculation:', {
+      originalDate: date.toLocaleDateString(),
+      normalizedDate: normalizedDate.toLocaleDateString(),
+      dayNumber: result,
+      dayName: this.getDayName(result)
+    });
+    
+    return result;
   }
 
   /**
-   * Проверяет, попадает ли дата в указанную неделю
+   * ОБНОВЛЕНО v5.0: Проверяет, попадает ли дата в указанную неделю с Date-only поддержкой
    */
   public static isDateInWeek(date: Date, weekStart: Date, weekEnd: Date): boolean {
-    return date >= weekStart && date <= weekEnd;
+    // Нормализуем все даты к date-only для точного сравнения
+    const normalizedDate = this.normalizeDateToDateOnly(date);
+    const normalizedWeekStart = this.normalizeDateToDateOnly(weekStart);
+    const normalizedWeekEnd = this.normalizeDateToDateOnly(weekEnd);
+    
+    const result = normalizedDate >= normalizedWeekStart && normalizedDate <= normalizedWeekEnd;
+    
+    console.log('[TimetableWeekCalculator] v5.0: Date-only week check:', {
+      date: normalizedDate.toLocaleDateString(),
+      weekStart: normalizedWeekStart.toLocaleDateString(),
+      weekEnd: normalizedWeekEnd.toLocaleDateString(),
+      isInWeek: result
+    });
+    
+    return result;
   }
 
   /**
@@ -244,13 +313,18 @@ export class TimetableWeekCalculator {
   }
 
   /**
-   * Получает дату для конкретного дня недели в указанной неделе
+   * ОБНОВЛЕНО v5.0: Получает дату для конкретного дня недели в указанной неделе с Date-only поддержкой
    */
   public static getDateForDayInWeek(weekStart: Date, dayNumber: number): Date {
-    const date = new Date(weekStart);
+    console.log('[TimetableWeekCalculator] v5.0: Getting date for day in week with date-only support');
+    
+    // Нормализуем weekStart к date-only
+    const normalizedWeekStart = this.normalizeDateToDateOnly(weekStart);
+    
+    const date = new Date(normalizedWeekStart.getFullYear(), normalizedWeekStart.getMonth(), normalizedWeekStart.getDate());
     
     // Находим, какой день недели у weekStart
-    const startDayNumber = this.getDayNumber(weekStart);
+    const startDayNumber = this.getDayNumber(normalizedWeekStart);
     
     // Рассчитываем смещение до нужного дня
     let offset = dayNumber - startDayNumber;
@@ -258,7 +332,17 @@ export class TimetableWeekCalculator {
       offset += 7; // Если день на следующей неделе
     }
     
-    date.setDate(weekStart.getDate() + offset);
+    date.setDate(normalizedWeekStart.getDate() + offset);
+    
+    console.log('[TimetableWeekCalculator] v5.0: Date-only day calculation result:', {
+      weekStart: normalizedWeekStart.toLocaleDateString(),
+      dayNumber,
+      startDayNumber,
+      offset,
+      resultDate: date.toLocaleDateString(),
+      resultISO: date.toISOString()
+    });
+    
     return date;
   }
 
@@ -271,56 +355,101 @@ export class TimetableWeekCalculator {
   }
 
   /**
-   * Проверяет, является ли дата выходным (суббота или воскресенье)
+   * ОБНОВЛЕНО v5.0: Проверяет, является ли дата выходным с Date-only поддержкой
    */
   public static isWeekend(date: Date): boolean {
     const dayNumber = this.getDayNumber(date);
-    return dayNumber === 1 || dayNumber === 7; // Sunday or Saturday
+    const result = dayNumber === 1 || dayNumber === 7; // Sunday or Saturday
+    
+    console.log('[TimetableWeekCalculator] v5.0: Date-only weekend check:', {
+      date: date.toLocaleDateString(),
+      dayNumber,
+      dayName: this.getDayName(dayNumber),
+      isWeekend: result
+    });
+    
+    return result;
   }
 
   /**
-   * Получает первый день недели для заданной даты
+   * ОБНОВЛЕНО v5.0: Получает первый день недели для заданной даты с Date-only поддержкой
    */
   public static getWeekStart(date: Date, startWeekDay: number): Date {
-    const dayNumber = this.getDayNumber(date);
+    console.log('[TimetableWeekCalculator] v5.0: Getting week start with date-only support');
+    
+    const normalizedDate = this.normalizeDateToDateOnly(date);
+    const dayNumber = this.getDayNumber(normalizedDate);
     const daysFromStart = (dayNumber - startWeekDay + 7) % 7;
     
-    const weekStart = new Date(date);
-    weekStart.setDate(date.getDate() - daysFromStart);
+    const weekStart = new Date(normalizedDate.getFullYear(), normalizedDate.getMonth(), normalizedDate.getDate());
+    weekStart.setDate(normalizedDate.getDate() - daysFromStart);
+    
+    console.log('[TimetableWeekCalculator] v5.0: Date-only week start calculation:', {
+      inputDate: normalizedDate.toLocaleDateString(),
+      dayNumber,
+      startWeekDay,
+      daysFromStart,
+      weekStart: weekStart.toLocaleDateString()
+    });
     
     return weekStart;
   }
 
   /**
-   * Получает последний день недели для заданной даты
+   * ОБНОВЛЕНО v5.0: Получает последний день недели для заданной даты с Date-only поддержкой
    */
   public static getWeekEnd(date: Date, startWeekDay: number): Date {
     const weekStart = this.getWeekStart(date, startWeekDay);
-    const weekEnd = new Date(weekStart);
+    const weekEnd = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate());
     weekEnd.setDate(weekStart.getDate() + 6);
+    
+    console.log('[TimetableWeekCalculator] v5.0: Date-only week end calculation:', {
+      inputDate: date.toLocaleDateString(),
+      weekStart: weekStart.toLocaleDateString(),
+      weekEnd: weekEnd.toLocaleDateString()
+    });
     
     return weekEnd;
   }
 
   /**
-   * Проверяет, находятся ли две даты в одной неделе
+   * ОБНОВЛЕНО v5.0: Проверяет, находятся ли две даты в одной неделе с Date-only поддержкой
    */
   public static areDatesInSameWeek(date1: Date, date2: Date, startWeekDay: number): boolean {
     const week1Start = this.getWeekStart(date1, startWeekDay);
     const week2Start = this.getWeekStart(date2, startWeekDay);
     
-    return week1Start.getTime() === week2Start.getTime();
+    const result = week1Start.getTime() === week2Start.getTime();
+    
+    console.log('[TimetableWeekCalculator] v5.0: Date-only same week check:', {
+      date1: date1.toLocaleDateString(),
+      date2: date2.toLocaleDateString(),
+      week1Start: week1Start.toLocaleDateString(),
+      week2Start: week2Start.toLocaleDateString(),
+      areSameWeek: result
+    });
+    
+    return result;
   }
 
   /**
-   * Получает номер недели в году (ISO week number)
+   * ОБНОВЛЕНО v5.0: Получает номер недели в году (ISO week number) с Date-only поддержкой
    */
   public static getWeekNumber(date: Date): number {
-    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const normalizedDate = this.normalizeDateToDateOnly(date);
+    
+    const d = new Date(Date.UTC(normalizedDate.getFullYear(), normalizedDate.getMonth(), normalizedDate.getDate()));
     const dayNum = d.getUTCDay() || 7;
     d.setUTCDate(d.getUTCDate() + 4 - dayNum);
     const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+    const weekNumber = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+    
+    console.log('[TimetableWeekCalculator] v5.0: Date-only ISO week number:', {
+      date: normalizedDate.toLocaleDateString(),
+      weekNumber
+    });
+    
+    return weekNumber;
   }
 
   /**
@@ -341,17 +470,22 @@ export class TimetableWeekCalculator {
   }
 
   /**
-   * Получает количество рабочих дней в неделе (исключая выходные)
+   * ОБНОВЛЕНО v5.0: Получает количество рабочих дней в неделе с Date-only поддержкой
    */
   public static getWorkingDaysInWeek(weekStart: Date, weekEnd: Date): number {
-    let workingDays = 0;
-    const currentDate = new Date(weekStart);
+    console.log('[TimetableWeekCalculator] v5.0: Calculating working days with date-only support');
     
-    // FIXED: Используем сравнение времени и добавляем защиту от бесконечного цикла
+    const normalizedWeekStart = this.normalizeDateToDateOnly(weekStart);
+    const normalizedWeekEnd = this.normalizeDateToDateOnly(weekEnd);
+    
+    let workingDays = 0;
+    const currentDate = new Date(normalizedWeekStart.getFullYear(), normalizedWeekStart.getMonth(), normalizedWeekStart.getDate());
+    
+    // Защита от бесконечного цикла с date-only сравнением
     let iterationCount = 0;
     const maxIterations = 8; // Максимум 8 дней (с запасом для недели)
     
-    while (currentDate.getTime() <= weekEnd.getTime() && iterationCount < maxIterations) {
+    while (currentDate.getTime() <= normalizedWeekEnd.getTime() && iterationCount < maxIterations) {
       if (!this.isWeekend(currentDate)) {
         workingDays++;
       }
@@ -360,32 +494,51 @@ export class TimetableWeekCalculator {
     }
     
     if (iterationCount >= maxIterations) {
-      console.warn('[TimetableWeekCalculator] Maximum iterations reached in getWorkingDaysInWeek');
+      console.warn('[TimetableWeekCalculator] v5.0: Maximum iterations reached in getWorkingDaysInWeek');
     }
+    
+    console.log('[TimetableWeekCalculator] v5.0: Working days calculation result:', {
+      weekStart: normalizedWeekStart.toLocaleDateString(),
+      weekEnd: normalizedWeekEnd.toLocaleDateString(),
+      workingDays,
+      iterations: iterationCount
+    });
     
     return workingDays;
   }
 
   /**
-   * Получает массив всех дат в неделе
+   * ОБНОВЛЕНО v5.0: Получает массив всех дат в неделе с Date-only поддержкой
    */
   public static getDatesInWeek(weekStart: Date, weekEnd: Date): Date[] {
-    const dates: Date[] = [];
-    const currentDate = new Date(weekStart);
+    console.log('[TimetableWeekCalculator] v5.0: Getting dates in week with date-only support');
     
-    // FIXED: Используем сравнение времени и добавляем защиту от бесконечного цикла
+    const normalizedWeekStart = this.normalizeDateToDateOnly(weekStart);
+    const normalizedWeekEnd = this.normalizeDateToDateOnly(weekEnd);
+    
+    const dates: Date[] = [];
+    const currentDate = new Date(normalizedWeekStart.getFullYear(), normalizedWeekStart.getMonth(), normalizedWeekStart.getDate());
+    
+    // Защита от бесконечного цикла с date-only сравнением
     let iterationCount = 0;
     const maxIterations = 8; // Максимум 8 дней (с запасом для недели)
     
-    while (currentDate.getTime() <= weekEnd.getTime() && iterationCount < maxIterations) {
-      dates.push(new Date(currentDate));
+    while (currentDate.getTime() <= normalizedWeekEnd.getTime() && iterationCount < maxIterations) {
+      dates.push(new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()));
       currentDate.setDate(currentDate.getDate() + 1);
       iterationCount++;
     }
     
     if (iterationCount >= maxIterations) {
-      console.warn('[TimetableWeekCalculator] Maximum iterations reached in getDatesInWeek');
+      console.warn('[TimetableWeekCalculator] v5.0: Maximum iterations reached in getDatesInWeek');
     }
+    
+    console.log('[TimetableWeekCalculator] v5.0: Dates in week result:', {
+      weekStart: normalizedWeekStart.toLocaleDateString(),
+      weekEnd: normalizedWeekEnd.toLocaleDateString(),
+      datesCount: dates.length,
+      dates: dates.map(d => d.toLocaleDateString())
+    });
     
     return dates;
   }
