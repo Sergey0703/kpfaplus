@@ -1,6 +1,6 @@
 // src/webparts/kpfaplus/services/CommonFillDateUtils.ts
 // DATE AND TIME UTILITIES: All date/time calculations and timezone handling
-// ИСПРАВЛЕНО: Правильное разделение DateTime (StaffRecords) и Date-only (ScheduleLogs, Holidays) полей
+// UPDATED: StaffRecords.Date is now Date-only field, not DateTime
 
 import { RemoteSiteService } from './RemoteSiteService';
 import { SharePointTimeZoneUtils } from '../utils/SharePointTimeZoneUtils';
@@ -23,66 +23,64 @@ export class CommonFillDateUtils {
 
   constructor(remoteSiteService: RemoteSiteService) {
     this.remoteSiteService = remoteSiteService;
-    console.log('[CommonFillDateUtils] Utility class initialized with correct DateTime/Date-only separation');
+    console.log('[CommonFillDateUtils] Utility class initialized - StaffRecords.Date is now Date-only field');
   }
 
-  // *** НОВЫЙ МЕТОД: Только для Date-only полей (ScheduleLogs, Holidays, Leaves) ***
+  // *** UPDATED: Now used for ALL SharePoint Date-only fields (ScheduleLogs.Date, Holidays.date, StaffRecords.Date) ***
 
   /**
-   * *** НОВЫЙ: Форматирует Date-only дату для SharePoint полей (ScheduleLogs.Date, Holidays.date) ***
-   * Предотвращает timezone conversion для Date-only полей
+   * *** UPDATED: Formats Date-only date for ALL SharePoint Date-only fields ***
+   * Prevents timezone conversion for Date-only fields including StaffRecords.Date
    */
   public formatDateOnlyForSharePoint(date: Date): string {
     const year = date.getFullYear();
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const day = date.getDate().toString().padStart(2, '0');
     
-    // Send as UTC midnight to prevent timezone conversion for Date-only fields
+    // Send as UTC midnight to prevent timezone conversion for ALL Date-only fields
     // Adding 'Z' forces UTC time and prevents SharePoint from shifting dates
     const utcString = `${year}-${month}-${day}T00:00:00.000Z`;
     
-    console.log('[CommonFillDateUtils] *** DATE-ONLY FIELD FORMAT FOR SHAREPOINT ***');
+    console.log('[CommonFillDateUtils] *** DATE-ONLY FIELD FORMAT FOR ALL SHAREPOINT DATE-ONLY FIELDS ***');
     console.log('[CommonFillDateUtils] Input date:', this.formatDateOnlyForDisplay(date));
     console.log('[CommonFillDateUtils] Date-only SharePoint format:', utcString);
-    console.log('[CommonFillDateUtils] Purpose: ScheduleLogs.Date, Holidays.date, Leaves.startDate/endDate');
+    console.log('[CommonFillDateUtils] Purpose: ScheduleLogs.Date, Holidays.date, StaffRecords.Date (ALL Date-only fields)');
     
     return utcString;
   }
 
   /**
-   * *** НОВЫЙ: Создает Date объект из Date-only SharePoint строки ***
+   * *** UPDATED: Creates Date object from Date-only SharePoint string for ALL Date-only fields ***
    */
   public createDateFromDateOnlySharePointString(utcString: string): Date {
     const date = new Date(utcString);
-    console.log('[CommonFillDateUtils] *** PARSING DATE-ONLY SHAREPOINT STRING ***');
+    console.log('[CommonFillDateUtils] *** PARSING DATE-ONLY SHAREPOINT STRING FOR ALL DATE-ONLY FIELDS ***');
     console.log('[CommonFillDateUtils] SharePoint string:', utcString);
     console.log('[CommonFillDateUtils] Parsed date:', this.formatDateOnlyForDisplay(date));
     return date;
   }
 
-  // *** ИСПРАВЛЕННЫЕ DATE-ONLY CORE METHODS - БЕЗ UTC ДЛЯ UI ОПЕРАЦИЙ ***
+  // *** DATE-ONLY CORE METHODS - FOR UI OPERATIONS ***
 
   /**
-   * Создает Date-only объект из компонентов даты (для UI операций)
-   * Избегает проблем с часовыми поясами используя локальные компоненты
+   * Creates Date-only object from components (for UI operations)
+   * Avoids timezone issues using local components
    */
   public createDateOnlyFromComponents(year: number, month: number, day: number): Date {
-    // month должен быть 0-based для конструктора Date
-    // ИСПРАВЛЕНО: НЕ используем UTC для Date-only операций
+    // month should be 0-based for Date constructor
     return new Date(year, month, day);
   }
 
   /**
-   * Создает Date-only объект из существующей даты (для UI операций)
-   * Сохраняет только компоненты даты, убирает время
+   * Creates Date-only object from existing date (for UI operations)
+   * Keeps only date components, removes time
    */
   public createDateOnlyFromDate(date: Date): Date {
-    // ИСПРАВЛЕНО: Используем локальные компоненты, НЕ UTC
     return new Date(date.getFullYear(), date.getMonth(), date.getDate());
   }
 
   /**
-   * Форматирует Date-only дату для отображения пользователю
+   * Formats Date-only date for user display
    */
   public formatDateOnlyForDisplay(date?: Date): string {
     if (!date) return '';
@@ -99,7 +97,7 @@ export class CommonFillDateUtils {
   }
 
   /**
-   * Форматирует Date-only дату для сравнения
+   * Formats Date-only date for comparison
    */
   public formatDateOnlyForComparison(date: Date): string {
     try {
@@ -115,30 +113,30 @@ export class CommonFillDateUtils {
   }
 
   /**
-   * Получает первый день текущего месяца с Date-only подходом (для UI)
+   * Gets first day of current month with Date-only approach (for UI)
    */
   public getFirstDayOfCurrentMonth(): Date {
     const now = new Date();
     const result = this.createDateOnlyFromComponents(now.getFullYear(), now.getMonth(), 1);
     
-    console.log('[CommonFillDateUtils] *** FIRST DAY OF CURRENT MONTH (FIXED DATE-ONLY) ***');
+    console.log('[CommonFillDateUtils] *** FIRST DAY OF CURRENT MONTH (DATE-ONLY) ***');
     console.log('[CommonFillDateUtils] Current date:', this.formatDateOnlyForDisplay(now));
     console.log('[CommonFillDateUtils] First day of month (local time):', this.formatDateOnlyForDisplay(result));
     
     return result;
   }
 
-  // *** НОВЫЕ МЕТОДЫ: Разделение Date-only (UI) и DateTime (SharePoint) логики ***
+  // *** UI OPERATIONS: Date-only save/restore for UI (month selection) ***
 
   /**
-   * НОВЫЙ: Сохранение Date-only для UI операций (выбор месяца) БЕЗ UTC
+   * Save Date-only for UI operations (month selection) without UTC
    */
   public saveDateOnlyForUI(date: Date): string {
     const year = date.getFullYear();
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const dateOnlyString = `${year}-${month}-01`;
     
-    console.log('[CommonFillDateUtils] *** СОХРАНЕНИЕ DATE-ONLY ДЛЯ UI БЕЗ UTC ***');
+    console.log('[CommonFillDateUtils] *** SAVING DATE-ONLY FOR UI WITHOUT UTC ***');
     console.log('[CommonFillDateUtils] Input date:', this.formatDateOnlyForDisplay(date));
     console.log('[CommonFillDateUtils] Saved string (no UTC):', dateOnlyString);
     
@@ -146,15 +144,14 @@ export class CommonFillDateUtils {
   }
 
   /**
-   * НОВЫЙ: Восстановление Date-only для UI операций БЕЗ UTC
+   * Restore Date-only for UI operations without UTC
    */
   public restoreDateOnlyForUI(savedDateString: string): Date {
     try {
-      console.log('[CommonFillDateUtils] *** ВОССТАНОВЛЕНИЕ DATE-ONLY ДЛЯ UI БЕЗ UTC ***');
+      console.log('[CommonFillDateUtils] *** RESTORING DATE-ONLY FOR UI WITHOUT UTC ***');
       console.log('[CommonFillDateUtils] Saved string:', savedDateString);
       
       const [year, month] = savedDateString.split('-').map(Number);
-      // ИСПРАВЛЕНО: Создаем дату в локальном времени, НЕ в UTC
       const restoredDate = this.createDateOnlyFromComponents(year, month - 1, 1);
       
       console.log('[CommonFillDateUtils] Parsed components:', { year, month: month - 1, day: 1 });
@@ -168,97 +165,30 @@ export class CommonFillDateUtils {
     }
   }
 
-  /**
-   * ИСПРАВЛЕНО: Нормализует дату к UTC для SharePoint DateTime полей (StaffRecords.Date)
-   * Используется только для DateTime полей в SharePoint, НЕ для Date-only полей
-   */
-  public normalizeToUTCForSharePoint(date: Date): Date {
-    // *** ИСПРАВЛЕНО: Возвращаем Date объект для DateTime полей (StaffRecords.Date) ***
-    const utcForStorage = new Date(Date.UTC(
-      date.getFullYear(),
-      date.getMonth(),
-      date.getDate(),
-      FILL_CONSTANTS.TIMEZONE.NOON_SAFE_HOUR, 0, 0, 0  // Полдень UTC для безопасности
-    ));
-    
-    console.log('[CommonFillDateUtils] *** UTC DATE OBJECT ДЛЯ SHAREPOINT DATETIME ПОЛЕЙ ***');
-    console.log('[CommonFillDateUtils] Input date (local):', this.formatDateOnlyForDisplay(date));
-    console.log('[CommonFillDateUtils] UTC Date for SharePoint DateTime:', utcForStorage.toISOString());
-    console.log('[CommonFillDateUtils] Purpose: StaffRecords.Date и другие DateTime поля');
-    
-    return utcForStorage;
-  }
-
-  /**
-   * ИСПРАВЛЕНО: Восстанавливает дату из SharePoint DateTime поля
-   * Используется для DateTime полей из SharePoint
-   */
-  public restoreFromSharePointDateTime(utcDateString: string): Date {
-    try {
-      const parsedDate = new Date(utcDateString);
-      if (isNaN(parsedDate.getTime())) {
-        throw new Error('Invalid date string');
-      }
-      
-      // *** ИСПРАВЛЕНО: Правильное восстановление из SharePoint DateTime ***
-      const normalizedDate = this.createDateOnlyFromComponents(
-        parsedDate.getUTCFullYear(),  // Используем UTC методы для SharePoint данных
-        parsedDate.getUTCMonth(),     // Используем UTC методы для SharePoint данных
-        1 // Всегда первый день месяца для периодов
-      );
-      
-      console.log('[CommonFillDateUtils] *** ВОССТАНОВЛЕНИЕ ИЗ SHAREPOINT DATETIME ***');
-      console.log('[CommonFillDateUtils] SharePoint UTC string:', utcDateString);
-      console.log('[CommonFillDateUtils] UTC components extracted:', {
-        year: parsedDate.getUTCFullYear(),
-        month: parsedDate.getUTCMonth(),
-        day: parsedDate.getUTCDate()
-      });
-      console.log('[CommonFillDateUtils] Restored date (local time):', this.formatDateOnlyForDisplay(normalizedDate));
-      
-      return normalizedDate;
-    } catch (error) {
-      console.warn('[CommonFillDateUtils] Error restoring date from SharePoint DateTime:', error);
-      return this.getFirstDayOfCurrentMonth();
-    }
-  }
-
-  // *** УСТАРЕВШИЕ МЕТОДЫ - ОСТАВЛЕНЫ ДЛЯ СОВМЕСТИМОСТИ ***
-  
-  /**
-   * @deprecated Используйте normalizeToUTCForSharePoint() для DateTime полей или formatDateOnlyForSharePoint() для Date-only полей
-   */
-  public normalizeToUTCForStorage(date: Date): Date {
-    console.warn('[CommonFillDateUtils] DEPRECATED: normalizeToUTCForStorage() - use specific methods for DateTime vs Date-only fields');
-    return this.normalizeToUTCForSharePoint(date);
-  }
-
-  /**
-   * @deprecated Используйте restoreFromSharePointDateTime() для DateTime полей или createDateFromDateOnlySharePointString() для Date-only полей
-   */
-  public restoreFromUTCStorage(savedDate: string): Date {
-    console.warn('[CommonFillDateUtils] DEPRECATED: restoreFromUTCStorage() - use specific methods for DateTime vs Date-only fields');
-    return this.restoreFromSharePointDateTime(savedDate);
-  }
+  // *** REMOVED: UTC methods for DateTime fields - ALL fields are now Date-only ***
+  // The following methods have been removed since StaffRecords.Date is now Date-only:
+  // - normalizeToUTCForSharePoint()
+  // - restoreFromSharePointDateTime() 
+  // - createUTCBoundariesForSharePointQuery()
 
   // *** DAY NAME UTILITIES ***
 
   /**
-   * Получает название дня из JavaScript номера дня недели
+   * Gets day name from JavaScript day number
    */
   public getJSDayName(jsDay: number): string {
     return DAY_NAMES.JAVASCRIPT[jsDay as JavaScriptDayNumber] || 'Unknown';
   }
 
   /**
-   * Получает название дня из SharePoint номера дня недели
+   * Gets day name from SharePoint day number
    */
   public getSharePointDayName(dayNumber: number): string {
     return DAY_NAMES.SHAREPOINT[dayNumber as SharePointDayNumber] || 'Unknown';
   }
 
   /**
-   * Получает название дня недели (использует SharePoint формат)
+   * Gets day name (uses SharePoint format)
    */
   public getDayName(dayNumber: number): string {
     return this.getSharePointDayName(dayNumber);
@@ -267,8 +197,8 @@ export class CommonFillDateUtils {
   // *** WEEK AND DAY CALCULATIONS ***
 
   /**
-   * ИСПРАВЛЕННЫЙ МЕТОД: Вычисляет номер недели и день с учетом логики чередования
-   * Правильная логика преобразования дней недели JS -> SharePoint
+   * Calculates week number and day with chaining logic
+   * Proper JavaScript -> SharePoint day conversion
    */
   public calculateWeekAndDayWithChaining(
     date: Date, 
@@ -279,11 +209,11 @@ export class CommonFillDateUtils {
     console.log(`[CommonFillDateUtils] *** WEEK AND DAY CALCULATION FOR ${date.toISOString()} ***`);
     console.log(`[CommonFillDateUtils] Input parameters: dayOfStartWeek=${dayOfStartWeek}, numberOfWeekTemplates=${numberOfWeekTemplates}`);
     
-    // 1. ПОЛУЧАЕМ СТАНДАРТНЫЙ ДЕНЬ НЕДЕЛИ ИЗ JAVASCRIPT (UTC)
+    // 1. GET STANDARD DAY OF WEEK FROM JAVASCRIPT (UTC)
     const jsDay = date.getUTCDay(); // 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday
     console.log(`[CommonFillDateUtils] JavaScript UTC day: ${jsDay} (${this.getJSDayName(jsDay)})`);
     
-    // 2. КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: ПРАВИЛЬНОЕ ПРЕОБРАЗОВАНИЕ JS -> SharePoint
+    // 2. PROPER JS -> SharePoint CONVERSION
     let dayNumber: number;
     
     // JavaScript: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
@@ -295,38 +225,38 @@ export class CommonFillDateUtils {
       dayNumber = jsDay; // Monday=1, Tuesday=2, Wednesday=3, Thursday=4, Friday=5, Saturday=6
     }
     
-    console.log(`[CommonFillDateUtils] *** ИСПРАВЛЕННОЕ ПРЕОБРАЗОВАНИЕ ***`);
+    console.log(`[CommonFillDateUtils] *** JS TO SHAREPOINT CONVERSION ***`);
     console.log(`[CommonFillDateUtils] JavaScript day ${jsDay} (${this.getJSDayName(jsDay)}) → SharePoint day ${dayNumber}`);
     
-    // 3. ПРОВЕРЯЕМ ПРАВИЛЬНОСТЬ ПРЕОБРАЗОВАНИЯ
+    // 3. VERIFY CONVERSION
     const expectedDayName = this.getJSDayName(jsDay);
     const convertedDayName = this.getSharePointDayName(dayNumber as SharePointDayNumber);
     
     if (expectedDayName !== convertedDayName) {
-      console.error(`[CommonFillDateUtils] *** КРИТИЧЕСКАЯ ОШИБКА ПРЕОБРАЗОВАНИЯ ***`);
-      console.error(`[CommonFillDateUtils] Ожидалось: ${expectedDayName}, получено: ${convertedDayName}`);
+      console.error(`[CommonFillDateUtils] *** CONVERSION ERROR ***`);
+      console.error(`[CommonFillDateUtils] Expected: ${expectedDayName}, got: ${convertedDayName}`);
     } else {
-      console.log(`[CommonFillDateUtils] ✅ Преобразование дня недели ИСПРАВЛЕНО: ${expectedDayName}`);
+      console.log(`[CommonFillDateUtils] ✅ Day conversion correct: ${expectedDayName}`);
     }
     
-    // 4. ВЫЧИСЛЯЕМ КАЛЕНДАРНУЮ НЕДЕЛЮ МЕСЯЦА С UTC
+    // 4. CALCULATE CALENDAR WEEK OF MONTH WITH UTC
     const dayOfMonth = date.getUTCDate();
     const firstDayOfMonth = new Date(Date.UTC(startOfMonth.getUTCFullYear(), startOfMonth.getUTCMonth(), 1, 0, 0, 0, 0));
-    const firstDayJS = firstDayOfMonth.getUTCDay(); // JavaScript день недели первого дня месяца в UTC
+    const firstDayJS = firstDayOfMonth.getUTCDay(); // JavaScript day of week of first day of month in UTC
     
     console.log(`[CommonFillDateUtils] Month calculation: dayOfMonth=${dayOfMonth}, firstDayJS=${firstDayJS}`);
     
-    // ИСПРАВЛЕННАЯ ЛОГИКА РАСЧЕТА НЕДЕЛЬ
+    // WEEK CALCULATION LOGIC
     let adjustedFirstDay: number;
     
     if (dayOfStartWeek === FILL_CONSTANTS.WEEK_START_DAYS.MONDAY) {
-      // Понедельник = начало недели для РАСЧЕТА НОМЕРА НЕДЕЛИ
+      // Monday = week start for WEEK NUMBER CALCULATION
       adjustedFirstDay = firstDayJS === 0 ? 6 : firstDayJS - 1; // Sunday=6, Monday=0, Tuesday=1, etc.
     } else if (dayOfStartWeek === FILL_CONSTANTS.WEEK_START_DAYS.SATURDAY) {
-      // Суббота = начало недели для РАСЧЕТА НОМЕРА НЕДЕЛИ
+      // Saturday = week start for WEEK NUMBER CALCULATION
       adjustedFirstDay = (firstDayJS + 1) % 7; // Saturday=0, Sunday=1, Monday=2, etc.
     } else {
-      // Воскресенье = начало недели для РАСЧЕТА НОМЕРА НЕДЕЛИ (стандартная JS логика)
+      // Sunday = week start for WEEK NUMBER CALCULATION (standard JS logic)
       adjustedFirstDay = firstDayJS;
     }
     
@@ -334,7 +264,7 @@ export class CommonFillDateUtils {
     
     console.log(`[CommonFillDateUtils] Week calculation: adjustedFirstDay=${adjustedFirstDay} → calendarWeekNumber=${calendarWeekNumber}`);
     
-    // 5. ВЫЧИСЛЯЕМ НОМЕР НЕДЕЛИ ШАБЛОНА С УЧЕТОМ ЧЕРЕДОВАНИЯ
+    // 5. CALCULATE TEMPLATE WEEK NUMBER WITH CHAINING
     let templateWeekNumber: number;
     
     switch (numberOfWeekTemplates) {
@@ -360,8 +290,8 @@ export class CommonFillDateUtils {
         break;
     }
     
-    // 6. ФИНАЛЬНАЯ ПРОВЕРКА И ЛОГИРОВАНИЕ
-    console.log(`[CommonFillDateUtils] *** ИСПРАВЛЕННЫЙ РЕЗУЛЬТАТ ДЛЯ ${date.toISOString()} ***`);
+    // 6. FINAL VERIFICATION AND LOGGING
+    console.log(`[CommonFillDateUtils] *** RESULT FOR ${date.toISOString()} ***`);
     console.log(`[CommonFillDateUtils] - Calendar week: ${calendarWeekNumber}`);
     console.log(`[CommonFillDateUtils] - Template week: ${templateWeekNumber}`);
     console.log(`[CommonFillDateUtils] - SharePoint day number: ${dayNumber}`);
@@ -375,7 +305,7 @@ export class CommonFillDateUtils {
   }
 
   /**
-   * Получает описание логики чередования недель
+   * Gets week chaining description
    */
   public getWeekChainingDescription(numberOfWeekTemplates: number): string {
     switch (numberOfWeekTemplates) {
@@ -393,7 +323,7 @@ export class CommonFillDateUtils {
   }
 
   /**
-   * Определяет паттерн чередования недель по количеству шаблонов
+   * Determines week chaining pattern by number of templates
    */
   public getWeekChainingPattern(numberOfWeekTemplates: number): WeekChainingPattern {
     switch (numberOfWeekTemplates) {
@@ -408,7 +338,7 @@ export class CommonFillDateUtils {
   // *** TIME PROCESSING UTILITIES ***
 
   /**
-   * Парсит строку времени в компоненты часов и минут
+   * Parses time string into hours and minutes components
    */
   public parseTimeString(timeStr: string): ITimeComponents {
     try {
@@ -430,8 +360,8 @@ export class CommonFillDateUtils {
   }
 
   /**
-   * Получает время с timezone adjustment в числовом формате
-   * Вместо создания Date объекта возвращает часы и минуты
+   * Gets time with timezone adjustment in numeric format
+   * Returns hours and minutes instead of creating Date object
    */
   public async getAdjustedNumericTime(time?: ITimeComponents): Promise<INumericTimeResult> {
     if (!time) {
@@ -451,12 +381,12 @@ export class CommonFillDateUtils {
     console.log(`[CommonFillDateUtils] Input time from template: ${hours}:${minutes}`);
     
     try {
-      // Используем SharePointTimeZoneUtils для корректировки времени
+      // Use SharePointTimeZoneUtils for correct time adjustment
       const adjustedTime = await SharePointTimeZoneUtils.adjustTimeForSharePointTimeZone(
         hours, 
         minutes, 
         this.remoteSiteService, 
-        new Date() // Используем текущую дату для определения DST
+        new Date() // Use current date for DST determination
       );
       
       console.log(`[CommonFillDateUtils] *** TIMEZONE ADJUSTMENT COMPLETED ***`);
@@ -474,7 +404,7 @@ export class CommonFillDateUtils {
   }
 
   /**
-   * Форматирует числовое время для отображения
+   * Formats numeric time for display
    */
   public formatNumericTime(time: INumericTimeResult): string {
     const hours = time.hours.toString().padStart(2, '0');
@@ -485,7 +415,7 @@ export class CommonFillDateUtils {
   // *** HOLIDAY AND LEAVE UTILITIES ***
 
   /**
-   * Создает кэш праздников для быстрого поиска с Date-only поддержкой
+   * Creates holiday cache for fast lookup with Date-only support
    */
   public createHolidayCacheWithDateOnly(holidays: IHoliday[]): Map<string, IHoliday> {
     const cache = new Map<string, IHoliday>();
@@ -499,10 +429,10 @@ export class CommonFillDateUtils {
   }
 
   /**
-   * Создает массив периодов отпусков для быстрой проверки с Date-only поддержкой
+   * Creates leave periods array for fast checking with Date-only support
    */
   public createLeavePeriodsWithDateOnly(leaves: ILeaveDay[]): ILeavePeriod[] {
-    // Фильтруем удаленные отпуска для Dashboard Tab
+    // Filter deleted leaves for Dashboard Tab
     const activeLeaves = leaves.filter(leave => {
       const isDeleted = leave.deleted === true;
       if (isDeleted) {
@@ -512,7 +442,7 @@ export class CommonFillDateUtils {
     });
     
     const leavePeriods = activeLeaves.map((leave: ILeaveDay): ILeavePeriod => {
-      // Создаем Date-only объекты для корректного сравнения
+      // Create Date-only objects for correct comparison
       const startDate = this.createDateOnlyFromDate(leave.startDate);
       const endDate = leave.endDate ? this.createDateOnlyFromDate(leave.endDate) : new Date(2099, 11, 31);
       
@@ -531,7 +461,7 @@ export class CommonFillDateUtils {
   }
 
   /**
-   * Проверка праздника с Date-only поддержкой
+   * Check holiday with Date-only support
    */
   public isHolidayWithDateOnly(date: Date, holidayCache: Map<string, IHoliday>): boolean {
     const dateKey = this.formatDateOnlyForComparison(date);
@@ -539,7 +469,7 @@ export class CommonFillDateUtils {
   }
 
   /**
-   * Проверка отпуска с Date-only поддержкой
+   * Check leave with Date-only support
    */
   public isLeaveWithDateOnly(date: Date, leavePeriods: ILeavePeriod[]): boolean {
     return leavePeriods.some(leave => {
@@ -552,7 +482,7 @@ export class CommonFillDateUtils {
   }
 
   /**
-   * Получение отпуска для дня с Date-only поддержкой
+   * Get leave for day with Date-only support
    */
   public getLeaveForDayWithDateOnly(date: Date, leavePeriods: ILeavePeriod[]): ILeavePeriod | undefined {
     return leavePeriods.find(leave => {
@@ -564,10 +494,10 @@ export class CommonFillDateUtils {
     });
   }
 
-  // *** ИСПРАВЛЕННЫЕ MONTH PERIOD CALCULATIONS - БЕЗ UTC ДЛЯ ЛОКАЛЬНЫХ ОПЕРАЦИЙ ***
+  // *** MONTH PERIOD CALCULATIONS - Date-only for local operations ***
 
   /**
-   * ИСПРАВЛЕНО: Вычисляет период месяца с правильной обработкой локального времени
+   * Calculates month period with proper local time handling
    */
   public calculateMonthPeriod(selectedDate: Date, contractStartDate?: string, contractFinishDate?: string): {
     startOfMonth: Date;
@@ -576,10 +506,10 @@ export class CommonFillDateUtils {
     lastDay: Date;
     totalDays: number;
   } {
-    console.log('[CommonFillDateUtils] *** ИСПРАВЛЕННЫЙ РАСЧЕТ ПЕРИОДА МЕСЯЦА ***');
+    console.log('[CommonFillDateUtils] *** CALCULATING MONTH PERIOD ***');
     console.log('[CommonFillDateUtils] Selected date (input):', this.formatDateOnlyForDisplay(selectedDate));
     
-    // ИСПРАВЛЕНО: Создаем локальные даты для UI операций, НЕ UTC
+    // Create local dates for UI operations
     const startOfMonth = this.createDateOnlyFromComponents(
       selectedDate.getFullYear(), 
       selectedDate.getMonth(), 
@@ -589,14 +519,14 @@ export class CommonFillDateUtils {
     const endOfMonth = this.createDateOnlyFromComponents(
       selectedDate.getFullYear(), 
       selectedDate.getMonth() + 1, 
-      0 // Последний день месяца
+      0 // Last day of month
     );
 
-    console.log(`[CommonFillDateUtils] *** ИСПРАВЛЕННЫЕ ГРАНИЦЫ МЕСЯЦА (ЛОКАЛЬНОЕ ВРЕМЯ) ***`);
+    console.log(`[CommonFillDateUtils] *** MONTH BOUNDARIES (LOCAL TIME) ***`);
     console.log(`[CommonFillDateUtils] Start of month (local): ${this.formatDateOnlyForDisplay(startOfMonth)}`);
     console.log(`[CommonFillDateUtils] End of month (local): ${this.formatDateOnlyForDisplay(endOfMonth)}`);
 
-    // ИСПРАВЛЕНО: Используем локальные даты для определения периода генерации
+    // Use local dates for generation period determination
     let firstDay: Date;
     if (contractStartDate && new Date(contractStartDate) > startOfMonth) {
       const contractStart = new Date(contractStartDate);
@@ -623,10 +553,10 @@ export class CommonFillDateUtils {
       lastDay = endOfMonth;
     }
 
-    // ИСПРАВЛЕНО: Вычисляем количество дней используя локальное время
+    // Calculate number of days using local time
     const totalDays = Math.floor((lastDay.getTime() - firstDay.getTime()) / FILL_CONSTANTS.TIMEZONE.MILLISECONDS_PER_DAY) + 1;
 
-    console.log(`[CommonFillDateUtils] *** ИСПРАВЛЕННЫЙ ИТОГОВЫЙ ПЕРИОД (ЛОКАЛЬНОЕ ВРЕМЯ) ***`);
+    console.log(`[CommonFillDateUtils] *** FINAL PERIOD (LOCAL TIME) ***`);
     console.log(`[CommonFillDateUtils] Generation period: ${this.formatDateOnlyForDisplay(firstDay)} - ${this.formatDateOnlyForDisplay(lastDay)}`);
     console.log(`[CommonFillDateUtils] Total days in period: ${totalDays}`);
 
@@ -636,40 +566,6 @@ export class CommonFillDateUtils {
       firstDay,
       lastDay,
       totalDays
-    };
-  }
-
-  /**
-   * НОВЫЙ: Создает UTC строки для SharePoint запросов к DateTime полям (StaffRecords.Date)
-   * Используется только для запросов к SharePoint спискам с DateTime полями
-   */
-  public createUTCBoundariesForSharePointQuery(firstDay: Date, lastDay: Date): {
-    startUTC: Date;
-    endUTC: Date;
-  } {
-    console.log('[CommonFillDateUtils] *** СОЗДАНИЕ UTC ГРАНИЦ ДЛЯ SHAREPOINT DATETIME ЗАПРОСОВ ***');
-    
-    const startUTC = new Date(Date.UTC(
-      firstDay.getFullYear(),
-      firstDay.getMonth(),
-      firstDay.getDate(),
-      0, 0, 0, 0
-    ));
-    
-    const endUTC = new Date(Date.UTC(
-      lastDay.getFullYear(),
-      lastDay.getMonth(),
-      lastDay.getDate(),
-      23, 59, 59, 999
-    ));
-
-    console.log(`[CommonFillDateUtils] Local boundaries: ${this.formatDateOnlyForDisplay(firstDay)} - ${this.formatDateOnlyForDisplay(lastDay)}`);
-    console.log(`[CommonFillDateUtils] UTC Date objects for SharePoint DateTime queries: ${startUTC.toISOString()} - ${endUTC.toISOString()}`);
-    console.log(`[CommonFillDateUtils] Purpose: StaffRecords.Date и другие DateTime field queries`);
-
-    return {
-      startUTC,
-      endUTC
     };
   }
 }
