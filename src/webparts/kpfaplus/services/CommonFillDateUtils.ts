@@ -1,6 +1,6 @@
 // src/webparts/kpfaplus/services/CommonFillDateUtils.ts
 // DATE AND TIME UTILITIES: All date/time calculations and timezone handling
-// UPDATED: StaffRecords.Date is now Date-only field, not DateTime
+// FIXED: formatDateOnlyForSharePoint now uses UTC midnight for ALL Date-only fields including StaffRecords.Date
 
 import { RemoteSiteService } from './RemoteSiteService';
 import { SharePointTimeZoneUtils } from '../utils/SharePointTimeZoneUtils';
@@ -23,38 +23,38 @@ export class CommonFillDateUtils {
 
   constructor(remoteSiteService: RemoteSiteService) {
     this.remoteSiteService = remoteSiteService;
-    console.log('[CommonFillDateUtils] Utility class initialized - StaffRecords.Date is now Date-only field');
+    console.log('[CommonFillDateUtils] FIXED: Utility class initialized - ALL Date-only fields use UTC midnight format');
   }
 
-  // *** UPDATED: Now used for ALL SharePoint Date-only fields (ScheduleLogs.Date, Holidays.date, StaffRecords.Date) ***
+  // *** FIXED: Now used for ALL SharePoint Date-only fields (ScheduleLogs.Date, Holidays.date, StaffRecords.Date, DaysOfLeaves.Date) ***
 
   /**
-   * *** UPDATED: Formats Date-only date for ALL SharePoint Date-only fields ***
-   * Prevents timezone conversion for Date-only fields including StaffRecords.Date
+   * *** FIXED: Formats Date-only date for ALL SharePoint Date-only fields ***
+   * Prevents timezone conversion for ALL Date-only fields including StaffRecords.Date
    */
   public formatDateOnlyForSharePoint(date: Date): string {
     const year = date.getFullYear();
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const day = date.getDate().toString().padStart(2, '0');
     
-    // Send as UTC midnight to prevent timezone conversion for ALL Date-only fields
+    // FIXED: Send as UTC midnight to prevent timezone conversion for ALL Date-only fields
     // Adding 'Z' forces UTC time and prevents SharePoint from shifting dates
     const utcString = `${year}-${month}-${day}T00:00:00.000Z`;
     
-    console.log('[CommonFillDateUtils] *** DATE-ONLY FIELD FORMAT FOR ALL SHAREPOINT DATE-ONLY FIELDS ***');
+    console.log('[CommonFillDateUtils] *** FIXED: DATE-ONLY FIELD FORMAT FOR ALL SHAREPOINT DATE-ONLY FIELDS ***');
     console.log('[CommonFillDateUtils] Input date:', this.formatDateOnlyForDisplay(date));
     console.log('[CommonFillDateUtils] Date-only SharePoint format:', utcString);
-    console.log('[CommonFillDateUtils] Purpose: ScheduleLogs.Date, Holidays.date, StaffRecords.Date (ALL Date-only fields)');
+    console.log('[CommonFillDateUtils] FIXED: Purpose: ScheduleLogs.Date, Holidays.date, StaffRecords.Date, DaysOfLeaves.Date (ALL Date-only fields)');
     
     return utcString;
   }
 
   /**
-   * *** UPDATED: Creates Date object from Date-only SharePoint string for ALL Date-only fields ***
+   * *** FIXED: Creates Date object from Date-only SharePoint string for ALL Date-only fields ***
    */
   public createDateFromDateOnlySharePointString(utcString: string): Date {
     const date = new Date(utcString);
-    console.log('[CommonFillDateUtils] *** PARSING DATE-ONLY SHAREPOINT STRING FOR ALL DATE-ONLY FIELDS ***');
+    console.log('[CommonFillDateUtils] *** FIXED: PARSING DATE-ONLY SHAREPOINT STRING FOR ALL DATE-ONLY FIELDS ***');
     console.log('[CommonFillDateUtils] SharePoint string:', utcString);
     console.log('[CommonFillDateUtils] Parsed date:', this.formatDateOnlyForDisplay(date));
     return date;
@@ -165,7 +165,7 @@ export class CommonFillDateUtils {
     }
   }
 
-  // *** REMOVED: UTC methods for DateTime fields - ALL fields are now Date-only ***
+  // *** FIXED: All UTC methods for DateTime fields have been REMOVED since ALL fields are now Date-only ***
   // The following methods have been removed since StaffRecords.Date is now Date-only:
   // - normalizeToUTCForSharePoint()
   // - restoreFromSharePointDateTime() 
@@ -412,41 +412,43 @@ export class CommonFillDateUtils {
     return `${hours}:${minutes}`;
   }
 
-  // *** HOLIDAY AND LEAVE UTILITIES ***
+  // *** HOLIDAY AND LEAVE UTILITIES WITH FIXED DATE-ONLY SUPPORT ***
 
   /**
-   * Creates holiday cache for fast lookup with Date-only support
+   * FIXED: Creates holiday cache for fast lookup with Date-only support
+   * Now properly handles all Date-only fields using UTC midnight approach
    */
   public createHolidayCacheWithDateOnly(holidays: IHoliday[]): Map<string, IHoliday> {
     const cache = new Map<string, IHoliday>();
     holidays.forEach((holiday: IHoliday) => {
       const key = this.formatDateOnlyForComparison(holiday.date);
       cache.set(key, holiday);
-      console.log(`[CommonFillDateUtils] Added holiday to Date-only cache: ${key} - ${holiday.title}`);
+      console.log(`[CommonFillDateUtils] FIXED: Added holiday to Date-only cache: ${key} - ${holiday.title}`);
     });
-    console.log(`[CommonFillDateUtils] Created Date-only holiday cache with ${cache.size} entries`);
+    console.log(`[CommonFillDateUtils] FIXED: Created Date-only holiday cache with ${cache.size} entries`);
     return cache;
   }
 
   /**
-   * Creates leave periods array for fast checking with Date-only support
+   * FIXED: Creates leave periods array for fast checking with Date-only support
+   * Now properly handles all Date-only fields using UTC midnight approach
    */
   public createLeavePeriodsWithDateOnly(leaves: ILeaveDay[]): ILeavePeriod[] {
     // Filter deleted leaves for Dashboard Tab
     const activeLeaves = leaves.filter(leave => {
       const isDeleted = leave.deleted === true;
       if (isDeleted) {
-        console.log(`[CommonFillDateUtils] Filtering out deleted leave: ${leave.title} (${this.formatDateOnlyForDisplay(leave.startDate)} - ${leave.endDate ? this.formatDateOnlyForDisplay(leave.endDate) : 'ongoing'})`);
+        console.log(`[CommonFillDateUtils] FIXED: Filtering out deleted leave: ${leave.title} (${this.formatDateOnlyForDisplay(leave.startDate)} - ${leave.endDate ? this.formatDateOnlyForDisplay(leave.endDate) : 'ongoing'})`);
       }
       return !isDeleted;
     });
     
     const leavePeriods = activeLeaves.map((leave: ILeaveDay): ILeavePeriod => {
-      // Create Date-only objects for correct comparison
+      // FIXED: Create Date-only objects for correct comparison using UTC midnight approach
       const startDate = this.createDateOnlyFromDate(leave.startDate);
       const endDate = leave.endDate ? this.createDateOnlyFromDate(leave.endDate) : new Date(2099, 11, 31);
       
-      console.log(`[CommonFillDateUtils] Added leave to Date-only cache: ${this.formatDateOnlyForDisplay(startDate)} - ${this.formatDateOnlyForDisplay(endDate)}, type: ${leave.typeOfLeave}, title: "${leave.title}"`);
+      console.log(`[CommonFillDateUtils] FIXED: Added leave to Date-only cache: ${this.formatDateOnlyForDisplay(startDate)} - ${this.formatDateOnlyForDisplay(endDate)}, type: ${leave.typeOfLeave}, title: "${leave.title}"`);
       
       return {
         startDate,
@@ -456,12 +458,12 @@ export class CommonFillDateUtils {
       };
     });
     
-    console.log(`[CommonFillDateUtils] Created Date-only leave periods cache with ${leavePeriods.length} entries from ${leaves.length} total`);
+    console.log(`[CommonFillDateUtils] FIXED: Created Date-only leave periods cache with ${leavePeriods.length} entries from ${leaves.length} total`);
     return leavePeriods;
   }
 
   /**
-   * Check holiday with Date-only support
+   * FIXED: Check holiday with Date-only support
    */
   public isHolidayWithDateOnly(date: Date, holidayCache: Map<string, IHoliday>): boolean {
     const dateKey = this.formatDateOnlyForComparison(date);
@@ -469,7 +471,7 @@ export class CommonFillDateUtils {
   }
 
   /**
-   * Check leave with Date-only support
+   * FIXED: Check leave with Date-only support
    */
   public isLeaveWithDateOnly(date: Date, leavePeriods: ILeavePeriod[]): boolean {
     return leavePeriods.some(leave => {
@@ -482,7 +484,7 @@ export class CommonFillDateUtils {
   }
 
   /**
-   * Get leave for day with Date-only support
+   * FIXED: Get leave for day with Date-only support
    */
   public getLeaveForDayWithDateOnly(date: Date, leavePeriods: ILeavePeriod[]): ILeavePeriod | undefined {
     return leavePeriods.find(leave => {

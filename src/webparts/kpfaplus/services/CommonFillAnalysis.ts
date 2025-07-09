@@ -1,6 +1,6 @@
 // src/webparts/kpfaplus/services/CommonFillAnalysis.ts
 // ANALYSIS AND STATISTICS: All analysis logic for fill operations
-// COMPLETE IMPLEMENTATION: Detailed analysis tracking with Date-only support
+// FIXED: Added detailed logging tracking for deleted records, holidays, and leaves
 
 import { IContract } from '../models/IContract';
 import { 
@@ -16,17 +16,37 @@ import {
 } from './CommonFillTypes';
 import { CommonFillDateUtils } from './CommonFillDateUtils';
 
+// *** FIXED: Added new interfaces for detailed logging ***
+interface IHolidayDetails {
+  date: string;
+  title: string;
+}
+
+interface ILeaveDetails {
+  startDate: string;
+  endDate: string;
+  title: string;
+  typeOfLeave: string;
+}
+
+// *** FIXED: Extended IGenerationAnalysis interface ***
+interface IExtendedGenerationAnalysis extends IGenerationAnalysis {
+  deletedRecordsCount: number;
+  holidaysDetails: IHolidayDetails[];
+  leavesDetails: ILeaveDetails[];
+}
+
 export class CommonFillAnalysis {
   private dateUtils: CommonFillDateUtils;
   
   // Analysis state storage
   private contractsAnalysis?: IContractsAnalysis;
   private templatesAnalysis?: ITemplatesAnalysis;
-  private generationAnalysis?: IGenerationAnalysis;
+  private generationAnalysis?: IExtendedGenerationAnalysis; // *** FIXED: Using extended interface ***
 
   constructor(dateUtils: CommonFillDateUtils) {
     this.dateUtils = dateUtils;
-    console.log('[CommonFillAnalysis] Analysis service initialized with Date-only format support');
+    console.log('[CommonFillAnalysis] FIXED: Analysis service initialized with detailed logging tracking support');
   }
 
   // *** PUBLIC API METHODS ***
@@ -253,11 +273,12 @@ export class CommonFillAnalysis {
   // *** GENERATION ANALYSIS ***
 
   /**
-   * Инициализирует анализ генерации
+   * FIXED: Инициализирует анализ генерации с поддержкой детального логирования
    */
-  public initializeGenerationAnalysis(firstDay: Date, lastDay: Date): IGenerationAnalysis {
+  public initializeGenerationAnalysis(firstDay: Date, lastDay: Date): IExtendedGenerationAnalysis {
     const totalDays = Math.ceil((lastDay.getTime() - firstDay.getTime()) / FILL_CONSTANTS.TIMEZONE.MILLISECONDS_PER_DAY) + 1;
     
+    // *** FIXED: Initialize with detailed logging fields ***
     this.generationAnalysis = {
       totalDaysInPeriod: totalDays,
       daysGenerated: 0,
@@ -265,12 +286,17 @@ export class CommonFillAnalysis {
       holidaysDetected: 0,
       leavesDetected: 0,
       dailyInfo: [],
-      weeklyStats: new Map()
+      weeklyStats: new Map(),
+      // *** FIXED: Added new fields for detailed logging ***
+      deletedRecordsCount: 0,
+      holidaysDetails: [],
+      leavesDetails: []
     };
 
-    console.log(`[CommonFillAnalysis] Initialized generation analysis for ${totalDays} days:`, {
+    console.log(`[CommonFillAnalysis] FIXED: Initialized generation analysis with detailed logging for ${totalDays} days:`, {
       period: `${this.dateUtils.formatDateOnlyForDisplay(firstDay)} - ${this.dateUtils.formatDateOnlyForDisplay(lastDay)}`,
-      totalDays
+      totalDays,
+      detailedLoggingEnabled: true
     });
 
     return this.generationAnalysis;
@@ -319,9 +345,17 @@ export class CommonFillAnalysis {
   }
 
   /**
-   * Завершает анализ генерации
+   * FIXED: Завершает анализ генерации с детальной информацией для логирования
    */
-  public finalizeGenerationAnalysis(recordsGenerated: number, holidaysCount: number, leavesCount: number): IGenerationAnalysis {
+  public finalizeGenerationAnalysis(
+    recordsGenerated: number, 
+    holidaysCount: number, 
+    leavesCount: number,
+    // *** FIXED: Added parameters for detailed logging ***
+    deletedRecordsCount: number = 0,
+    holidaysDetails: IHolidayDetails[] = [],
+    leavesDetails: ILeaveDetails[] = []
+  ): IExtendedGenerationAnalysis {
     if (!this.generationAnalysis) {
       console.warn('[CommonFillAnalysis] Cannot finalize generation analysis - not initialized');
       return this.initializeGenerationAnalysis(new Date(), new Date());
@@ -330,23 +364,115 @@ export class CommonFillAnalysis {
     this.generationAnalysis.holidaysDetected = holidaysCount;
     this.generationAnalysis.leavesDetected = leavesCount;
     
-    console.log('[CommonFillAnalysis] Generation analysis completed:', {
+    // *** FIXED: Set detailed logging information ***
+    this.generationAnalysis.deletedRecordsCount = deletedRecordsCount;
+    this.generationAnalysis.holidaysDetails = holidaysDetails;
+    this.generationAnalysis.leavesDetails = leavesDetails;
+    
+    console.log('[CommonFillAnalysis] FIXED: Generation analysis completed with detailed logging:', {
       totalDays: this.generationAnalysis.totalDaysInPeriod,
       generated: this.generationAnalysis.daysGenerated,
       skipped: this.generationAnalysis.daysSkipped,
       holidays: this.generationAnalysis.holidaysDetected,
       leaves: this.generationAnalysis.leavesDetected,
-      recordsCreated: recordsGenerated
+      recordsCreated: recordsGenerated,
+      // *** FIXED: Added detailed logging info ***
+      deletedRecords: this.generationAnalysis.deletedRecordsCount,
+      holidayDetailsCount: this.generationAnalysis.holidaysDetails.length,
+      leaveDetailsCount: this.generationAnalysis.leavesDetails.length
     });
 
     return this.generationAnalysis;
   }
 
   /**
+   * *** FIXED: Added method to set deleted records count ***
+   */
+  public setDeletedRecordsCount(count: number): void {
+    if (!this.generationAnalysis) {
+      console.warn('[CommonFillAnalysis] Cannot set deleted records count - analysis not initialized');
+      return;
+    }
+
+    this.generationAnalysis.deletedRecordsCount = count;
+    console.log(`[CommonFillAnalysis] FIXED: Set deleted records count: ${count}`);
+  }
+
+  /**
+   * *** FIXED: Added method to set holidays details ***
+   */
+  public setHolidaysDetails(holidays: Array<{ date: Date; title: string }>): void {
+    if (!this.generationAnalysis) {
+      console.warn('[CommonFillAnalysis] Cannot set holidays details - analysis not initialized');
+      return;
+    }
+
+    this.generationAnalysis.holidaysDetails = holidays.map(holiday => ({
+      date: this.dateUtils.formatDateOnlyForDisplay(holiday.date),
+      title: holiday.title
+    }));
+
+    console.log(`[CommonFillAnalysis] FIXED: Set holidays details: ${this.generationAnalysis.holidaysDetails.length} holidays`);
+    this.generationAnalysis.holidaysDetails.forEach(holiday => {
+      console.log(`[CommonFillAnalysis] FIXED: Holiday: ${holiday.date} - ${holiday.title}`);
+    });
+  }
+
+  /**
+   * *** FIXED: Added method to set leaves details ***
+   */
+  public setLeavesDetails(leaves: Array<{ 
+    startDate: Date; 
+    endDate?: Date; 
+    title: string; 
+    typeOfLeave: string 
+  }>): void {
+    if (!this.generationAnalysis) {
+      console.warn('[CommonFillAnalysis] Cannot set leaves details - analysis not initialized');
+      return;
+    }
+
+    this.generationAnalysis.leavesDetails = leaves.map(leave => ({
+      startDate: this.dateUtils.formatDateOnlyForDisplay(leave.startDate),
+      endDate: leave.endDate ? this.dateUtils.formatDateOnlyForDisplay(leave.endDate) : 'ongoing',
+      title: leave.title,
+      typeOfLeave: leave.typeOfLeave
+    }));
+
+    console.log(`[CommonFillAnalysis] FIXED: Set leaves details: ${this.generationAnalysis.leavesDetails.length} leaves`);
+    this.generationAnalysis.leavesDetails.forEach(leave => {
+      console.log(`[CommonFillAnalysis] FIXED: Leave: ${leave.startDate} - ${leave.endDate}, type: ${leave.typeOfLeave}, title: "${leave.title}"`);
+    });
+  }
+
+  /**
    * Получает анализ генерации
    */
-  public getGenerationAnalysis(): IGenerationAnalysis | undefined {
+  public getGenerationAnalysis(): IExtendedGenerationAnalysis | undefined {
     return this.generationAnalysis;
+  }
+
+  /**
+   * *** FIXED: Added method to get detailed logging info ***
+   */
+  public getDetailedLoggingInfo(): {
+    deletedRecordsCount: number;
+    holidaysDetails: IHolidayDetails[];
+    leavesDetails: ILeaveDetails[];
+  } {
+    if (!this.generationAnalysis) {
+      return {
+        deletedRecordsCount: 0,
+        holidaysDetails: [],
+        leavesDetails: []
+      };
+    }
+
+    return {
+      deletedRecordsCount: this.generationAnalysis.deletedRecordsCount,
+      holidaysDetails: this.generationAnalysis.holidaysDetails,
+      leavesDetails: this.generationAnalysis.leavesDetails
+    };
   }
 
   /**
@@ -359,6 +485,10 @@ export class CommonFillAnalysis {
     holidaysCount: number;
     leavesCount: number;
     successRate: number;
+    // *** FIXED: Added detailed logging fields ***
+    deletedRecordsCount: number;
+    holidayDetailsCount: number;
+    leaveDetailsCount: number;
   } {
     if (!this.generationAnalysis) {
       return {
@@ -367,7 +497,10 @@ export class CommonFillAnalysis {
         skippedDays: 0,
         holidaysCount: 0,
         leavesCount: 0,
-        successRate: 0
+        successRate: 0,
+        deletedRecordsCount: 0,
+        holidayDetailsCount: 0,
+        leaveDetailsCount: 0
       };
     }
 
@@ -381,7 +514,11 @@ export class CommonFillAnalysis {
       skippedDays: this.generationAnalysis.daysSkipped,
       holidaysCount: this.generationAnalysis.holidaysDetected,
       leavesCount: this.generationAnalysis.leavesDetected,
-      successRate: Math.round(successRate * 100) / 100
+      successRate: Math.round(successRate * 100) / 100,
+      // *** FIXED: Added detailed logging fields ***
+      deletedRecordsCount: this.generationAnalysis.deletedRecordsCount,
+      holidayDetailsCount: this.generationAnalysis.holidaysDetails.length,
+      leaveDetailsCount: this.generationAnalysis.leavesDetails.length
     };
   }
 
@@ -444,12 +581,12 @@ export class CommonFillAnalysis {
   // *** ANALYSIS REPORTING ***
 
   /**
-   * Генерирует текстовый отчет анализа
+   * FIXED: Генерирует текстовый отчет анализа с детальным логированием
    */
   public generateAnalysisReport(level: AnalysisLevel = AnalysisLevel.DETAILED): string {
     const lines: string[] = [];
     
-    lines.push('=== COMMON FILL GENERATION ANALYSIS REPORT ===');
+    lines.push('=== COMMON FILL GENERATION ANALYSIS REPORT WITH DETAILED LOGGING ===');
     lines.push('');
 
     // Contracts Analysis
@@ -485,16 +622,37 @@ export class CommonFillAnalysis {
 
     // Generation Analysis
     if (this.generationAnalysis) {
-      lines.push('--- GENERATION ANALYSIS ---');
+      lines.push('--- GENERATION ANALYSIS WITH DETAILED LOGGING ---');
       lines.push(`Total days in period: ${this.generationAnalysis.totalDaysInPeriod}`);
       lines.push(`Days generated: ${this.generationAnalysis.daysGenerated}`);
       lines.push(`Days skipped: ${this.generationAnalysis.daysSkipped}`);
       lines.push(`Holidays detected: ${this.generationAnalysis.holidaysDetected}`);
       lines.push(`Leaves detected: ${this.generationAnalysis.leavesDetected}`);
       
+      // *** FIXED: Added detailed logging information ***
+      lines.push(`Records deleted: ${this.generationAnalysis.deletedRecordsCount}`);
+      
       const summary = this.getGenerationSummary();
       lines.push(`Success rate: ${summary.successRate}%`);
       lines.push('');
+
+      // *** FIXED: Added detailed holidays information ***
+      if (this.generationAnalysis.holidaysDetails.length > 0) {
+        lines.push('--- HOLIDAYS DETAILS ---');
+        this.generationAnalysis.holidaysDetails.forEach(holiday => {
+          lines.push(`${holiday.date}: ${holiday.title}`);
+        });
+        lines.push('');
+      }
+
+      // *** FIXED: Added detailed leaves information ***
+      if (this.generationAnalysis.leavesDetails.length > 0) {
+        lines.push('--- LEAVES DETAILS ---');
+        this.generationAnalysis.leavesDetails.forEach(leave => {
+          lines.push(`${leave.startDate} - ${leave.endDate}: ${leave.title} (Type: ${leave.typeOfLeave})`);
+        });
+        lines.push('');
+      }
 
       // Weekly breakdown
       const weeklyStats = this.getWeeklyStats();
@@ -521,17 +679,18 @@ export class CommonFillAnalysis {
       }
     }
 
-    lines.push('=== END OF REPORT ===');
+    lines.push('=== END OF DETAILED LOGGING REPORT ===');
     
     return lines.join('\n');
   }
 
   /**
-   * Экспортирует анализ в JSON формат
+   * FIXED: Экспортирует анализ в JSON формат с детальным логированием
    */
   public exportAnalysisToJSON(): string {
     const analysisData = {
       timestamp: new Date().toISOString(),
+      detailedLoggingEnabled: true, // *** FIXED: Added flag ***
       contracts: this.contractsAnalysis,
       templates: this.templatesAnalysis ? {
         ...this.templatesAnalysis,
@@ -601,6 +760,14 @@ export class CommonFillAnalysis {
       if (this.generationAnalysis.dailyInfo.length !== this.generationAnalysis.totalDaysInPeriod) {
         warnings.push('Daily info count differs from total days');
       }
+      
+      // *** FIXED: Added validation for detailed logging fields ***
+      if (this.generationAnalysis.holidaysDetected !== this.generationAnalysis.holidaysDetails.length) {
+        warnings.push(`Holidays count (${this.generationAnalysis.holidaysDetected}) doesn't match holidays details count (${this.generationAnalysis.holidaysDetails.length})`);
+      }
+      if (this.generationAnalysis.leavesDetected !== this.generationAnalysis.leavesDetails.length) {
+        warnings.push(`Leaves count (${this.generationAnalysis.leavesDetected}) doesn't match leaves details count (${this.generationAnalysis.leavesDetails.length})`);
+      }
     }
 
     return {
@@ -611,7 +778,7 @@ export class CommonFillAnalysis {
   }
 
   /**
-   * Получает диагностическую информацию
+   * FIXED: Получает диагностическую информацию с детальным логированием
    */
   public getDiagnostics(): {
     memoryUsage: string;
@@ -620,10 +787,18 @@ export class CommonFillAnalysis {
       contractsAnalyzed: boolean;
       templatesAnalyzed: boolean;
       generationAnalyzed: boolean;
+      detailedLoggingEnabled: boolean; // *** FIXED: Added flag ***
+    };
+    detailedLoggingStats: { // *** FIXED: Added detailed logging stats ***
+      deletedRecordsCount: number;
+      holidayDetailsCount: number;
+      leaveDetailsCount: number;
     };
   } {
     const analysisJSON = this.exportAnalysisToJSON();
     const memoryUsage = `${Math.round(analysisJSON.length / 1024)} KB`;
+    
+    const detailedLoggingInfo = this.getDetailedLoggingInfo();
     
     return {
       memoryUsage,
@@ -631,7 +806,13 @@ export class CommonFillAnalysis {
       performanceMetrics: {
         contractsAnalyzed: !!this.contractsAnalysis,
         templatesAnalyzed: !!this.templatesAnalysis,
-        generationAnalyzed: !!this.generationAnalysis
+        generationAnalyzed: !!this.generationAnalysis,
+        detailedLoggingEnabled: true // *** FIXED: Added flag ***
+      },
+      detailedLoggingStats: { // *** FIXED: Added detailed logging stats ***
+        deletedRecordsCount: detailedLoggingInfo.deletedRecordsCount,
+        holidayDetailsCount: detailedLoggingInfo.holidaysDetails.length,
+        leaveDetailsCount: detailedLoggingInfo.leavesDetails.length
       }
     };
   }
