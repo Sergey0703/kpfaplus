@@ -2,6 +2,7 @@
 // MAIN COORDINATOR: Refactored with separated components for better maintainability
 // COMPLETE IMPLEMENTATION: Enhanced Auto-Fill with timer, spinner, and execution time tracking
 // FIXED: TypeScript lint error - replaced any with proper types
+// UPDATED: Added detailed holidays and leaves logging with dates
 
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { IStaffRecord, StaffRecordsService } from './StaffRecordsService';
@@ -62,7 +63,7 @@ export class CommonFillGeneration {
     
     console.log('[CommonFillGeneration] *** REFACTORED ARCHITECTURE INITIALIZED ***');
     console.log('[CommonFillGeneration] - DateUtils: ✓ Date/time calculations and timezone handling');
-    console.log('[CommonFillGeneration] - Analysis: ✓ Detailed analysis and statistics tracking');
+    console.log('[CommonFillGeneration] - Analysis: ✓ Detailed analysis and statistics tracking with holidays/leaves details');
     console.log('[CommonFillGeneration] - Templates: ✓ Schedule Tab compatible template processing');
     console.log('[CommonFillGeneration] - Records: ✓ Numeric time fields with Date-only support');
     console.log('[CommonFillGeneration] Service initialized with Date-only format support for Holidays and DaysOfLeaves');
@@ -139,6 +140,7 @@ export class CommonFillGeneration {
   /**
    * UPDATED: Генерирует записи с правильной логикой чередования недель и числовыми полями времени
    * UPDATED: Теперь использует Date-only обработку для праздников и отпусков
+   * ENHANCED: Собирает детальную информацию о праздниках и отпусках для логирования
    */
   public async generateScheduleRecords(
     params: IFillParams,
@@ -148,8 +150,32 @@ export class CommonFillGeneration {
     weeklyTemplates: IScheduleTemplate[]
   ): Promise<Partial<IStaffRecord>[]> {
     console.log('[CommonFillGeneration] Delegating record generation to Records component with Date-only support and numeric time fields');
+    console.log(`[CommonFillGeneration] *** ENHANCED: Collecting detailed holidays and leaves information for logging ***`);
 
     try {
+      // *** ENHANCED: Set detailed holidays information in analysis ***
+      console.log('[CommonFillGeneration] Setting detailed holidays information for logging...');
+      const holidaysDetails = holidays.map(holiday => ({
+        date: holiday.date,
+        title: holiday.title || 'Holiday'
+      }));
+      this.analysis.setHolidaysDetails(holidaysDetails);
+      console.log(`[CommonFillGeneration] ✓ Set ${holidaysDetails.length} holidays details for logging`);
+
+      // *** ENHANCED: Set detailed leaves information in analysis ***
+      console.log('[CommonFillGeneration] Setting detailed leaves information for logging...');
+      const leavesDetails = leaves
+        .filter(leave => !leave.deleted) // Only active leaves
+        .map(leave => ({
+          startDate: leave.startDate,
+          endDate: leave.endDate,
+          title: leave.title || 'Leave',
+          typeOfLeave: leave.typeOfLeave?.toString() || 'Unknown'
+        }));
+      this.analysis.setLeavesDetails(leavesDetails);
+      console.log(`[CommonFillGeneration] ✓ Set ${leavesDetails.length} leaves details for logging`);
+
+      // *** GENERATE RECORDS WITH ENHANCED ANALYSIS ***
       const generationResult: IGenerationResult = await this.records.generateScheduleRecords(
         params,
         contract,
@@ -159,7 +185,28 @@ export class CommonFillGeneration {
       );
 
       console.log(`[CommonFillGeneration] Records component generated ${generationResult.totalGenerated} records`);
-      console.log('[CommonFillGeneration] Generation analysis updated with detailed statistics');
+      console.log('[CommonFillGeneration] *** ENHANCED: Generation analysis updated with detailed holidays and leaves information ***');
+
+      // *** LOG DETAILED INFORMATION FOR VERIFICATION ***
+      const detailedLoggingInfo = this.analysis.getDetailedLoggingInfo();
+      console.log('[CommonFillGeneration] *** DETAILED LOGGING VERIFICATION ***');
+      console.log(`[CommonFillGeneration] Holidays details count: ${detailedLoggingInfo.holidaysDetails.length}`);
+      console.log(`[CommonFillGeneration] Leaves details count: ${detailedLoggingInfo.leavesDetails.length}`);
+      
+      // Log first few holidays and leaves for verification
+      if (detailedLoggingInfo.holidaysDetails.length > 0) {
+        console.log('[CommonFillGeneration] Sample holidays for logging:');
+        detailedLoggingInfo.holidaysDetails.slice(0, 3).forEach((holiday, index) => {
+          console.log(`[CommonFillGeneration] Holiday ${index + 1}: ${holiday.date} - ${holiday.title}`);
+        });
+      }
+      
+      if (detailedLoggingInfo.leavesDetails.length > 0) {
+        console.log('[CommonFillGeneration] Sample leaves for logging:');
+        detailedLoggingInfo.leavesDetails.slice(0, 3).forEach((leave, index) => {
+          console.log(`[CommonFillGeneration] Leave ${index + 1}: ${leave.startDate} - ${leave.endDate}, type: ${leave.typeOfLeave}, title: "${leave.title}"`);
+        });
+      }
 
       return generationResult.records;
       
@@ -171,11 +218,23 @@ export class CommonFillGeneration {
 
   /**
    * UPDATED: Сохраняет сгенерированные записи в SharePoint с числовыми полями
+   * ENHANCED: Tracks deleted records count for detailed logging
    */
-  public async saveGeneratedRecords(records: Partial<IStaffRecord>[], params: IFillParams): Promise<number> {
+  public async saveGeneratedRecords(
+    records: Partial<IStaffRecord>[], 
+    params: IFillParams,
+    deletedRecordsCount: number = 0
+  ): Promise<number> {
     console.log('[CommonFillGeneration] Delegating record saving to Records component with numeric time fields and Date-only support');
+    console.log(`[CommonFillGeneration] *** ENHANCED: Tracking ${deletedRecordsCount} deleted records for detailed logging ***`);
 
     try {
+      // *** ENHANCED: Set deleted records count in analysis ***
+      if (deletedRecordsCount > 0) {
+        this.analysis.setDeletedRecordsCount(deletedRecordsCount);
+        console.log(`[CommonFillGeneration] ✓ Set deleted records count: ${deletedRecordsCount}`);
+      }
+
       const saveResult: ISaveResult = await this.records.saveGeneratedRecords(records, params);
 
       console.log(`[CommonFillGeneration] Records component saved ${saveResult.successCount}/${saveResult.totalRecords} records`);
@@ -183,6 +242,13 @@ export class CommonFillGeneration {
       if (saveResult.errors.length > 0) {
         console.error(`[CommonFillGeneration] Save delegation completed with ${saveResult.errors.length} errors:`, saveResult.errors);
       }
+
+      // *** ENHANCED: Log final detailed information ***
+      const detailedLoggingInfo = this.analysis.getDetailedLoggingInfo();
+      console.log('[CommonFillGeneration] *** FINAL DETAILED LOGGING SUMMARY ***');
+      console.log(`[CommonFillGeneration] - Deleted records: ${detailedLoggingInfo.deletedRecordsCount}`);
+      console.log(`[CommonFillGeneration] - Holidays details: ${detailedLoggingInfo.holidaysDetails.length}`);
+      console.log(`[CommonFillGeneration] - Leaves details: ${detailedLoggingInfo.leavesDetails.length}`);
 
       return saveResult.successCount;
       
@@ -263,6 +329,112 @@ export class CommonFillGeneration {
    */
   public getWeekChainingDescription(numberOfWeekTemplates: number): string {
     return this.dateUtils.getWeekChainingDescription(numberOfWeekTemplates);
+  }
+
+  // *** ENHANCED METHODS FOR DETAILED LOGGING ***
+
+  /**
+   * *** NEW: Gets detailed holidays and leaves information for logging ***
+   */
+  public getDetailedLoggingInfo(): {
+    deletedRecordsCount: number;
+    holidaysDetails: Array<{date: string; title: string}>;
+    leavesDetails: Array<{startDate: string; endDate: string; title: string; typeOfLeave: string}>;
+  } {
+    console.log('[CommonFillGeneration] Getting detailed logging info from Analysis component');
+    return this.analysis.getDetailedLoggingInfo();
+  }
+
+  /**
+   * *** NEW: Sets detailed holidays information for logging ***
+   */
+  public setDetailedHolidaysInfo(holidays: IHoliday[]): void {
+    console.log(`[CommonFillGeneration] Setting detailed holidays info: ${holidays.length} holidays`);
+    const holidaysDetails = holidays.map(holiday => ({
+      date: holiday.date,
+      title: holiday.title || 'Holiday'
+    }));
+    this.analysis.setHolidaysDetails(holidaysDetails);
+  }
+
+  /**
+   * *** NEW: Sets detailed leaves information for logging ***
+   */
+  public setDetailedLeavesInfo(leaves: ILeaveDay[]): void {
+    const activeLeaves = leaves.filter(leave => !leave.deleted);
+    console.log(`[CommonFillGeneration] Setting detailed leaves info: ${activeLeaves.length} active leaves`);
+    const leavesDetails = activeLeaves.map(leave => ({
+      startDate: leave.startDate,
+      endDate: leave.endDate,
+      title: leave.title || 'Leave',
+      typeOfLeave: leave.typeOfLeave?.toString() || 'Unknown'
+    }));
+    this.analysis.setLeavesDetails(leavesDetails);
+  }
+
+  /**
+   * *** NEW: Sets deleted records count for logging ***
+   */
+  public setDeletedRecordsCount(count: number): void {
+    console.log(`[CommonFillGeneration] Setting deleted records count: ${count}`);
+    this.analysis.setDeletedRecordsCount(count);
+  }
+
+  /**
+   * *** NEW: Gets formatted holidays summary for logging ***
+   */
+  public getFormattedHolidaysSummary(): string {
+    const detailedInfo = this.analysis.getDetailedLoggingInfo();
+    if (detailedInfo.holidaysDetails.length === 0) {
+      return 'Holidays found: 0';
+    }
+    
+    const dates = detailedInfo.holidaysDetails.map(h => h.date).join(', ');
+    return `Holidays found: ${detailedInfo.holidaysDetails.length} (dates: ${dates})`;
+  }
+
+  /**
+   * *** NEW: Gets formatted leaves summary for logging ***
+   */
+  public getFormattedLeavesSummary(): string {
+    const detailedInfo = this.analysis.getDetailedLoggingInfo();
+    if (detailedInfo.leavesDetails.length === 0) {
+      return 'Leaves found: 0';
+    }
+    
+    const periods = detailedInfo.leavesDetails.map(l => `${l.startDate}-${l.endDate}`).join(', ');
+    return `Leaves found: ${detailedInfo.leavesDetails.length} (${periods})`;
+  }
+
+  /**
+   * *** NEW: Generates detailed logging report ***
+   */
+  public generateDetailedLoggingReport(): string {
+    const detailedInfo = this.analysis.getDetailedLoggingInfo();
+    const lines: string[] = [];
+    
+    lines.push('=== DETAILED LOGGING INFORMATION ===');
+    lines.push(`Deleted records: ${detailedInfo.deletedRecordsCount}`);
+    lines.push('');
+    
+    if (detailedInfo.holidaysDetails.length > 0) {
+      lines.push('HOLIDAYS DETAILS:');
+      detailedInfo.holidaysDetails.forEach(holiday => {
+        lines.push(`  ${holiday.date}: ${holiday.title}`);
+      });
+      lines.push('');
+    }
+    
+    if (detailedInfo.leavesDetails.length > 0) {
+      lines.push('LEAVES DETAILS:');
+      detailedInfo.leavesDetails.forEach(leave => {
+        lines.push(`  ${leave.startDate} - ${leave.endDate}: ${leave.title} (Type: ${leave.typeOfLeave})`);
+      });
+      lines.push('');
+    }
+    
+    lines.push('=== END DETAILED LOGGING ===');
+    return lines.join('\n');
   }
 
   // *** VALIDATION AND DIAGNOSTICS METHODS ***
@@ -476,6 +648,12 @@ export class CommonFillGeneration {
       contractsAnalyzed: boolean;
       templatesAnalyzed: boolean;
       generationAnalyzed: boolean;
+      detailedLoggingEnabled: boolean; // *** ENHANCED: Added detailed logging flag ***
+    };
+    detailedLoggingStats: { // *** ENHANCED: Added detailed logging stats ***
+      deletedRecordsCount: number;
+      holidayDetailsCount: number;
+      leaveDetailsCount: number;
     };
   } {
     console.log('[CommonFillGeneration] Delegating analysis diagnostics to Analysis component');
@@ -506,6 +684,7 @@ export class CommonFillGeneration {
 
   /**
    * Получает общую диагностическую информацию системы
+   * ENHANCED: Added detailed logging capabilities
    */
   public getSystemDiagnostics(): {
     architecture: string;
@@ -523,11 +702,15 @@ export class CommonFillGeneration {
       remoteSite: boolean;
     };
     capabilities: string[];
+    detailedLogging: { // *** ENHANCED: Added detailed logging info ***
+      enabled: boolean;
+      features: string[];
+    };
   } {
     console.log('[CommonFillGeneration] Generating system diagnostics from main coordinator');
     
     return {
-      architecture: 'Refactored Component-Based Architecture',
+      architecture: 'Refactored Component-Based Architecture with Detailed Logging',
       components: {
         dateUtils: !!this.dateUtils,
         analysis: !!this.analysis,
@@ -549,8 +732,20 @@ export class CommonFillGeneration {
         'Week chaining logic with multiple patterns',
         'Comprehensive validation and diagnostics',
         'Backup and restore functionality',
-        'Component-based modular architecture'
-      ]
+        'Component-based modular architecture',
+        'Detailed holidays and leaves logging with dates', // *** ENHANCED ***
+        'Deleted records tracking for comprehensive logging'
+      ],
+      detailedLogging: { // *** ENHANCED: Added detailed logging info ***
+        enabled: true,
+        features: [
+          'Holidays details with dates and titles',
+          'Leaves details with start/end dates and types',
+          'Deleted records count tracking',
+          'Comprehensive logging reports',
+          'Date-only format support for all logging'
+        ]
+      }
     };
   }
 
@@ -573,6 +768,7 @@ export class CommonFillGeneration {
 
   /**
    * Получает версию и информацию о компонентах
+   * ENHANCED: Added detailed logging capabilities
    */
   public getComponentInfo(): {
     version: string;
@@ -580,11 +776,12 @@ export class CommonFillGeneration {
     architecture: string;
     componentCount: number;
     features: string[];
+    detailedLoggingVersion: string; // *** ENHANCED ***
   } {
     return {
-      version: '2.0.0-refactored',
+      version: '2.1.0-enhanced-logging',
       buildDate: new Date().toISOString(),
-      architecture: 'Component-Based with Separation of Concerns',
+      architecture: 'Component-Based with Separation of Concerns and Detailed Logging',
       componentCount: 4, // dateUtils, analysis, templates, records
       features: [
         'Refactored modular architecture',
@@ -596,8 +793,12 @@ export class CommonFillGeneration {
         'Backup and restore',
         'Timezone adjustment',
         'Week chaining patterns',
-        'Component-based testing support'
-      ]
+        'Component-based testing support',
+        'Detailed holidays and leaves logging', // *** ENHANCED ***
+        'Deleted records tracking', // *** ENHANCED ***
+        'Comprehensive logging reports' // *** ENHANCED ***
+      ],
+      detailedLoggingVersion: '1.0.0' // *** ENHANCED ***
     };
   }
 
@@ -656,12 +857,194 @@ export class CommonFillGeneration {
     return this.templates;
   }
   
-
   /**
    * Получает прямой доступ к компоненту Records (для продвинутого использования)
    */
   public getRecordsComponent(): CommonFillRecords {
     console.log('[CommonFillGeneration] Providing direct access to Records component');
     return this.records;
+  }
+
+  // *** ENHANCED UTILITY METHODS FOR DETAILED LOGGING ***
+
+  /**
+   * *** NEW: Formats holidays information for external logging systems ***
+   */
+  public formatHolidaysForExternalLog(): string {
+    const detailedInfo = this.analysis.getDetailedLoggingInfo();
+    if (detailedInfo.holidaysDetails.length === 0) {
+      return 'No holidays in period';
+    }
+    
+    return detailedInfo.holidaysDetails
+      .map(holiday => `${holiday.date}: ${holiday.title}`)
+      .join(', ');
+  }
+
+  /**
+   * *** NEW: Formats leaves information for external logging systems ***
+   */
+  public formatLeavesForExternalLog(): string {
+    const detailedInfo = this.analysis.getDetailedLoggingInfo();
+    if (detailedInfo.leavesDetails.length === 0) {
+      return 'No leaves in period';
+    }
+    
+    return detailedInfo.leavesDetails
+      .map(leave => `${leave.startDate}-${leave.endDate}: ${leave.title} (${leave.typeOfLeave})`)
+      .join(', ');
+  }
+
+  /**
+   * *** NEW: Gets comprehensive logging summary for external systems ***
+   */
+  public getComprehensiveLoggingSummary(): {
+    summary: string;
+    details: {
+      deletedRecords: number;
+      holidays: {
+        count: number;
+        list: string[];
+      };
+      leaves: {
+        count: number;
+        list: string[];
+      };
+    };
+    formattedReport: string;
+  } {
+    const detailedInfo = this.analysis.getDetailedLoggingInfo();
+    
+    const holidaysList = detailedInfo.holidaysDetails.map(h => `${h.date}: ${h.title}`);
+    const leavesList = detailedInfo.leavesDetails.map(l => 
+      `${l.startDate} - ${l.endDate}: ${l.title} (Type: ${l.typeOfLeave})`
+    );
+    
+    const summary = [
+      `Deleted records: ${detailedInfo.deletedRecordsCount}`,
+      `Holidays: ${detailedInfo.holidaysDetails.length}`,
+      `Leaves: ${detailedInfo.leavesDetails.length}`
+    ].join(', ');
+    
+    const formattedReport = [
+      '=== COMPREHENSIVE LOGGING SUMMARY ===',
+      `Deleted records: ${detailedInfo.deletedRecordsCount}`,
+      '',
+      detailedInfo.holidaysDetails.length > 0 ? 'HOLIDAYS:' : 'No holidays in period',
+      ...holidaysList.map(h => `  ${h}`),
+      '',
+      detailedInfo.leavesDetails.length > 0 ? 'LEAVES:' : 'No leaves in period',
+      ...leavesList.map(l => `  ${l}`),
+      '=== END SUMMARY ==='
+    ].join('\n');
+    
+    return {
+      summary,
+      details: {
+        deletedRecords: detailedInfo.deletedRecordsCount,
+        holidays: {
+          count: detailedInfo.holidaysDetails.length,
+          list: holidaysList
+        },
+        leaves: {
+          count: detailedInfo.leavesDetails.length,
+          list: leavesList
+        }
+      },
+      formattedReport
+    };
+  }
+
+  /**
+   * *** NEW: Validates detailed logging data integrity ***
+   */
+  public validateDetailedLoggingIntegrity(): {
+    isValid: boolean;
+    issues: string[];
+    stats: {
+      holidaysValid: number;
+      holidaysInvalid: number;
+      leavesValid: number;
+      leavesInvalid: number;
+    };
+  } {
+    const detailedInfo = this.analysis.getDetailedLoggingInfo();
+    const issues: string[] = [];
+    let holidaysValid = 0;
+    let holidaysInvalid = 0;
+    let leavesValid = 0;
+    let leavesInvalid = 0;
+    
+    // Validate holidays
+    detailedInfo.holidaysDetails.forEach((holiday, index) => {
+      if (!holiday.date || !holiday.title) {
+        holidaysInvalid++;
+        issues.push(`Holiday ${index + 1}: Missing date or title`);
+      } else if (holiday.date.length < 8 || holiday.title.trim().length === 0) {
+        holidaysInvalid++;
+        issues.push(`Holiday ${index + 1}: Invalid date format or empty title`);
+      } else {
+        holidaysValid++;
+      }
+    });
+    
+    // Validate leaves
+    detailedInfo.leavesDetails.forEach((leave, index) => {
+      if (!leave.startDate || !leave.endDate || !leave.title || !leave.typeOfLeave) {
+        leavesInvalid++;
+        issues.push(`Leave ${index + 1}: Missing required fields`);
+      } else if (leave.startDate.length < 8 || leave.endDate.length < 8 || 
+                 leave.title.trim().length === 0 || leave.typeOfLeave.trim().length === 0) {
+        leavesInvalid++;
+        issues.push(`Leave ${index + 1}: Invalid date format or empty fields`);
+      } else {
+        leavesValid++;
+      }
+    });
+    
+    // Check deleted records count
+    if (detailedInfo.deletedRecordsCount < 0) {
+      issues.push('Deleted records count cannot be negative');
+    }
+    
+    return {
+      isValid: issues.length === 0,
+      issues,
+      stats: {
+        holidaysValid,
+        holidaysInvalid,
+        leavesValid,
+        leavesInvalid
+      }
+    };
+  }
+
+  /**
+   * *** NEW: Exports detailed logging data in JSON format ***
+   */
+  public exportDetailedLoggingData(): string {
+    const detailedInfo = this.analysis.getDetailedLoggingInfo();
+    const validationResult = this.validateDetailedLoggingIntegrity();
+    
+    const exportData = {
+      timestamp: new Date().toISOString(),
+      version: '1.0.0',
+      dataIntegrity: validationResult,
+      detailedLogging: {
+        deletedRecordsCount: detailedInfo.deletedRecordsCount,
+        holidaysDetails: detailedInfo.holidaysDetails,
+        leavesDetails: detailedInfo.leavesDetails
+      },
+      summary: this.getComprehensiveLoggingSummary(),
+      metadata: {
+        exportedBy: 'CommonFillGeneration',
+        format: 'detailed-logging-export',
+        totalItems: detailedInfo.deletedRecordsCount + 
+                   detailedInfo.holidaysDetails.length + 
+                   detailedInfo.leavesDetails.length
+      }
+    };
+    
+    return JSON.stringify(exportData, null, 2);
   }
 }
