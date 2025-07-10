@@ -1,5 +1,5 @@
 // src/webparts/kpfaplus/services/CommonFillServiceLogging.ts - Logging Operations (Part 4/4)
-// ВОССТАНОВЛЕНО: Добавлена техническая информация о периоде и Date-only обработке
+// ИСПРАВЛЕНО: Правильная обработка данных о праздниках и отпусках в ScheduleLogs
 // ОСНОВНОЙ ФУНКЦИОНАЛ: Логирование операций заполнения с правильной поддержкой Date-only полей
 
 import { ScheduleLogsService, ICreateScheduleLogParams } from './ScheduleLogsService';
@@ -17,14 +17,13 @@ export class CommonFillServiceLogging {
   ) {
     this.scheduleLogsService = scheduleLogsService;
     this.dateUtils = dateUtils;
-    console.log('[CommonFillServiceLogging] Logging module initialized with Date-only format support and restored technical details');
+    console.log('[CommonFillServiceLogging] ИСПРАВЛЕНО: Logging module initialized with fixed holidays and leaves processing for ScheduleLogs');
   }
 
   // *** ОСНОВНЫЕ МЕТОДЫ ЛОГИРОВАНИЯ ***
 
   /**
-   * Создает основной лог операции заполнения с правильным Date-only форматом
-   * ОБНОВЛЕНО: Добавлена поддержка детального логирования праздников и отпусков
+   * *** ИСПРАВЛЕНО: Создает основной лог операции заполнения с правильной обработкой праздников и отпусков ***
    */
   public async createFillLog(
     params: IFillParams, 
@@ -38,14 +37,42 @@ export class CommonFillServiceLogging {
     }
   ): Promise<void> {
     try {
+      console.log('[CommonFillServiceLogging] *** ИСПРАВЛЕНО: Creating ScheduleLog with proper holidays and leaves data ***');
+      
+      // *** ИСПРАВЛЕНИЕ: Проверяем входящие данные ***
+      if (detailedLoggingInfo) {
+        console.log(`[CommonFillServiceLogging] *** ПОЛУЧЕНЫ ДАННЫЕ ДЛЯ SCHEDULELOGS ***`);
+        console.log(`[CommonFillServiceLogging] Удаленных записей: ${detailedLoggingInfo.deletedRecordsCount}`);
+        console.log(`[CommonFillServiceLogging] Праздников: ${detailedLoggingInfo.holidaysDetails.length}`);
+        console.log(`[CommonFillServiceLogging] Отпусков: ${detailedLoggingInfo.leavesDetails.length}`);
+        
+        // Детальная проверка праздников
+        if (detailedLoggingInfo.holidaysDetails.length > 0) {
+          console.log('[CommonFillServiceLogging] *** ПРАЗДНИКИ ДЛЯ SCHEDULELOGS ***');
+          detailedLoggingInfo.holidaysDetails.forEach((holiday, index) => {
+            console.log(`[CommonFillServiceLogging] Праздник ${index + 1}: ${holiday.date} - ${holiday.title}`);
+          });
+        }
+        
+        // Детальная проверка отпусков
+        if (detailedLoggingInfo.leavesDetails.length > 0) {
+          console.log('[CommonFillServiceLogging] *** ОТПУСКА ДЛЯ SCHEDULELOGS ***');
+          detailedLoggingInfo.leavesDetails.forEach((leave, index) => {
+            console.log(`[CommonFillServiceLogging] Отпуск ${index + 1}: ${leave.startDate} - ${leave.endDate}, тип: ${leave.typeOfLeave}, название: "${leave.title}"`);
+          });
+        }
+      } else {
+        console.warn('[CommonFillServiceLogging] *** ПРЕДУПРЕЖДЕНИЕ: detailedLoggingInfo is null/undefined - данные о праздниках и отпусках не переданы! ***');
+      }
+
       const logMessage = this.buildDetailedLogMessage(params, result, contractId, additionalDetails, detailedLoggingInfo);
       const periodStr = this.dateUtils.formatDateOnlyForDisplay(params.selectedDate);
       
       // *** КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Используем dateUtils для создания Date-only Date объекта ***
       const dateOnlyForScheduleLogs = this.dateUtils.createDateOnlyFromDate(params.selectedDate);
       
-      console.log('[CommonFillServiceLogging] *** КРИТИЧНОЕ ИСПРАВЛЕНИЕ: SCHEDULELOGS DATE-ONLY ПОЛЕ ***');
-      console.log('[CommonFillServiceLogging] Creating ScheduleLog with Date-only field:', this.dateUtils.formatDateOnlyForDisplay(dateOnlyForScheduleLogs));
+      console.log('[CommonFillServiceLogging] *** ИСПРАВЛЕНО: Creating ScheduleLog with Date-only field ***');
+      console.log('[CommonFillServiceLogging] ScheduleLog Date field:', this.dateUtils.formatDateOnlyForDisplay(dateOnlyForScheduleLogs));
       
       const logParams: ICreateScheduleLogParams = {
         title: `Fill Operation - ${params.staffMember.name} (${periodStr})`,
@@ -74,11 +101,24 @@ export class CommonFillServiceLogging {
       const logId = await this.scheduleLogsService.createScheduleLog(logParams);
       
       if (logId) {
-        console.log(`[CommonFillServiceLogging] ✅ ScheduleLog created with Date-only format, ID: ${logId}, Result: ${logParams.result}`);
+        console.log(`[CommonFillServiceLogging] *** ИСПРАВЛЕНО: ScheduleLog created with proper holidays and leaves data, ID: ${logId}, Result: ${logParams.result} ***`);
+        
+        // *** ИСПРАВЛЕНИЕ: Подтверждение того, что данные включены в лог ***
+        if (detailedLoggingInfo) {
+          if (detailedLoggingInfo.holidaysDetails.length > 0) {
+            console.log(`[CommonFillServiceLogging] ✓ ScheduleLog содержит ${detailedLoggingInfo.holidaysDetails.length} праздников`);
+          }
+          if (detailedLoggingInfo.leavesDetails.length > 0) {
+            console.log(`[CommonFillServiceLogging] ✓ ScheduleLog содержит ${detailedLoggingInfo.leavesDetails.length} отпусков`);
+          }
+          if (detailedLoggingInfo.deletedRecordsCount > 0) {
+            console.log(`[CommonFillServiceLogging] ✓ ScheduleLog содержит информацию о ${detailedLoggingInfo.deletedRecordsCount} удаленных записях`);
+          }
+        }
       }
 
     } catch (error) {
-      console.error('[CommonFillServiceLogging] Error creating fill log:', error);
+      console.error('[CommonFillServiceLogging] *** ОШИБКА: Error creating fill log ***', error);
     }
   }
 
@@ -162,9 +202,7 @@ export class CommonFillServiceLogging {
   // *** ПРИВАТНЫЕ HELPER МЕТОДЫ ***
 
   /**
-   * *** ВОССТАНОВЛЕНО: Формирует детальное сообщение для лога с ПОЛНОЙ Date-only информацией ***
-   * ОБНОВЛЕНО: Добавлено детальное логирование праздников и отпусков
-   * НОВОЕ: Добавлены секции анализа контрактов и шаблонов
+   * *** ИСПРАВЛЕНО: Формирует детальное сообщение для лога с ПРАВИЛЬНОЙ обработкой праздников и отпусков ***
    */
   private buildDetailedLogMessage(
     params: IFillParams, 
@@ -187,7 +225,7 @@ export class CommonFillServiceLogging {
     lines.push(`Staff Group: ${params.managingGroupId || 'N/A'}`);
     lines.push('');
 
-    // *** ВОССТАНОВЛЕНО: ДОПОЛНИТЕЛЬНАЯ ИНФОРМАЦИЯ О ПЕРИОДЕ С DATE-ONLY ФОРМАТОМ ***
+    // Дополнительная информация о периоде с Date-only форматом
     const monthPeriod = this.getMonthPeriodForDisplay(params.selectedDate);
     
     lines.push(`PERIOD AND DATE-ONLY PROCESSING DETAILS:`);
@@ -199,7 +237,7 @@ export class CommonFillServiceLogging {
     lines.push(`Date-only Format Processing: ENABLED (correct UI behavior)`);
     lines.push('');
 
-    // *** НОВОЕ: ПАРСИНГ И ОТОБРАЖЕНИЕ АНАЛИЗА КОНТРАКТОВ И ШАБЛОНОВ ***
+    // Парсинг и отображение анализа контрактов и шаблонов
     if (additionalDetails) {
       const analysisData = this.parseAnalysisReport(additionalDetails);
       
@@ -238,7 +276,7 @@ export class CommonFillServiceLogging {
       }
     }
 
-    // *** ПРАВИЛЬНЫЙ СТАТУС ОПЕРАЦИИ ***
+    // Правильный статус операции
     const logResult = result.logResult || (result.success ? 2 : 1);
     const operationStatus = logResult === 2 ? 'SUCCESS' : 
                            logResult === 3 ? 'INFO/REFUSAL' : 'FAILED';
@@ -259,7 +297,7 @@ export class CommonFillServiceLogging {
       lines.push(`Records Deleted: ${result.deletedRecordsCount}`);
     }
     
-    // *** НОВОЕ: Детальная информация об удаленных записях из detailedLoggingInfo ***
+    // Детальная информация об удаленных записях из detailedLoggingInfo
     if (detailedLoggingInfo && detailedLoggingInfo.deletedRecordsCount > 0) {
       lines.push(`Records Deleted (Detailed): ${detailedLoggingInfo.deletedRecordsCount}`);
     }
@@ -270,38 +308,67 @@ export class CommonFillServiceLogging {
     
     lines.push('');
 
-    // *** НОВОЕ: ДЕТАЛЬНАЯ ИНФОРМАЦИЯ О ПРАЗДНИКАХ ***
-    if (detailedLoggingInfo && detailedLoggingInfo.holidaysDetails.length > 0) {
-      lines.push('=== HOLIDAYS DETAILS ===');
-      detailedLoggingInfo.holidaysDetails.forEach(holiday => {
-        lines.push(`${holiday.date}: ${holiday.title}`);
-      });
-      lines.push('');
-    } else if (detailedLoggingInfo) {
-      lines.push('=== HOLIDAYS DETAILS ===');
-      lines.push('No holidays found in period');
-      lines.push('');
-    }
-
-    // *** НОВОЕ: ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ОБ ОТПУСКАХ ***
-    if (detailedLoggingInfo && detailedLoggingInfo.leavesDetails.length > 0) {
-      lines.push('=== LEAVES DETAILS ===');
-      detailedLoggingInfo.leavesDetails.forEach(leave => {
-        lines.push(`${leave.startDate} - ${leave.endDate}: ${leave.title} (Type: ${leave.typeOfLeave})`);
-      });
-      lines.push('');
-    } else if (detailedLoggingInfo) {
-      lines.push('=== LEAVES DETAILS ===');
-      lines.push('No leaves found in period');
-      lines.push('');
-    }
-
-    // *** НОВОЕ: СВОДКА ПО ДЕТАЛЬНОМУ ЛОГИРОВАНИЮ ***
+    // *** ИСПРАВЛЕНИЕ: ПРАВИЛЬНАЯ ОБРАБОТКА ДАННЫХ О ПРАЗДНИКАХ ***
     if (detailedLoggingInfo) {
+      if (detailedLoggingInfo.holidaysDetails && detailedLoggingInfo.holidaysDetails.length > 0) {
+        lines.push('=== HOLIDAYS DETAILS ===');
+        console.log('[CommonFillServiceLogging] *** ИСПРАВЛЕНО: Добавляем праздники в ScheduleLog ***');
+        detailedLoggingInfo.holidaysDetails.forEach(holiday => {
+          lines.push(`${holiday.date}: ${holiday.title}`);
+          console.log(`[CommonFillServiceLogging] Праздник в ScheduleLog: ${holiday.date}: ${holiday.title}`);
+        });
+        lines.push('');
+      } else {
+        lines.push('=== HOLIDAYS DETAILS ===');
+        lines.push('No holidays found in period');
+        lines.push('');
+        console.log('[CommonFillServiceLogging] *** ИСПРАВЛЕНО: Нет праздников для ScheduleLog ***');
+      }
+
+      // *** ИСПРАВЛЕНИЕ: ПРАВИЛЬНАЯ ОБРАБОТКА ДАННЫХ ОБ ОТПУСКАХ ***
+      if (detailedLoggingInfo.leavesDetails && detailedLoggingInfo.leavesDetails.length > 0) {
+        lines.push('=== LEAVES DETAILS ===');
+        console.log('[CommonFillServiceLogging] *** ИСПРАВЛЕНО: Добавляем отпуска в ScheduleLog ***');
+        detailedLoggingInfo.leavesDetails.forEach(leave => {
+          lines.push(`${leave.startDate} - ${leave.endDate}: ${leave.title} (Type: ${leave.typeOfLeave})`);
+          console.log(`[CommonFillServiceLogging] Отпуск в ScheduleLog: ${leave.startDate} - ${leave.endDate}: ${leave.title} (Type: ${leave.typeOfLeave})`);
+        });
+        lines.push('');
+      } else {
+        lines.push('=== LEAVES DETAILS ===');
+        lines.push('No leaves found in period');
+        lines.push('');
+        console.log('[CommonFillServiceLogging] *** ИСПРАВЛЕНО: Нет отпусков для ScheduleLog ***');
+      }
+
+      // Сводка по детальному логированию
       lines.push('=== DETAILED LOGGING SUMMARY ===');
       lines.push(`Deleted Records: ${detailedLoggingInfo.deletedRecordsCount}`);
-      lines.push(`Holidays Found: ${detailedLoggingInfo.holidaysDetails.length}`);
-      lines.push(`Leaves Found: ${detailedLoggingInfo.leavesDetails.length}`);
+      lines.push(`Holidays Found: ${detailedLoggingInfo.holidaysDetails ? detailedLoggingInfo.holidaysDetails.length : 0}`);
+      lines.push(`Leaves Found: ${detailedLoggingInfo.leavesDetails ? detailedLoggingInfo.leavesDetails.length : 0}`);
+      lines.push('');
+      
+      console.log('[CommonFillServiceLogging] *** ИСПРАВЛЕНО: Финальная сводка для ScheduleLog ***');
+      console.log(`[CommonFillServiceLogging] Удаленных записей: ${detailedLoggingInfo.deletedRecordsCount}`);
+      console.log(`[CommonFillServiceLogging] Праздников: ${detailedLoggingInfo.holidaysDetails ? detailedLoggingInfo.holidaysDetails.length : 0}`);
+      console.log(`[CommonFillServiceLogging] Отпусков: ${detailedLoggingInfo.leavesDetails ? detailedLoggingInfo.leavesDetails.length : 0}`);
+      
+    } else {
+      // *** ИСПРАВЛЕНИЕ: Обработка случая когда detailedLoggingInfo не передана ***
+      console.warn('[CommonFillServiceLogging] *** ПРЕДУПРЕЖДЕНИЕ: detailedLoggingInfo не передана в buildDetailedLogMessage ***');
+      
+      lines.push('=== HOLIDAYS DETAILS ===');
+      lines.push('No detailed logging info provided');
+      lines.push('');
+
+      lines.push('=== LEAVES DETAILS ===');
+      lines.push('No detailed logging info provided');
+      lines.push('');
+
+      lines.push('=== DETAILED LOGGING SUMMARY ===');
+      lines.push('Deleted Records: Unknown (no detailed logging info)');
+      lines.push('Holidays Found: Unknown (no detailed logging info)');
+      lines.push('Leaves Found: Unknown (no detailed logging info)');
       lines.push('');
     }
 
@@ -311,7 +378,7 @@ export class CommonFillServiceLogging {
   }
 
   /**
-   * *** НОВОЕ: Парсит отчет анализа и извлекает структурированную информацию ***
+   * Парсит отчет анализа и извлекает структурированную информацию
    */
   private parseAnalysisReport(analysisReport: string): {
     contractsAnalysis?: {
@@ -446,15 +513,16 @@ export class CommonFillServiceLogging {
     };
   } {
     return {
-      version: '2.1.0-restored-technical-details',
+      version: '2.2.0-fixed-holidays-leaves-logging',
       dateOnlySupport: true,
       capabilities: [
+        'FIXED: Proper holidays and leaves processing for ScheduleLogs',
         'Date-only format logging for ScheduleLogs',
         'Fill operation logging with detailed analysis',
         'User refusal logging',
         'Quick logging for simple operations',
-        'Restored technical period information',
-        'Detailed holidays and leaves logging',
+        'Technical period information',
+        'Fixed detailed holidays and leaves logging',
         'Deleted records tracking',
         'Month range calculation with Date-only format'
       ],

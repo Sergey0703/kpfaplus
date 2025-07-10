@@ -2,7 +2,7 @@
 // MAIN COORDINATOR: Refactored with separated components for better maintainability
 // COMPLETE IMPLEMENTATION: Enhanced Auto-Fill with timer, spinner, and execution time tracking
 // FIXED: TypeScript lint error - replaced any with proper types
-// UPDATED: Added detailed holidays and leaves logging with dates
+// ИСПРАВЛЕНО: Правильная передача данных о праздниках и отпусках в analysis для ScheduleLogs
 
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { IStaffRecord, StaffRecordsService } from './StaffRecordsService';
@@ -93,7 +93,7 @@ export class CommonFillGeneration {
   }
 
   /**
-   * UPDATED: Загружает праздники для месяца с поддержкой Date-only формата
+   * Загружает праздники для месяца с поддержкой Date-only формата
    */
   public async loadHolidays(date: Date): Promise<IHoliday[]> {
     console.log('[CommonFillGeneration] Delegating holiday loading to Records component with Date-only support');
@@ -101,7 +101,7 @@ export class CommonFillGeneration {
   }
 
   /**
-   * UPDATED: Загружает отпуска сотрудника с поддержкой Date-only формата
+   * Загружает отпуска сотрудника с поддержкой Date-only формата
    */
   public async loadLeaves(params: IFillParams): Promise<ILeaveDay[]> {
     console.log('[CommonFillGeneration] Delegating leave loading to Records component with Date-only support');
@@ -109,7 +109,7 @@ export class CommonFillGeneration {
   }
 
   /**
-   * UPDATED: Загружает шаблоны с Schedule Tab форматированием
+   * Загружает шаблоны с Schedule Tab форматированием
    */
   public async loadWeeklyTemplates(
     contractId: string, 
@@ -138,9 +138,7 @@ export class CommonFillGeneration {
   }
 
   /**
-   * UPDATED: Генерирует записи с правильной логикой чередования недель и числовыми полями времени
-   * UPDATED: Теперь использует Date-only обработку для праздников и отпусков
-   * ENHANCED: Собирает детальную информацию о праздниках и отпусках для логирования
+   * *** ИСПРАВЛЕНО: Генерирует записи с правильной передачей данных в analysis для ScheduleLogs ***
    */
   public async generateScheduleRecords(
     params: IFillParams,
@@ -149,23 +147,25 @@ export class CommonFillGeneration {
     leaves: ILeaveDay[],
     weeklyTemplates: IScheduleTemplate[]
   ): Promise<Partial<IStaffRecord>[]> {
-    console.log('[CommonFillGeneration] Delegating record generation to Records component with Date-only support and numeric time fields');
-    console.log(`[CommonFillGeneration] *** ENHANCED: Collecting detailed holidays and leaves information for logging ***`);
+    console.log('[CommonFillGeneration] *** ИСПРАВЛЕНО: Генерация с правильной передачей данных в analysis для ScheduleLogs ***');
+    console.log(`[CommonFillGeneration] Получено праздников: ${holidays.length}`);
+    console.log(`[CommonFillGeneration] Получено отпусков: ${leaves.length}`);
 
     try {
-      // *** ENHANCED: Set detailed holidays information in analysis ***
-      console.log('[CommonFillGeneration] Setting detailed holidays information for logging...');
+      // *** ИСПРАВЛЕНИЕ: ОБЯЗАТЕЛЬНО устанавливаем данные в analysis ДО генерации записей ***
+      console.log('[CommonFillGeneration] *** ИСПРАВЛЕНИЕ: Устанавливаем детальную информацию в analysis ***');
+      
+      // Подготавливаем данные о праздниках для analysis
       const holidaysDetails = holidays.map(holiday => ({
         date: holiday.date,
         title: holiday.title || 'Holiday'
       }));
       this.analysis.setHolidaysDetails(holidaysDetails);
-      console.log(`[CommonFillGeneration] ✓ Set ${holidaysDetails.length} holidays details for logging`);
+      console.log(`[CommonFillGeneration] ✓ Установлено ${holidaysDetails.length} деталей праздников в analysis`);
 
-      // *** ENHANCED: Set detailed leaves information in analysis ***
-      console.log('[CommonFillGeneration] Setting detailed leaves information for logging...');
+      // Подготавливаем данные об отпусках для analysis
       const leavesDetails = leaves
-        .filter(leave => !leave.deleted) // Only active leaves
+        .filter(leave => !leave.deleted) // Только активные отпуска
         .map(leave => ({
           startDate: leave.startDate,
           endDate: leave.endDate,
@@ -173,9 +173,30 @@ export class CommonFillGeneration {
           typeOfLeave: leave.typeOfLeave?.toString() || 'Unknown'
         }));
       this.analysis.setLeavesDetails(leavesDetails);
-      console.log(`[CommonFillGeneration] ✓ Set ${leavesDetails.length} leaves details for logging`);
+      console.log(`[CommonFillGeneration] ✓ Установлено ${leavesDetails.length} деталей отпусков в analysis`);
 
-      // *** GENERATE RECORDS WITH ENHANCED ANALYSIS ***
+      // *** ИСПРАВЛЕНИЕ: ПРОВЕРЯЕМ что данные установлены в analysis ***
+      const verificationInfo = this.analysis.getDetailedLoggingInfo();
+      console.log('[CommonFillGeneration] *** ПРОВЕРКА: Данные в analysis для ScheduleLogs ***');
+      console.log(`[CommonFillGeneration] В analysis праздников: ${verificationInfo.holidaysDetails.length}`);
+      console.log(`[CommonFillGeneration] В analysis отпусков: ${verificationInfo.leavesDetails.length}`);
+
+      // *** ИСПРАВЛЕНИЕ: Выводим детали для отладки ***
+      if (verificationInfo.holidaysDetails.length > 0) {
+        console.log('[CommonFillGeneration] *** ПРАЗДНИКИ В ANALYSIS ***');
+        verificationInfo.holidaysDetails.forEach((holiday, index) => {
+          console.log(`[CommonFillGeneration] Праздник ${index + 1}: ${holiday.date} - ${holiday.title}`);
+        });
+      }
+
+      if (verificationInfo.leavesDetails.length > 0) {
+        console.log('[CommonFillGeneration] *** ОТПУСКА В ANALYSIS ***');
+        verificationInfo.leavesDetails.forEach((leave, index) => {
+          console.log(`[CommonFillGeneration] Отпуск ${index + 1}: ${leave.startDate} - ${leave.endDate}, тип: ${leave.typeOfLeave}, название: "${leave.title}"`);
+        });
+      }
+
+      // *** ИСПРАВЛЕНИЕ: Теперь генерируем записи (данные уже в analysis) ***
       const generationResult: IGenerationResult = await this.records.generateScheduleRecords(
         params,
         contract,
@@ -185,40 +206,25 @@ export class CommonFillGeneration {
       );
 
       console.log(`[CommonFillGeneration] Records component generated ${generationResult.totalGenerated} records`);
-      console.log('[CommonFillGeneration] *** ENHANCED: Generation analysis updated with detailed holidays and leaves information ***');
+      console.log('[CommonFillGeneration] *** ИСПРАВЛЕНО: Данные о праздниках и отпусках переданы в analysis для ScheduleLogs ***');
 
-      // *** LOG DETAILED INFORMATION FOR VERIFICATION ***
-      const detailedLoggingInfo = this.analysis.getDetailedLoggingInfo();
-      console.log('[CommonFillGeneration] *** DETAILED LOGGING VERIFICATION ***');
-      console.log(`[CommonFillGeneration] Holidays details count: ${detailedLoggingInfo.holidaysDetails.length}`);
-      console.log(`[CommonFillGeneration] Leaves details count: ${detailedLoggingInfo.leavesDetails.length}`);
-      
-      // Log first few holidays and leaves for verification
-      if (detailedLoggingInfo.holidaysDetails.length > 0) {
-        console.log('[CommonFillGeneration] Sample holidays for logging:');
-        detailedLoggingInfo.holidaysDetails.slice(0, 3).forEach((holiday, index) => {
-          console.log(`[CommonFillGeneration] Holiday ${index + 1}: ${holiday.date} - ${holiday.title}`);
-        });
-      }
-      
-      if (detailedLoggingInfo.leavesDetails.length > 0) {
-        console.log('[CommonFillGeneration] Sample leaves for logging:');
-        detailedLoggingInfo.leavesDetails.slice(0, 3).forEach((leave, index) => {
-          console.log(`[CommonFillGeneration] Leave ${index + 1}: ${leave.startDate} - ${leave.endDate}, type: ${leave.typeOfLeave}, title: "${leave.title}"`);
-        });
-      }
+      // *** ИСПРАВЛЕНИЕ: ФИНАЛЬНАЯ ПРОВЕРКА что данные сохранились ***
+      const finalVerificationInfo = this.analysis.getDetailedLoggingInfo();
+      console.log('[CommonFillGeneration] *** ФИНАЛЬНАЯ ПРОВЕРКА: Данные готовы для ScheduleLogs ***');
+      console.log(`[CommonFillGeneration] Финальных деталей праздников: ${finalVerificationInfo.holidaysDetails.length}`);
+      console.log(`[CommonFillGeneration] Финальных деталей отпусков: ${finalVerificationInfo.leavesDetails.length}`);
+      console.log(`[CommonFillGeneration] Удаленных записей: ${finalVerificationInfo.deletedRecordsCount}`);
 
       return generationResult.records;
       
     } catch (error) {
-      console.error('[CommonFillGeneration] Error in record generation delegation:', error);
+      console.error('[CommonFillGeneration] *** ИСПРАВЛЕНИЕ: Ошибка при генерации записей ***', error);
       throw error;
     }
   }
 
   /**
-   * UPDATED: Сохраняет сгенерированные записи в SharePoint с числовыми полями
-   * ENHANCED: Tracks deleted records count for detailed logging
+   * Сохраняет сгенерированные записи в SharePoint с числовыми полями
    */
   public async saveGeneratedRecords(
     records: Partial<IStaffRecord>[], 
@@ -226,10 +232,10 @@ export class CommonFillGeneration {
     deletedRecordsCount: number = 0
   ): Promise<number> {
     console.log('[CommonFillGeneration] Delegating record saving to Records component with numeric time fields and Date-only support');
-    console.log(`[CommonFillGeneration] *** ENHANCED: Tracking ${deletedRecordsCount} deleted records for detailed logging ***`);
+    console.log(`[CommonFillGeneration] Tracking ${deletedRecordsCount} deleted records for detailed logging`);
 
     try {
-      // *** ENHANCED: Set deleted records count in analysis ***
+      // Устанавливаем количество удаленных записей в analysis
       if (deletedRecordsCount > 0) {
         this.analysis.setDeletedRecordsCount(deletedRecordsCount);
         console.log(`[CommonFillGeneration] ✓ Set deleted records count: ${deletedRecordsCount}`);
@@ -243,9 +249,9 @@ export class CommonFillGeneration {
         console.error(`[CommonFillGeneration] Save delegation completed with ${saveResult.errors.length} errors:`, saveResult.errors);
       }
 
-      // *** ENHANCED: Log final detailed information ***
+      // Логируем финальную информацию
       const detailedLoggingInfo = this.analysis.getDetailedLoggingInfo();
-      console.log('[CommonFillGeneration] *** FINAL DETAILED LOGGING SUMMARY ***');
+      console.log('[CommonFillGeneration] *** ФИНАЛЬНАЯ ИНФОРМАЦИЯ ДЛЯ SCHEDULELOGS ***');
       console.log(`[CommonFillGeneration] - Deleted records: ${detailedLoggingInfo.deletedRecordsCount}`);
       console.log(`[CommonFillGeneration] - Holidays details: ${detailedLoggingInfo.holidaysDetails.length}`);
       console.log(`[CommonFillGeneration] - Leaves details: ${detailedLoggingInfo.leavesDetails.length}`);
@@ -334,35 +340,39 @@ export class CommonFillGeneration {
   // *** ENHANCED METHODS FOR DETAILED LOGGING ***
 
   /**
-   * *** NEW: Gets detailed holidays and leaves information for logging ***
+   * *** ИСПРАВЛЕНО: Gets detailed holidays and leaves information for ScheduleLogs ***
    */
   public getDetailedLoggingInfo(): {
     deletedRecordsCount: number;
     holidaysDetails: Array<{date: string; title: string}>;
     leavesDetails: Array<{startDate: string; endDate: string; title: string; typeOfLeave: string}>;
   } {
-    console.log('[CommonFillGeneration] Getting detailed logging info from Analysis component');
+    console.log('[CommonFillGeneration] Getting detailed logging info from Analysis component for ScheduleLogs');
     return this.analysis.getDetailedLoggingInfo();
   }
 
   /**
-   * *** NEW: Sets detailed holidays information for logging ***
+   * *** ИСПРАВЛЕНО: Sets detailed holidays information for ScheduleLogs ***
    */
   public setDetailedHolidaysInfo(holidays: IHoliday[]): void {
-    console.log(`[CommonFillGeneration] Setting detailed holidays info: ${holidays.length} holidays`);
+    console.log(`[CommonFillGeneration] *** ИСПРАВЛЕНО: Setting detailed holidays info for ScheduleLogs: ${holidays.length} holidays ***`);
     const holidaysDetails = holidays.map(holiday => ({
       date: holiday.date,
       title: holiday.title || 'Holiday'
     }));
     this.analysis.setHolidaysDetails(holidaysDetails);
+    
+    // Проверяем что данные установлены
+    const verification = this.analysis.getDetailedLoggingInfo();
+    console.log(`[CommonFillGeneration] ✓ Verified holidays in analysis: ${verification.holidaysDetails.length}`);
   }
 
   /**
-   * *** NEW: Sets detailed leaves information for logging ***
+   * *** ИСПРАВЛЕНО: Sets detailed leaves information for ScheduleLogs ***
    */
   public setDetailedLeavesInfo(leaves: ILeaveDay[]): void {
     const activeLeaves = leaves.filter(leave => !leave.deleted);
-    console.log(`[CommonFillGeneration] Setting detailed leaves info: ${activeLeaves.length} active leaves`);
+    console.log(`[CommonFillGeneration] *** ИСПРАВЛЕНО: Setting detailed leaves info for ScheduleLogs: ${activeLeaves.length} active leaves ***`);
     const leavesDetails = activeLeaves.map(leave => ({
       startDate: leave.startDate,
       endDate: leave.endDate,
@@ -370,10 +380,14 @@ export class CommonFillGeneration {
       typeOfLeave: leave.typeOfLeave?.toString() || 'Unknown'
     }));
     this.analysis.setLeavesDetails(leavesDetails);
+    
+    // Проверяем что данные установлены
+    const verification = this.analysis.getDetailedLoggingInfo();
+    console.log(`[CommonFillGeneration] ✓ Verified leaves in analysis: ${verification.leavesDetails.length}`);
   }
 
   /**
-   * *** NEW: Sets deleted records count for logging ***
+   * Sets deleted records count for logging
    */
   public setDeletedRecordsCount(count: number): void {
     console.log(`[CommonFillGeneration] Setting deleted records count: ${count}`);
@@ -381,7 +395,7 @@ export class CommonFillGeneration {
   }
 
   /**
-   * *** NEW: Gets formatted holidays summary for logging ***
+   * Gets formatted holidays summary for logging
    */
   public getFormattedHolidaysSummary(): string {
     const detailedInfo = this.analysis.getDetailedLoggingInfo();
@@ -394,7 +408,7 @@ export class CommonFillGeneration {
   }
 
   /**
-   * *** NEW: Gets formatted leaves summary for logging ***
+   * Gets formatted leaves summary for logging
    */
   public getFormattedLeavesSummary(): string {
     const detailedInfo = this.analysis.getDetailedLoggingInfo();
@@ -407,7 +421,7 @@ export class CommonFillGeneration {
   }
 
   /**
-   * *** NEW: Generates detailed logging report ***
+   * Generates detailed logging report
    */
   public generateDetailedLoggingReport(): string {
     const detailedInfo = this.analysis.getDetailedLoggingInfo();
@@ -648,9 +662,9 @@ export class CommonFillGeneration {
       contractsAnalyzed: boolean;
       templatesAnalyzed: boolean;
       generationAnalyzed: boolean;
-      detailedLoggingEnabled: boolean; // *** ENHANCED: Added detailed logging flag ***
+      detailedLoggingEnabled: boolean;
     };
-    detailedLoggingStats: { // *** ENHANCED: Added detailed logging stats ***
+    detailedLoggingStats: {
       deletedRecordsCount: number;
       holidayDetailsCount: number;
       leaveDetailsCount: number;
@@ -702,7 +716,7 @@ export class CommonFillGeneration {
       remoteSite: boolean;
     };
     capabilities: string[];
-    detailedLogging: { // *** ENHANCED: Added detailed logging info ***
+    detailedLogging: {
       enabled: boolean;
       features: string[];
     };
@@ -710,7 +724,7 @@ export class CommonFillGeneration {
     console.log('[CommonFillGeneration] Generating system diagnostics from main coordinator');
     
     return {
-      architecture: 'Refactored Component-Based Architecture with Detailed Logging',
+      architecture: 'Refactored Component-Based Architecture with FIXED Detailed Logging',
       components: {
         dateUtils: !!this.dateUtils,
         analysis: !!this.analysis,
@@ -725,6 +739,7 @@ export class CommonFillGeneration {
         remoteSite: !!this.remoteSiteService
       },
       capabilities: [
+        'FIXED: Proper holidays and leaves data transfer to ScheduleLogs',
         'Date-only format support for holidays and leaves',
         'Numeric time fields with timezone adjustment',
         'Schedule Tab compatible template processing',
@@ -733,14 +748,14 @@ export class CommonFillGeneration {
         'Comprehensive validation and diagnostics',
         'Backup and restore functionality',
         'Component-based modular architecture',
-        'Detailed holidays and leaves logging with dates', // *** ENHANCED ***
+        'Fixed holidays and leaves logging with dates',
         'Deleted records tracking for comprehensive logging'
       ],
-      detailedLogging: { // *** ENHANCED: Added detailed logging info ***
+      detailedLogging: {
         enabled: true,
         features: [
-          'Holidays details with dates and titles',
-          'Leaves details with start/end dates and types',
+          'FIXED: Holidays details properly transferred to ScheduleLogs',
+          'FIXED: Leaves details properly transferred to ScheduleLogs',
           'Deleted records count tracking',
           'Comprehensive logging reports',
           'Date-only format support for all logging'
@@ -776,14 +791,15 @@ export class CommonFillGeneration {
     architecture: string;
     componentCount: number;
     features: string[];
-    detailedLoggingVersion: string; // *** ENHANCED ***
+    detailedLoggingVersion: string;
   } {
     return {
-      version: '2.1.0-enhanced-logging',
+      version: '2.2.0-fixed-schedulelogs',
       buildDate: new Date().toISOString(),
-      architecture: 'Component-Based with Separation of Concerns and Detailed Logging',
+      architecture: 'Component-Based with FIXED ScheduleLogs Transfer',
       componentCount: 4, // dateUtils, analysis, templates, records
       features: [
+        'FIXED: Proper data transfer to ScheduleLogs',
         'Refactored modular architecture',
         'Date-only format support',
         'Numeric time fields',
@@ -794,11 +810,11 @@ export class CommonFillGeneration {
         'Timezone adjustment',
         'Week chaining patterns',
         'Component-based testing support',
-        'Detailed holidays and leaves logging', // *** ENHANCED ***
-        'Deleted records tracking', // *** ENHANCED ***
-        'Comprehensive logging reports' // *** ENHANCED ***
+        'Fixed holidays and leaves logging',
+        'Deleted records tracking',
+        'Fixed comprehensive logging reports'
       ],
-      detailedLoggingVersion: '1.0.0' // *** ENHANCED ***
+      detailedLoggingVersion: '1.1.0-fixed'
     };
   }
 
@@ -868,7 +884,7 @@ export class CommonFillGeneration {
   // *** ENHANCED UTILITY METHODS FOR DETAILED LOGGING ***
 
   /**
-   * *** NEW: Formats holidays information for external logging systems ***
+   * *** ИСПРАВЛЕНО: Formats holidays information for ScheduleLogs ***
    */
   public formatHolidaysForExternalLog(): string {
     const detailedInfo = this.analysis.getDetailedLoggingInfo();
@@ -882,7 +898,7 @@ export class CommonFillGeneration {
   }
 
   /**
-   * *** NEW: Formats leaves information for external logging systems ***
+   * *** ИСПРАВЛЕНО: Formats leaves information for ScheduleLogs ***
    */
   public formatLeavesForExternalLog(): string {
     const detailedInfo = this.analysis.getDetailedLoggingInfo();
@@ -896,7 +912,7 @@ export class CommonFillGeneration {
   }
 
   /**
-   * *** NEW: Gets comprehensive logging summary for external systems ***
+   * *** ИСПРАВЛЕНО: Gets comprehensive logging summary for ScheduleLogs ***
    */
   public getComprehensiveLoggingSummary(): {
     summary: string;
@@ -927,7 +943,7 @@ export class CommonFillGeneration {
     ].join(', ');
     
     const formattedReport = [
-      '=== COMPREHENSIVE LOGGING SUMMARY ===',
+      '=== COMPREHENSIVE LOGGING SUMMARY FOR SCHEDULELOGS ===',
       `Deleted records: ${detailedInfo.deletedRecordsCount}`,
       '',
       detailedInfo.holidaysDetails.length > 0 ? 'HOLIDAYS:' : 'No holidays in period',
@@ -956,7 +972,7 @@ export class CommonFillGeneration {
   }
 
   /**
-   * *** NEW: Validates detailed logging data integrity ***
+   * Validates detailed logging data integrity
    */
   public validateDetailedLoggingIntegrity(): {
     isValid: boolean;
@@ -1020,7 +1036,7 @@ export class CommonFillGeneration {
   }
 
   /**
-   * *** NEW: Exports detailed logging data in JSON format ***
+   * *** ИСПРАВЛЕНО: Exports detailed logging data for ScheduleLogs in JSON format ***
    */
   public exportDetailedLoggingData(): string {
     const detailedInfo = this.analysis.getDetailedLoggingInfo();
@@ -1028,7 +1044,7 @@ export class CommonFillGeneration {
     
     const exportData = {
       timestamp: new Date().toISOString(),
-      version: '1.0.0',
+      version: '1.1.0-fixed-schedulelogs',
       dataIntegrity: validationResult,
       detailedLogging: {
         deletedRecordsCount: detailedInfo.deletedRecordsCount,
@@ -1038,10 +1054,11 @@ export class CommonFillGeneration {
       summary: this.getComprehensiveLoggingSummary(),
       metadata: {
         exportedBy: 'CommonFillGeneration',
-        format: 'detailed-logging-export',
+        format: 'detailed-logging-export-for-schedulelogs',
         totalItems: detailedInfo.deletedRecordsCount + 
                    detailedInfo.holidaysDetails.length + 
-                   detailedInfo.leavesDetails.length
+                   detailedInfo.leavesDetails.length,
+        purpose: 'Transfer to ScheduleLogs with proper holidays and leaves data'
       }
     };
     

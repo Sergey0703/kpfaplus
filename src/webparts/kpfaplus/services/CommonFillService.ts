@@ -1,5 +1,5 @@
 // src/webparts/kpfaplus/services/CommonFillService.ts - Core Orchestration (Part 1/4)
-// ОБНОВЛЕНО: Добавлена передача детальной информации о праздниках, отпусках и удаленных записях в логи
+// ИСПРАВЛЕНО: Добавлена правильная передача данных о праздниках и отпусках в ScheduleLogs
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { MessageBarType } from '@fluentui/react';
 import { ContractsService } from './ContractsService';
@@ -129,7 +129,7 @@ export class CommonFillService {
     try {
       const validationResult = await this.validationModule.checkScheduleForFill(params);
       
-      // ОБНОВЛЕНО: Получаем детальную информацию для логирования
+      // Получаем детальную информацию для логирования
       const detailedLoggingInfo = this.generationService.getDetailedLoggingInfo();
       
       await this.loggingModule.createFillLog(
@@ -151,7 +151,7 @@ export class CommonFillService {
         logResult: 1
       };
       
-      // ОБНОВЛЕНО: Получаем детальную информацию даже для ошибок
+      // Получаем детальную информацию даже для ошибок
       const detailedLoggingInfo = this.generationService.getDetailedLoggingInfo();
       
       await this.loggingModule.createFillLog(
@@ -183,12 +183,12 @@ export class CommonFillService {
         );
         
         if (scheduleLogicResult.existingRecords.length > 0) {
-          console.log(`[CommonFillService] ОБНОВЛЕНО: Удаляем ${scheduleLogicResult.existingRecords.length} существующих записей`);
+          console.log(`[CommonFillService] Удаляем ${scheduleLogicResult.existingRecords.length} существующих записей`);
           
-          // ОБНОВЛЕНО: Сохраняем количество удаляемых записей
+          // Сохраняем количество удаляемых записей
           deletedRecordsCount = scheduleLogicResult.existingRecords.length;
           
-          // ОБНОВЛЕНО: Передаем информацию об удаляемых записях в generation service
+          // Передаем информацию об удаляемых записях в generation service
           this.generationService.setDeletedRecordsCount(deletedRecordsCount);
           
           const deleteSuccess = await this.validationService.deleteExistingRecords(scheduleLogicResult.existingRecords);
@@ -201,7 +201,7 @@ export class CommonFillService {
               deletedRecordsCount: 0
             };
             
-            // ОБНОВЛЕНО: Получаем детальную информацию для логирования
+            // Получаем детальную информацию для логирования
             const detailedLoggingInfo = this.generationService.getDetailedLoggingInfo();
             
             await this.loggingModule.createFillLog(
@@ -219,7 +219,7 @@ export class CommonFillService {
         }
       }
 
-      // НОВОЕ: Анализ контрактов с детальной информацией
+      // Contract analysis
       const contracts = await this.contractsService.getContractsForStaffMember(
         performParams.staffMember.employeeId || '',
         performParams.currentUserId || '',
@@ -241,7 +241,7 @@ export class CommonFillService {
           deletedRecordsCount
         };
         
-        // ОБНОВЛЕНО: Получаем детальную информацию для логирования
+        // Получаем детальную информацию для логирования
         const detailedLoggingInfo = this.generationService.getDetailedLoggingInfo();
         
         await this.loggingModule.createFillLog(
@@ -255,7 +255,7 @@ export class CommonFillService {
         return result;
       }
 
-      // НОВОЕ: Передаем анализ контрактов в generation service
+      // Передаем анализ контрактов в generation service
       this.generationService.analyzeContracts(
         contracts, 
         activeContracts, 
@@ -263,7 +263,7 @@ export class CommonFillService {
         performParams.selectedDate
       );
 
-      // Load data
+      // *** ИСПРАВЛЕНИЕ: Load data и НЕМЕДЛЕННАЯ ПЕРЕДАЧА В GENERATION SERVICE ***
       const [holidays, leaves, weeklyTemplates] = await Promise.all([
         this.generationService.loadHolidays(performParams.selectedDate),
         this.generationService.loadLeaves(performParams),
@@ -275,13 +275,24 @@ export class CommonFillService {
         )
       ]);
 
-      // ОБНОВЛЕНО: Устанавливаем детальную информацию о праздниках и отпусках
-      console.log('[CommonFillService] ОБНОВЛЕНО: Устанавливаем детальную информацию для логирования');
+      // *** ИСПРАВЛЕНИЕ: ОБЯЗАТЕЛЬНО устанавливаем детальную информацию СРАЗУ после загрузки ***
+      console.log('[CommonFillService] *** ИСПРАВЛЕНИЕ: Устанавливаем детальную информацию для ScheduleLogs ***');
+      console.log(`[CommonFillService] Загружено праздников: ${holidays.length}`);
+      console.log(`[CommonFillService] Загружено отпусков: ${leaves.length}`);
+      
+      // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Устанавливаем данные в generation service для передачи в ScheduleLogs ***
       this.generationService.setDetailedHolidaysInfo(holidays);
       this.generationService.setDetailedLeavesInfo(leaves);
+      
+      // Проверяем что данные установлены
+      const verificationInfo = this.generationService.getDetailedLoggingInfo();
+      console.log('[CommonFillService] *** ПРОВЕРКА: Данные установлены для ScheduleLogs ***');
+      console.log(`[CommonFillService] Удаленных записей: ${verificationInfo.deletedRecordsCount}`);
+      console.log(`[CommonFillService] Деталей праздников: ${verificationInfo.holidaysDetails.length}`);
+      console.log(`[CommonFillService] Деталей отпусков: ${verificationInfo.leavesDetails.length}`);
 
       if (weeklyTemplates.length === 0) {
-        // НОВОЕ: Получаем анализ для включения в лог
+        // Получаем анализ для включения в лог
         analysisReport = this.generationService.generateAnalysisReport();
         
         const result: IFillResult = {
@@ -292,7 +303,7 @@ export class CommonFillService {
           deletedRecordsCount
         };
         
-        // ОБНОВЛЕНО: Получаем детальную информацию для логирования
+        // Получаем детальную информацию для логирования
         const detailedLoggingInfo = this.generationService.getDetailedLoggingInfo();
         
         await this.loggingModule.createFillLog(
@@ -311,14 +322,14 @@ export class CommonFillService {
         performParams, selectedContract, holidays, leaves, weeklyTemplates
       );
       
-      // ОБНОВЛЕНО: Передаем количество удаленных записей при сохранении
+      // Передаем количество удаленных записей при сохранении
       const savedCount = await this.generationService.saveGeneratedRecords(
         generatedRecords, 
         performParams, 
         deletedRecordsCount
       );
 
-      // НОВОЕ: Получаем полный анализ для включения в лог
+      // Получаем полный анализ для включения в лог
       analysisReport = this.generationService.generateAnalysisReport();
 
       const result: IFillResult = {
@@ -330,28 +341,26 @@ export class CommonFillService {
         logResult: savedCount > 0 ? 2 : 1
       };
 
-      // ОБНОВЛЕНО: Получаем всю детальную информацию для финального лога
-      const detailedLoggingInfo = this.generationService.getDetailedLoggingInfo();
+      // *** ИСПРАВЛЕНИЕ: ФИНАЛЬНАЯ ПЕРЕДАЧА всей детальной информации в ScheduleLogs ***
+      const finalDetailedLoggingInfo = this.generationService.getDetailedLoggingInfo();
       
-      console.log('[CommonFillService] ОБНОВЛЕНО: Финальная детальная информация для лога:', {
-        deletedRecords: detailedLoggingInfo.deletedRecordsCount,
-        holidays: detailedLoggingInfo.holidaysDetails.length,
-        leaves: detailedLoggingInfo.leavesDetails.length,
-        hasAnalysisReport: analysisReport.length > 0
-      });
+      console.log('[CommonFillService] *** ФИНАЛЬНАЯ ПРОВЕРКА: Данные для ScheduleLogs ***');
+      console.log(`[CommonFillService] Удаленных записей: ${finalDetailedLoggingInfo.deletedRecordsCount}`);
+      console.log(`[CommonFillService] Праздников: ${finalDetailedLoggingInfo.holidaysDetails.length}`);
+      console.log(`[CommonFillService] Отпусков: ${finalDetailedLoggingInfo.leavesDetails.length}`);
 
       await this.loggingModule.createFillLog(
         performParams, 
         result, 
         performParams.contractId, 
         analysisReport, 
-        detailedLoggingInfo
+        finalDetailedLoggingInfo
       );
       
       return result;
 
     } catch (error) {
-      // ОБНОВЛЕНО: Получаем детальную информацию и анализ даже для ошибок
+      // Получаем детальную информацию и анализ даже для ошибок
       const detailedLoggingInfo = this.generationService.getDetailedLoggingInfo();
       const analysisReport = this.generationService.generateAnalysisReport();
       
@@ -392,7 +401,7 @@ export class CommonFillService {
 
   public getServiceInfo() {
     return {
-      version: '7.1.0-detailed-logging',
+      version: '7.2.0-fixed-detailed-logging',
       context: !!this.webPartContext,
       services: {
         contracts: !!this.contractsService,
@@ -407,8 +416,9 @@ export class CommonFillService {
       },
       dateOnlySupport: true,
       autoFillSupport: true,
-      detailedLoggingSupport: true, // ОБНОВЛЕНО: Добавлен флаг детального логирования
+      detailedLoggingSupport: true,
       features: [
+        'FIXED: Proper holidays and leaves logging to ScheduleLogs',
         'Detailed holidays and leaves logging',
         'Deleted records count tracking',
         'Comprehensive logging reports',
