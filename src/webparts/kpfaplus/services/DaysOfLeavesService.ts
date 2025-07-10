@@ -47,7 +47,7 @@ interface IRawLeaveDayItem {
 
 /**
 * Сервис для работы со списком дней отпуска в SharePoint
-* ИСПРАВЛЕНО: Работа с Date-only полем с правильной обработкой UTC midnight для устранения timezone shifts
+* ИСПРАВЛЕНО: Правильная обработка Date-only поля с UTC-aware парсингом для устранения timezone shifts
 */
 export class DaysOfLeavesService {
  private static _instance: DaysOfLeavesService;
@@ -62,7 +62,7 @@ export class DaysOfLeavesService {
  private constructor(context: WebPartContext) {
    // Инициализация RemoteSiteService для работы с удаленным сайтом
    this._remoteSiteService = RemoteSiteService.getInstance(context);
-   this.logInfo("DaysOfLeavesService initialized with FIXED UTC midnight Date-only processing");
+   this.logInfo("DaysOfLeavesService initialized with FIXED UTC-aware Date-only parsing");
  }
 
  /**
@@ -190,11 +190,11 @@ export class DaysOfLeavesService {
        }
      }
      
-     // ИСПРАВЛЕНО: Преобразуем данные из SharePoint в формат ILeaveDay с UTC midnight parsing
+     // ИСПРАВЛЕНО: Преобразуем данные из SharePoint в формат ILeaveDay с UTC-aware parsing
      const leaveDays = this.mapToLeaveDays(items);
      
      // Логируем результаты преобразования
-     this.logInfo(`[DEBUG] FIXED: Mapped ${leaveDays.length} leave days with UTC midnight parsing`);
+     this.logInfo(`[DEBUG] FIXED: Mapped ${leaveDays.length} leave days with UTC-aware parsing`);
      if (leaveDays.length > 0) {
        leaveDays.forEach((leaveDay, index) => {
          this.logInfo(`[DEBUG] FIXED: Mapped leave #${index + 1} (ID: ${leaveDay.id}): ${this.formatDateForDisplay(leaveDay.startDate)} - ${leaveDay.endDate ? this.formatDateForDisplay(leaveDay.endDate) : 'ongoing'}, typeOfLeave=${leaveDay.typeOfLeave}, title=${leaveDay.title}`);
@@ -203,7 +203,7 @@ export class DaysOfLeavesService {
      
      return leaveDays;
    } catch (error) {
-     this.logError(`FIXED: Error fetching leaves with UTC midnight processing: ${error}`);
+     this.logError(`FIXED: Error fetching leaves with UTC-aware processing: ${error}`);
      return [];
    }
  }
@@ -504,7 +504,7 @@ export class DaysOfLeavesService {
  }
 
  /**
-  * ИСПРАВЛЕНО: Парсит дату из SharePoint Date-only поля с правильной обработкой UTC midnight
+  * *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Парсит дату из SharePoint Date-only поля с правильной UTC-aware обработкой ***
   * @param dateString Строка даты из SharePoint
   * @returns Date объект или undefined если парсинг не удался
   */
@@ -512,42 +512,35 @@ export class DaysOfLeavesService {
    if (!dateString) return undefined;
 
    try {
-     this.logInfo(`FIXED: Parsing SharePoint Date-only: "${dateString}"`);
+     this.logInfo(`FIXED: Parsing SharePoint Date-only with UTC-aware logic: "${dateString}"`);
      
-     // Убираем время если оно есть, оставляем только дату
-     const dateOnlyStr = dateString.split('T')[0];
-     this.logInfo(`FIXED: Date after splitting on T: "${dateOnlyStr}"`);
+     // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Используем UTC-aware парсинг вместо примитивного split('T')[0] ***
+     // Создаем Date объект который правильно понимает UTC offset
+     const utcDate = new Date(dateString);
      
-     // Создаем дату из компонентов для избежания проблем с часовыми поясами
-     const dateParts = dateOnlyStr.split('-');
-     if (dateParts.length === 3) {
-       const year = parseInt(dateParts[0]);
-       const month = parseInt(dateParts[1]) - 1; // месяцы в JS 0-based
-       const day = parseInt(dateParts[2]);
-       
-       // ИСПРАВЛЕНО: Создаем Date-only объект в локальном времени
-       const parsedDate = new Date(year, month, day);
-       this.logInfo(`FIXED: Created date from components: ${this.formatDateForDisplay(parsedDate)} (Year: ${year}, Month: ${month}, Day: ${day})`);
-       
-       if (isNaN(parsedDate.getTime())) {
-         this.logError(`FIXED: Invalid date created from components: ${dateString}`);
-         return undefined;
-       }
-       
-       return parsedDate;
-     } else {
-       this.logError(`FIXED: Invalid date format, expected YYYY-MM-DD: ${dateString}`);
+     if (isNaN(utcDate.getTime())) {
+       this.logError(`FIXED: Invalid date string for UTC parsing: ${dateString}`);
        return undefined;
      }
+     
+     // Извлекаем локальные компоненты даты из правильно обработанного UTC timestamp
+     // Это учитывает что "2025-06-01T23:00:00Z" в Dublin GMT+1 = 2 июня локально
+     const localDate = new Date(utcDate.getFullYear(), utcDate.getMonth(), utcDate.getDate());
+     
+     this.logInfo(`FIXED: UTC-aware parsing result: "${dateString}" -> ${this.formatDateForDisplay(localDate)}`);
+     this.logInfo(`FIXED: UTC date components: Year=${utcDate.getFullYear()}, Month=${utcDate.getMonth()}, Day=${utcDate.getDate()}`);
+     
+     return localDate;
+     
    } catch (error) {
-     this.logError(`FIXED: Error parsing SharePoint Date-only: ${error}`);
+     this.logError(`FIXED: Error in UTC-aware parsing: ${error}`);
      return undefined;
    }
  }
 
  /**
   * ИСПРАВЛЕНО: Преобразует сырые данные из SharePoint в массив объектов ILeaveDay
-  * Использует правильную обработку Date-only формата с UTC midnight parsing
+  * Использует правильную обработку Date-only формата с UTC-aware parsing
   * @param items Данные из SharePoint
   * @returns Массив объектов ILeaveDay
   */
@@ -565,14 +558,14 @@ export class DaysOfLeavesService {
            return undefined;
          }
 
-         // ИСПРАВЛЕНО: Используем новый метод парсинга Date-only с UTC midnight
+         // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Используем новый UTC-aware метод парсинга ***
          const startDate = this.parseSharePointDateOnly(fields.Date);
          if (!startDate) {
            this.logError(`Invalid start date format for leave item ${typedItem.id}: ${fields.Date}`);
            return undefined;
          }
 
-         // ИСПРАВЛЕНО: Используем тот же подход для endDate (Date2)
+         // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Используем тот же UTC-aware подход для endDate (Date2) ***
          let endDate: Date | undefined;
          if (fields.Date2) {
            endDate = this.parseSharePointDateOnly(fields.Date2);
@@ -675,7 +668,7 @@ export class DaysOfLeavesService {
            deleted: Boolean(fields.Deleted === 1 || fields.Deleted === true)
          };
 
-         this.logInfo(`[DEBUG] FIXED: Final mapped leave: ID=${result.id}, startDate=${this.formatDateForDisplay(result.startDate)}, endDate=${result.endDate ? this.formatDateForDisplay(result.endDate) : 'undefined'}, typeOfLeave=${result.typeOfLeave}`);
+         this.logInfo(`[DEBUG] FIXED: Final mapped leave with UTC-aware parsing: ID=${result.id}, startDate=${this.formatDateForDisplay(result.startDate)}, endDate=${result.endDate ? this.formatDateForDisplay(result.endDate) : 'undefined'}, typeOfLeave=${result.typeOfLeave}`);
          
          return result;
        } catch (error) {
@@ -687,7 +680,7 @@ export class DaysOfLeavesService {
    // Фильтруем undefined элементы и возвращаем массив ILeaveDay
    const filteredResults = mappedItems.filter((item): item is ILeaveDay => item !== undefined);
    
-   this.logInfo(`FIXED: Successfully mapped ${filteredResults.length} leave days with UTC midnight parsing`);
+   this.logInfo(`FIXED: Successfully mapped ${filteredResults.length} leave days with UTC-aware parsing`);
    return filteredResults;
  }
 

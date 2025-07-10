@@ -1,5 +1,5 @@
 // src/webparts/kpfaplus/services/CommonFillValidation.ts
-// UPDATED: StaffRecords.Date is now Date-only field, not DateTime
+// ИСПРАВЛЕНО: StaffRecords.Date теперь Date-only field с правильной обработкой периодов запросов
 // ДОБАВЛЕНО: Поддержка автозаполнения и специальная валидация для staff с autoschedule
 // FIXED: TypeScript lint error - replaced require with proper ES6 import
 
@@ -89,22 +89,22 @@ export class CommonFillValidation {
     // FIXED: Replaced require statement with proper ES6 import
     const remoteSiteService = RemoteSiteService.getInstance(context);
     this.dateUtils = new CommonFillDateUtils(remoteSiteService);
-    console.log('[CommonFillValidation] Service initialized - StaffRecords.Date is now Date-only field');
+    console.log('[CommonFillValidation] Service initialized - ИСПРАВЛЕНО: StaffRecords.Date правильная обработка периодов запросов');
   }
 
   /**
-   * *** UPDATED: Checks existing StaffRecords (Date-only field) ***
+   * *** ИСПРАВЛЕНО: Checks existing StaffRecords с правильными периодами для Date-only field ***
    */
   public async checkExistingRecords(params: IFillParams): Promise<IExistingRecordsCheck> {
-    console.log('[CommonFillValidation] Checking existing StaffRecords (Date-only field) for staff:', params.staffMember.name);
+    console.log('[CommonFillValidation] ИСПРАВЛЕНО: Checking existing StaffRecords с правильными периодами для Date-only field:', params.staffMember.name);
 
     try {
-      // *** UPDATED: StaffRecords.Date is now Date-only, use same approach as other Date-only fields ***
+      // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Используем dateUtils для правильного расчета периода ***
       const periodInfo = this.dateUtils.calculateMonthPeriod(params.selectedDate);
 
-      console.log(`[CommonFillValidation] *** UPDATED: StaffRecords Date-only field query ***`);
-      console.log(`[CommonFillValidation] Local period: ${this.dateUtils.formatDateOnlyForDisplay(periodInfo.firstDay)} - ${this.dateUtils.formatDateOnlyForDisplay(periodInfo.lastDay)}`);
-      console.log(`[CommonFillValidation] StaffRecords.Date is now Date-only field - using Date-only query approach`);
+      console.log(`[CommonFillValidation] *** ИСПРАВЛЕНО: StaffRecords Date-only field query с правильными границами ***`);
+      console.log(`[CommonFillValidation] Исправленный период: ${this.dateUtils.formatDateOnlyForDisplay(periodInfo.firstDay)} - ${this.dateUtils.formatDateOnlyForDisplay(periodInfo.lastDay)}`);
+      console.log(`[CommonFillValidation] StaffRecords.Date теперь Date-only field - используем правильный подход к запросам`);
 
       if (!params.staffMember.employeeId) {
         console.warn('[CommonFillValidation] Staff member has no employeeId');
@@ -121,25 +121,26 @@ export class CommonFillValidation {
       const managerId = params.currentUserId || '0';
       const groupId = params.managingGroupId || '0';
       
-      // *** UPDATED: Use Date-only approach for StaffRecords.Date queries ***
-      // Create Date-only dates for SharePoint query
+      // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Используем dateUtils для создания правильных Date-only дат для запроса ***
+      // Создаем Date-only даты которые НЕ будут сдвинуты SharePoint
       const startDateForQuery = this.dateUtils.createDateOnlyFromDate(periodInfo.firstDay);
       const endDateForQuery = this.dateUtils.createDateOnlyFromDate(periodInfo.lastDay);
       
       const queryParams = {
-        startDate: startDateForQuery,  // *** Date-only field - Date object ***
-        endDate: endDateForQuery,      // *** Date-only field - Date object ***
+        startDate: startDateForQuery,  // *** Date-only field - правильный Date объект ***
+        endDate: endDateForQuery,      // *** Date-only field - правильный Date объект ***
         currentUserID: managerId,
         staffGroupID: groupId,
         employeeID: employeeId,
       };
 
-      console.log('[CommonFillValidation] StaffRecords query params with Date-only approach:', {
+      console.log('[CommonFillValidation] ИСПРАВЛЕНО: StaffRecords query params с правильными Date-only границами:', {
         startDate: this.dateUtils.formatDateOnlyForDisplay(queryParams.startDate),
         endDate: this.dateUtils.formatDateOnlyForDisplay(queryParams.endDate),
         employeeID: queryParams.employeeID,
         managerId: queryParams.currentUserID,
-        groupId: queryParams.staffGroupID
+        groupId: queryParams.staffGroupID,
+        originalSelectedDate: this.dateUtils.formatDateOnlyForDisplay(params.selectedDate)
       });
 
       const result = await this.staffRecordsService.getAllStaffRecordsForTimetable(queryParams);
@@ -156,7 +157,7 @@ export class CommonFillValidation {
         return notDeleted;
       });
 
-      console.log(`[CommonFillValidation] Found ${allRecords.length} total StaffRecords, ${existingRecords.length} active (not deleted)`);
+      console.log(`[CommonFillValidation] ИСПРАВЛЕНО: Found ${allRecords.length} total StaffRecords, ${existingRecords.length} active для правильного периода`);
 
       // Проверяем, есть ли обработанные записи
       const processedRecords = existingRecords.filter((record: IStaffRecord) => {
@@ -176,17 +177,18 @@ export class CommonFillValidation {
         existingRecords: existingRecords
       };
 
-      console.log('[CommonFillValidation] StaffRecords check result with Date-only field handling:', {
+      console.log('[CommonFillValidation] ИСПРАВЛЕНО: StaffRecords check result с правильными Date-only границами:', {
         hasExisting: result_check.hasExistingRecords,
         totalActive: result_check.recordsCount,
         hasProcessed: result_check.hasProcessedRecords,
-        processedCount: result_check.processedCount
+        processedCount: result_check.processedCount,
+        period: `${this.dateUtils.formatDateOnlyForDisplay(periodInfo.firstDay)} - ${this.dateUtils.formatDateOnlyForDisplay(periodInfo.lastDay)}`
       });
 
       return result_check;
 
     } catch (error) {
-      console.error('[CommonFillValidation] Error checking existing StaffRecords (Date-only field):', error);
+      console.error('[CommonFillValidation] ИСПРАВЛЕНО: Error checking existing StaffRecords с правильными периодами:', error);
       throw new Error(`Failed to check existing records: ${error}`);
     }
   }
@@ -235,7 +237,7 @@ export class CommonFillValidation {
           hasProcessedRecords = existingCheck.hasProcessedRecords;
           processedRecordsCount = existingCheck.processedCount;
 
-          console.log('[CommonFillValidation] Auto-fill existing StaffRecords analysis with Date-only field:', {
+          console.log('[CommonFillValidation] Auto-fill existing StaffRecords analysis с правильными Date-only boundaries:', {
             existingRecords: existingRecordsCount,
             hasProcessedRecords,
             processedCount: processedRecordsCount
@@ -276,7 +278,7 @@ export class CommonFillValidation {
         skipReason
       };
 
-      console.log('[CommonFillValidation] Auto-fill validation result with Date-only StaffRecords:', {
+      console.log('[CommonFillValidation] Auto-fill validation result с правильными Date-only StaffRecords:', {
         isValid: result.isValid,
         canAutoFill: result.canAutoFill,
         actionRequired: result.actionRequired,
@@ -361,17 +363,17 @@ export class CommonFillValidation {
    * *** ОСНОВНОЙ МЕТОД: Реализует логику Schedule tab для проверки StaffRecords и определения диалога ***
    */
   public async checkExistingRecordsWithScheduleLogic(params: IFillParams, contractId: string): Promise<IScheduleLogicResult> {
-    console.log('[CommonFillValidation] Implementing Schedule tab logic with Date-only StaffRecords for:', {
+    console.log('[CommonFillValidation] ИСПРАВЛЕНО: Implementing Schedule tab logic с правильными Date-only StaffRecords для:', {
       staffMember: params.staffMember.name,
       contractId,
       period: this.dateUtils.formatDateOnlyForDisplay(params.selectedDate)
     });
 
     try {
-      // *** ШАГ 1: ПОЛУЧЕНИЕ СУЩЕСТВУЮЩИХ StaffRecords (Date-only field) С ФИЛЬТРАЦИЕЙ КАК В SCHEDULE TAB ***
+      // *** ШАГ 1: ПОЛУЧЕНИЕ СУЩЕСТВУЮЩИХ StaffRecords с правильной фильтрацией ***
       const existingRecords = await this.getExistingRecordsWithStatus(params, contractId);
       
-      console.log(`[CommonFillValidation] Schedule logic found ${existingRecords.length} existing StaffRecords`);
+      console.log(`[CommonFillValidation] ИСПРАВЛЕНО: Schedule logic found ${existingRecords.length} existing StaffRecords с правильными границами`);
 
       // *** ШАГ 2: АНАЛИЗ СТАТУСА ЗАПИСЕЙ ***
       const processingStatus = this.checkRecordsProcessingStatus(existingRecords);
@@ -392,7 +394,7 @@ export class CommonFillValidation {
       };
 
     } catch (error) {
-      console.error('[CommonFillValidation] Error in Schedule logic with Date-only StaffRecords:', error);
+      console.error('[CommonFillValidation] ИСПРАВЛЕНО: Error in Schedule logic с правильными Date-only StaffRecords:', error);
       
       // Возвращаем ошибку как блокирующий диалог
       return {
@@ -410,17 +412,17 @@ export class CommonFillValidation {
   }
 
   /**
-   * *** UPDATED: Gets existing StaffRecords (Date-only field) with proper handling ***
+   * *** ИСПРАВЛЕНО: Gets existing StaffRecords с правильной обработкой Date-only field ***
    */
   private async getExistingRecordsWithStatus(params: IFillParams, contractId: string): Promise<IStaffRecord[]> {
-    console.log('[CommonFillValidation] Getting existing StaffRecords with Schedule tab filtering logic');
+    console.log('[CommonFillValidation] ИСПРАВЛЕНО: Getting existing StaffRecords с правильной Schedule tab filtering logic');
 
-    // *** UPDATED: StaffRecords.Date is now Date-only, use Date-only approach ***
+    // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Используем dateUtils для правильного расчета периода ***
     const periodInfo = this.dateUtils.calculateMonthPeriod(params.selectedDate);
 
-    console.log(`[CommonFillValidation] *** UPDATED: StaffRecords Date-only field filtering ***`);
-    console.log(`[CommonFillValidation] Local period: ${this.dateUtils.formatDateOnlyForDisplay(periodInfo.firstDay)} - ${this.dateUtils.formatDateOnlyForDisplay(periodInfo.lastDay)}`);
-    console.log(`[CommonFillValidation] StaffRecords.Date is now Date-only field`);
+    console.log(`[CommonFillValidation] *** ИСПРАВЛЕНО: StaffRecords Date-only field filtering с правильными границами ***`);
+    console.log(`[CommonFillValidation] Исправленный период: ${this.dateUtils.formatDateOnlyForDisplay(periodInfo.firstDay)} - ${this.dateUtils.formatDateOnlyForDisplay(periodInfo.lastDay)}`);
+    console.log(`[CommonFillValidation] StaffRecords.Date теперь Date-only field`);
 
     if (!params.staffMember.employeeId) {
       console.warn('[CommonFillValidation] No employee ID for Schedule tab filtering');
@@ -431,7 +433,7 @@ export class CommonFillValidation {
     const managerId = params.currentUserId || '0';
     const groupId = params.managingGroupId || '0';
 
-    console.log('[CommonFillValidation] Schedule tab filter criteria for StaffRecords:', {
+    console.log('[CommonFillValidation] ИСПРАВЛЕНО: Schedule tab filter criteria для StaffRecords:', {
       employeeId,
       managerId,
       groupId,
@@ -439,17 +441,24 @@ export class CommonFillValidation {
       period: `${this.dateUtils.formatDateOnlyForDisplay(periodInfo.firstDay)} - ${this.dateUtils.formatDateOnlyForDisplay(periodInfo.lastDay)}`
     });
 
-    // *** UPDATED: Use Date-only approach for StaffRecords.Date queries ***
+    // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Используем dateUtils для создания правильных Date-only дат ***
     const startDateForQuery = this.dateUtils.createDateOnlyFromDate(periodInfo.firstDay);
     const endDateForQuery = this.dateUtils.createDateOnlyFromDate(periodInfo.lastDay);
     
     const queryParams = {
-      startDate: startDateForQuery,  // *** Date-only field - Date object ***
-      endDate: endDateForQuery,      // *** Date-only field - Date object ***
+      startDate: startDateForQuery,  // *** Date-only field - правильный Date объект ***
+      endDate: endDateForQuery,      // *** Date-only field - правильный Date объект ***
       currentUserID: managerId,
       staffGroupID: groupId,
       employeeID: employeeId
     };
+
+    console.log('[CommonFillValidation] ИСПРАВЛЕНО: Schedule tab query params с правильными Date-only границами:', {
+      startDate: this.dateUtils.formatDateOnlyForDisplay(queryParams.startDate),
+      endDate: this.dateUtils.formatDateOnlyForDisplay(queryParams.endDate),
+      employeeID: queryParams.employeeID,
+      contractId
+    });
 
     const result = await this.staffRecordsService.getAllStaffRecordsForTimetable(queryParams);
     
@@ -474,7 +483,7 @@ export class CommonFillValidation {
       return true;
     });
 
-    console.log(`[CommonFillValidation] Schedule tab StaffRecords filtering result: ${result.records.length} total → ${filteredRecords.length} filtered`);
+    console.log(`[CommonFillValidation] ИСПРАВЛЕНО: Schedule tab StaffRecords filtering result с правильными границами: ${result.records.length} total → ${filteredRecords.length} filtered`);
 
     return filteredRecords;
   }
@@ -562,7 +571,7 @@ export class CommonFillValidation {
   }
 
   /**
-   * *** UPDATED: Checks contract activity in specified month with proper Date-only support ***
+   * *** ИСПРАВЛЕНО: Checks contract activity in specified month с правильной Date-only поддержкой ***
    */
   public isContractActiveInMonth(contract: IContract, date: Date): boolean {
     if (!contract.startDate) {
@@ -570,30 +579,18 @@ export class CommonFillValidation {
       return false;
     }
 
-    // *** CORRECT: Use local time for creating month boundaries (Date-only logic) ***
-    const firstDayOfMonth = this.dateUtils.createDateOnlyFromComponents(
-      date.getFullYear(),
-      date.getMonth(),
-      1
-    );
-    
-    const lastDayOfMonth = this.dateUtils.createDateOnlyFromComponents(
-      date.getFullYear(),
-      date.getMonth() + 1,
-      0 // Last day of month
-    );
+    // *** ИСПРАВЛЕНО: Используем dateUtils для создания правильных month boundaries ***
+    const periodInfo = this.dateUtils.calculateMonthPeriod(date);
+    const firstDayOfMonth = periodInfo.firstDay;
+    const lastDayOfMonth = periodInfo.lastDay;
 
-    console.log(`[CommonFillValidation] *** CORRECT: Date-only contract validation ***`);
-    console.log(`[CommonFillValidation] Month boundaries (Date-only, local): ${this.dateUtils.formatDateOnlyForDisplay(firstDayOfMonth)} - ${this.dateUtils.formatDateOnlyForDisplay(lastDayOfMonth)}`);
+    console.log(`[CommonFillValidation] *** ИСПРАВЛЕНО: Date-only contract validation с правильными границами ***`);
+    console.log(`[CommonFillValidation] Month boundaries (правильные Date-only): ${this.dateUtils.formatDateOnlyForDisplay(firstDayOfMonth)} - ${this.dateUtils.formatDateOnlyForDisplay(lastDayOfMonth)}`);
     console.log(`[CommonFillValidation] Contract ${contract.id} dates: ${contract.startDate ? this.dateUtils.formatDateOnlyForDisplay(new Date(contract.startDate)) : 'no start'} - ${contract.finishDate ? this.dateUtils.formatDateOnlyForDisplay(new Date(contract.finishDate)) : 'no end'}`);
 
-    // *** CORRECT: Normalize contract start date to Date-only (local time) ***
+    // *** ИСПРАВЛЕНО: Используем dateUtils для нормализации contract dates ***
     const startDate = new Date(contract.startDate);
-    const startDateOnly = this.dateUtils.createDateOnlyFromComponents(
-      startDate.getFullYear(),
-      startDate.getMonth(),
-      startDate.getDate()
-    );
+    const startDateOnly = this.dateUtils.createDateOnlyFromDate(startDate);
 
     // Check contract start date
     if (startDateOnly > lastDayOfMonth) {
@@ -608,18 +605,14 @@ export class CommonFillValidation {
       return true;
     }
 
-    // *** CORRECT: Normalize contract finish date to Date-only (local time) ***
+    // *** ИСПРАВЛЕНО: Используем dateUtils для нормализации contract finish date ***
     const finishDate = new Date(contract.finishDate);
-    const finishDateOnly = this.dateUtils.createDateOnlyFromComponents(
-      finishDate.getFullYear(),
-      finishDate.getMonth(),
-      finishDate.getDate()
-    );
+    const finishDateOnly = this.dateUtils.createDateOnlyFromDate(finishDate);
 
     // Check contract finish date
     const isActive = finishDateOnly >= firstDayOfMonth;
     
-    console.log(`[CommonFillValidation] Contract ${contract.id} validation result with Date-only support:`, {
+    console.log(`[CommonFillValidation] ИСПРАВЛЕНО: Contract ${contract.id} validation result с правильной Date-only поддержкой:`, {
       contractStart: this.dateUtils.formatDateOnlyForDisplay(startDateOnly),
       contractEnd: this.dateUtils.formatDateOnlyForDisplay(finishDateOnly),
       monthStart: this.dateUtils.formatDateOnlyForDisplay(firstDayOfMonth),
@@ -656,14 +649,15 @@ export class CommonFillValidation {
       errors.push('Missing WebPart context');
     }
 
-    // *** НОВАЯ ВАЛИДАЦИЯ: Проверяем что дата может быть обработана в Date-only формате ***
+    // *** ИСПРАВЛЕНО: Проверяем что дата может быть правильно обработана в Date-only формате ***
     try {
       if (params.selectedDate) {
         const dateOnlyTest = this.dateUtils.formatDateOnlyForDisplay(params.selectedDate);
-        console.log(`[CommonFillValidation] Date-only validation passed: ${dateOnlyTest}`);
+        const periodTest = this.dateUtils.calculateMonthPeriod(params.selectedDate);
+        console.log(`[CommonFillValidation] ИСПРАВЛЕНО: Date-only validation passed: ${dateOnlyTest}, period: ${this.dateUtils.formatDateOnlyForDisplay(periodTest.firstDay)} - ${this.dateUtils.formatDateOnlyForDisplay(periodTest.lastDay)}`);
       }
     } catch {
-      errors.push('Selected date cannot be converted to Date-only format');
+      errors.push('Selected date cannot be converted to Date-only format or period calculation failed');
     }
 
     // *** ДОПОЛНИТЕЛЬНАЯ ВАЛИДАЦИЯ ДЛЯ АВТОЗАПОЛНЕНИЯ ***
@@ -762,7 +756,7 @@ export class CommonFillValidation {
     autoScheduleEnabled: boolean;
     canProceedWithAutoFill: boolean;
   } {
-    console.log('[CommonFillValidation] Validating AutoSchedule conditions with Date-only StaffRecords for:', params.staffMember.name);
+    console.log('[CommonFillValidation] Validating AutoSchedule conditions с правильными Date-only StaffRecords для:', params.staffMember.name);
     
     const errors: string[] = [];
     const autoScheduleEnabled = params.staffMember.autoSchedule || false;
@@ -789,7 +783,7 @@ export class CommonFillValidation {
 
     const canProceedWithAutoFill = errors.length === 0 && autoScheduleEnabled;
 
-    console.log('[CommonFillValidation] AutoSchedule validation result with Date-only StaffRecords:', {
+    console.log('[CommonFillValidation] AutoSchedule validation result с правильными Date-only StaffRecords:', {
       isValid: errors.length === 0,
       autoScheduleEnabled,
       canProceedWithAutoFill,
