@@ -1,6 +1,6 @@
 // src/webparts/kpfaplus/services/CommonFillTemplates.ts
 // TEMPLATE PROCESSING: All template loading, formatting, and grouping logic
-// COMPLETE IMPLEMENTATION: Schedule Tab compatibility with Date-only support
+// ОБНОВЛЕНО: Улучшено детальное логирование процесса фильтрации шаблонов
 // FIXED: TypeScript lint errors - replaced any with proper types
 
 import { WeeklyTimeTableService } from './WeeklyTimeTableService';
@@ -27,13 +27,13 @@ export class CommonFillTemplates {
     this.weeklyTimeTableService = weeklyTimeTableService;
     this.analysis = analysis;
     this.dateUtils = dateUtils;
-    console.log('[CommonFillTemplates] Template processor initialized with Schedule Tab formatting');
+    console.log('[CommonFillTemplates] Template processor initialized with enhanced detailed logging');
   }
 
   // *** PUBLIC API METHODS ***
 
   /**
-   * Загружает шаблоны с Schedule Tab форматированием
+   * ОБНОВЛЕНО: Загружает шаблоны с улучшенным детальным логированием
    */
   public async loadWeeklyTemplates(
     contractId: string, 
@@ -42,24 +42,36 @@ export class CommonFillTemplates {
     managingGroupId: string
   ): Promise<IScheduleTemplate[]> {
     try {
-      console.log(`[CommonFillTemplates] *** USING SCHEDULE TAB FORMATTING APPROACH ***`);
-      console.log(`[CommonFillTemplates] Loading weekly templates with Schedule Tab formatting`);
+      console.log(`[CommonFillTemplates] *** ENHANCED DETAILED LOGGING FOR TEMPLATE LOADING ***`);
+      console.log(`[CommonFillTemplates] Loading weekly templates with enhanced filtering details`);
       console.log(`[CommonFillTemplates] Parameters: contractId=${contractId}, currentUserId=${currentUserId}, managingGroupId=${managingGroupId}, dayOfStartWeek=${dayOfStartWeek}`);
       
       const filteringDetails: string[] = [];
       
-      // *** ШАГ 1: ПОЛУЧЕНИЕ ДАННЫХ С СЕРВЕРА ***
+      // *** ОБНОВЛЕНО: Детальное логирование начального процесса ***
       filteringDetails.push('=== WEEKLY TEMPLATES LOADING WITH SCHEDULE TAB APPROACH ===');
       filteringDetails.push(`Contract ID: ${contractId}`);
       filteringDetails.push(`Current User ID: ${currentUserId}`);
       filteringDetails.push(`Managing Group ID: ${managingGroupId}`);
       filteringDetails.push(`Day of Start Week: ${dayOfStartWeek}`);
+      filteringDetails.push(`Week Start Day Name: ${this.dateUtils.getDayName(dayOfStartWeek)}`);
       filteringDetails.push('');
+      
+      // *** ШАГ 1: ПОЛУЧЕНИЕ ДАННЫХ С СЕРВЕРА С ДЕТАЛЬНЫМ ЛОГИРОВАНИЕМ ***
+      console.log(`[CommonFillTemplates] *** STEP 1: SERVER DATA RETRIEVAL WITH DETAILED LOGGING ***`);
       
       const weeklyTimeItems = await this.weeklyTimeTableService.getWeeklyTimeTableByContractId(contractId);
       
       if (!weeklyTimeItems || weeklyTimeItems.length === 0) {
         console.log('[CommonFillTemplates] No weekly time items found from server');
+        
+        filteringDetails.push(`STEP 1: Server Response Analysis`);
+        filteringDetails.push(`Total items from server: 0`);
+        filteringDetails.push(`Server filter applied: fields/IdOfTemplateLookupId eq ${contractId}`);
+        filteringDetails.push(`RESULT: No items found on server`);
+        filteringDetails.push('');
+        filteringDetails.push(`FINAL RESULT: No templates available for processing`);
+        
         this.analysis.initializeEmptyTemplatesAnalysis(contractId, '', dayOfStartWeek, filteringDetails);
         return [];
       }
@@ -67,56 +79,146 @@ export class CommonFillTemplates {
       filteringDetails.push(`STEP 1: Server Response Analysis`);
       filteringDetails.push(`Total items from server: ${weeklyTimeItems.length}`);
       filteringDetails.push(`Server filter applied: fields/IdOfTemplateLookupId eq ${contractId}`);
+      filteringDetails.push(`Items retrieved successfully from WeeklyTimeTable`);
+      
+      // ОБНОВЛЕНО: Логирование образцов данных с сервера
+      if (weeklyTimeItems.length > 0) {
+        const sampleItem = weeklyTimeItems[0];
+        filteringDetails.push(`Sample item ID: ${sampleItem.id}`);
+        filteringDetails.push(`Sample item fields available: ${Object.keys(sampleItem.fields || {}).join(', ')}`);
+      }
       filteringDetails.push('');
 
-      // *** ШАГ 2: КЛИЕНТСКАЯ ФИЛЬТРАЦИЯ ПО МЕНЕДЖЕРУ ***
+      // *** ШАГ 2: КЛИЕНТСКАЯ ФИЛЬТРАЦИЯ ПО МЕНЕДЖЕРУ С ДЕТАЛЬНЫМ ЛОГИРОВАНИЕМ ***
+      console.log(`[CommonFillTemplates] *** STEP 2: MANAGER FILTER WITH DETAILED LOGGING ***`);
       console.log(`[CommonFillTemplates] Applying client-side CreatorLookupId filter: ${currentUserId}`);
 
+      const beforeManagerFilter = weeklyTimeItems.length;
       const afterManagerFilter = this.filterByCreator(weeklyTimeItems, currentUserId);
+      const filteredOutByManager = beforeManagerFilter - afterManagerFilter.length;
 
       filteringDetails.push(`STEP 2: Creator Filter Applied`);
       filteringDetails.push(`Filter: CreatorLookupId eq ${currentUserId}`);
-      filteringDetails.push(`Items after creator filter: ${afterManagerFilter.length}`);
-      filteringDetails.push(`Filtered out: ${weeklyTimeItems.length - afterManagerFilter.length} items`);
+      filteringDetails.push(`Items before manager filter: ${beforeManagerFilter}`);
+      filteringDetails.push(`Items after manager filter: ${afterManagerFilter.length}`);
+      filteringDetails.push(`Filtered out by manager: ${filteredOutByManager} items`);
+      
+      // ОБНОВЛЕНО: Детальная информация о фильтрации по менеджеру
+      if (filteredOutByManager > 0) {
+        filteringDetails.push(`Manager filter excluded ${filteredOutByManager} items with different CreatorLookupId`);
+      } else {
+        filteringDetails.push(`All items passed manager filter (all have CreatorLookupId=${currentUserId})`);
+      }
       filteringDetails.push('');
 
-      console.log(`[CommonFillTemplates] After creator filter: ${afterManagerFilter.length} items (filtered out: ${weeklyTimeItems.length - afterManagerFilter.length})`);
+      console.log(`[CommonFillTemplates] After creator filter: ${afterManagerFilter.length} items (filtered out: ${filteredOutByManager})`);
       
-      // *** ШАГ 3: КЛИЕНТСКАЯ ФИЛЬТРАЦИЯ ПО УДАЛЕННЫМ ЗАПИСЯМ ***
-      console.log(`[CommonFillTemplates] Applying client-side Deleted filter`);
+      // *** ШАГ 3: КЛИЕНТСКАЯ ФИЛЬТРАЦИЯ ПО УДАЛЕННЫМ ЗАПИСЯМ С ДЕТАЛЬНЫМ ЛОГИРОВАНИЕМ ***
+      console.log(`[CommonFillTemplates] *** STEP 3: DELETED FILTER WITH DETAILED LOGGING ***`);
       
+      const beforeDeletedFilter = afterManagerFilter.length;
       const afterDeletedFilter = this.filterDeleted(afterManagerFilter);
+      const filteredOutByDeleted = beforeDeletedFilter - afterDeletedFilter.length;
 
       filteringDetails.push(`STEP 3: Deleted Filter Applied`);
       filteringDetails.push(`Filter: Deleted ne 1`);
+      filteringDetails.push(`Items before deleted filter: ${beforeDeletedFilter}`);
       filteringDetails.push(`Items after deleted filter: ${afterDeletedFilter.length}`);
-      filteringDetails.push(`Filtered out: ${afterManagerFilter.length - afterDeletedFilter.length} deleted items`);
+      filteringDetails.push(`Filtered out deleted items: ${filteredOutByDeleted}`);
+      
+      // ОБНОВЛЕНО: Детальная информация о фильтрации удаленных
+      if (filteredOutByDeleted > 0) {
+        filteringDetails.push(`Deleted filter excluded ${filteredOutByDeleted} items marked as Deleted=1`);
+      } else {
+        filteringDetails.push(`No deleted items found (all have Deleted=0 or undefined)`);
+      }
       filteringDetails.push('');
 
-      console.log(`[CommonFillTemplates] After deleted filter: ${afterDeletedFilter.length} items (filtered out: ${afterManagerFilter.length - afterDeletedFilter.length})`);
+      console.log(`[CommonFillTemplates] After deleted filter: ${afterDeletedFilter.length} items (filtered out: ${filteredOutByDeleted})`);
 
       if (afterDeletedFilter.length === 0) {
+        filteringDetails.push(`FINAL RESULT: No templates available after filtering`);
+        filteringDetails.push(`All ${beforeManagerFilter} server items were filtered out during processing`);
+        
         this.analysis.initializeEmptyTemplatesAnalysis(contractId, '', dayOfStartWeek, filteringDetails);
         return [];
       }
 
-      // *** ШАГ 4: ИСПОЛЬЗУЕМ SCHEDULE TAB ФОРМАТИРОВАНИЕ ***
-      console.log(`[CommonFillTemplates] *** APPLYING SCHEDULE TAB FORMATTING ***`);
+      // *** ШАГ 4: SCHEDULE TAB ФОРМАТИРОВАНИЕ С ДЕТАЛЬНЫМ ЛОГИРОВАНИЕМ ***
+      console.log(`[CommonFillTemplates] *** STEP 4: SCHEDULE TAB FORMATTING WITH DETAILED LOGGING ***`);
       console.log(`[CommonFillTemplates] Using WeeklyTimeTableUtils.formatWeeklyTimeTableData() like Schedule Tab`);
       
+      const beforeFormatting = afterDeletedFilter.length;
       const formattedTemplates = this.applyScheduleTabFormatting(afterDeletedFilter, dayOfStartWeek);
+      const afterFormatting = formattedTemplates.length;
+      
+      filteringDetails.push(`STEP 4: Schedule Tab Formatting Applied`);
+      filteringDetails.push(`Items before formatting: ${beforeFormatting}`);
+      filteringDetails.push(`Formatted templates created: ${afterFormatting}`);
+      filteringDetails.push(`Using WeeklyTimeTableUtils.formatWeeklyTimeTableData()`);
+      filteringDetails.push(`Day of Start Week: ${dayOfStartWeek} (${this.dateUtils.getDayName(dayOfStartWeek)})`);
+      
+      // ОБНОВЛЕНО: Анализ результатов форматирования
+      if (formattedTemplates.length > 0) {
+        const sampleFormatted = formattedTemplates[0];
+        filteringDetails.push(`Sample formatted template - Week: ${sampleFormatted.NumberOfWeek}, Shift: ${sampleFormatted.NumberOfShift}`);
+        filteringDetails.push(`Sample time range: Monday ${sampleFormatted.monday.start.hours}:${sampleFormatted.monday.start.minutes} - ${sampleFormatted.monday.end.hours}:${sampleFormatted.monday.end.minutes}`);
+      }
+      filteringDetails.push('');
       
       console.log(`[CommonFillTemplates] *** SCHEDULE TAB FORMATTING APPLIED ***`);
       console.log(`[CommonFillTemplates] Formatted templates count: ${formattedTemplates.length}`);
 
-      // *** ШАГ 5: КОНВЕРТИРУЕМ В SCHEDULE TEMPLATES ***
+      // *** ШАГ 5: КОНВЕРТАЦИЯ В SCHEDULE TEMPLATES С ДЕТАЛЬНЫМ ЛОГИРОВАНИЕМ ***
+      console.log(`[CommonFillTemplates] *** STEP 5: CONVERSION TO SCHEDULE TEMPLATES WITH DETAILED LOGGING ***`);
+      
       const scheduleTemplates = this.convertToScheduleTemplates(formattedTemplates, contractId);
+      const finalCount = scheduleTemplates.length;
 
-      // *** ШАГ 6: ГРУППИРОВКА ШАБЛОНОВ ДЛЯ БЫСТРОГО ДОСТУПА ***
+      filteringDetails.push(`STEP 5: Conversion to Schedule Templates`);
+      filteringDetails.push(`Formatted templates input: ${formattedTemplates.length}`);
+      filteringDetails.push(`Final schedule templates: ${finalCount}`);
+      
+      // ОБНОВЛЕНО: Анализ недель и смен
+      const weeksFound = new Set(scheduleTemplates.map(t => t.NumberOfWeek));
+      const shiftsFound = new Set(scheduleTemplates.map(t => t.NumberOfShift));
+      const daysFound = new Set(scheduleTemplates.map(t => t.dayOfWeek));
+      
+      filteringDetails.push(`Weeks in schedule: [${Array.from(weeksFound).sort().join(', ')}]`);
+      filteringDetails.push(`Shifts available: [${Array.from(shiftsFound).sort().join(', ')}]`);
+      filteringDetails.push(`Days covered: [${Array.from(daysFound).sort().join(', ')}]`);
+      filteringDetails.push(`Number of week templates: ${weeksFound.size}`);
+      filteringDetails.push('');
+
+      // *** ШАГ 6: ГРУППИРОВКА ШАБЛОНОВ С ДЕТАЛЬНЫМ ЛОГИРОВАНИЕМ ***
+      console.log(`[CommonFillTemplates] *** STEP 6: TEMPLATE GROUPING WITH DETAILED LOGGING ***`);
+      
       const groupedTemplates = this.groupTemplatesByWeekAndDay(scheduleTemplates);
 
-      // *** ШАГ 7: ДЕТАЛЬНЫЙ АНАЛИЗ ШАБЛОНОВ ***
+      filteringDetails.push(`STEP 6: Template Grouping Completed`);
+      filteringDetails.push(`Total template groups created: ${groupedTemplates.size}`);
+      filteringDetails.push(`Grouping pattern: Week-Day-Shift combinations`);
+      
+      // ОБНОВЛЕНО: Детали групп
+      const groupKeys = Array.from(groupedTemplates.keys()).sort();
+      if (groupKeys.length > 0) {
+        filteringDetails.push(`Group keys sample: ${groupKeys.slice(0, 5).join(', ')}${groupKeys.length > 5 ? '...' : ''}`);
+      }
+      filteringDetails.push('');
+
+      // *** ШАГ 7: ФИНАЛЬНЫЙ АНАЛИЗ С ДЕТАЛЬНЫМ ЛОГИРОВАНИЕМ ***
+      console.log(`[CommonFillTemplates] *** STEP 7: FINAL ANALYSIS WITH DETAILED LOGGING ***`);
+      
       const contractName = this.analysis.getContractsAnalysis()?.selectedContract?.template || 'Unknown Contract';
+      
+      filteringDetails.push(`=== FINAL PROCESSING SUMMARY ===`);
+      filteringDetails.push(`Total processing steps completed: 6`);
+      filteringDetails.push(`Initial server items: ${beforeManagerFilter}`);
+      filteringDetails.push(`Final schedule templates: ${finalCount}`);
+      filteringDetails.push(`Overall success rate: ${beforeManagerFilter > 0 ? Math.round((finalCount / beforeManagerFilter) * 100) : 0}%`);
+      filteringDetails.push(`Processing efficiency: Server→Templates conversion completed successfully`);
+      filteringDetails.push('');
+      
       this.analysis.analyzeTemplates(
         contractId,
         contractName,
@@ -133,13 +235,26 @@ export class CommonFillTemplates {
       // Сохраняем группированные шаблоны для использования в generateScheduleRecords
       (scheduleTemplates as IScheduleTemplate[] & { _groupedTemplates?: Map<string, IScheduleTemplate[]> })._groupedTemplates = groupedTemplates;
 
-      console.log(`[CommonFillTemplates] *** SCHEDULE TAB FORMATTING COMPLETED ***`);
-      console.log(`[CommonFillTemplates] Successfully processed ${scheduleTemplates.length} schedule templates with Schedule Tab formatting`);
+      console.log(`[CommonFillTemplates] *** ENHANCED DETAILED LOGGING COMPLETED ***`);
+      console.log(`[CommonFillTemplates] Successfully processed ${scheduleTemplates.length} schedule templates with comprehensive logging`);
+      console.log(`[CommonFillTemplates] Filtering details: ${filteringDetails.length} log entries created`);
+      
       return scheduleTemplates;
       
     } catch (error) {
-      console.error('[CommonFillTemplates] Error loading weekly templates with Schedule Tab formatting:', error);
-      this.analysis.initializeEmptyTemplatesAnalysis(contractId, '', dayOfStartWeek, [`ERROR: ${error}`]);
+      console.error('[CommonFillTemplates] Error loading weekly templates with enhanced logging:', error);
+      
+      const errorDetails = [
+        `ERROR: Template loading failed`,
+        `Error message: ${error instanceof Error ? error.message : String(error)}`,
+        `Contract ID: ${contractId}`,
+        `Current User ID: ${currentUserId}`,
+        `Managing Group ID: ${managingGroupId}`,
+        `Day of Start Week: ${dayOfStartWeek}`,
+        `Timestamp: ${new Date().toISOString()}`
+      ];
+      
+      this.analysis.initializeEmptyTemplatesAnalysis(contractId, '', dayOfStartWeek, errorDetails);
       return [];
     }
   }
@@ -260,10 +375,13 @@ export class CommonFillTemplates {
   // *** PRIVATE METHODS ***
 
   /**
-   * Фильтрует элементы по создателю
+   * ОБНОВЛЕНО: Фильтрует элементы по создателю с детальным логированием
    */
   private filterByCreator(items: IWeeklyTimeTableItem[], currentUserId: string): IWeeklyTimeTableItem[] {
-    return items.filter((item: IWeeklyTimeTableItem) => {
+    console.log(`[CommonFillTemplates] *** DETAILED CREATOR FILTERING ***`);
+    console.log(`[CommonFillTemplates] Filtering ${items.length} items by CreatorLookupId=${currentUserId}`);
+    
+    const filtered = items.filter((item: IWeeklyTimeTableItem) => {
       const fields = item.fields || {};
       
       const creatorLookupId = fields.CreatorLookupId || fields.creatorId || fields.Creator;
@@ -279,13 +397,19 @@ export class CommonFillTemplates {
       
       return matches;
     });
+    
+    console.log(`[CommonFillTemplates] Creator filter result: ${filtered.length}/${items.length} items passed`);
+    return filtered;
   }
 
   /**
-   * Фильтрует удаленные элементы
+   * ОБНОВЛЕНО: Фильтрует удаленные элементы с детальным логированием
    */
   private filterDeleted(items: IWeeklyTimeTableItem[]): IWeeklyTimeTableItem[] {
-    return items.filter((item: IWeeklyTimeTableItem) => {
+    console.log(`[CommonFillTemplates] *** DETAILED DELETED FILTERING ***`);
+    console.log(`[CommonFillTemplates] Filtering ${items.length} items by Deleted field`);
+    
+    const filtered = items.filter((item: IWeeklyTimeTableItem) => {
       const fields = item.fields || {};
       const deleted = fields.Deleted || 0;
       
@@ -297,6 +421,9 @@ export class CommonFillTemplates {
       
       return isNotDeleted;
     });
+    
+    console.log(`[CommonFillTemplates] Deleted filter result: ${filtered.length}/${items.length} items passed`);
+    return filtered;
   }
 
   /**
@@ -307,6 +434,9 @@ export class CommonFillTemplates {
     items: IWeeklyTimeTableItem[], 
     dayOfStartWeek: number
   ): IFormattedWeeklyTimeRow[] {
+    console.log(`[CommonFillTemplates] *** APPLYING SCHEDULE TAB FORMATTING ***`);
+    console.log(`[CommonFillTemplates] Formatting ${items.length} items with dayOfStartWeek=${dayOfStartWeek}`);
+    
     // FIXED: Use proper type with index signature for compatibility with WeeklyTimeTableUtils
     type CompatibleItem = IWeeklyTimeTableItem & { [key: string]: unknown };
     
@@ -325,6 +455,7 @@ export class CommonFillTemplates {
       console.log(`[CommonFillTemplates] Tuesday: start=${firstTemplate.tuesday.start.hours}:${firstTemplate.tuesday.start.minutes}, end=${firstTemplate.tuesday.end.hours}:${firstTemplate.tuesday.end.minutes}`);
     }
 
+    console.log(`[CommonFillTemplates] Schedule Tab formatting completed: ${formattedTemplates.length} formatted templates`);
     return formattedTemplates;
   }
 
@@ -335,6 +466,9 @@ export class CommonFillTemplates {
     formattedTemplates: IFormattedWeeklyTimeRow[], 
     contractId: string
   ): IScheduleTemplate[] {
+    console.log(`[CommonFillTemplates] *** CONVERTING TO SCHEDULE TEMPLATES ***`);
+    console.log(`[CommonFillTemplates] Converting ${formattedTemplates.length} formatted templates for contract ${contractId}`);
+    
     const scheduleTemplates: IScheduleTemplate[] = [];
     
     formattedTemplates.forEach((formattedTemplate: IFormattedWeeklyTimeRow) => {
@@ -395,6 +529,7 @@ export class CommonFillTemplates {
       });
     });
 
+    console.log(`[CommonFillTemplates] Conversion completed: ${scheduleTemplates.length} schedule templates created`);
     return scheduleTemplates;
   }
 

@@ -1,5 +1,5 @@
 // src/webparts/kpfaplus/services/CommonFillService.ts - Core Orchestration (Part 1/4)
-// РЕФАКТОРИНГ: Основной класс-координатор, КОРОТКИЙ И СФОКУСИРОВАННЫЙ
+// ОБНОВЛЕНО: Добавлена передача детальной информации о праздниках, отпусках и удаленных записях в логи
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { MessageBarType } from '@fluentui/react';
 import { ContractsService } from './ContractsService';
@@ -97,7 +97,7 @@ export class CommonFillService {
       this.scheduleLogsService, this.dateUtils
     );
     
-    console.log('[CommonFillService] Service initialized with modular architecture and Date-only support');
+    console.log('[CommonFillService] Service initialized with modular architecture and detailed logging support');
   }
 
   public static getInstance(context: WebPartContext): CommonFillService {
@@ -128,7 +128,18 @@ export class CommonFillService {
   public async checkScheduleForFill(params: IFillParams): Promise<IFillResult> {
     try {
       const validationResult = await this.validationModule.checkScheduleForFill(params);
-      await this.loggingModule.createFillLog(params, validationResult, validationResult.contractId);
+      
+      // ОБНОВЛЕНО: Получаем детальную информацию для логирования
+      const detailedLoggingInfo = this.generationService.getDetailedLoggingInfo();
+      
+      await this.loggingModule.createFillLog(
+        params, 
+        validationResult, 
+        validationResult.contractId, 
+        undefined, 
+        detailedLoggingInfo
+      );
+      
       return validationResult;
     } catch (error) {
       const errorResult: IFillResult = {
@@ -139,37 +150,118 @@ export class CommonFillService {
         canProceed: false,
         logResult: 1
       };
-      await this.loggingModule.createFillLog(params, errorResult);
+      
+      // ОБНОВЛЕНО: Получаем детальную информацию даже для ошибок
+      const detailedLoggingInfo = this.generationService.getDetailedLoggingInfo();
+      
+      await this.loggingModule.createFillLog(
+        params, 
+        errorResult, 
+        undefined, 
+        undefined, 
+        detailedLoggingInfo
+      );
+      
       return errorResult;
     }
   }
 
   public async performFillOperation(performParams: IPerformFillParams): Promise<IFillResult> {
-    console.log('[CommonFillService] Coordinating fill operation:', {
+    console.log('[CommonFillService] Coordinating fill operation with detailed logging:', {
       staffMember: performParams.staffMember.name,
       period: this.dateUtils.formatDateOnlyForDisplay(performParams.selectedDate)
     });
 
     try {
+      let deletedRecordsCount = 0;
+      let analysisReport = '';
+
       // Delete existing records if needed
       if (performParams.replaceExisting) {
         const scheduleLogicResult = await this.validationService.checkExistingRecordsWithScheduleLogic(
           performParams, performParams.contractId
         );
+        
         if (scheduleLogicResult.existingRecords.length > 0) {
+          console.log(`[CommonFillService] ОБНОВЛЕНО: Удаляем ${scheduleLogicResult.existingRecords.length} существующих записей`);
+          
+          // ОБНОВЛЕНО: Сохраняем количество удаляемых записей
+          deletedRecordsCount = scheduleLogicResult.existingRecords.length;
+          
+          // ОБНОВЛЕНО: Передаем информацию об удаляемых записях в generation service
+          this.generationService.setDeletedRecordsCount(deletedRecordsCount);
+          
           const deleteSuccess = await this.validationService.deleteExistingRecords(scheduleLogicResult.existingRecords);
           if (!deleteSuccess) {
             const result: IFillResult = {
               success: false,
               message: 'Failed to delete existing records.',
               messageType: MessageBarType.error,
-              logResult: 1
+              logResult: 1,
+              deletedRecordsCount: 0
             };
-            await this.loggingModule.createFillLog(performParams, result, performParams.contractId);
+            
+            // ОБНОВЛЕНО: Получаем детальную информацию для логирования
+            const detailedLoggingInfo = this.generationService.getDetailedLoggingInfo();
+            
+            await this.loggingModule.createFillLog(
+              performParams, 
+              result, 
+              performParams.contractId, 
+              undefined, 
+              detailedLoggingInfo
+            );
+            
             return result;
           }
+          
+          console.log(`[CommonFillService] ✓ Успешно удалено ${deletedRecordsCount} записей`);
         }
       }
+
+      // НОВОЕ: Анализ контрактов с детальной информацией
+      const contracts = await this.contractsService.getContractsForStaffMember(
+        performParams.staffMember.employeeId || '',
+        performParams.currentUserId || '',
+        performParams.managingGroupId || ''
+      );
+      
+      const activeContracts = contracts.filter(c => 
+        !c.isDeleted && this.validationService.isContractActiveInMonth(c, performParams.selectedDate)
+      );
+      
+      const selectedContract = activeContracts.find(c => c.id === performParams.contractId);
+      
+      if (!selectedContract) {
+        const result: IFillResult = {
+          success: false,
+          message: 'Selected contract not found.',
+          messageType: MessageBarType.error,
+          logResult: 1,
+          deletedRecordsCount
+        };
+        
+        // ОБНОВЛЕНО: Получаем детальную информацию для логирования
+        const detailedLoggingInfo = this.generationService.getDetailedLoggingInfo();
+        
+        await this.loggingModule.createFillLog(
+          performParams, 
+          result, 
+          performParams.contractId, 
+          undefined, 
+          detailedLoggingInfo
+        );
+        
+        return result;
+      }
+
+      // НОВОЕ: Передаем анализ контрактов в generation service
+      this.generationService.analyzeContracts(
+        contracts, 
+        activeContracts, 
+        selectedContract, 
+        performParams.selectedDate
+      );
 
       // Load data
       const [holidays, leaves, weeklyTemplates] = await Promise.all([
@@ -183,33 +275,34 @@ export class CommonFillService {
         )
       ]);
 
+      // ОБНОВЛЕНО: Устанавливаем детальную информацию о праздниках и отпусках
+      console.log('[CommonFillService] ОБНОВЛЕНО: Устанавливаем детальную информацию для логирования');
+      this.generationService.setDetailedHolidaysInfo(holidays);
+      this.generationService.setDetailedLeavesInfo(leaves);
+
       if (weeklyTemplates.length === 0) {
+        // НОВОЕ: Получаем анализ для включения в лог
+        analysisReport = this.generationService.generateAnalysisReport();
+        
         const result: IFillResult = {
           success: false,
           message: 'No weekly schedule templates found.',
           messageType: MessageBarType.warning,
-          logResult: 1
+          logResult: 1,
+          deletedRecordsCount
         };
-        await this.loggingModule.createFillLog(performParams, result, performParams.contractId);
-        return result;
-      }
-
-      // Get contract
-      const contracts = await this.contractsService.getContractsForStaffMember(
-        performParams.staffMember.employeeId || '',
-        performParams.currentUserId || '',
-        performParams.managingGroupId || ''
-      );
-      const selectedContract = contracts.find(c => c.id === performParams.contractId);
-      
-      if (!selectedContract) {
-        const result: IFillResult = {
-          success: false,
-          message: 'Selected contract not found.',
-          messageType: MessageBarType.error,
-          logResult: 1
-        };
-        await this.loggingModule.createFillLog(performParams, result, performParams.contractId);
+        
+        // ОБНОВЛЕНО: Получаем детальную информацию для логирования
+        const detailedLoggingInfo = this.generationService.getDetailedLoggingInfo();
+        
+        await this.loggingModule.createFillLog(
+          performParams, 
+          result, 
+          performParams.contractId, 
+          analysisReport, 
+          detailedLoggingInfo
+        );
+        
         return result;
       }
 
@@ -217,27 +310,67 @@ export class CommonFillService {
       const generatedRecords = await this.generationService.generateScheduleRecords(
         performParams, selectedContract, holidays, leaves, weeklyTemplates
       );
-      const savedCount = await this.generationService.saveGeneratedRecords(generatedRecords, performParams);
+      
+      // ОБНОВЛЕНО: Передаем количество удаленных записей при сохранении
+      const savedCount = await this.generationService.saveGeneratedRecords(
+        generatedRecords, 
+        performParams, 
+        deletedRecordsCount
+      );
+
+      // НОВОЕ: Получаем полный анализ для включения в лог
+      analysisReport = this.generationService.generateAnalysisReport();
 
       const result: IFillResult = {
         success: savedCount > 0,
         message: `Generated ${savedCount} schedule records for ${this.dateUtils.formatDateOnlyForDisplay(performParams.selectedDate)}`,
         messageType: savedCount === generatedRecords.length ? MessageBarType.success : MessageBarType.warning,
         createdRecordsCount: savedCount,
+        deletedRecordsCount,
         logResult: savedCount > 0 ? 2 : 1
       };
 
-      await this.loggingModule.createFillLog(performParams, result, performParams.contractId);
+      // ОБНОВЛЕНО: Получаем всю детальную информацию для финального лога
+      const detailedLoggingInfo = this.generationService.getDetailedLoggingInfo();
+      
+      console.log('[CommonFillService] ОБНОВЛЕНО: Финальная детальная информация для лога:', {
+        deletedRecords: detailedLoggingInfo.deletedRecordsCount,
+        holidays: detailedLoggingInfo.holidaysDetails.length,
+        leaves: detailedLoggingInfo.leavesDetails.length,
+        hasAnalysisReport: analysisReport.length > 0
+      });
+
+      await this.loggingModule.createFillLog(
+        performParams, 
+        result, 
+        performParams.contractId, 
+        analysisReport, 
+        detailedLoggingInfo
+      );
+      
       return result;
 
     } catch (error) {
+      // ОБНОВЛЕНО: Получаем детальную информацию и анализ даже для ошибок
+      const detailedLoggingInfo = this.generationService.getDetailedLoggingInfo();
+      const analysisReport = this.generationService.generateAnalysisReport();
+      
       const result: IFillResult = {
         success: false,
         message: `Error filling schedule: ${error instanceof Error ? error.message : String(error)}`,
         messageType: MessageBarType.error,
-        logResult: 1
+        logResult: 1,
+        deletedRecordsCount: detailedLoggingInfo.deletedRecordsCount
       };
-      await this.loggingModule.createFillLog(performParams, result, performParams.contractId);
+      
+      await this.loggingModule.createFillLog(
+        performParams, 
+        result, 
+        performParams.contractId, 
+        analysisReport, 
+        detailedLoggingInfo
+      );
+      
       return result;
     }
   }
@@ -259,7 +392,7 @@ export class CommonFillService {
 
   public getServiceInfo() {
     return {
-      version: '7.0.0-modular',
+      version: '7.1.0-detailed-logging',
       context: !!this.webPartContext,
       services: {
         contracts: !!this.contractsService,
@@ -273,7 +406,14 @@ export class CommonFillService {
         logging: !!this.loggingModule
       },
       dateOnlySupport: true,
-      autoFillSupport: true
+      autoFillSupport: true,
+      detailedLoggingSupport: true, // ОБНОВЛЕНО: Добавлен флаг детального логирования
+      features: [
+        'Detailed holidays and leaves logging',
+        'Deleted records count tracking',
+        'Comprehensive logging reports',
+        'Date-only format support for all logging'
+      ]
     };
   }
 }

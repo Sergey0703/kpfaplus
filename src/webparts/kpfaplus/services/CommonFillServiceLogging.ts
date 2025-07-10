@@ -1,5 +1,5 @@
 // src/webparts/kpfaplus/services/CommonFillServiceLogging.ts - Logging Operations (Part 4/4)
-// СОКРАЩЕННАЯ ВЕРСИЯ: Удалены неиспользуемые диагностические методы (сокращение на 65%)
+// ВОССТАНОВЛЕНО: Добавлена техническая информация о периоде и Date-only обработке
 // ОСНОВНОЙ ФУНКЦИОНАЛ: Логирование операций заполнения с правильной поддержкой Date-only полей
 
 import { ScheduleLogsService, ICreateScheduleLogParams } from './ScheduleLogsService';
@@ -17,7 +17,7 @@ export class CommonFillServiceLogging {
   ) {
     this.scheduleLogsService = scheduleLogsService;
     this.dateUtils = dateUtils;
-    console.log('[CommonFillServiceLogging] Logging module initialized with Date-only format support');
+    console.log('[CommonFillServiceLogging] Logging module initialized with Date-only format support and restored technical details');
   }
 
   // *** ОСНОВНЫЕ МЕТОДЫ ЛОГИРОВАНИЯ ***
@@ -164,6 +164,7 @@ export class CommonFillServiceLogging {
   /**
    * *** ВОССТАНОВЛЕНО: Формирует детальное сообщение для лога с ПОЛНОЙ Date-only информацией ***
    * ОБНОВЛЕНО: Добавлено детальное логирование праздников и отпусков
+   * НОВОЕ: Добавлены секции анализа контрактов и шаблонов
    */
   private buildDetailedLogMessage(
     params: IFillParams, 
@@ -186,7 +187,7 @@ export class CommonFillServiceLogging {
     lines.push(`Staff Group: ${params.managingGroupId || 'N/A'}`);
     lines.push('');
 
-    // *** ИСПРАВЛЕНО: ДОПОЛНИТЕЛЬНАЯ ИНФОРМАЦИЯ О ПЕРИОДЕ С DATE-ONLY ФОРМАТОМ ***
+    // *** ВОССТАНОВЛЕНО: ДОПОЛНИТЕЛЬНАЯ ИНФОРМАЦИЯ О ПЕРИОДЕ С DATE-ONLY ФОРМАТОМ ***
     const monthPeriod = this.getMonthPeriodForDisplay(params.selectedDate);
     
     lines.push(`PERIOD AND DATE-ONLY PROCESSING DETAILS:`);
@@ -197,6 +198,45 @@ export class CommonFillServiceLogging {
     lines.push(`Managing Group ID (for filtering): ${params.managingGroupId || 'N/A'}`);
     lines.push(`Date-only Format Processing: ENABLED (correct UI behavior)`);
     lines.push('');
+
+    // *** НОВОЕ: ПАРСИНГ И ОТОБРАЖЕНИЕ АНАЛИЗА КОНТРАКТОВ И ШАБЛОНОВ ***
+    if (additionalDetails) {
+      const analysisData = this.parseAnalysisReport(additionalDetails);
+      
+      // DETAILED CONTRACTS ANALYSIS
+      if (analysisData.contractsAnalysis) {
+        lines.push('DETAILED CONTRACTS ANALYSIS:');
+        lines.push(`Total contracts found: ${analysisData.contractsAnalysis.totalFound}`);
+        lines.push(`Active contracts in period: ${analysisData.contractsAnalysis.activeCount}`);
+        lines.push(`Selected contract: ${analysisData.contractsAnalysis.selectedContract}`);
+        lines.push(`Selection reason: ${analysisData.contractsAnalysis.selectionReason}`);
+        lines.push('');
+      }
+      
+      // DETAILED TEMPLATES ANALYSIS
+      if (analysisData.templatesAnalysis) {
+        lines.push('DETAILED TEMPLATES ANALYSIS WITH FIXED DATE-ONLY LOGGING:');
+        lines.push(`Contract: ${analysisData.templatesAnalysis.contractInfo}`);
+        lines.push(`Items from server: ${analysisData.templatesAnalysis.itemsFromServer}`);
+        lines.push(`After manager filter: ${analysisData.templatesAnalysis.afterManagerFilter}`);
+        lines.push(`After deleted filter: ${analysisData.templatesAnalysis.afterDeletedFilter}`);
+        lines.push(`Final templates: ${analysisData.templatesAnalysis.finalTemplates}`);
+        lines.push(`Week start day: ${analysisData.templatesAnalysis.weekStartDay}`);
+        lines.push(`Weeks in schedule: ${analysisData.templatesAnalysis.weeksInSchedule}`);
+        lines.push(`Shifts available: ${analysisData.templatesAnalysis.shiftsAvailable}`);
+        lines.push(`Number of week templates: ${analysisData.templatesAnalysis.numberOfWeekTemplates}`);
+        lines.push('');
+      }
+      
+      // FILTERING PROCESS DETAILS
+      if (analysisData.filteringDetails && analysisData.filteringDetails.length > 0) {
+        lines.push('FILTERING PROCESS DETAILS:');
+        analysisData.filteringDetails.forEach(detail => {
+          lines.push(detail);
+        });
+        lines.push('');
+      }
+    }
 
     // *** ПРАВИЛЬНЫЙ СТАТУС ОПЕРАЦИИ ***
     const logResult = result.logResult || (result.success ? 2 : 1);
@@ -265,16 +305,109 @@ export class CommonFillServiceLogging {
       lines.push('');
     }
 
-    // *** ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ВКЛЮЧАЯ ПРАВИЛЬНЫЕ ПЕРИОДЫ ***
-    if (additionalDetails) {
-      lines.push('DETAILED OPERATION ANALYSIS WITH FIXED DATE-ONLY LOGGING:');
-      lines.push(additionalDetails);
-      lines.push('');
-    }
-
     lines.push(`=== END DETAILED LOG ===`);
     
     return lines.join('\n');
+  }
+
+  /**
+   * *** НОВОЕ: Парсит отчет анализа и извлекает структурированную информацию ***
+   */
+  private parseAnalysisReport(analysisReport: string): {
+    contractsAnalysis?: {
+      totalFound: number;
+      activeCount: number;
+      selectedContract: string;
+      selectionReason: string;
+    };
+    templatesAnalysis?: {
+      contractInfo: string;
+      itemsFromServer: number;
+      afterManagerFilter: number;
+      afterDeletedFilter: number;
+      finalTemplates: number;
+      weekStartDay: string;
+      weeksInSchedule: string;
+      shiftsAvailable: string;
+      numberOfWeekTemplates: number;
+    };
+    filteringDetails?: string[];
+  } {
+    const result: ReturnType<typeof this.parseAnalysisReport> = {};
+    
+    try {
+      // Парсинг анализа контрактов
+      const contractsMatch = analysisReport.match(/--- CONTRACTS ANALYSIS ---([\s\S]*?)(?=---|$)/);
+      if (contractsMatch) {
+        const contractsSection = contractsMatch[1];
+        
+        const totalFoundMatch = contractsSection.match(/Total contracts found: (\d+)/);
+        const activeMatch = contractsSection.match(/Active in period: (\d+)/);
+        const selectedMatch = contractsSection.match(/Selected contract: (.*?)$/m);
+        const reasonMatch = contractsSection.match(/Selection reason: (.*?)$/m);
+        
+        if (totalFoundMatch && activeMatch && selectedMatch && reasonMatch) {
+          result.contractsAnalysis = {
+            totalFound: parseInt(totalFoundMatch[1], 10),
+            activeCount: parseInt(activeMatch[1], 10),
+            selectedContract: selectedMatch[1].trim(),
+            selectionReason: reasonMatch[1].trim()
+          };
+        }
+      }
+      
+      // Парсинг анализа шаблонов
+      const templatesMatch = analysisReport.match(/--- TEMPLATES ANALYSIS ---([\s\S]*?)(?=---|$)/);
+      if (templatesMatch) {
+        const templatesSection = templatesMatch[1];
+        
+        const contractMatch = templatesSection.match(/Contract: (.*?)$/m);
+        const serverResponseMatch = templatesSection.match(/Server response: (\d+) items/);
+        const managerFilterMatch = templatesSection.match(/After manager filter: (\d+) items/);
+        const deletedFilterMatch = templatesSection.match(/After deleted filter: (\d+) items/);
+        const finalTemplatesMatch = templatesSection.match(/Final templates: (\d+)/);
+        const weekStartMatch = templatesSection.match(/Week start day: (.*?)$/m);
+        const weeksMatch = templatesSection.match(/Weeks in schedule: (\[.*?\])/);
+        const shiftsMatch = templatesSection.match(/Shifts available: (\[.*?\])/);
+        const weekTemplatesMatch = templatesSection.match(/Week chaining: .*?(\d+) week template/);
+        
+        if (contractMatch && serverResponseMatch && finalTemplatesMatch) {
+          result.templatesAnalysis = {
+            contractInfo: contractMatch[1].trim(),
+            itemsFromServer: parseInt(serverResponseMatch[1], 10),
+            afterManagerFilter: managerFilterMatch ? parseInt(managerFilterMatch[1], 10) : 0,
+            afterDeletedFilter: deletedFilterMatch ? parseInt(deletedFilterMatch[1], 10) : 0,
+            finalTemplates: parseInt(finalTemplatesMatch[1], 10),
+            weekStartDay: weekStartMatch ? weekStartMatch[1].trim() : 'Unknown',
+            weeksInSchedule: weeksMatch ? weeksMatch[1] : '[]',
+            shiftsAvailable: shiftsMatch ? shiftsMatch[1] : '[]',
+            numberOfWeekTemplates: weekTemplatesMatch ? parseInt(weekTemplatesMatch[1], 10) : 1
+          };
+        }
+      }
+      
+      // Парсинг деталей фильтрации
+      const filteringMatch = analysisReport.match(/=== WEEKLY TEMPLATES LOADING WITH SCHEDULE TAB APPROACH ===([\s\S]*?)(?=---|$)/);
+      if (filteringMatch) {
+        const filteringSection = filteringMatch[1];
+        const filteringLines = filteringSection.split('\n')
+          .map(line => line.trim())
+          .filter(line => line.length > 0)
+          .slice(0, 20); // Берем первые 20 строк для ограничения размера
+        
+        if (filteringLines.length > 0) {
+          result.filteringDetails = [
+            '=== WEEKLY TEMPLATES LOADING WITH SCHEDULE TAB APPROACH ===',
+            ...filteringLines
+          ];
+        }
+      }
+      
+    } catch (error) {
+      console.warn('[CommonFillServiceLogging] Error parsing analysis report:', error);
+    }
+    
+    return result;
   }
 
   /**
@@ -298,9 +431,6 @@ export class CommonFillServiceLogging {
     }
   }
 
-  // *** UTILITY МЕТОДЫ - УДАЛЕНЫ неиспользуемые методы ***
-  // formatDuration() и calculatePercentage() удалены как неиспользуемые
-
   // *** ИНФОРМАЦИОННЫЕ МЕТОДЫ ***
 
   /**
@@ -316,14 +446,17 @@ export class CommonFillServiceLogging {
     };
   } {
     return {
-      version: '2.0.0-simplified',
+      version: '2.1.0-restored-technical-details',
       dateOnlySupport: true,
       capabilities: [
         'Date-only format logging for ScheduleLogs',
         'Fill operation logging with detailed analysis',
         'User refusal logging',
         'Quick logging for simple operations',
-        'Streamlined logging without excessive diagnostics'
+        'Restored technical period information',
+        'Detailed holidays and leaves logging',
+        'Deleted records tracking',
+        'Month range calculation with Date-only format'
       ],
       servicesAvailable: {
         scheduleLogs: !!this.scheduleLogsService,
