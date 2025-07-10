@@ -24,15 +24,21 @@ export class CommonFillServiceLogging {
 
   /**
    * Создает основной лог операции заполнения с правильным Date-only форматом
+   * ОБНОВЛЕНО: Добавлена поддержка детального логирования праздников и отпусков
    */
   public async createFillLog(
     params: IFillParams, 
     result: IFillResult, 
     contractId?: string,
-    additionalDetails?: string
+    additionalDetails?: string,
+    detailedLoggingInfo?: {
+      deletedRecordsCount: number;
+      holidaysDetails: Array<{ date: string; title: string }>;
+      leavesDetails: Array<{ startDate: string; endDate: string; title: string; typeOfLeave: string }>;
+    }
   ): Promise<void> {
     try {
-      const logMessage = this.buildDetailedLogMessage(params, result, contractId, additionalDetails);
+      const logMessage = this.buildDetailedLogMessage(params, result, contractId, additionalDetails, detailedLoggingInfo);
       const periodStr = this.dateUtils.formatDateOnlyForDisplay(params.selectedDate);
       
       // *** КРИТИЧНОЕ ИСПРАВЛЕНИЕ: Используем dateUtils для создания Date-only Date объекта ***
@@ -157,12 +163,18 @@ export class CommonFillServiceLogging {
 
   /**
    * *** ВОССТАНОВЛЕНО: Формирует детальное сообщение для лога с ПОЛНОЙ Date-only информацией ***
+   * ОБНОВЛЕНО: Добавлено детальное логирование праздников и отпусков
    */
   private buildDetailedLogMessage(
     params: IFillParams, 
     result: IFillResult, 
     contractId?: string,
-    additionalDetails?: string
+    additionalDetails?: string,
+    detailedLoggingInfo?: {
+      deletedRecordsCount: number;
+      holidaysDetails: Array<{ date: string; title: string }>;
+      leavesDetails: Array<{ startDate: string; endDate: string; title: string; typeOfLeave: string }>;
+    }
   ): string {
     const lines: string[] = [];
     
@@ -207,11 +219,51 @@ export class CommonFillServiceLogging {
       lines.push(`Records Deleted: ${result.deletedRecordsCount}`);
     }
     
+    // *** НОВОЕ: Детальная информация об удаленных записях из detailedLoggingInfo ***
+    if (detailedLoggingInfo && detailedLoggingInfo.deletedRecordsCount > 0) {
+      lines.push(`Records Deleted (Detailed): ${detailedLoggingInfo.deletedRecordsCount}`);
+    }
+    
     if (contractId) {
       lines.push(`Contract ID: ${contractId}`);
     }
     
     lines.push('');
+
+    // *** НОВОЕ: ДЕТАЛЬНАЯ ИНФОРМАЦИЯ О ПРАЗДНИКАХ ***
+    if (detailedLoggingInfo && detailedLoggingInfo.holidaysDetails.length > 0) {
+      lines.push('=== HOLIDAYS DETAILS ===');
+      detailedLoggingInfo.holidaysDetails.forEach(holiday => {
+        lines.push(`${holiday.date}: ${holiday.title}`);
+      });
+      lines.push('');
+    } else if (detailedLoggingInfo) {
+      lines.push('=== HOLIDAYS DETAILS ===');
+      lines.push('No holidays found in period');
+      lines.push('');
+    }
+
+    // *** НОВОЕ: ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ОБ ОТПУСКАХ ***
+    if (detailedLoggingInfo && detailedLoggingInfo.leavesDetails.length > 0) {
+      lines.push('=== LEAVES DETAILS ===');
+      detailedLoggingInfo.leavesDetails.forEach(leave => {
+        lines.push(`${leave.startDate} - ${leave.endDate}: ${leave.title} (Type: ${leave.typeOfLeave})`);
+      });
+      lines.push('');
+    } else if (detailedLoggingInfo) {
+      lines.push('=== LEAVES DETAILS ===');
+      lines.push('No leaves found in period');
+      lines.push('');
+    }
+
+    // *** НОВОЕ: СВОДКА ПО ДЕТАЛЬНОМУ ЛОГИРОВАНИЮ ***
+    if (detailedLoggingInfo) {
+      lines.push('=== DETAILED LOGGING SUMMARY ===');
+      lines.push(`Deleted Records: ${detailedLoggingInfo.deletedRecordsCount}`);
+      lines.push(`Holidays Found: ${detailedLoggingInfo.holidaysDetails.length}`);
+      lines.push(`Leaves Found: ${detailedLoggingInfo.leavesDetails.length}`);
+      lines.push('');
+    }
 
     // *** ДЕТАЛЬНАЯ ИНФОРМАЦИЯ ВКЛЮЧАЯ ПРАВИЛЬНЫЕ ПЕРИОДЫ ***
     if (additionalDetails) {
