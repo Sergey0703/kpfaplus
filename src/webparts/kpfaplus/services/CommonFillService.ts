@@ -1,5 +1,5 @@
 // src/webparts/kpfaplus/services/CommonFillService.ts - Core Orchestration (Part 1/4)
-// ИСПРАВЛЕНО: Добавлена правильная передача данных о праздниках и отпусках в ScheduleLogs
+// ИСПРАВЛЕНО: Правильная передача данных о праздниках и отпусках в ScheduleLogs
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 import { MessageBarType } from '@fluentui/react';
 import { ContractsService } from './ContractsService';
@@ -263,7 +263,7 @@ export class CommonFillService {
         performParams.selectedDate
       );
 
-      // *** ИСПРАВЛЕНИЕ: Load data и НЕМЕДЛЕННАЯ ПЕРЕДАЧА В GENERATION SERVICE ***
+      // *** ИСПРАВЛЕНИЕ: Load data БЕЗ преждевременной установки в analysis ***
       const [holidays, leaves, weeklyTemplates] = await Promise.all([
         this.generationService.loadHolidays(performParams.selectedDate),
         this.generationService.loadLeaves(performParams),
@@ -275,21 +275,9 @@ export class CommonFillService {
         )
       ]);
 
-      // *** ИСПРАВЛЕНИЕ: ОБЯЗАТЕЛЬНО устанавливаем детальную информацию СРАЗУ после загрузки ***
-      console.log('[CommonFillService] *** ИСПРАВЛЕНИЕ: Устанавливаем детальную информацию для ScheduleLogs ***');
+      console.log('[CommonFillService] *** ИСПРАВЛЕНИЕ: Данные загружены, будут установлены в analysis ПОСЛЕ генерации ***');
       console.log(`[CommonFillService] Загружено праздников: ${holidays.length}`);
       console.log(`[CommonFillService] Загружено отпусков: ${leaves.length}`);
-      
-      // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Устанавливаем данные в generation service для передачи в ScheduleLogs ***
-      this.generationService.setDetailedHolidaysInfo(holidays);
-      this.generationService.setDetailedLeavesInfo(leaves);
-      
-      // Проверяем что данные установлены
-      const verificationInfo = this.generationService.getDetailedLoggingInfo();
-      console.log('[CommonFillService] *** ПРОВЕРКА: Данные установлены для ScheduleLogs ***');
-      console.log(`[CommonFillService] Удаленных записей: ${verificationInfo.deletedRecordsCount}`);
-      console.log(`[CommonFillService] Деталей праздников: ${verificationInfo.holidaysDetails.length}`);
-      console.log(`[CommonFillService] Деталей отпусков: ${verificationInfo.leavesDetails.length}`);
 
       if (weeklyTemplates.length === 0) {
         // Получаем анализ для включения в лог
@@ -329,6 +317,20 @@ export class CommonFillService {
         deletedRecordsCount
       );
 
+      // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Устанавливаем данные в analysis ПОСЛЕ всех операций ***
+      console.log('[CommonFillService] *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Устанавливаем актуальные данные в analysis для ScheduleLogs ***');
+      
+      // Устанавливаем актуальные данные о праздниках и отпусках
+      this.generationService.setDetailedHolidaysInfo(holidays);
+      this.generationService.setDetailedLeavesInfo(leaves);
+      
+      // Проверяем что данные установлены
+      const verificationInfo = this.generationService.getDetailedLoggingInfo();
+      console.log('[CommonFillService] *** ПРОВЕРКА: Финальные данные для ScheduleLogs ***');
+      console.log(`[CommonFillService] Удаленных записей: ${verificationInfo.deletedRecordsCount}`);
+      console.log(`[CommonFillService] Деталей праздников: ${verificationInfo.holidaysDetails.length}`);
+      console.log(`[CommonFillService] Деталей отпусков: ${verificationInfo.leavesDetails.length}`);
+
       // Получаем полный анализ для включения в лог
       analysisReport = this.generationService.generateAnalysisReport();
 
@@ -348,6 +350,20 @@ export class CommonFillService {
       console.log(`[CommonFillService] Удаленных записей: ${finalDetailedLoggingInfo.deletedRecordsCount}`);
       console.log(`[CommonFillService] Праздников: ${finalDetailedLoggingInfo.holidaysDetails.length}`);
       console.log(`[CommonFillService] Отпусков: ${finalDetailedLoggingInfo.leavesDetails.length}`);
+
+      if (finalDetailedLoggingInfo.holidaysDetails.length > 0) {
+        console.log('[CommonFillService] *** ПРАЗДНИКИ НАЙДЕНЫ ДЛЯ SCHEDULELOGS ***');
+        finalDetailedLoggingInfo.holidaysDetails.forEach((holiday, index) => {
+          console.log(`[CommonFillService] Праздник ${index + 1}: ${holiday.date} - ${holiday.title}`);
+        });
+      }
+
+      if (finalDetailedLoggingInfo.leavesDetails.length > 0) {
+        console.log('[CommonFillService] *** ОТПУСКА НАЙДЕНЫ ДЛЯ SCHEDULELOGS ***');
+        finalDetailedLoggingInfo.leavesDetails.forEach((leave, index) => {
+          console.log(`[CommonFillService] Отпуск ${index + 1}: ${leave.startDate} - ${leave.endDate}, тип: ${leave.typeOfLeave}, название: "${leave.title}"`);
+        });
+      }
 
       await this.loggingModule.createFillLog(
         performParams, 
@@ -401,7 +417,7 @@ export class CommonFillService {
 
   public getServiceInfo() {
     return {
-      version: '7.2.0-fixed-detailed-logging',
+      version: '7.3.0-fixed-detailed-logging-transfer',
       context: !!this.webPartContext,
       services: {
         contracts: !!this.contractsService,
@@ -418,7 +434,7 @@ export class CommonFillService {
       autoFillSupport: true,
       detailedLoggingSupport: true,
       features: [
-        'FIXED: Proper holidays and leaves logging to ScheduleLogs',
+        'FIXED: Correct timing for holidays and leaves data transfer to ScheduleLogs',
         'Detailed holidays and leaves logging',
         'Deleted records count tracking',
         'Comprehensive logging reports',
