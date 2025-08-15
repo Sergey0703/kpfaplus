@@ -350,8 +350,9 @@ const getExistingRecordsWithStatus = useCallback(async (
   staffGroupIdParam?: string,
   timeTableIDParam?: string
 ): Promise<IExistingRecordCheck[]> => {
+  console.log('[useStaffRecordsData] *** FIXED: getExistingRecordsWithStatus WITH UTC METHODS ***');
   console.log('[useStaffRecordsData] getExistingRecordsWithStatus called with timeTableID:', timeTableIDParam);
-  console.log('[useStaffRecordsData] *** IMPORTANT: Using formatDateForSharePoint for consistent boundaries ***');
+  console.log('[useStaffRecordsData] *** CRITICAL FIX: Using UTC methods for date components ***');
   console.log('[useStaffRecordsData] Input date range:', startDate.toISOString(), '-', endDate.toISOString());
   
   if (!context || !staffRecordsService) {
@@ -366,27 +367,51 @@ const getExistingRecordsWithStatus = useCallback(async (
   try {
     console.log('[useStaffRecordsData] *** Starting to collect ALL pages for existing records ***');
     
-    // *** ИСПРАВЛЕНИЕ: Используем formatDateForSharePoint для нормализации границ ***
-    // Входные даты должны быть нормализованы к UTC используя тот же подход, что и при сохранении
+    // *** КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Используем UTC методы для извлечения компонентов даты ***
+    // Входные даты приходят из fillScheduleFromTemplate в UTC формате
     const normalizedStartDate = formatDateForSharePoint(new Date(
-      startDate.getFullYear(),
-      startDate.getMonth(),
-      startDate.getDate()
+      startDate.getUTCFullYear(),   // *** ИСПРАВЛЕНО: UTC метод вместо локального ***
+      startDate.getUTCMonth(),      // *** ИСПРАВЛЕНО: UTC метод вместо локального ***
+      startDate.getUTCDate()        // *** ИСПРАВЛЕНО: UTC метод вместо локального ***
     ));
     
     const normalizedEndDate = formatDateForSharePoint(new Date(
-      endDate.getFullYear(),
-      endDate.getMonth(),
-      endDate.getDate()
+      endDate.getUTCFullYear(),     // *** ИСПРАВЛЕНО: UTC метод вместо локального ***
+      endDate.getUTCMonth(),        // *** ИСПРАВЛЕНО: UTC метод вместо локального ***
+      endDate.getUTCDate()          // *** ИСПРАВЛЕНО: UTC метод вместо локального ***
     ));
     
-    console.log('[useStaffRecordsData] *** NORMALIZED DATES USING formatDateForSharePoint ***');
+    console.log('[useStaffRecordsData] *** FIXED: NORMALIZED DATES USING UTC METHODS ***');
     console.log('[useStaffRecordsData] Original start date:', startDate.toISOString());
     console.log('[useStaffRecordsData] Original end date:', endDate.toISOString());
-    console.log('[useStaffRecordsData] Normalized start date (formatDateForSharePoint):', normalizedStartDate.toISOString());
-    console.log('[useStaffRecordsData] Normalized end date (formatDateForSharePoint):', normalizedEndDate.toISOString());
+    console.log('[useStaffRecordsData] *** startDate UTC components ***:', {
+      year: startDate.getUTCFullYear(),
+      month: startDate.getUTCMonth(),
+      date: startDate.getUTCDate()
+    });
+    console.log('[useStaffRecordsData] *** endDate UTC components ***:', {
+      year: endDate.getUTCFullYear(),
+      month: endDate.getUTCMonth(),
+      date: endDate.getUTCDate()
+    });
+    console.log('[useStaffRecordsData] Normalized start date (UTC components + formatDateForSharePoint):', normalizedStartDate.toISOString());
+    console.log('[useStaffRecordsData] Normalized end date (UTC components + formatDateForSharePoint):', normalizedEndDate.toISOString());
 
-    // Base query parameters (without pagination) - используем нормализованные даты
+    // *** СПЕЦИАЛЬНАЯ ОТЛАДКА ДЛЯ ИЮНЯ-ИЮЛЯ TIMEZONE ПРОБЛЕМЫ ***
+    if (startDate.getUTCMonth() === 5 || endDate.getUTCMonth() === 5) { // Июнь = месяц 5
+      console.log('[useStaffRecordsData] *** JUNE DETECTED - TIMEZONE DEBUG ***');
+      console.log('[useStaffRecordsData] *** BEFORE FIX (would use local methods) ***');
+      console.log('[useStaffRecordsData] startDate.getFullYear():', startDate.getFullYear(), 'vs getUTCFullYear():', startDate.getUTCFullYear());
+      console.log('[useStaffRecordsData] startDate.getMonth():', startDate.getMonth(), 'vs getUTCMonth():', startDate.getUTCMonth());
+      console.log('[useStaffRecordsData] startDate.getDate():', startDate.getDate(), 'vs getUTCDate():', startDate.getUTCDate());
+      console.log('[useStaffRecordsData] endDate.getFullYear():', endDate.getFullYear(), 'vs getUTCFullYear():', endDate.getUTCFullYear());
+      console.log('[useStaffRecordsData] endDate.getMonth():', endDate.getMonth(), 'vs getUTCMonth():', endDate.getUTCMonth());
+      console.log('[useStaffRecordsData] endDate.getDate():', endDate.getDate(), 'vs getUTCDate():', endDate.getUTCDate());
+      console.log('[useStaffRecordsData] *** AFTER FIX (using UTC methods) ***');
+      console.log('[useStaffRecordsData] This should prevent June -> July shift!');
+    }
+
+    // Base query parameters (without pagination) - используем нормализованные даты с UTC компонентами
     const baseQueryParams = {
       startDate: normalizedStartDate,
       endDate: normalizedEndDate,
@@ -396,7 +421,7 @@ const getExistingRecordsWithStatus = useCallback(async (
       timeTableID: timeTableID
     };
 
-    console.log('[useStaffRecordsData] Base query params for all pages:', {
+    console.log('[useStaffRecordsData] Base query params for all pages (UTC normalized):', {
       ...baseQueryParams,
       startDate: baseQueryParams.startDate.toISOString(),
       endDate: baseQueryParams.endDate.toISOString()
@@ -472,7 +497,7 @@ const getExistingRecordsWithStatus = useCallback(async (
       title: record.Title
     }));
 
-    console.log(`[useStaffRecordsData] Converted ${activeRecords.length} active records to IExistingRecordCheck format with parseDateFromSharePoint dates`);
+    console.log(`[useStaffRecordsData] *** FIXED: Converted ${activeRecords.length} active records to IExistingRecordCheck format with UTC-based normalization ***`);
     
     // Log some sample records for verification
     if (existingRecordsCheck.length > 0) {
@@ -480,6 +505,17 @@ const getExistingRecordsWithStatus = useCallback(async (
       existingRecordsCheck.slice(0, 3).forEach((record, index) => {
         console.log(`  ${index + 1}. ID: ${record.id}, Date: ${record.date.toLocaleDateString()}, Checked: ${record.checked}, Export: ${record.exportResult}`);
       });
+    }
+
+    // *** СПЕЦИАЛЬНАЯ ПРОВЕРКА ДЛЯ ИЮНЯ ***
+    const juneRecords = existingRecordsCheck.filter(record => record.date.getUTCMonth() === 5); // Июнь = месяц 5
+    const julyRecords = existingRecordsCheck.filter(record => record.date.getUTCMonth() === 6); // Июль = месяц 6
+    
+    if (juneRecords.length > 0 || julyRecords.length > 0) {
+      console.log(`[useStaffRecordsData] *** TIMEZONE FIX VERIFICATION ***`);
+      console.log(`[useStaffRecordsData] June records found: ${juneRecords.length}`);
+      console.log(`[useStaffRecordsData] July records found: ${julyRecords.length}`);
+      console.log(`[useStaffRecordsData] If you were querying June period, you should see June records, NOT July!`);
     }
 
     return existingRecordsCheck;
