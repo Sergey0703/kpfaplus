@@ -60,6 +60,21 @@ export class CommonFillDateUtils {
     return date;
   }
 
+  // *** НОВЫЙ ДОБАВЛЕННЫЙ МЕТОД ***
+  /**
+   * *** НОВЫЙ ПРАВИЛЬНЫЙ МЕТОД: Создает объект Date, представляющий полночь по UTC ***
+   * Используется для формирования значения для ВСЕХ полей Date-only перед отправкой в SharePoint.
+   */
+  public createUTCDateOnly(date: Date): Date {
+    // Используем локальные компоненты даты, чтобы избежать смещения на день назад
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const day = date.getDate();
+
+    // Создаем новый объект Date, который представляет полночь (00:00:00) в часовом поясе UTC
+    return new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+  }
+
   // *** DATE-ONLY CORE METHODS - FOR UI OPERATIONS ***
 
   /**

@@ -417,13 +417,18 @@ export class CommonFillValidation {
   private async getExistingRecordsWithStatus(params: IFillParams, contractId: string): Promise<IStaffRecord[]> {
     console.log('[CommonFillValidation] ИСПРАВЛЕНО: Getting existing StaffRecords с правильной Schedule tab filtering logic');
 
-    // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Используем dateUtils для правильного расчета периода ***
-    const periodInfo = this.dateUtils.calculateMonthPeriod(params.selectedDate);
+    // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Используем dateUtils для СОЗДАНИЯ UTC ДАТ ДЛЯ ЗАПРОСА ***
+    const selectedDate = params.selectedDate;
+    const startOfMonthUTC = this.dateUtils.createUTCDateOnly(
+        new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1)
+    );
+    const endOfMonthUTC = this.dateUtils.createUTCDateOnly(
+        new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0)
+    );
 
-    console.log(`[CommonFillValidation] *** ИСПРАВЛЕНО: StaffRecords Date-only field filtering с правильными границами ***`);
-    console.log(`[CommonFillValidation] Исправленный период: ${this.dateUtils.formatDateOnlyForDisplay(periodInfo.firstDay)} - ${this.dateUtils.formatDateOnlyForDisplay(periodInfo.lastDay)}`);
-    console.log(`[CommonFillValidation] StaffRecords.Date теперь Date-only field`);
-
+    console.log(`[CommonFillValidation] *** ИСПРАВЛЕНО: StaffRecords Date-only field filtering с UTC границами ***`);
+    console.log(`[CommonFillValidation] Исправленный UTC период: ${startOfMonthUTC.toISOString()} - ${endOfMonthUTC.toISOString()}`);
+    
     if (!params.staffMember.employeeId) {
       console.warn('[CommonFillValidation] No employee ID for Schedule tab filtering');
       return [];
@@ -433,29 +438,17 @@ export class CommonFillValidation {
     const managerId = params.currentUserId || '0';
     const groupId = params.managingGroupId || '0';
 
-    console.log('[CommonFillValidation] ИСПРАВЛЕНО: Schedule tab filter criteria для StaffRecords:', {
-      employeeId,
-      managerId,
-      groupId,
-      contractId,
-      period: `${this.dateUtils.formatDateOnlyForDisplay(periodInfo.firstDay)} - ${this.dateUtils.formatDateOnlyForDisplay(periodInfo.lastDay)}`
-    });
-
-    // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Используем dateUtils для создания правильных Date-only дат ***
-    const startDateForQuery = this.dateUtils.createDateOnlyFromDate(periodInfo.firstDay);
-    const endDateForQuery = this.dateUtils.createDateOnlyFromDate(periodInfo.lastDay);
-    
     const queryParams = {
-      startDate: startDateForQuery,  // *** Date-only field - правильный Date объект ***
-      endDate: endDateForQuery,      // *** Date-only field - правильный Date объект ***
+      startDate: startOfMonthUTC,  // <-- ИСПОЛЬЗУЕМ UTC ДАТУ
+      endDate: endOfMonthUTC,      // <-- ИСПОЛЬЗУЕМ UTC ДАТУ
       currentUserID: managerId,
       staffGroupID: groupId,
       employeeID: employeeId
     };
 
-    console.log('[CommonFillValidation] ИСПРАВЛЕНО: Schedule tab query params с правильными Date-only границами:', {
-      startDate: this.dateUtils.formatDateOnlyForDisplay(queryParams.startDate),
-      endDate: this.dateUtils.formatDateOnlyForDisplay(queryParams.endDate),
+    console.log('[CommonFillValidation] ИСПРАВЛЕНО: Schedule tab query params с UTC границами:', {
+      startDate: queryParams.startDate.toISOString(),
+      endDate: queryParams.endDate.toISOString(),
       employeeID: queryParams.employeeID,
       contractId
     });
@@ -474,7 +467,6 @@ export class CommonFillValidation {
       }
 
       // 2. Дополнительная фильтрация по контракту (если нужно)
-      // В Schedule tab может быть дополнительная фильтрация по WeeklyTimeTableID
       if (contractId && record.WeeklyTimeTableID && record.WeeklyTimeTableID !== contractId) {
         console.log(`[CommonFillValidation] Filtering out record with different contract: ${record.WeeklyTimeTableID} !== ${contractId}`);
         return false;
@@ -483,7 +475,7 @@ export class CommonFillValidation {
       return true;
     });
 
-    console.log(`[CommonFillValidation] ИСПРАВЛЕНО: Schedule tab StaffRecords filtering result с правильными границами: ${result.records.length} total → ${filteredRecords.length} filtered`);
+    console.log(`[CommonFillValidation] ИСПРАВЛЕНО: Schedule tab StaffRecords filtering result с UTC границами: ${result.records.length} total → ${filteredRecords.length} filtered`);
 
     return filteredRecords;
   }

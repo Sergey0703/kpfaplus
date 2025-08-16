@@ -403,12 +403,12 @@ export class CommonFillRecords {
     console.log(`[CommonFillRecords] Start time: ${template.startTime} → ${adjustedStartTime.hours}:${adjustedStartTime.minutes}`);
     console.log(`[CommonFillRecords] End time: ${template.endTime} → ${adjustedEndTime.hours}:${adjustedEndTime.minutes}`);
 
-    // *** UPDATED: Create Date-only Date object for StaffRecords.Date field ***
-    const dateOnlyForStaffRecords = this.dateUtils.createDateOnlyFromDate(date);
+    // *** ИСПРАВЛЕНО: Создаем правильную UTC-дату для поля StaffRecords.Date ***
+    const dateForSharePoint = this.dateUtils.createUTCDateOnly(date);
 
     const record: Partial<IStaffRecord> = {
       Title: `Template=${contract.id} Week=${template.NumberOfWeek} Shift=${template.NumberOfShift}`,
-      Date: dateOnlyForStaffRecords, // *** UPDATED: Date-only Date object for StaffRecords.Date field ***
+      Date: dateForSharePoint, // <-- ПРАВИЛЬНО: используется дата, приведенная к полуночи по UTC
       
       // *** CORRECT: ONLY NUMERIC TIME FIELDS WITH DATEUTILS ADJUSTMENT ***
       ShiftDate1Hours: adjustedStartTime.hours,
