@@ -345,10 +345,12 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
         forceReload
       });
 
-      // *** ОБНОВЛЕНО v5.0: Получаем date-only границы месяца ***
-      const monthBoundaries = createMonthBoundariesForHolidays(state.selectedDate);
-      const startOfMonth = monthBoundaries.startOfMonth;
-      const endOfMonth = monthBoundaries.endOfMonth;
+      // *** ИСПРАВЛЕНО: Создаем границы месяца как полночь по UTC для надежного запроса ***
+      const year = state.selectedDate.getFullYear();
+      const month = state.selectedDate.getMonth();
+
+      const startOfMonth = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
+      const endOfMonth = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
 
       const activeStaffMembers = staffMembers.filter(staffMember => {
         const isDeleted = staffMember.deleted === 1;
@@ -744,4 +746,4 @@ export const useTimetableLogic = (props: ITimetableLogicProps): {
     getLeaveTypeTitle,
     getLeaveTypeById
   };
-}; 
+};
