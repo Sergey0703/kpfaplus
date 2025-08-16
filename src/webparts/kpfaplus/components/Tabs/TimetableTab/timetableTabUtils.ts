@@ -393,19 +393,21 @@ export function formatDayCellWithMarkers(dayData: IDayInfo | undefined, typesOfL
         dayData.formattedContent !== '' &&
         dayData.formattedContent !== '-') {
       
-      // *** НОВОЕ v5.0: Проверяем если это ID типа отпуска (Type 2, Type 13 и т.д.) ***
+      // *** ИСПРАВЛЕНО v5.0: Правильно извлекаем ID из строки "Type 13" ***
       if (dayData.formattedContent.startsWith('Type ')) {
         console.log(`[formatDayCellWithMarkers] v5.0: Found leave type ID in formattedContent: ${dayData.formattedContent} - converting to name`);
         
-        // Пытаемся найти полное название по ID
-        const leaveTypeId = dayData.formattedContent;
-        const leaveType = typesOfLeave.find(lt => lt.id === leaveTypeId);
+        // ИЗВЛЕКАЕМ ЧИСТЫЙ ID ("13" из "Type 13")
+        const leaveTypeId = dayData.formattedContent.replace('Type ', '').trim();
+        
+        // ИЩЕМ ПО ЧИСТОМУ ID
+        const leaveType = typesOfLeave.find(lt => lt.id === leaveTypeId); 
         if (leaveType && leaveType.title) {
           console.log(`[formatDayCellWithMarkers] v5.0: SUCCESS: Converted ID to name: ${leaveTypeId} → ${leaveType.title}`);
-          return leaveType.title;
+          return leaveType.title; // Возвращаем полное название
         } else {
           console.log(`[formatDayCellWithMarkers] v5.0: WARNING: Could not find name for ID: ${leaveTypeId}`);
-          return dayData.formattedContent; // Возвращаем ID если название не найдено
+          return dayData.formattedContent; // Возвращаем "Type 13" как fallback
         }
       } else {
         // Уже содержит правильное название

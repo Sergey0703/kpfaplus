@@ -353,39 +353,47 @@ export const TimetableWeekGroupContent: React.FC<IWeekGroupContentPropsExtended>
                         }
                       }
                     }
-
-                    // Показываем правильное содержимое смены
-                    let shiftContent = shift.formattedShift;
                     
-                    // Если смена показывает время 00:00-00:00, заменяем на название отпуска/праздника
-                    if (shift.formattedShift === "00:00-00:00(0:00)" || 
-                        (shift.formattedShift.includes("00:00-00:00") && shift.workMinutes === 0)) {
-                      if (shift.isHoliday) {
-                        shiftContent = 'Holiday';
-                      } else if (shift.typeOfLeaveId) {
-                        shiftContent = getLeaveTypeName(shift.typeOfLeaveId);
-                      }
+                    // --- НАЧАЛО ИСПРАВЛЕННОГО БЛОКА ---
+                    const timeAndDuration = shift.formattedShift;
+                    let markerText: string | null = null;
+
+                    // Определяем текст отметки
+                    if (shift.isHoliday) {
+                        markerText = '[Holiday]';
+                    } else if (shift.typeOfLeaveId) {
+                        const leaveTypeTitle = getLeaveTypeName(shift.typeOfLeaveId);
+                        markerText = `[${leaveTypeTitle}]`;
                     }
-                    // Для обычных смен с рабочим временем, но с типом отпуска
-                    else if (shift.typeOfLeaveId && shift.formattedShift.includes('(')) {
-                      const timeAndDuration = shift.formattedShift;
-                      const leaveTypeTitle = getLeaveTypeName(shift.typeOfLeaveId);
-                      
-                      if (shift.isHoliday) {
-                        shiftContent = `${timeAndDuration} [Holiday]`;
-                      } else {
-                        shiftContent = `${timeAndDuration} [${leaveTypeTitle}]`;
-                      }
-                    }
+
+                    // Проверяем, является ли это сменой 00:00-00:00, которую не нужно отображать
+                    const isZeroTimeShift = shift.formattedShift.includes("00:00-00:00") && shift.workMinutes === 0;
 
                     return (
                       <div 
                         key={`${staffRowWithKey.uniqueKey}-day${dayNumber}-shift${shiftIndex}`} 
                         style={shiftTextStyle}
                       >
-                        {shiftContent}
+                        {/* Отображаем рабочее время, только если это не пустая смена 00:00 */}
+                        {!isZeroTimeShift && (
+                          <span>{timeAndDuration}</span>
+                        )}
+
+                        {/* Отображаем отметку на новой строке, если она есть */}
+                        {markerText && (
+                          <div style={{
+                            marginTop: '4px',
+                            fontSize: '10px',
+                            fontWeight: 'normal',
+                            // Принудительно задаем темный цвет, чтобы текст всегда был виден
+                            color: '#323130' 
+                          }}>
+                            {markerText}
+                          </div>
+                        )}
                       </div>
                     );
+                    // --- КОНЕЦ ИСПРАВЛЕННОГО БЛОКА ---
                   })
                 ) : (
                   // DAY WITHOUT SHIFTS - показываем полное название типа отпуска
