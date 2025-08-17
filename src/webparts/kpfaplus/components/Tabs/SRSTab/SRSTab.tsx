@@ -365,85 +365,16 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       padding: '0',
       position: 'relative'
     }}>
-      {/* Заголовок с информацией о праздниках из списка Date-only, функциях удаления и showDeleted */}
+      {/* --- НАЧАЛО ИЗМЕНЕНИЯ --- */}
+      {/* Заголовок теперь содержит только имя сотрудника */}
       <div style={{
         fontSize: '16px',
         fontWeight: '600',
         marginBottom: '20px'
       }}>
         SRS for {selectedStaff.name}
-        
-        {/* Индикатор загрузки типов отпусков */}
-        {srsLogic.isLoadingTypesOfLeave && (
-          <span style={{
-            fontSize: '12px',
-            color: '#666',
-            marginLeft: '10px'
-          }}>
-            (Loading types of leave...)
-          </span>
-        )}
-        
-        {/* Индикатор загрузки праздников */}
-        {srsLogic.isLoadingHolidays && (
-          <span style={{
-            fontSize: '12px',
-            color: '#666',
-            marginLeft: '10px'
-          }}>
-            (Loading holidays from list Date-only...)
-          </span>
-        )}
-        
-        {/* Информация о доступных данных */}
-        {srsLogic.typesOfLeave.length > 0 && !srsLogic.isLoadingTypesOfLeave && (
-          <span style={{
-            fontSize: '12px',
-            color: '#107c10',
-            marginLeft: '10px'
-          }}>
-            ({srsLogic.typesOfLeave.length} types of leave available)
-          </span>
-        )}
-        
-        {/* *** ОБНОВЛЕНО: Информация о праздниках из списка Date-only *** */}
-        {srsLogic.holidays.length > 0 && !srsLogic.isLoadingHolidays && (
-          <span style={{
-            fontSize: '12px',
-            color: '#ff69b4',
-            marginLeft: '10px'
-          }}>
-            ({srsLogic.holidays.length} holidays from list Date-only)
-          </span>
-        )}
-
-        {/* *** НОВОЕ: Информация о функциях удаления *** */}
-        <span style={{
-          fontSize: '12px',
-          color: '#0078d4',
-          marginLeft: '10px'
-        }}>
-          (Delete/Restore via StaffRecordsService)
-        </span>
-
-        {/* *** ИСПРАВЛЕНО: Информация о showDeleted фильтре из srsLogic *** */}
-        <span style={{
-          fontSize: '12px',
-          color: srsLogic.showDeleted ? '#d83b01' : '#107c10',
-          marginLeft: '10px'
-        }}>
-          ({srsLogic.showDeleted ? 'Including deleted records' : 'Active records only'})
-        </span>
-
-        {/* *** НОВОЕ: Информация о real-time архитектуре и праздниках Date-only *** */}
-        <span style={{
-          fontSize: '12px',
-          color: '#107c10',
-          marginLeft: '10px'
-        }}>
-          (Real-time Total Hours, Holidays from List Date-only)
-        </span>
       </div>
+      {/* --- КОНЕЦ ИЗМЕНЕНИЯ --- */}
       
       {/* Отображение ошибок загрузки (включая праздники) */}
       {srsLogic.errorSRS && (
