@@ -2,7 +2,8 @@
 
 import * as React from 'react';
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { Spinner, SpinnerSize, Toggle, Text } from '@fluentui/react';
+// ИСПРАВЛЕНО: 'Text' удален из импорта, так как он больше не используется
+import { Spinner, SpinnerSize, Toggle } from '@fluentui/react';
 import { ISRSTableProps, ISRSRecord } from '../utils/SRSTabInterfaces';
 import { SRSTableRow } from './SRSTableRow';
 import { 
@@ -646,22 +647,7 @@ export const SRSTable: React.FC<ISRSTableProps & {
     }).length;
   };
 
-  // *** ИСПРАВЛЕНО: Функция статистики записей для заголовка ***
-  const getRecordsStatistics = (): {
-    total: number;
-    active: number;
-    deleted: number;
-    visible: number;
-  } => {
-    const total = items.length;
-    const deleted = items.filter(item => item.deleted === true).length;
-    const active = total - deleted;
-    const visible = showDeleted ? total : active;
-    
-    return { total, active, deleted, visible };
-  };
-
-  const recordsStats = getRecordsStatistics();
+  // ИСПРАВЛЕНО: Функция `getRecordsStatistics` удалена, так как переменная `recordsStats` больше не используется
 
   if (isLoading) {
     return (
@@ -719,46 +705,10 @@ export const SRSTable: React.FC<ISRSTableProps & {
                 label: { fontSize: '14px', fontWeight: '600' }
               }}
             />
-            
-            {/* *** ИСПРАВЛЕНО: Статистика записей с учетом обязательного showDeleted *** */}
-            <Text variant="medium" style={{ color: '#666', fontSize: '13px' }}>
-              Showing {recordsStats.visible} of {recordsStats.total} records
-              {recordsStats.deleted > 0 && (
-                <span style={{ color: showDeleted ? '#d83b01' : '#666', marginLeft: '5px' }}>
-                  ({recordsStats.active} active, {recordsStats.deleted} deleted)
-                </span>
-              )}
-            </Text>
-
-            {/* *** НОВОЕ: Показываем текущее вычисленное Total Hours для отладки *** */}
-            <Text style={{ fontSize: '12px', color: '#0078d4', fontWeight: '600' }}>
-              Real-time Total: {calculateCurrentTotalHours}
-            </Text>
           </div>
+          
+          {/* Блок с информацией был полностью удален */}
 
-          {/* Информация о типах отпусков, праздниках и новом функционале +Shift */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '15px', fontSize: '12px', color: '#666' }}>
-            {options.leaveTypes && options.leaveTypes.length > 1 && (
-              <Text style={{ fontSize: '12px', color: '#107c10' }}>
-                {options.leaveTypes.length - 1} types of leave available
-              </Text>
-            )}
-            
-            {/* *** НОВОЕ: Информация о праздниках из списка Date-only *** */}
-            {holidays.length > 0 && (
-              <Text style={{ fontSize: '12px', color: '#ff69b4' }}>
-                {holidays.length} holidays from list (Date-only)
-              </Text>
-            )}
-            
-            <Text style={{ fontSize: '12px', color: '#0078d4' }}>
-              Delete/Restore via StaffRecordsService
-            </Text>
-            {/* *** ИСПРАВЛЕНО: Информация о функционале добавления смены без Holiday проверки *** */}
-            <Text style={{ fontSize: '12px', color: '#107c10' }}>
-              +Shift: Add new SRS record (no Holiday checks, Date-only)
-            </Text>
-          </div>
         </div>
 
         <table style={{ 

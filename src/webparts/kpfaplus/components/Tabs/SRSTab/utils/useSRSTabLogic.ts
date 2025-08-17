@@ -611,7 +611,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     }
   }, [context, refreshSRSData, restoreOperations, setState]);
   // ===============================================
-  // ОБРАБОТЧИКИ ИЗМЕНЕНИЯ ДАТ (уже используют SRSDateUtils корректно)
+  // ОБРАБОТЧИКИ ИЗМЕНЕНИЯ ДАТ (ИСПРАВЛЕННАЯ ЛОГИКА)
   // ===============================================
 
   const handleFromDateChange = useCallback((date: Date | undefined): void => {
@@ -629,28 +629,23 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       display: SRSDateUtils.formatDateForDisplay(normalizedFromDate)
     });
 
-    const shouldUpdateTo = SRSDateUtils.shouldUpdateToDate(normalizedFromDate, state.toDate);
+    // *** ИСПРАВЛЕНО: Убираем условную логику. Всегда вычисляем новую дату окончания. ***
+    // Теперь toDate всегда будет на 6 дней позже, чем fromDate, создавая недельный диапазон.
+    const newToDate = SRSDateUtils.getWeekEndAfterDate(normalizedFromDate);
+    console.log('[useSRSTabLogic] Always auto-updating toDate for a 7-day range (Date-only):', {
+      newToDate: newToDate.toISOString(),
+      display: SRSDateUtils.formatDateForDisplay(newToDate)
+    });
     
-    if (shouldUpdateTo) {
-      const newToDate = SRSDateUtils.getWeekEndAfterDate(normalizedFromDate);
-      console.log('[useSRSTabLogic] Auto-updating toDate (Date-only):', {
-        newToDate: newToDate.toISOString(),
-        display: SRSDateUtils.formatDateForDisplay(newToDate)
-      });
-      
-      SRSTabStateHelpers.updateDates(setState, normalizedFromDate, newToDate);
-    } else {
-      console.log('[useSRSTabLogic] Keeping current toDate, only updating fromDate');
-      SRSTabStateHelpers.updateDates(setState, normalizedFromDate, state.toDate);
-    }
+    SRSTabStateHelpers.updateDates(setState, normalizedFromDate, newToDate);
 
     setModifiedRecords(new Map());
     SRSTabStateHelpers.setHasUnsavedChanges(setState, false);
     setAddShiftOperations(new Map());
 
-    // *** ИСПРАВЛЕНО: Праздники загрузятся автоматически через useEffect ***
+    // Праздники загрузятся автоматически через useEffect
     console.log('[useSRSTabLogic] Date changed - holidays will reload automatically via useEffect (Date-only format)');
-  }, [state.toDate, setState]);
+  }, [setState]);
 
   const handleToDateChange = useCallback((date: Date | undefined): void => {
     console.log('[useSRSTabLogic] handleToDateChange called with Date-only format:', date?.toISOString());
@@ -660,27 +655,28 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       return;
     }
 
-    const normalizedToDate = SRSDateUtils.calculateWeekRange(date).end;
-    console.log('[useSRSTabLogic] Normalized toDate (Date-only):', {
+    // *** ИСПРАВЛЕНО: Используем дату, выбранную пользователем, просто нормализуя ее. ***
+    // Мы больше не "округляем" ее до конца недели.
+    const normalizedToDate = SRSDateUtils.normalizeDateToLocalMidnight(date);
+    console.log('[useSRSTabLogic] Normalized toDate (respecting user choice):', {
       original: date.toISOString(),
       normalized: normalizedToDate.toISOString(),
       display: SRSDateUtils.formatDateForDisplay(normalizedToDate)
     });
 
     if (normalizedToDate < state.fromDate) {
-      console.warn('[useSRSTabLogic] toDate cannot be before fromDate, adjusting fromDate (Date-only)');
-      
-      const newFromDate = SRSDateUtils.calculateWeekRange(normalizedToDate).start;
-      SRSTabStateHelpers.updateDates(setState, newFromDate, normalizedToDate);
-    } else {
-      SRSTabStateHelpers.updateDates(setState, state.fromDate, normalizedToDate);
+      console.warn('[useSRSTabLogic] toDate cannot be before fromDate, ignoring change');
+      // Просто выходим, не меняя дату, чтобы избежать некорректного диапазона
+      return;
     }
+    
+    SRSTabStateHelpers.updateDates(setState, state.fromDate, normalizedToDate);
 
     setModifiedRecords(new Map());
     SRSTabStateHelpers.setHasUnsavedChanges(setState, false);
     setAddShiftOperations(new Map());
 
-    // *** ИСПРАВЛЕНО: Праздники загрузятся автоматически через useEffect ***
+    // Праздники загрузятся автоматически через useEffect
     console.log('[useSRSTabLogic] Date changed - holidays will reload automatically via useEffect (Date-only format)');
   }, [state.fromDate, setState]);
 

@@ -365,8 +365,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       padding: '0',
       position: 'relative'
     }}>
-      {/* --- НАЧАЛО ИЗМЕНЕНИЯ --- */}
-      {/* Заголовок теперь содержит только имя сотрудника */}
+      {/* Заголовок */}
       <div style={{
         fontSize: '16px',
         fontWeight: '600',
@@ -374,7 +373,6 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       }}>
         SRS for {selectedStaff.name}
       </div>
-      {/* --- КОНЕЦ ИЗМЕНЕНИЯ --- */}
       
       {/* Отображение ошибок загрузки (включая праздники) */}
       {srsLogic.errorSRS && (
