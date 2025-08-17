@@ -127,7 +127,12 @@ export const useHolidays = (props: UseHolidaysProps): UseHolidaysReturn => {
 
         try {
           console.log(`[SRS useHolidays] Loading holidays for ${monthYear.month}/${monthYear.year} (sequential)`);
-          const monthDate = new Date(monthYear.year, monthYear.month - 1, 1);
+          
+          // --- НАЧАЛО ИЗМЕНЕНИЯ ---
+          // ИСПРАВЛЕНО: Создаем дату как полночь по UTC, чтобы избежать смещения часового пояса
+          const monthDate = new Date(Date.UTC(monthYear.year, monthYear.month - 1, 1));
+          // --- КОНЕЦ ИЗМЕНЕНИЯ ---
+
           const monthHolidays = await holidaysService.getHolidaysByMonthAndYear(monthDate);
           
           // *** ИСПРАВЛЕНО: Простое добавление результатов ***

@@ -497,21 +497,22 @@ export class SRSDateUtils {
       throw new Error('Both fromDate and toDate are required for SharePoint range bounds');
     }
 
-    // Начало диапазона: UTC midnight начальной даты
+    // --- НАЧАЛО ИЗМЕНЕНИЯ ---
+    // ИСПРАВЛЕНО: Используем UTC-методы для большей надежности
     const startBound = new Date(Date.UTC(
-      fromDate.getFullYear(),
-      fromDate.getMonth(),
-      fromDate.getDate(),
+      fromDate.getUTCFullYear(),
+      fromDate.getUTCMonth(),
+      fromDate.getUTCDate(),
       0, 0, 0, 0
     ));
 
-    // Конец диапазона: UTC конец дня конечной даты
     const endBound = new Date(Date.UTC(
-      toDate.getFullYear(),
-      toDate.getMonth(),
-      toDate.getDate(),
+      toDate.getUTCFullYear(),
+      toDate.getUTCMonth(),
+      toDate.getUTCDate(),
       23, 59, 59, 999
     ));
+    // --- КОНЕЦ ИЗМЕНЕНИЯ ---
 
     const startBoundFormatted = SRSDateUtils.formatDateForSharePoint(fromDate);
     const endBoundFormatted = SRSDateUtils.formatDateForSharePoint(toDate);

@@ -27,7 +27,12 @@ interface IUseLeavesDataReturn {
   createLeave: (leave: Omit<ILeaveDay, 'id'>) => Promise<string | undefined>;
 }
 
-// НОВАЯ ФУНКЦИЯ: Нормализация даты для работы с Date-only
+// *** ПРАВИЛЬНАЯ ФУНКЦИЯ: Создает объект Date, представляющий полночь по UTC ***
+const createUTCDateOnly = (date: Date): Date => {
+  return new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+};
+
+// НОВАЯ ФУНКЦИЯ: Нормализация даты для работы с Date-only (для локальных операций)
 const normalizeDateForDateOnly = (date: Date): Date => {
   // Создаем новую дату с теми же компонентами, но без времени
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -83,11 +88,11 @@ export const useLeavesData = (props: IUseLeavesDataProps): IUseLeavesDataReturn 
           periodEnd: selectedPeriodEnd.toLocaleDateString()
         });
 
-        // ОБНОВЛЕНО: Нормализуем даты для Date-only формата перед отправкой в сервис
-        const normalizedStartDate = normalizeDateForDateOnly(selectedPeriodStart);
+        // ИСПРАВЛЕНО: Используем UTC-дату для запроса к SharePoint
+        const utcStartDate = createUTCDateOnly(selectedPeriodStart);
         
         const leavesData = await daysOfLeavesService.getLeavesForMonthAndYear(
-          normalizedStartDate,
+          utcStartDate,
           parseInt(selectedStaff.employeeId, 10),
           parseInt(currentUserId, 10),
           parseInt(managingGroupId, 10)
@@ -202,7 +207,7 @@ export const useLeavesData = (props: IUseLeavesDataProps): IUseLeavesDataReturn 
     }
   }, [daysOfLeavesService]);
 
-  // ОБНОВЛЕНО: Функция для сохранения изменений отпуска с Date-only обработкой
+  // ИСПРАВЛЕНО: Функция для сохранения изменений отпуска с UTC-датами
   const saveLeave = useCallback(async (leave: Partial<ILeaveDay>): Promise<boolean> => {
     if (!daysOfLeavesService || !leave.id) {
       console.error('[useLeavesData] DaysOfLeavesService not available or leave ID missing for save');
@@ -212,32 +217,32 @@ export const useLeavesData = (props: IUseLeavesDataProps): IUseLeavesDataReturn 
     console.log('[useLeavesData] Saving leave:', leave.id);
 
     try {
-      // ОБНОВЛЕНО: Нормализуем даты в данных для сохранения
-      const normalizedLeave = { ...leave };
+      // ИСПРАВЛЕНО: Нормализуем даты в UTC для отправки в SharePoint
+      const utcLeaveData = { ...leave };
       
-      if (normalizedLeave.startDate) {
-        normalizedLeave.startDate = normalizeDateForDateOnly(normalizedLeave.startDate);
+      if (utcLeaveData.startDate) {
+        utcLeaveData.startDate = createUTCDateOnly(utcLeaveData.startDate);
       }
       
-      if (normalizedLeave.endDate) {
-        normalizedLeave.endDate = normalizeDateForDateOnly(normalizedLeave.endDate);
+      if (utcLeaveData.endDate) {
+        utcLeaveData.endDate = createUTCDateOnly(utcLeaveData.endDate);
       }
       
       // Используем реальный метод updateLeave из DaysOfLeavesService
-      const success = await daysOfLeavesService.updateLeave(leave.id, normalizedLeave);
+      const success = await daysOfLeavesService.updateLeave(leave.id, utcLeaveData);
       
       if (success) {
         console.log('[useLeavesData] Leave saved successfully, updating local state');
         
-        // ОБНОВЛЕНО: Обновляем локальное состояние с нормализованными датами
+        // ОБНОВЛЕНО: Обновляем локальное состояние с локальными (нормализованными) датами
         setLeaves(prev => prev.map(existingLeave => 
           existingLeave.id === leave.id 
             ? { 
                 ...existingLeave, 
-                ...normalizedLeave,
-                // Убеждаемся, что даты нормализованы в локальном состоянии
-                startDate: normalizedLeave.startDate ? normalizeDateForDateOnly(normalizedLeave.startDate) : existingLeave.startDate,
-                endDate: normalizedLeave.endDate ? normalizeDateForDateOnly(normalizedLeave.endDate) : existingLeave.endDate
+                ...leave,
+                // Убеждаемся, что даты в локальном состоянии нормализованы
+                startDate: leave.startDate ? normalizeDateForDateOnly(leave.startDate) : existingLeave.startDate,
+                endDate: leave.endDate ? normalizeDateForDateOnly(leave.endDate) : existingLeave.endDate
               }
             : existingLeave
         ));
@@ -254,7 +259,7 @@ export const useLeavesData = (props: IUseLeavesDataProps): IUseLeavesDataReturn 
     }
   }, [daysOfLeavesService]);
 
-  // ОБНОВЛЕНО: Функция для создания нового отпуска с Date-only обработкой
+  // ИСПРАВЛЕНО: Функция для создания нового отпуска с UTC-датами
   const createLeave = useCallback(async (leave: Omit<ILeaveDay, 'id'>): Promise<string | undefined> => {
     if (!daysOfLeavesService) {
       console.error('[useLeavesData] DaysOfLeavesService not available for create');
@@ -264,37 +269,37 @@ export const useLeavesData = (props: IUseLeavesDataProps): IUseLeavesDataReturn 
     console.log('[useLeavesData] Creating new leave');
 
     try {
-      // ОБНОВЛЕНО: Нормализуем даты для Date-only формата
-      const normalizedLeave = { ...leave };
+      // ИСПРАВЛЕНО: Нормализуем даты в UTC для отправки в SharePoint
+      const utcLeaveData = { ...leave };
       
-      // Обязательная нормализация даты начала
-      normalizedLeave.startDate = normalizeDateForDateOnly(leave.startDate);
+      // Обязательная нормализация даты начала в UTC
+      utcLeaveData.startDate = createUTCDateOnly(leave.startDate);
       
-      // Нормализация даты окончания, если она есть
-      if (normalizedLeave.endDate) {
-        normalizedLeave.endDate = normalizeDateForDateOnly(normalizedLeave.endDate);
+      // Нормализация даты окончания в UTC, если она есть
+      if (utcLeaveData.endDate) {
+        utcLeaveData.endDate = createUTCDateOnly(utcLeaveData.endDate);
       }
       
-      console.log('[useLeavesData] Creating leave with normalized dates:', {
-        startDate: normalizedLeave.startDate.toLocaleDateString(),
-        endDate: normalizedLeave.endDate ? normalizedLeave.endDate.toLocaleDateString() : 'undefined'
+      console.log('[useLeavesData] Creating leave with UTC dates:', {
+        startDate: utcLeaveData.startDate.toISOString(),
+        endDate: utcLeaveData.endDate ? utcLeaveData.endDate.toISOString() : 'undefined'
       });
       
       // Используем реальный метод createLeave из DaysOfLeavesService
-      const newLeaveId = await daysOfLeavesService.createLeave(normalizedLeave);
+      const newLeaveId = await daysOfLeavesService.createLeave(utcLeaveData);
       
       if (newLeaveId) {
         console.log('[useLeavesData] New leave created successfully with ID:', newLeaveId);
         
-        // ОБНОВЛЕНО: Создаём полный объект нового отпуска для локального состояния с нормализованными датами
+        // ОБНОВЛЕНО: Создаём полный объект нового отпуска для локального состояния с локальными (нормализованными) датами
         const newLeave: ILeaveDay = {
-          ...normalizedLeave,
+          ...leave,
           id: newLeaveId,
           created: new Date(),
           createdBy: 'Current User', // Можно улучшить, передав реального пользователя
-          // Убеждаемся, что даты нормализованы
-          startDate: normalizeDateForDateOnly(normalizedLeave.startDate),
-          endDate: normalizedLeave.endDate ? normalizeDateForDateOnly(normalizedLeave.endDate) : undefined
+          // Убеждаемся, что даты в локальном состоянии нормализованы
+          startDate: normalizeDateForDateOnly(leave.startDate),
+          endDate: leave.endDate ? normalizeDateForDateOnly(leave.endDate) : undefined
         };
         
         // Обновляем локальное состояние
