@@ -9,6 +9,81 @@ import { SRSReportsTable } from './components/SRSReportsTable';
 import { SRSReportsExcelExporter } from './utils/SRSReportsExcelExporter';
 import { ISRSReportData } from './interfaces/ISRSReportsInterfaces';
 
+// NEW: Helper functions for date persistence, adapted from LeavesTabContent.tsx
+
+const getFirstDayOfCurrentMonth = (): Date => {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), 1);
+};
+
+const getLastDayOfCurrentMonth = (): Date => {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth() + 1, 0);
+};
+
+// NEW: Normalize date to strip time component, preventing timezone issues.
+const normalizeDateForDateOnly = (date: Date): Date => {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+};
+
+// NEW: Format date for storage in a safe YYYY-MM-DD format.
+const formatDateForStorage = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const day = date.getDate().toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// NEW: Parse date from storage, expecting YYYY-MM-DD format.
+const parseDateFromStorage = (dateString: string): Date | undefined => {
+  try {
+    const [year, month, day] = dateString.split('-').map(part => parseInt(part, 10));
+    if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+      // month in Date is 0-based, so subtract 1
+      return new Date(year, month - 1, day);
+    }
+    return undefined;
+  } catch (error) {
+    console.warn('[SRSReportsTab] Error parsing date from storage:', error);
+    return undefined;
+  }
+};
+
+// NEW: Get the saved start date from sessionStorage.
+const getSavedPeriodStart = (): Date => {
+  try {
+    // Using a unique key for SRS Reports Tab
+    const savedDate = sessionStorage.getItem('srsReportsTab_periodStart');
+    if (savedDate) {
+      const parsedDate = parseDateFromStorage(savedDate);
+      if (parsedDate) {
+        return parsedDate;
+      }
+    }
+  } catch (error) {
+    console.warn('[SRSReportsTab] Error reading saved start date:', error);
+  }
+  return getFirstDayOfCurrentMonth();
+};
+
+// NEW: Get the saved end date from sessionStorage.
+const getSavedPeriodEnd = (): Date => {
+  try {
+    // Using a unique key for SRS Reports Tab
+    const savedDate = sessionStorage.getItem('srsReportsTab_periodEnd');
+    if (savedDate) {
+      const parsedDate = parseDateFromStorage(savedDate);
+      if (parsedDate) {
+        return parsedDate;
+      }
+    }
+  } catch (error) {
+    console.warn('[SRSReportsTab] Error reading saved end date:', error);
+  }
+  return getLastDayOfCurrentMonth();
+};
+
+
 export const SRSReportsTab: React.FC<ITabProps> = (props) => {
   const { selectedStaff, context } = props;
 
@@ -35,19 +110,10 @@ export const SRSReportsTab: React.FC<ITabProps> = (props) => {
     }
     return undefined;
   }, [context]);
-
-  // Функция для получения первого и последнего дня текущего месяца
-  const getCurrentMonthDates = (): { firstDay: Date; lastDay: Date } => {
-    const now = new Date();
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    return { firstDay, lastDay };
-  };
-
-  // Состояния для фильтров
-  const { firstDay, lastDay } = getCurrentMonthDates();
-  const [selectedPeriodStart, setSelectedPeriodStart] = useState<Date>(firstDay);
-  const [selectedPeriodEnd, setSelectedPeriodEnd] = useState<Date>(lastDay);
+  
+  // UPDATED: States for filters now initialize from sessionStorage
+  const [selectedPeriodStart, setSelectedPeriodStart] = useState<Date>(getSavedPeriodStart());
+  const [selectedPeriodEnd, setSelectedPeriodEnd] = useState<Date>(getSavedPeriodEnd());
   const [selectedStaffId, setSelectedStaffId] = useState<string>(selectedStaff?.id || '');
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('1'); // По умолчанию Annual Leave (ID=1)
   const [typesOfLeave, setTypesOfLeave] = useState<ITypeOfLeave[]>([]);
@@ -154,23 +220,50 @@ export const SRSReportsTab: React.FC<ITabProps> = (props) => {
     firstFewOptions: staffOptions.slice(0, 3)
   });
 
-  // Обработчики для фильтров
+  // UPDATED: Handlers for filters with sessionStorage logic
   const handlePeriodStartChange = (date: Date | null | undefined): void => {
     if (date) {
-      console.log('[SRSReportsTab] Period start changed:', formatDate(date));
-      setSelectedPeriodStart(date);
+      const normalizedStartDate = normalizeDateForDateOnly(date);
+      console.log('[SRSReportsTab] Period start changed:', formatDate(normalizedStartDate));
+
+      // Save start date to storage
+      try {
+        const dateForStorage = formatDateForStorage(normalizedStartDate);
+        sessionStorage.setItem('srsReportsTab_periodStart', dateForStorage);
+      } catch (error) {
+        console.warn('[SRSReportsTab] Error saving period start to sessionStorage:', error);
+      }
+      setSelectedPeriodStart(normalizedStartDate);
       
-      // Автоматически устанавливаем конец периода как последний день того же месяца
-      const lastDayOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-      console.log('[SRSReportsTab] Auto-setting end date to last day of month:', formatDate(lastDayOfMonth));
-      setSelectedPeriodEnd(lastDayOfMonth);
+      // Automatically set end period to the last day of the same month
+      const lastDayOfMonth = new Date(normalizedStartDate.getFullYear(), normalizedStartDate.getMonth() + 1, 0);
+      const normalizedEndDate = normalizeDateForDateOnly(lastDayOfMonth);
+      console.log('[SRSReportsTab] Auto-setting end date to last day of month:', formatDate(normalizedEndDate));
+      
+      // Save auto-set end date to storage as well
+      try {
+        const dateForStorage = formatDateForStorage(normalizedEndDate);
+        sessionStorage.setItem('srsReportsTab_periodEnd', dateForStorage);
+      } catch (error) {
+        console.warn('[SRSReportsTab] Error saving auto-set period end to sessionStorage:', error);
+      }
+      setSelectedPeriodEnd(normalizedEndDate);
     }
   };
 
   const handlePeriodEndChange = (date: Date | null | undefined): void => {
     if (date) {
-      console.log('[SRSReportsTab] Period end changed:', formatDate(date));
-      setSelectedPeriodEnd(date);
+      const normalizedEndDate = normalizeDateForDateOnly(date);
+      console.log('[SRSReportsTab] Period end changed:', formatDate(normalizedEndDate));
+      
+      // Save end date to storage
+      try {
+        const dateForStorage = formatDateForStorage(normalizedEndDate);
+        sessionStorage.setItem('srsReportsTab_periodEnd', dateForStorage);
+      } catch (error) {
+        console.warn('[SRSReportsTab] Error saving period end to sessionStorage:', error);
+      }
+      setSelectedPeriodEnd(normalizedEndDate);
     }
   };
 
