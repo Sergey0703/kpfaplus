@@ -12,10 +12,14 @@ import {
   MONTH_ORDER
 } from './interfaces/ISRSReportsInterfaces';
 
+// NEW: Import the reliable DateUtils for timezone-safe date comparison
+import { DateUtils } from './utils/DateUtils';
+
 /**
  * Сервис для группировки и обработки данных StaffRecords для SRS Reports
  * Преобразует записи отпусков в структурированные данные по месяцам
  * ОБНОВЛЕНО: Использует поле LeaveTime вместо вычислений
+ * ОБНОВЛЕНО: Использует DateUtils.isDateInRange для надежного сравнения дат
  */
 export class LeaveDataProcessor {
   private _logSource: string = "LeaveDataProcessor";
@@ -165,7 +169,9 @@ export class LeaveDataProcessor {
       }
 
       const recordDate = new Date(record.Date);
-      if (!MonthUtils.isDateInPeriod(recordDate, params.periodStart, params.periodEnd)) {
+      
+      // UPDATED: Use the new reliable, timezone-safe utility for date comparison.
+      if (!DateUtils.isDateInRange(recordDate, params.periodStart, params.periodEnd)) {
         return false;
       }
 

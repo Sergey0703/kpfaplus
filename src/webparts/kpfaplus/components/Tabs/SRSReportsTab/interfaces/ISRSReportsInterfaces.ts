@@ -366,9 +366,11 @@ export class MonthUtils {
   }
 
   /**
-   * Проверяет, входит ли дата в указанный период
+   * REMOVED: isDateInPeriod was unreliable due to timezone issues.
+   * Please use the new `DateUtils.isDateInRange()` from `utils/DateUtils.ts` for all
+   * date range checks to ensure timezone-safe, normalized comparisons.
    */
-  static isDateInPeriod(date: Date, periodStart: Date, periodEnd: Date): boolean {
-    return date >= periodStart && date <= periodEnd;
-  }
+  // static isDateInPeriod(date: Date, periodStart: Date, periodEnd: Date): boolean {
+  //   return date >= periodStart && date <= periodEnd;
+  // }
 }
