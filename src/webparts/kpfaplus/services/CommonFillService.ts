@@ -415,7 +415,25 @@ export class CommonFillService {
     CommonFillService.instance = undefined as unknown as CommonFillService;
   }
 
-  public getServiceInfo() {
+  public getServiceInfo(): {
+    version: string;
+    context: boolean;
+    services: {
+      contracts: boolean;
+      scheduleLogs: boolean;
+      validation: boolean;
+      generation: boolean;
+    };
+    modules: {
+      validation: boolean;
+      autoFill: boolean;
+      logging: boolean;
+    };
+    dateOnlySupport: boolean;
+    autoFillSupport: boolean;
+    detailedLoggingSupport: boolean;
+    features: string[];
+  } {
     return {
       version: '7.3.0-fixed-detailed-logging-transfer',
       context: !!this.webPartContext,

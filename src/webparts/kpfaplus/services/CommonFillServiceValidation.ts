@@ -652,9 +652,9 @@ export class CommonFillServiceValidation {
     return contractsAnalysis.activeContracts.length > 0;
   }
 
-  public async getFirstActiveContract(params: IFillParams): Promise<IContract | null> {
+  public async getFirstActiveContract(params: IFillParams): Promise<IContract | undefined> {
     const contractsAnalysis = await this.performContractsAnalysis(params);
-    return contractsAnalysis.activeContracts.length > 0 ? contractsAnalysis.activeContracts[0] : null;
+    return contractsAnalysis.activeContracts.length > 0 ? contractsAnalysis.activeContracts[0] : undefined;
   }
 
   public getValidationServiceInfo(): {
