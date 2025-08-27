@@ -9,6 +9,7 @@ import { SRSDateUtils } from './SRSDateUtils';
  * ОБНОВЛЕНО: Поле Date теперь Date-only, ShiftDate1-4 больше не используются
  * Используется только числовые поля времени для ScheduleTab совместимости
  * Holiday поле больше не используется - праздники определяются из списка holidays (Date-only)
+ * *** НОВОЕ: Добавлена поддержка поля Checked для checkbox функциональности ***
  */
 export class SRSDataMapper {
 
@@ -17,7 +18,7 @@ export class SRSDataMapper {
    * ОБНОВЛЕНО: Date-only формат и только числовые поля времени
    */
   public static mapStaffRecordsToSRSRecords(staffRecords: IStaffRecord[]): ISRSRecord[] {
-    console.log('[SRSDataMapper] Converting', staffRecords.length, 'IStaffRecord to ISRSRecord with Date-only format');
+    console.log('[SRSDataMapper] Converting', staffRecords.length, 'IStaffRecord to ISRSRecord with Date-only format and Checkbox support');
     console.log('[SRSDataMapper] Using only numeric time fields, no ShiftDate1-4 support');
     
     return staffRecords.map((record, index) => {
@@ -33,10 +34,10 @@ export class SRSDataMapper {
 
   /**
    * Преобразует одну запись IStaffRecord в ISRSRecord
-   * ОБНОВЛЕНО: Date-only формат, только числовые поля времени, без Holiday поля
+   * ОБНОВЛЕНО: Date-only формат, только числовые поля времени, без Holiday поля, с полем Checked
    */
   private static mapSingleStaffRecordToSRS(record: IStaffRecord): ISRSRecord {
-    console.log(`[SRSDataMapper] *** MAPPING STAFF RECORD ${record.ID} TO SRS RECORD (Date-only format) ***`);
+    console.log(`[SRSDataMapper] *** MAPPING STAFF RECORD ${record.ID} TO SRS RECORD (Date-only format + Checkbox) ***`);
     console.log(`[SRSDataMapper] Record data:`, {
       ID: record.ID,
       Date: record.Date ? SRSDateUtils.formatDateForDisplay(record.Date) : 'No date',
@@ -45,6 +46,8 @@ export class SRSDataMapper {
       TypeOfLeave: record.TypeOfLeave,
       LeaveTime: record.LeaveTime,
       WorkTime: record.WorkTime,
+      // *** НОВОЕ: Логируем поле Checked из SharePoint (ожидается 0 или 1) ***
+      Checked: record.Checked,
       // Числовые поля времени
       ShiftDate1Hours: record.ShiftDate1Hours,
       ShiftDate1Minutes: record.ShiftDate1Minutes,
@@ -111,17 +114,19 @@ export class SRSDataMapper {
       contractCheck: true,
       status: status,
       srs: !!typeOfLeaveValue && typeOfLeaveValue !== '',
-      checked: false,
+      // *** НОВОЕ: Преобразуем числовое поле Checked (0/1) в boolean ***
+      checked: record.Checked === 1,
       deleted: record.Deleted === 1,
       Holiday: holidayValue // Всегда 0, так как праздники определяются из holidays list (Date-only)
     };
 
-    console.log(`[SRSDataMapper] *** MAPPED SRS RECORD (Date-only format) ***:`, {
+    console.log(`[SRSDataMapper] *** MAPPED SRS RECORD (Date-only format + Checkbox) ***:`, {
       id: srsRecord.id,
       date: SRSDateUtils.formatDateForDisplay(srsRecord.date),
       dateISO: srsRecord.date.toISOString(),
       startWork: `${srsRecord.startWork.hours}:${srsRecord.startWork.minutes}`,
       finishWork: `${srsRecord.finishWork.hours}:${srsRecord.finishWork.minutes}`,
+      checked: srsRecord.checked, // *** НОВОЕ: Логируем результат маппинга checkbox ***
       Holiday: srsRecord.Holiday,
       HolidayDeterminedBy: 'Holidays list (Date-only) in component, not StaffRecords field',
       dateFormat: 'Date-only (no time component)',
@@ -275,7 +280,7 @@ export class SRSDataMapper {
 
   /**
    * Создает пустую SRS запись в случае ошибки
-   * ОБНОВЛЕНО: Date-only формат, Holiday всегда 0
+   * ОБНОВЛЕНО: Date-only формат, Holiday всегда 0, checked по умолчанию false
    */
   private static createEmptySRSRecord(id: string): ISRSRecord {
     const emptyDate = new Date();
@@ -297,7 +302,7 @@ export class SRSDataMapper {
       contractCheck: false,
       status: 'none',
       srs: false,
-      checked: false,
+      checked: false, // *** НОВОЕ: По умолчанию false ***
       deleted: false,
       Holiday: 0 // Всегда 0 - определяется из списка праздников Date-only
     };
@@ -305,14 +310,16 @@ export class SRSDataMapper {
 
   /**
    * Преобразует ISRSRecord обратно в частичный IStaffRecord для сохранения
-   * ОБНОВЛЕНО: Date-only формат, числовые поля времени, без Holiday поля
+   * ОБНОВЛЕНО: Date-only формат, числовые поля времени, без Holiday поля, с полем Checked
    */
   public static mapSRSRecordToStaffRecordUpdate(srsRecord: ISRSRecord): Partial<IStaffRecord> {
-    console.log(`[SRSDataMapper] *** MAPPING SRS RECORD TO STAFF RECORD UPDATE (Date-only format) ***`);
+    console.log(`[SRSDataMapper] *** MAPPING SRS RECORD TO STAFF RECORD UPDATE (Date-only format + Checkbox) ***`);
     console.log(`[SRSDataMapper] SRS Record ID: ${srsRecord.id}`);
     console.log(`[SRSDataMapper] Type of leave: "${srsRecord.typeOfLeave}"`);
     console.log(`[SRSDataMapper] Date (Date-only): ${SRSDateUtils.formatDateForDisplay(srsRecord.date)}`);
     console.log(`[SRSDataMapper] Holiday field NOT saved: Holiday determined from holidays list (Date-only), not saved to StaffRecords`);
+    // *** НОВОЕ: Логируем состояние checkbox ***
+    console.log(`[SRSDataMapper] Checked state: ${srsRecord.checked}`);
     
     const updateData: Partial<IStaffRecord> = {
       ID: srsRecord.id,
@@ -321,7 +328,9 @@ export class SRSDataMapper {
       TimeForLunch: parseInt(srsRecord.lunch) || 0,
       LeaveTime: parseFloat(srsRecord.timeLeave) || 0,
       Contract: parseInt(srsRecord.contract) || 1,
-      Deleted: srsRecord.deleted ? 1 : 0
+      Deleted: srsRecord.deleted ? 1 : 0,
+      // *** НОВОЕ: Преобразуем boolean 'checked' в числовое поле 'Checked' (1/0) для сохранения ***
+      Checked: srsRecord.checked ? 1 : 0
       // Holiday поле НЕ сохраняется - больше не используется
     };
 
@@ -351,13 +360,14 @@ export class SRSDataMapper {
       updateData.TypeOfLeaveID = '';
     }
 
-    console.log('[SRSDataMapper] *** MAPPED UPDATE DATA (Date-only format) ***:', {
+    console.log('[SRSDataMapper] *** MAPPED UPDATE DATA (Date-only format + Checkbox) ***:', {
       originalId: srsRecord.id,
       dateField: 'Date-only format',
       dateValue: updateData.Date?.toISOString(),
       timeFieldsUsed: 'NUMERIC (Hours/Minutes)',
       startTime: `${updateData.ShiftDate1Hours}:${updateData.ShiftDate1Minutes}`,
       finishTime: `${updateData.ShiftDate2Hours}:${updateData.ShiftDate2Minutes}`,
+      checkedFieldHandling: `Saved as ${updateData.Checked} (1 for true, 0 for false)`, // *** НОВОЕ ***
       holidayFieldHandling: 'NOT SAVED - determined from holidays list (Date-only)',
       noShiftDateFields: 'ShiftDate1-4 fields no longer used'
     });
@@ -419,15 +429,18 @@ export class SRSDataMapper {
 
   /**
    * Отладочная информация о записи
-   * ОБНОВЛЕНО: Убрана отладка Holiday поля, добавлена Date-only информация
+   * ОБНОВЛЕНО: Добавлена отладка поля Checked
    */
   public static debugRecordMapping(record: IStaffRecord): void {
-    console.log(`[SRSDataMapper] *** DEBUG INFO FOR RECORD ${record.ID} (Date-only format) ***`);
+    console.log(`[SRSDataMapper] *** DEBUG INFO FOR RECORD ${record.ID} (Date-only format + Checkbox) ***`);
     console.log(`[SRSDataMapper] Date (Date-only):`, record.Date ? SRSDateUtils.formatDateForDisplay(record.Date) : 'No date');
     console.log(`[SRSDataMapper] Date ISO:`, record.Date ? record.Date.toISOString() : 'No date');
     console.log(`[SRSDataMapper] TypeOfLeaveID (direct):`, record.TypeOfLeaveID);
     console.log(`[SRSDataMapper] TypeOfLeave (object):`, record.TypeOfLeave);
     console.log(`[SRSDataMapper] LeaveTime:`, record.LeaveTime);
+    // *** НОВОЕ: Отладка поля Checked ***
+    console.log(`[SRSDataMapper] Checked (numeric from SP):`, record.Checked);
+    console.log(`[SRSDataMapper] Mapped to checked (boolean):`, record.Checked === 1);
     console.log(`[SRSDataMapper] Extracted type of leave:`, SRSDataMapper.extractTypeOfLeaveID(record));
     console.log(`[SRSDataMapper] Is valid SRS record:`, SRSDataMapper.isValidSRSRecord(record));
     
@@ -447,7 +460,7 @@ export class SRSDataMapper {
 
   /**
    * Создание данных для нового SRS записи
-   * ОБНОВЛЕНО: Date-only формат без Holiday поля
+   * ОБНОВЛЕНО: Date-only формат без Holiday поля, с полем Checked
    */
   public static createNewStaffRecordData(
     date: Date,
@@ -461,7 +474,7 @@ export class SRSDataMapper {
       endMinutes?: number;
     } = {}
   ): Partial<IStaffRecord> {
-    console.log(`[SRSDataMapper] *** CREATING NEW STAFF RECORD DATA (Date-only format) ***`);
+    console.log(`[SRSDataMapper] *** CREATING NEW STAFF RECORD DATA (Date-only format + Checkbox) ***`);
     
     const {
       timeForLunch = 30,
@@ -490,10 +503,11 @@ export class SRSDataMapper {
       WorkTime: '0:00',
       Deleted: 0,
       Holiday: 0, // Всегда 0 - праздники определяются из holidays list (Date-only)
+      Checked: 0, // *** НОВОЕ: По умолчанию новые записи не отмечены (0) ***
       Title: typeOfLeaveID ? `Leave on ${SRSDateUtils.formatDateForDisplay(normalizedDate)}` : `SRS Shift on ${SRSDateUtils.formatDateForDisplay(normalizedDate)}`
     };
 
-    console.log(`[SRSDataMapper] New staff record data prepared (Date-only format):`, {
+    console.log(`[SRSDataMapper] New staff record data prepared (Date-only format + Checkbox):`, {
       date: SRSDateUtils.formatDateForDisplay(newRecordData.Date!),
       dateISO: newRecordData.Date!.toISOString(),
       startTime: `${newRecordData.ShiftDate1Hours}:${newRecordData.ShiftDate1Minutes}`,
@@ -502,6 +516,7 @@ export class SRSDataMapper {
       contract: newRecordData.Contract,
       typeOfLeaveID: newRecordData.TypeOfLeaveID,
       Holiday: newRecordData.Holiday + ' (always 0 - determined from holidays list Date-only)',
+      Checked: newRecordData.Checked + ' (default for new records)', // *** НОВОЕ ***
       title: newRecordData.Title,
       dateFormat: 'Date-only (no time component)',
       noShiftDateSupport: true
@@ -570,17 +585,25 @@ export class SRSDataMapper {
         errors.push('Contract must be 1, 2, or 3');
       }
     }
+    
+    // *** НОВОЕ: Проверка поля Checked ***
+    if (recordData.Checked !== undefined) {
+        if (recordData.Checked !== 0 && recordData.Checked !== 1) {
+            warnings.push('Checked field should be 0 or 1');
+        }
+    }
 
     // Предупреждение о Holiday поле
     if (recordData.Holiday !== undefined && recordData.Holiday !== 0) {
       warnings.push('Holiday field should always be 0 - holidays are determined from holidays list (Date-only)');
     }
 
-    console.log(`[SRSDataMapper] Validation result for staff record data (Date-only format):`, {
+    console.log(`[SRSDataMapper] Validation result for staff record data (Date-only format + Checkbox):`, {
       isValid: errors.length === 0,
       errorsCount: errors.length,
       warningsCount: warnings.length,
       holidayFieldHandling: 'Should always be 0 (Date-only)',
+      checkedFieldHandling: 'Should be 0 or 1', // *** НОВОЕ ***
       dateFormat: 'Date-only (no time component)'
     });
 

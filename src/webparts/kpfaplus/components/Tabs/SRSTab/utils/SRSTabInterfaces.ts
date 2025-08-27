@@ -102,6 +102,8 @@ export interface ISRSTableProps {
   onToggleShowDeleted: (checked: boolean) => void; // Обработчик переключения флага
   // ИСПРАВЛЕНО: Добавлен обработчик добавления смены с Date-only форматом
   onAddShift?: (date: Date, shiftData?: INewSRSShiftData) => Promise<boolean>;
+  // *** НОВОЕ: Обработчик checkbox функциональности ***
+  onItemCheck?: (item: ISRSRecord, checked: boolean) => void;
 }
 
 /**
@@ -124,6 +126,8 @@ export interface ISRSTableRowProps {
   onRestoreItem?: (id: string) => Promise<boolean>;
   // ИСПРАВЛЕНО: Добавлен обработчик добавления смены с Date-only форматом
   onAddShift?: (date: Date, shiftData?: INewSRSShiftData) => Promise<boolean>;
+  // *** НОВОЕ: Обработчик checkbox функциональности ***
+  onItemCheck?: (item: ISRSRecord, checked: boolean) => void;
 }
 
 /**

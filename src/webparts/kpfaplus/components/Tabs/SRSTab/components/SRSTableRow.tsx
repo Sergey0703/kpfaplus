@@ -36,6 +36,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   onRestoreItem?: (id: string) => Promise<boolean>;
   showAddShiftConfirmDialog?: (item: ISRSRecord) => void;
   onAddShift?: (date: Date, shiftData?: INewSRSShiftData) => void;
+  onItemCheck?: (item: ISRSRecord, checked: boolean) => void;
 }> = (props) => {
   const {
     item,
@@ -53,7 +54,8 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     showDeleteConfirmDialog,
     showRestoreConfirmDialog,
     showAddShiftConfirmDialog,
-    onAddShift
+    onAddShift,
+    onItemCheck
   } = props;
 
   // Extract handlers directly from props to avoid unused variable errors
@@ -94,7 +96,9 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     workingWithNumericFields: true,
     timeLeave: item.timeLeave,
     localTimeLeave: localTimeLeave,
-    holidayDetectionMethod: 'Holidays list date matching (Date-only), not Holiday field' // *** НОВОЕ ***
+    holidayDetectionMethod: 'Holidays list date matching (Date-only), not Holiday field', // *** НОВОЕ ***
+    checked: item.checked,
+    hasItemCheckHandler: !!onItemCheck
   });
 
   // Синхронизируем локальное состояние с props при изменении item
@@ -108,6 +112,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
       typeOfLeave: item.typeOfLeave,
       timeLeave: item.timeLeave,
       deleted: item.deleted,
+      checked: item.checked,
       // *** ИЗМЕНЕНО: Логируем праздник из списка Date-only, а не из поля ***
       holidayFromField: item.Holiday,
       holidayFromList: isHoliday,
@@ -120,7 +125,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     setLocalContract(item.contract);
     setLocalTypeOfLeave(item.typeOfLeave);
     setLocalTimeLeave(item.timeLeave);
-  }, [item.id, item.startWork, item.finishWork, item.lunch, item.contract, item.typeOfLeave, item.timeLeave, item.deleted, isHoliday, holidayInfo]);
+  }, [item.id, item.startWork, item.finishWork, item.lunch, item.contract, item.typeOfLeave, item.timeLeave, item.deleted, item.checked, isHoliday, holidayInfo]);
 
   // *** ИСПРАВЛЕНО: Обработчик клика по кнопке "+Shift" без проверки Holiday поля ***
   const handleAddShiftClick = useCallback((): void => {
@@ -151,6 +156,26 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     showAddShiftConfirmDialog(item);
     
   }, [item, showAddShiftConfirmDialog]);
+
+  // *** НОВОЕ: Обработчик изменения состояния checkbox ***
+  const handleCheckChange = useCallback((ev?: React.FormEvent<HTMLElement>, checked?: boolean): void => {
+    if (checked === undefined || isDeleted) {
+      return;
+    }
+
+    console.log(`[SRSTableRow] *** CHECK CHANGE *** for item ${item.id}:`, {
+      oldValue: item.checked,
+      newValue: checked,
+      itemId: item.id,
+      isDeleted: isDeleted
+    });
+
+    if (onItemCheck) {
+      onItemCheck(item, checked);
+    } else {
+      console.warn('[SRSTableRow] onItemCheck handler not provided');
+    }
+  }, [item, isDeleted, onItemCheck]);
 
   // *** ОБНОВЛЕНО: Holiday cell style - колонко-специфичная стилизация на основе списка праздников Date-only ***
   const getHolidayCellStyle = (columnType: 'date' | 'hours' | 'other'): React.CSSProperties => {
@@ -556,7 +581,9 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     numericTimeFieldsSupport: true,
     timeLeaveFixed: true,
     holidayDetectionMethod: 'Holidays list date matching (Date-only)', // *** НОВОЕ ***
-    addShiftWithoutHolidayCheck: true // *** ИСПРАВЛЕНО ***
+    addShiftWithoutHolidayCheck: true, // *** ИСПРАВЛЕНО ***
+    checked: item.checked,
+    hasItemCheckHandler: !!onItemCheck
   });
 
   return (
@@ -748,10 +775,23 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
         />
       </td>
 
-      {/* Check (Status) cell */}
+      {/* *** ИЗМЕНЕНО: Check cell - теперь с реальным checkbox *** */}
       <td style={getCellStyle('other')}>
-        {item.status === 'positive' && <span style={{ color: 'green', fontSize: '16px' }}>👍</span>}
-        {item.status === 'negative' && <span style={{ color: 'red', fontSize: '16px' }}>👎</span>}
+        <Checkbox
+          checked={item.checked}
+          onChange={handleCheckChange}
+          disabled={isDeleted}
+          styles={{
+            root: {
+              // *** ИЗМЕНЕНО: Праздничный цвет на основе isHoliday из списка Date-only ***
+              color: isHoliday ? '#d83b01' : undefined,
+              ...(isDeleted && {
+                color: '#888',
+                opacity: 0.6
+              })
+            }
+          }}
+        />
       </td>
 
       {/* SRS cell */}

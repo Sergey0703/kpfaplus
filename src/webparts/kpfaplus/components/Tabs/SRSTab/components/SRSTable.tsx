@@ -30,6 +30,8 @@ export const SRSTable: React.FC<ISRSTableProps & {
   onSaveChecked: () => void;
   hasChanges: boolean;
   hasCheckedItems: boolean;
+  // *** НОВОЕ: Добавлен onItemCheck prop для поддержки checkbox функциональности ***
+  onItemCheck?: (item: ISRSRecord, checked: boolean) => void;
 }> = (props) => {
   const {
     items,
@@ -61,7 +63,9 @@ export const SRSTable: React.FC<ISRSTableProps & {
     onSave,
     onSaveChecked,
     hasChanges,
-    hasCheckedItems
+    hasCheckedItems,
+    // *** НОВОЕ: Обработчик checkbox функциональности ***
+    onItemCheck
   } = props;
 
   // *** КЛЮЧЕВОЕ ДОБАВЛЕНИЕ: State для вычисленного времени работы ***
@@ -102,7 +106,8 @@ export const SRSTable: React.FC<ISRSTableProps & {
     addShiftDialogOpen: addShiftConfirmDialog.isOpen,
     realTimeTotalHours: true, // *** НОВАЯ ФУНКЦИЯ ***
     holidaysFromList: true, // *** НОВАЯ ФУНКЦИЯ: Праздники из списка Date-only, а не из поля ***
-    addShiftWithoutHolidayCheck: true // *** ИСПРАВЛЕНО: Добавление смены без проверки Holiday поля ***
+    addShiftWithoutHolidayCheck: true, // *** ИСПРАВЛЕНО: Добавление смены без проверки Holiday поля ***
+    hasItemCheckHandler: !!onItemCheck // *** НОВОЕ: Логируем наличие checkbox обработчика ***
   });
 
   // *** КЛЮЧЕВАЯ ФУНКЦИЯ: Вычисление общего времени в реальном времени ***
@@ -936,6 +941,8 @@ export const SRSTable: React.FC<ISRSTableProps & {
                     onRestoreItem={onRestoreItem}
                     // *** ИСПРАВЛЕНО: Передаем обработчик добавления смены без Holiday проверки ***
                     showAddShiftConfirmDialog={showAddShiftConfirmDialog}
+                    // *** НОВОЕ: Передаем обработчик checkbox функциональности ***
+                    onItemCheck={onItemCheck}
                   />
                 </React.Fragment>
               ))

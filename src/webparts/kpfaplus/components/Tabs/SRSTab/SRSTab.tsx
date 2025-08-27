@@ -28,7 +28,8 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     realTimeTotalHours: true, // *** НОВАЯ АРХИТЕКТУРА ***
     srsTableControlsFilterControls: true, // *** SRSTable теперь контролирует SRSFilterControls ***
     holidaysFromList: true, // *** НОВОЕ: Праздники из списка holidays Date-only, а не из Holiday поля ***
-    dateOnlyFormat: true // *** НОВОЕ: Date-only формат праздников ***
+    dateOnlyFormat: true, // *** НОВОЕ: Date-only формат праздников ***
+    checkboxFunctionality: true // *** НОВОЕ: Checkbox функциональность для Check колонки ***
   });
   
   // *** ИСПРАВЛЕНО: Используем главный хук логики с поддержкой real-time ***
@@ -80,7 +81,10 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     // *** НОВОЕ: Информация о real-time архитектуре ***
     realTimeTotalHoursCalculation: true,
     srsTableManagesFilterControls: true,
-    holidayDetectionMethod: 'Holidays list date matching (Date-only), not Holiday field'
+    holidayDetectionMethod: 'Holidays list date matching (Date-only), not Holiday field',
+    // *** НОВОЕ: Информация о checkbox функциональности ***
+    hasCheckboxHandler: !!srsLogic.onItemCheckboxChange,
+    checkboxIntegration: 'Saves to Checked column in StaffRecords'
   });
 
   // *** НОВОЕ: Обработчик показа диалога удаления ***
@@ -228,7 +232,8 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       deleteRestoreSupport: true,
       showDeletedSupport: true,
       holidaysFromList: true, // *** НОВОЕ: Праздники из списка Date-only ***
-      holidayFormat: 'Date-only (no time component)' // *** НОВОЕ ***
+      holidayFormat: 'Date-only (no time component)', // *** НОВОЕ ***
+      checkboxSupport: true // *** НОВОЕ: Checkbox функциональность ***
     });
 
     // Создаем стандартные опции
@@ -256,14 +261,15 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
 
   // Преобразуем IStaffRecord[] в ISRSRecord[] для компонентов
   const srsRecordsForTable: ISRSRecord[] = React.useMemo(() => {
-    console.log('[SRSTab] Converting staff records to SRS records with types of leave, holidays from list (Date-only), delete support, and showDeleted filter:', {
+    console.log('[SRSTab] Converting staff records to SRS records with types of leave, holidays from list (Date-only), delete support, checkbox support, and showDeleted filter:', {
       originalCount: srsLogic.srsRecords.length,
       typesOfLeaveAvailable: srsLogic.typesOfLeave.length,
       holidaysAvailable: srsLogic.holidays.length,
       deleteRestoreEnabled: true,
       showDeleted: srsLogic.showDeleted,
       holidaysFromList: true, // *** НОВОЕ: Праздники из списка Date-only ***
-      holidayFormat: 'Date-only (no time component)' // *** НОВОЕ ***
+      holidayFormat: 'Date-only (no time component)', // *** НОВОЕ ***
+      checkboxFunctionality: true // *** НОВОЕ: Checkbox функциональность ***
     });
 
     const mappedRecords = SRSDataMapper.mapStaffRecordsToSRSRecords(srsLogic.srsRecords);
@@ -306,6 +312,14 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       // *** НОВОЕ: Статистика удаленных записей ***
       const deleteStats = SRSTableOptionsHelper.getDeletedRecordsStatistics(mappedRecords);
       console.log('[SRSTab] Delete statistics in mapped records:', deleteStats);
+
+      // *** НОВОЕ: Статистика checkbox значений ***
+      const checkedStats = mappedRecords.reduce((acc, record) => {
+        acc[record.checked ? 'Checked' : 'Unchecked'] = (acc[record.checked ? 'Checked' : 'Unchecked'] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      console.log('[SRSTab] Checkbox statistics in mapped records:', checkedStats);
       
       // *** НОВОЕ: Логируем информацию о фильтрации ***
       console.log('[SRSTab] ShowDeleted filtering info:', {
@@ -314,7 +328,8 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         activeRecords: deleteStats.activeRecords,
         deletedRecords: deleteStats.deletedRecords,
         serverFiltering: 'Records already filtered by server based on showDeleted flag',
-        holidayDetection: 'Based on holidays list date matching (Date-only), not Holiday field'
+        holidayDetection: 'Based on holidays list date matching (Date-only), not Holiday field',
+        checkboxSupport: 'Checkbox values from Checked column in StaffRecords'
       });
     }
 
@@ -421,6 +436,9 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         onSaveChecked={srsLogic.onSaveChecked}
         hasChanges={srsLogic.hasUnsavedChanges}
         hasCheckedItems={srsLogic.hasCheckedItems}
+        
+        // *** НОВОЕ: Передаем обработчик checkbox функциональности ***
+        onItemCheck={srsLogic.onItemCheckboxChange}
       />
       
       {/* *** НОВОЕ: Диалоги подтверждения удаления и восстановления *** */}
@@ -460,7 +478,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
           fontSize: '11px',
           color: '#666'
         }}>
-          <strong>Debug Info (Real-time Total Hours + Holidays from List Date-only):</strong>
+          <strong>Debug Info (Real-time Total Hours + Holidays from List Date-only + Checkbox):</strong>
           <div>SRS Records: {srsRecordsForTable.length}</div>
           <div>Types of Leave: {srsLogic.typesOfLeave.length}</div>
           <div>Loading Types: {srsLogic.isLoadingTypesOfLeave ? 'Yes' : 'No'}</div>
@@ -484,6 +502,9 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
           <div>SRSTable manages SRSFilterControls: Yes</div>
           <div>Architecture: Simplified (no totalHours in state)</div>
           <div>Holiday Format: Date-only (no time component)</div>
+          {/* *** НОВОЕ: Информация о checkbox функциональности *** */}
+          <div>Checkbox Handler Available: {!!srsLogic.onItemCheckboxChange ? 'Yes' : 'No'}</div>
+          <div>Checkbox Integration: Saves to Checked column in StaffRecords</div>
           
           {srsLogic.typesOfLeave.length > 0 && (
             <div>
@@ -521,11 +542,21 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
               <div>
                 Active Records: {srsRecordsForTable.filter(r => r.deleted !== true).length} of {srsRecordsForTable.length}
               </div>
+              {/* *** НОВОЕ: Статистика checkbox значений *** */}
+              <div>
+                Checked Records: {srsRecordsForTable.filter(r => r.checked === true).length} of {srsRecordsForTable.length}
+              </div>
+              <div>
+                Unchecked Records: {srsRecordsForTable.filter(r => r.checked !== true).length} of {srsRecordsForTable.length}
+              </div>
               <div>
                 Server Filtering: showDeleted={srsLogic.showDeleted ? 'true' : 'false'}
               </div>
               <div>
                 Holiday Detection: Holidays list date matching Date-only (not Holiday field)
+              </div>
+              <div>
+                Checkbox Functionality: Check column saves to Checked field in StaffRecords
               </div>
             </>
           )}

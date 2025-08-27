@@ -65,6 +65,9 @@ export interface UseSRSTabLogicReturn extends ISRSTabState {
   // Обработчик переключения отображения удаленных записей
   onToggleShowDeleted: (checked: boolean) => void;
   
+  // *** НОВОЕ: Обработчик checkbox функциональности ***
+  onItemCheckboxChange: (item: ISRSRecord, checked: boolean) => void;
+  
   // Вычисляемые значения
   hasCheckedItems: boolean;
   selectedItemsCount: number;
@@ -102,7 +105,8 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     showDeletedSupport: true,
     simplifiedArchitecture: true,
     totalHoursCalculation: 'Real-time in SRSTable',
-    dateOnlyFormat: 'Date field now Date-only, using SRSDateUtils for all operations'
+    dateOnlyFormat: 'Date field now Date-only, using SRSDateUtils for all operations',
+    checkboxFunctionality: 'Added onItemCheckboxChange handler for Check column'
   });
 
   // Инициализируем состояние SRS Tab
@@ -182,7 +186,8 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       // Fix details
       fixApplied: 'Load attempts tracking + data presence check',
       previousIssue: 'areDependenciesReady was true before loading started',
-      dateFormat: 'Date-only format with SRSDateUtils integration'
+      dateFormat: 'Date-only format with SRSDateUtils integration',
+      checkboxSupport: 'onItemCheckboxChange handler added'
     });
     
     return ready;
@@ -804,6 +809,57 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     console.log('[useSRSTabLogic] Contract number change applied to local state');
   }, [setState]);
 
+  // *** ИСПРАВЛЕНО: Обработчик checkbox функциональности ***
+  const handleItemCheckboxChange = useCallback((item: ISRSRecord, checked: boolean): void => {
+    console.log('[useSRSTabLogic] *** CHECKBOX CHANGE ***');
+    console.log('[useSRSTabLogic] Item ID:', item.id, 'New checked value:', checked);
+    
+    // --- НАЧАЛО ИЗМЕНЕНИЯ ---
+    
+    // *** КЛЮЧЕВОЕ ИЗМЕНЕНИЕ 1: Обновляем главный state для немедленного UI ответа ***
+    // Это заставит React перерисовать строку с новым состоянием checkbox.
+    setState(prevState => {
+      // Создаем новый массив srsRecords, чтобы React обнаружил изменение
+      const newSrsRecords = prevState.srsRecords.map(record => {
+        // Находим нужную запись по ID
+        if (record.ID === item.id) {
+          // Возвращаем новый объект записи с обновленным полем Checked
+          return {
+            ...record,
+            Checked: checked ? 1 : 0 // Обновляем поле IStaffRecord (0 или 1)
+          };
+        }
+        // Возвращаем остальные записи без изменений
+        return record;
+      });
+
+      // Возвращаем новое состояние с обновленным массивом записей
+      return {
+        ...prevState,
+        srsRecords: newSrsRecords
+      };
+    });
+
+    // *** КЛЮЧЕВОЕ ИЗМЕНЕНИЕ 2: Сохраняем изменение в modifiedRecords для отправки на сервер ***
+    // Эта часть у вас уже была, но теперь она работает в паре с обновлением state.
+    setModifiedRecords(prev => {
+      const newModified = new Map(prev);
+      const existingModifications = newModified.get(item.id) || {};
+      // Мы сохраняем 'checked' как boolean, как и ожидает ISRSRecord
+      newModified.set(item.id, {
+        ...existingModifications,
+        checked: checked
+      });
+      return newModified;
+    });
+    
+    // --- КОНЕЦ ИЗМЕНЕНИЯ ---
+
+    SRSTabStateHelpers.setHasUnsavedChanges(setState, true);
+    
+    console.log('[useSRSTabLogic] Checkbox change applied to main state (for UI) and marked for saving.');
+  }, [setState]);
+
   // ===============================================
   // ОСТАЛЬНЫЕ ОБРАБОТЧИКИ
   // ===============================================
@@ -951,6 +1007,12 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
           if ('relief' in modifications) {
             // Relief не сохраняется в StaffRecords, это только UI поле
             console.log(`[useSRSTabLogic] Relief field ignored (UI only): ${modifications.relief}`);
+          }
+
+          // *** НОВОЕ: Обработка checkbox изменений ***
+          if ('checked' in modifications) {
+            updateData.Checked = modifications.checked as boolean ? 1 : 0;
+            console.log(`[useSRSTabLogic] Setting checked field: ${updateData.Checked} (1 = checked, 0 = unchecked)`);
           }
 
           // *** ПРИМЕЧАНИЕ: Поле Date не изменяется через UI в SRS Tab ***
@@ -1162,6 +1224,9 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     // Обработчик переключения отображения удаленных записей
     onToggleShowDeleted: handleToggleShowDeleted,
     
+    // *** НОВОЕ: Обработчик checkbox функциональности ***
+    onItemCheckboxChange: handleItemCheckboxChange,
+    
     // Вычисляемые значения
     hasCheckedItems,
     selectedItemsCount,
@@ -1190,6 +1255,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     handleRestoreRecord,
     handleAddShift,
     handleToggleShowDeleted,
+    handleItemCheckboxChange,
     hasCheckedItems,
     selectedItemsCount,
     loadSRSData,
@@ -1230,6 +1296,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     hasToggleShowDeletedHandler: !!handleToggleShowDeleted,
     hasAddShiftHandler: !!handleAddShift,
     numericTimeFieldsSupport: true,
+    checkboxFunctionality: 'onItemCheckboxChange handler available',
     
     // *** ИСПРАВЛЕНО: Architecture with Date-only format ***
     fixedDependenciesReadyLogic: 'Load attempts tracking + data presence check',
