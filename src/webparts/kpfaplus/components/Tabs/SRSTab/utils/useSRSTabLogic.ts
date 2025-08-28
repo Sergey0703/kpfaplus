@@ -345,7 +345,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
 
     try {
       console.log('[useSRSTabLogic] Calling SRSButtonHandler with context and dependencies');
-      console.log('[useSRSTabLogic] State has', state.srsRecords.length, 'records'); // ИСПРАВЛЕНО
+      console.log('[useSRSTabLogic] State has', state.srsRecords.length, 'records');
       console.log('[useSRSTabLogic] Available leave types:', state.typesOfLeave.length);
       
       // *** ИСПРАВЛЕНО: Создаем совместимый объект selectedStaff ***
@@ -356,6 +356,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       };
 
       // *** КЛЮЧЕВОЙ ВЫЗОВ: Вызываем функцию из SRSButtonHandler.ts ***
+      // *** ИСПРАВЛЕНО: Добавлен void для floating promise ***
       void handleSRSButtonClick({
         item,
         context,
@@ -366,7 +367,8 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
         holidays: state.holidays,
         typesOfLeave: state.typesOfLeave,
         refreshSRSData,
-        setState: setState as any // Используем any для обхода несовместимости типов
+        // *** ИСПРАВЛЕНО: Правильная типизация setState ***
+        setState: setState as (updater: (prev: ISRSTabState) => ISRSTabState) => void
       });
 
       console.log('[useSRSTabLogic] SRS button handler called successfully');
@@ -906,7 +908,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     // Это заставит React перерисовать строку с новым состоянием checkbox.
     setState(prevState => {
       // Создаем новый массив srsRecords, чтобы React обнаружил изменение
-      const newSrsRecords = prevState.srsRecords.map((record: any) => { // ИСПРАВЛЕНО
+      const newSrsRecords = prevState.srsRecords.map((record: IStaffRecord) => {
         // Находим нужную запись по ID
         if (record.ID === item.id) {
           // Возвращаем новый объект записи с обновленным полем Checked
@@ -922,7 +924,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       // Возвращаем новое состояние с обновленным массивом записей
       return {
         ...prevState,
-        srsRecords: newSrsRecords // ИСПРАВЛЕНО
+        srsRecords: newSrsRecords
       };
     });
 
@@ -970,7 +972,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
 
   const handleExportAll = useCallback((): void => {
     console.log('[useSRSTabLogic] *** EXPORT ALL SRS DATA (FIXED LOADING ORDER + DATE-ONLY) ***');
-    console.log('[useSRSTabLogic] Current SRS records count:', state.srsRecords.length); // ИСПРАВЛЕНО
+    console.log('[useSRSTabLogic] Current SRS records count:', state.srsRecords.length);
     console.log('[useSRSTabLogic] Types of leave available:', state.typesOfLeave.length);
     console.log('[useSRSTabLogic] Holidays available (Date-only):', state.holidays.length);
     console.log('[useSRSTabLogic] Show deleted enabled:', state.showDeleted);
@@ -978,19 +980,19 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     console.log('[useSRSTabLogic] Data loading order: Fixed dependencies ready logic');
     console.log('[useSRSTabLogic] Date format: Date-only using SRSDateUtils');
     
-    if (state.srsRecords.length === 0) { // ИСПРАВЛЕНО
+    if (state.srsRecords.length === 0) {
       console.warn('[useSRSTabLogic] No SRS records to export');
       return;
     }
 
     console.log('[useSRSTabLogic] Exporting SRS records (fixed loading order + Date-only):', {
-      recordsCount: state.srsRecords.length, // ИСПРАВЛЕНО
+      recordsCount: state.srsRecords.length,
       dateRange: `${SRSDateUtils.formatDateForDisplay(state.fromDate)} - ${SRSDateUtils.formatDateForDisplay(state.toDate)}`,
       typesOfLeaveCount: state.typesOfLeave.length,
       holidaysCount: state.holidays.length,
       showDeleted: state.showDeleted,
-      deletedRecordsCount: state.srsRecords.filter((r: any) => r.Deleted === 1).length, // ИСПРАВЛЕНО
-      activeRecordsCount: state.srsRecords.filter((r: any) => r.Deleted !== 1).length, // ИСПРАВЛЕНО
+      deletedRecordsCount: state.srsRecords.filter((r: IStaffRecord) => r.Deleted === 1).length,
+      activeRecordsCount: state.srsRecords.filter((r: IStaffRecord) => r.Deleted !== 1).length,
       numericTimeFieldsEnabled: true,
       fixedLoadingOrder: true,
       totalHoursCalculation: 'Real-time in SRSTable',
@@ -998,7 +1000,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     });
 
     alert(`Export functionality will be implemented. Records to export: ${state.srsRecords.length}, Types of leave: ${state.typesOfLeave.length}, Holidays: ${state.holidays.length}, Show deleted: ${state.showDeleted}, Total Hours: Calculated in real-time, Loading order: Fixed (Dependencies ready logic), Date format: Date-only`);
-  }, [state.srsRecords, state.fromDate, state.toDate, state.typesOfLeave, state.holidays, state.showDeleted]); // ИСПРАВЛЕНО
+  }, [state.srsRecords, state.fromDate, state.toDate, state.typesOfLeave, state.holidays, state.showDeleted]);
 
   /**
    * *** УПРОЩЕН: Обработчик сохранения всех изменений (Date-only format) ***
@@ -1038,7 +1040,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
           console.log(`[useSRSTabLogic] *** SAVING RECORD ${itemId} WITH MODIFICATIONS (DATE-ONLY) ***:`, modifications);
 
           // Находим оригинальную запись
-          const originalRecord = state.srsRecords.find((r: any) => r.ID === itemId); // ИСПРАВЛЕНО
+          const originalRecord = state.srsRecords.find((r: IStaffRecord) => r.ID === itemId);
           if (!originalRecord) {
             console.error(`[useSRSTabLogic] Original record not found for ID: ${itemId}`);
             errorCount++;
@@ -1181,7 +1183,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       
       SRSTabStateHelpers.setErrorSRS(setState, `Save operation failed: ${errorMessage}`);
     }
-  }, [state.hasUnsavedChanges, modifiedRecords, setState, context, state.srsRecords, refreshSRSData]); // ИСПРАВЛЕНО
+  }, [state.hasUnsavedChanges, modifiedRecords, setState, context, state.srsRecords, refreshSRSData]);
 
   const handleSaveChecked = useCallback((): void => {
     console.log('[useSRSTabLogic] Save checked items requested (simplified architecture + Date-only)');
@@ -1356,7 +1358,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   ]);
 
   console.log('[useSRSTabLogic] *** FIXED DEPENDENCIES READY LOGIC HOOK RETURN OBJECT PREPARED (DATE-ONLY + SRS BUTTON) ***:', {
-    recordsCount: state.srsRecords.length, // ИСПРАВЛЕНО
+    recordsCount: state.srsRecords.length,
     hasCheckedItems,
     selectedItemsCount,
     isDataValid,
