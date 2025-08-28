@@ -65,7 +65,9 @@ export const SRSTable: React.FC<ISRSTableProps & {
     hasChanges,
     hasCheckedItems,
     // *** НОВОЕ: Обработчик checkbox функциональности ***
-    onItemCheck
+    onItemCheck,
+    // *** НОВОЕ: Обработчик кнопки SRS ***
+    onSRSButtonClick
   } = props;
 
   // *** КЛЮЧЕВОЕ ДОБАВЛЕНИЕ: State для вычисленного времени работы ***
@@ -107,7 +109,9 @@ export const SRSTable: React.FC<ISRSTableProps & {
     realTimeTotalHours: true, // *** НОВАЯ ФУНКЦИЯ ***
     holidaysFromList: true, // *** НОВАЯ ФУНКЦИЯ: Праздники из списка Date-only, а не из поля ***
     addShiftWithoutHolidayCheck: true, // *** ИСПРАВЛЕНО: Добавление смены без проверки Holiday поля ***
-    hasItemCheckHandler: !!onItemCheck // *** НОВОЕ: Логируем наличие checkbox обработчика ***
+    hasItemCheckHandler: !!onItemCheck, // *** НОВОЕ: Логируем наличие checkbox обработчика ***
+    // *** НОВОЕ: Логируем наличие обработчика кнопки SRS ***
+    hasSRSButtonHandler: !!onSRSButtonClick
   });
 
   // *** КЛЮЧЕВАЯ ФУНКЦИЯ: Вычисление общего времени в реальном времени ***
@@ -325,7 +329,7 @@ export const SRSTable: React.FC<ISRSTableProps & {
         // alert(`Shift added successfully on ${shiftData.date.toLocaleDateString()}!`);
         
       } else {
-        console.error('[SRSTable] *** ADD SHIFT OPERATION FAILED ***');
+        console.log('[SRSTable] *** ADD SHIFT OPERATION FAILED ***');
         console.error('[SRSTable] onAddShift returned false - shift creation failed');
         
         // Показываем ошибку пользователю
@@ -943,6 +947,8 @@ export const SRSTable: React.FC<ISRSTableProps & {
                     showAddShiftConfirmDialog={showAddShiftConfirmDialog}
                     // *** НОВОЕ: Передаем обработчик checkbox функциональности ***
                     onItemCheck={onItemCheck}
+                    // *** НОВОЕ: Передаем обработчик кнопки SRS ***
+                    onSRSButtonClick={onSRSButtonClick}
                   />
                 </React.Fragment>
               ))

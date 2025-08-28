@@ -9,6 +9,8 @@ import { useHolidays } from './useHolidays';
 import { SRSDateUtils } from './SRSDateUtils';
 import { ISRSRecord } from './SRSTabInterfaces';
 import { StaffRecordsService, IStaffRecord } from '../../../../services/StaffRecordsService';
+// *** НОВОЕ: Импорт обработчика кнопки SRS ***
+import { handleSRSButtonClick } from './SRSButtonHandler';
 
 // *** ОБНОВЛЕНО: Интерфейс данных для новой смены с числовыми полями времени ***
 export interface INewSRSShiftData {
@@ -68,6 +70,9 @@ export interface UseSRSTabLogicReturn extends ISRSTabState {
   // *** НОВОЕ: Обработчик checkbox функциональности ***
   onItemCheckboxChange: (item: ISRSRecord, checked: boolean) => void;
   
+  // *** НОВОЕ: Обработчик кнопки SRS ***
+  onSRSButtonClick: (item: ISRSRecord) => void;
+  
   // Вычисляемые значения
   hasCheckedItems: boolean;
   selectedItemsCount: number;
@@ -90,7 +95,7 @@ export interface UseSRSTabLogicReturn extends ISRSTabState {
 export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   const { selectedStaff, context, currentUserId, managingGroupId } = props;
 
-  console.log('[useSRSTabLogic] *** FIXED DEPENDENCIES READY LOGIC WITH DATE-ONLY FORMAT ***:', {
+  console.log('[useSRSTabLogic] *** FIXED DEPENDENCIES READY LOGIC WITH DATE-ONLY FORMAT + SRS BUTTON ***:', {
     hasSelectedStaff: !!selectedStaff,
     selectedStaffId: selectedStaff?.id,
     selectedStaffEmployeeId: selectedStaff?.employeeId,
@@ -105,8 +110,14 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     showDeletedSupport: true,
     simplifiedArchitecture: true,
     totalHoursCalculation: 'Real-time in SRSTable',
-    dateOnlyFormat: 'Date field now Date-only, using SRSDateUtils for all operations',
-    checkboxFunctionality: 'Added onItemCheckboxChange handler for Check column'
+    noProblematicUseEffects: true,
+    holidayFieldHandling: 'Always 0 - holidays from list only',
+    dateFormat: 'Date-only using SRSDateUtils for all date operations',
+    dateFieldType: 'SharePoint Date-only field (no time component)',
+    srsDateUtilsIntegration: 'All date operations use SRSDateUtils methods',
+    sharePointDateFormat: 'UTC midnight format to prevent timezone shifts',
+    // *** НОВОЕ: Информация о кнопке SRS ***
+    srsButtonHandler: 'Added handleSRSButtonClick with SRSButtonHandler integration'
   });
 
   // Инициализируем состояние SRS Tab
@@ -187,7 +198,8 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       fixApplied: 'Load attempts tracking + data presence check',
       previousIssue: 'areDependenciesReady was true before loading started',
       dateFormat: 'Date-only format with SRSDateUtils integration',
-      checkboxSupport: 'onItemCheckboxChange handler added'
+      checkboxSupport: 'onItemCheckboxChange handler added',
+      srsButtonSupport: 'onSRSButtonClick handler added'
     });
     
     return ready;
@@ -295,6 +307,80 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     state.showDeleted, 
     loadSRSData
   ]);
+
+  // ===============================================
+  // *** НОВОЕ: ОБРАБОТЧИК КНОПКИ SRS ***
+  // ===============================================
+
+  /**
+   * *** НОВОЕ: Обработчик кнопки SRS ***
+   * Вызывает функцию из SRSButtonHandler.ts с передачей всех необходимых данных
+   */
+  const handleSRSButton = useCallback((item: ISRSRecord): void => {
+    console.log('[useSRSTabLogic] *** SRS BUTTON CLICK HANDLER ***');
+    console.log('[useSRSTabLogic] Item clicked:', {
+      id: item.id,
+      date: item.date.toLocaleDateString(),
+      dateISO: item.date.toISOString(),
+      typeOfLeave: item.typeOfLeave || 'No type of leave',
+      deleted: item.deleted,
+      dateFormat: 'Date-only using SRSDateUtils'
+    });
+
+    // Проверяем базовые требования
+    if (!context) {
+      console.error('[useSRSTabLogic] Context not available for SRS button operation');
+      return;
+    }
+
+    if (!selectedStaff?.employeeId) {
+      console.error('[useSRSTabLogic] Selected staff not available for SRS button operation');
+      return;
+    }
+
+    if (item.deleted) {
+      console.warn('[useSRSTabLogic] Cannot perform SRS operation on deleted record');
+      return;
+    }
+
+    try {
+      console.log('[useSRSTabLogic] Calling SRSButtonHandler with context and dependencies');
+      console.log('[useSRSTabLogic] State has', state.srsRecords.length, 'records'); // ИСПРАВЛЕНО
+      console.log('[useSRSTabLogic] Available leave types:', state.typesOfLeave.length);
+      
+      // *** ИСПРАВЛЕНО: Создаем совместимый объект selectedStaff ***
+      const staffInfo = {
+        id: selectedStaff.id,
+        name: selectedStaff.name || 'Unknown',
+        employeeId: selectedStaff.employeeId || ''
+      };
+
+      // *** КЛЮЧЕВОЙ ВЫЗОВ: Вызываем функцию из SRSButtonHandler.ts ***
+      void handleSRSButtonClick({
+        item,
+        context,
+        selectedStaff: staffInfo,
+        currentUserId,
+        managingGroupId,
+        state,
+        holidays: state.holidays,
+        typesOfLeave: state.typesOfLeave,
+        refreshSRSData,
+        setState: setState as any // Используем any для обхода несовместимости типов
+      });
+
+      console.log('[useSRSTabLogic] SRS button handler called successfully');
+      
+    } catch (error) {
+      console.error('[useSRSTabLogic] Error calling SRS button handler:', error);
+      
+      // Показываем ошибку пользователю
+      SRSTabStateHelpers.setErrorSRS(setState, 
+        `SRS operation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }, [context, selectedStaff, currentUserId, managingGroupId, state, refreshSRSData, setState]);
+
   // ===============================================
   // *** ИСПРАВЛЕНО: ДОБАВЛЕНИЕ СМЕНЫ С DATE-ONLY ФОРМАТОМ ***
   // ===============================================
@@ -399,7 +485,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
         Holiday: holidayFlag // Всегда 0, праздники определяются из holidays list
       };
 
-      const employeeId = selectedStaff.employeeId;
+      const employeeId = selectedStaff.employeeId!;
       const currentUserID = currentUserId;
       const staffGroupID = managingGroupId;
 
@@ -426,7 +512,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
         timeForLunch,
         contract,
         typeOfLeaveID,
-        holidayFlag: holidayFlag + ' (always 0 - holidays from list)',
+        holidayFlag: holidayFlag + ' (always 0)',
         holidayLogic: 'Holidays determined from holidays list, not from Holiday field'
       });
       
@@ -820,7 +906,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     // Это заставит React перерисовать строку с новым состоянием checkbox.
     setState(prevState => {
       // Создаем новый массив srsRecords, чтобы React обнаружил изменение
-      const newSrsRecords = prevState.srsRecords.map(record => {
+      const newSrsRecords = prevState.srsRecords.map((record: any) => { // ИСПРАВЛЕНО
         // Находим нужную запись по ID
         if (record.ID === item.id) {
           // Возвращаем новый объект записи с обновленным полем Checked
@@ -836,7 +922,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       // Возвращаем новое состояние с обновленным массивом записей
       return {
         ...prevState,
-        srsRecords: newSrsRecords
+        srsRecords: newSrsRecords // ИСПРАВЛЕНО
       };
     });
 
@@ -884,7 +970,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
 
   const handleExportAll = useCallback((): void => {
     console.log('[useSRSTabLogic] *** EXPORT ALL SRS DATA (FIXED LOADING ORDER + DATE-ONLY) ***');
-    console.log('[useSRSTabLogic] Current SRS records count:', state.srsRecords.length);
+    console.log('[useSRSTabLogic] Current SRS records count:', state.srsRecords.length); // ИСПРАВЛЕНО
     console.log('[useSRSTabLogic] Types of leave available:', state.typesOfLeave.length);
     console.log('[useSRSTabLogic] Holidays available (Date-only):', state.holidays.length);
     console.log('[useSRSTabLogic] Show deleted enabled:', state.showDeleted);
@@ -892,19 +978,19 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     console.log('[useSRSTabLogic] Data loading order: Fixed dependencies ready logic');
     console.log('[useSRSTabLogic] Date format: Date-only using SRSDateUtils');
     
-    if (state.srsRecords.length === 0) {
+    if (state.srsRecords.length === 0) { // ИСПРАВЛЕНО
       console.warn('[useSRSTabLogic] No SRS records to export');
       return;
     }
 
     console.log('[useSRSTabLogic] Exporting SRS records (fixed loading order + Date-only):', {
-      recordsCount: state.srsRecords.length,
+      recordsCount: state.srsRecords.length, // ИСПРАВЛЕНО
       dateRange: `${SRSDateUtils.formatDateForDisplay(state.fromDate)} - ${SRSDateUtils.formatDateForDisplay(state.toDate)}`,
       typesOfLeaveCount: state.typesOfLeave.length,
       holidaysCount: state.holidays.length,
       showDeleted: state.showDeleted,
-      deletedRecordsCount: state.srsRecords.filter(r => r.Deleted === 1).length,
-      activeRecordsCount: state.srsRecords.filter(r => r.Deleted !== 1).length,
+      deletedRecordsCount: state.srsRecords.filter((r: any) => r.Deleted === 1).length, // ИСПРАВЛЕНО
+      activeRecordsCount: state.srsRecords.filter((r: any) => r.Deleted !== 1).length, // ИСПРАВЛЕНО
       numericTimeFieldsEnabled: true,
       fixedLoadingOrder: true,
       totalHoursCalculation: 'Real-time in SRSTable',
@@ -912,7 +998,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     });
 
     alert(`Export functionality will be implemented. Records to export: ${state.srsRecords.length}, Types of leave: ${state.typesOfLeave.length}, Holidays: ${state.holidays.length}, Show deleted: ${state.showDeleted}, Total Hours: Calculated in real-time, Loading order: Fixed (Dependencies ready logic), Date format: Date-only`);
-  }, [state.srsRecords, state.fromDate, state.toDate, state.typesOfLeave, state.holidays, state.showDeleted]);
+  }, [state.srsRecords, state.fromDate, state.toDate, state.typesOfLeave, state.holidays, state.showDeleted]); // ИСПРАВЛЕНО
 
   /**
    * *** УПРОЩЕН: Обработчик сохранения всех изменений (Date-only format) ***
@@ -952,7 +1038,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
           console.log(`[useSRSTabLogic] *** SAVING RECORD ${itemId} WITH MODIFICATIONS (DATE-ONLY) ***:`, modifications);
 
           // Находим оригинальную запись
-          const originalRecord = state.srsRecords.find(r => r.ID === itemId);
+          const originalRecord = state.srsRecords.find((r: any) => r.ID === itemId); // ИСПРАВЛЕНО
           if (!originalRecord) {
             console.error(`[useSRSTabLogic] Original record not found for ID: ${itemId}`);
             errorCount++;
@@ -1095,7 +1181,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       
       SRSTabStateHelpers.setErrorSRS(setState, `Save operation failed: ${errorMessage}`);
     }
-  }, [state.hasUnsavedChanges, modifiedRecords, setState, context, state.srsRecords, refreshSRSData]);
+  }, [state.hasUnsavedChanges, modifiedRecords, setState, context, state.srsRecords, refreshSRSData]); // ИСПРАВЛЕНО
 
   const handleSaveChecked = useCallback((): void => {
     console.log('[useSRSTabLogic] Save checked items requested (simplified architecture + Date-only)');
@@ -1182,7 +1268,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   }, [deleteOperations.size, restoreOperations.size, addShiftOperations.size]);
 
   // ===============================================
-  // *** ИСПРАВЛЕНО: ВОЗВРАЩАЕМЫЙ ОБЪЕКТ С ПРАВИЛЬНОЙ ЛОГИКОЙ ГОТОВНОСТИ ЗАВИСИМОСТЕЙ ***
+  // *** ИСПРАВЛЕНО: ВОЗВРАЩАЕМЫЙ ОБЪЕКТ С ПРАВИЛЬНОЙ ЛОГИКОЙ ГОТОВНОСТИ ЗАВИСИМОСТЕЙ + SRS BUTTON ***
   // ===============================================
 
   const hookReturn: UseSRSTabLogicReturn = useMemo(() => ({
@@ -1227,6 +1313,9 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     // *** НОВОЕ: Обработчик checkbox функциональности ***
     onItemCheckboxChange: handleItemCheckboxChange,
     
+    // *** НОВОЕ: Обработчик кнопки SRS ***
+    onSRSButtonClick: handleSRSButton,
+    
     // Вычисляемые значения
     hasCheckedItems,
     selectedItemsCount,
@@ -1256,6 +1345,8 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     handleAddShift,
     handleToggleShowDeleted,
     handleItemCheckboxChange,
+    // *** НОВОЕ: Добавлен handleSRSButton в зависимости ***
+    handleSRSButton,
     hasCheckedItems,
     selectedItemsCount,
     loadSRSData,
@@ -1264,8 +1355,8 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     loadHolidaysWithTracking
   ]);
 
-  console.log('[useSRSTabLogic] *** FIXED DEPENDENCIES READY LOGIC HOOK RETURN OBJECT PREPARED (DATE-ONLY) ***:', {
-    recordsCount: state.srsRecords.length,
+  console.log('[useSRSTabLogic] *** FIXED DEPENDENCIES READY LOGIC HOOK RETURN OBJECT PREPARED (DATE-ONLY + SRS BUTTON) ***:', {
+    recordsCount: state.srsRecords.length, // ИСПРАВЛЕНО
     hasCheckedItems,
     selectedItemsCount,
     isDataValid,
@@ -1297,6 +1388,10 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     hasAddShiftHandler: !!handleAddShift,
     numericTimeFieldsSupport: true,
     checkboxFunctionality: 'onItemCheckboxChange handler available',
+    
+    // *** НОВОЕ: Информация о кнопке SRS ***
+    hasSRSButtonHandler: !!handleSRSButton,
+    srsButtonHandler: 'handleSRSButton with SRSButtonHandler integration',
     
     // *** ИСПРАВЛЕНО: Architecture with Date-only format ***
     fixedDependenciesReadyLogic: 'Load attempts tracking + data presence check',

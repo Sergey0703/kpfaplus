@@ -439,6 +439,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         
         // *** НОВОЕ: Передаем обработчик checkbox функциональности ***
         onItemCheck={srsLogic.onItemCheckboxChange}
+        onSRSButtonClick={srsLogic.onSRSButtonClick}
       />
       
       {/* *** НОВОЕ: Диалоги подтверждения удаления и восстановления *** */}

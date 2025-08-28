@@ -3,6 +3,7 @@
 import { IDropdownOption } from '@fluentui/react';
 import { IHoliday } from '../../../../services/HolidaysService';
 import { SRSDateUtils } from './SRSDateUtils';
+import { IStaffRecord } from '../../../../services/StaffRecordsService';
 
 /**
  * Основной интерфейс для записи SRS
@@ -104,6 +105,8 @@ export interface ISRSTableProps {
   onAddShift?: (date: Date, shiftData?: INewSRSShiftData) => Promise<boolean>;
   // *** НОВОЕ: Обработчик checkbox функциональности ***
   onItemCheck?: (item: ISRSRecord, checked: boolean) => void;
+  // *** НОВОЕ: Обработчик кнопки SRS ***
+  onSRSButtonClick?: (item: ISRSRecord) => void;
 }
 
 /**
@@ -128,6 +131,8 @@ export interface ISRSTableRowProps {
   onAddShift?: (date: Date, shiftData?: INewSRSShiftData) => Promise<boolean>;
   // *** НОВОЕ: Обработчик checkbox функциональности ***
   onItemCheck?: (item: ISRSRecord, checked: boolean) => void;
+  // *** НОВОЕ: Обработчик кнопки SRS ***
+  onSRSButtonClick?: (item: ISRSRecord) => void;
 }
 
 /**
@@ -137,15 +142,20 @@ export interface ISRSTableRowProps {
 export interface ISRSTabState {
   fromDate: Date; // ОБНОВЛЕНО: Date-only формат
   toDate: Date; // ОБНОВЛЕНО: Date-only формат
-  srsData: ISRSRecord[];
+  srsRecords: IStaffRecord[]; // ИСПРАВЛЕНО: изменено на IStaffRecord[] для совместимости
   // УБРАНО: totalHours: string; - теперь вычисляется в реальном времени
   isLoading: boolean;
+  isLoadingSRS: boolean; // Добавлено поле для загрузки SRS данных
   error?: string;
+  errorSRS?: string; // Добавлено поле для ошибок SRS
   hasUnsavedChanges: boolean;
   selectedItems: Set<string>; // ID выбранных записей
   // НОВОЕ: Типы отпусков
   typesOfLeave: Array<{ id: string; title: string; color?: string }>; // Упрощенный интерфейс типов отпусков
   isLoadingTypesOfLeave: boolean;
+  // НОВОЕ: Праздники
+  holidays: IHoliday[]; // Список праздников для определения праздничных дней Date-only
+  isLoadingHolidays: boolean;
   // ИСПРАВЛЕНО: Добавлено поле showDeleted
   showDeleted: boolean; // Флаг отображения удаленных записей
 }
@@ -258,7 +268,7 @@ export interface ISRSFilterParams {
  * ОБНОВЛЕНО: Расширенные пропсы для главного компонента SRS Tab - убран totalHours, добавлен holidays
  */
 export interface ISRSTabProps {
-  // Основные пропсы
+   // Основные пропсы
   selectedStaff?: { id: string; name: string; employeeId: string };
   context?: unknown;
   currentUserId?: string;
@@ -267,7 +277,7 @@ export interface ISRSTabProps {
   // Данные состояния - ОБНОВЛЕНО: Date-only формат
   fromDate: Date; // ОБНОВЛЕНО: Date-only формат
   toDate: Date; // ОБНОВЛЕНО: Date-only формат
-  srsRecords: ISRSRecord[];
+  srsRecords: ISRSRecord[]; // ИСПРАВЛЕНО: изменено с srsRecords на srsRecords (было правильно)
   // УБРАНО: totalHours: string; - теперь вычисляется в реальном времени
   
   // Типы отпусков
@@ -318,6 +328,9 @@ export interface ISRSTabProps {
   
   // ИСПРАВЛЕНО: Добавлен обработчик добавления смены с Date-only форматом
   onAddShift: (date: Date, shiftData?: INewSRSShiftData) => Promise<boolean>;
+  
+  // *** НОВОЕ: Обработчик кнопки SRS ***
+  onSRSButtonClick?: (item: ISRSRecord) => void;
 }
 
 /**
