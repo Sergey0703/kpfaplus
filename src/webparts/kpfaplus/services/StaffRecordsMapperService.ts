@@ -105,7 +105,7 @@ import {
         ID: id.toString(),
         Deleted: this.ensureNumber(fields.Deleted, 0),
         Checked: this.ensureNumber(fields.Checked, 0),
-        ExportResult: this.ensureString(fields.ExportResult),
+        ExportResult: this.ensureNumber(fields.ExportResult,0),
         Title: this.ensureString(fields.Title),
         Date: mainDate, // Date-only поле
         

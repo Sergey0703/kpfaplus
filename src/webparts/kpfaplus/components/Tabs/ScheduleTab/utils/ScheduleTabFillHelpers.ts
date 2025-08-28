@@ -25,9 +25,8 @@ const processedRecords = records.filter(record => {
   // 1. Checked > 0 (помечена как проверенная)
   // 2. ExportResult не пустое и не равно '0' (экспортирована)
   const isProcessed = record.checked > 0 || (
-    record.exportResult && 
-    record.exportResult.trim() !== '' && 
-    record.exportResult !== '0'
+        //record.exportResult.trim() !== '' && 
+    record.exportResult >0
   );
   
   if (isProcessed) {
@@ -42,9 +41,7 @@ const unprocessedRecords = records.filter(record => {
   // 1. Checked = 0 (не проверена)
   // 2. ExportResult пустое или равно '0' (не экспортирована)
   const isUnprocessed = record.checked === 0 && (
-    !record.exportResult || 
-    record.exportResult.trim() === '' || 
-    record.exportResult === '0'
+        record.exportResult === 0
   );
   return isUnprocessed;
 });

@@ -492,7 +492,7 @@ const getExistingRecordsWithStatus = useCallback(async (
     const existingRecordsCheck: IExistingRecordCheck[] = activeRecords.map((record: IStaffRecord) => ({
       id: record.ID,
       checked: record.Checked || 0,
-      exportResult: record.ExportResult || '0',
+      exportResult: record.ExportResult || 0,
       date: record.Date, // Уже нормализована через parseDateFromSharePoint
       title: record.Title
     }));

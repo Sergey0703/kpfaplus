@@ -14,7 +14,7 @@ import { IDayHours } from '../../../../models/IWeeklyTimeTable';
 export interface IExistingRecordCheck {
   id: string;
   checked: number;
-  exportResult: string;
+  exportResult: number;
   date: Date;
   title?: string;
 }

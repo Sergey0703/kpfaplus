@@ -75,7 +75,7 @@ export interface IAutoFillSafetyCheck {
       id: string;
       date: string;
       checked: number;
-      exportResult: string;
+      exportResult: number;
     }>;
   };
 }
@@ -162,7 +162,7 @@ export class CommonFillValidation {
       // Проверяем, есть ли обработанные записи
       const processedRecords = existingRecords.filter((record: IStaffRecord) => {
         const isProcessed = (record.Checked && record.Checked > 0) || 
-                           (record.ExportResult && record.ExportResult.trim() !== '' && record.ExportResult !== '0');
+                           (record.ExportResult && record.ExportResult>0);
         if (isProcessed) {
           console.log(`[CommonFillValidation] Found processed record ID=${record.ID}: Checked=${record.Checked}, ExportResult="${record.ExportResult}"`);
         }
@@ -326,7 +326,7 @@ export class CommonFillValidation {
       // Детальный анализ обработанных записей
       const processedRecords = existingCheck.existingRecords.filter((record: IStaffRecord) => {
         return (record.Checked && record.Checked > 0) || 
-               (record.ExportResult && record.ExportResult.trim() !== '' && record.ExportResult !== '0');
+               (record.ExportResult && record.ExportResult>0);
       });
 
       const processedRecordsDetails = {
@@ -335,7 +335,7 @@ export class CommonFillValidation {
           id: record.ID,
           date: record.Date ? this.dateUtils.formatDateOnlyForDisplay(record.Date) : 'N/A',
           checked: record.Checked || 0,
-          exportResult: record.ExportResult || 'N/A'
+          exportResult: record.ExportResult || 0
         }))
       };
 
@@ -675,7 +675,7 @@ export class CommonFillValidation {
       id: string;
       date: string;
       checked: number;
-      exportResult: string;
+      exportResult: number;
       processingType: 'CHECKED' | 'EXPORTED' | 'BOTH';
     }>;
   } {
@@ -685,13 +685,13 @@ export class CommonFillValidation {
       id: string;
       date: string;
       checked: number;
-      exportResult: string;
+      exportResult: number;
       processingType: 'CHECKED' | 'EXPORTED' | 'BOTH';
     }> = [];
 
     records.forEach((record: IStaffRecord) => {
       const isChecked = record.Checked && record.Checked > 0;
-      const isExported = record.ExportResult && record.ExportResult.trim() !== '' && record.ExportResult !== '0';
+      const isExported = record.ExportResult && record.ExportResult>0;
       const isProcessed = isChecked || isExported;
       
       if (isProcessed) {
@@ -711,7 +711,7 @@ export class CommonFillValidation {
           id: record.ID,
           date: record.Date ? this.dateUtils.formatDateOnlyForDisplay(record.Date) : 'N/A',
           checked: record.Checked || 0,
-          exportResult: record.ExportResult || 'N/A',
+          exportResult: record.ExportResult || 0,
           processingType
         });
         
@@ -831,7 +831,7 @@ export class CommonFillValidation {
       // Фильтруем обработанные записи
       const processedRecords = existingCheck.existingRecords.filter((record: IStaffRecord) => {
         return (record.Checked && record.Checked > 0) || 
-               (record.ExportResult && record.ExportResult.trim() !== '' && record.ExportResult !== '0');
+               (record.ExportResult && record.ExportResult>0);
       });
 
       // Анализируем типы обработки
@@ -843,7 +843,7 @@ export class CommonFillValidation {
 
       processedRecords.forEach(record => {
         const isChecked = record.Checked && record.Checked > 0;
-        const isExported = record.ExportResult && record.ExportResult.trim() !== '' && record.ExportResult !== '0';
+        const isExported = record.ExportResult && record.ExportResult>0;
 
         if (isChecked && isExported) {
           both++;

@@ -27,7 +27,7 @@ export interface IStaffRecord {
   ID: string;                    // Уникальный идентификатор записи
   Deleted: number;               // Флаг удаления: 1 = помечена на удаление, 0 = активна
   Checked: number;               // Флаг проверки записи
-  ExportResult: string;          // Результат экспорта записи
+  ExportResult: number;          // Результат экспорта записи
   Title: string;                 // Заголовок записи
   Date: Date;                    // Дата записи
   
@@ -72,7 +72,7 @@ export interface IRawStaffRecord {
   ID?: string | number;          // ID записи
   Deleted?: number | string | boolean;  // Флаг удаления
   Checked?: number | string | boolean;  // Флаг проверки
-  ExportResult?: string;         // Результат экспорта
+  ExportResult?: number;         // Результат экспорта
   Title?: string;                // Заголовок
   Date?: string;                 // Дата (в строковом формате)
   
@@ -198,5 +198,5 @@ export interface IStaffRecordUpdateParams {
   weeklyTimeTableID?: string;    // ID недельного расписания
   deleted?: number;              // Флаг удаления
   checked?: number;              // Флаг проверки
-  exportResult?: string;         // Результат экспорта
+  exportResult?: number;         // Результат экспорта
 }
