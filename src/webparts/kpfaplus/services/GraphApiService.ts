@@ -1,7 +1,7 @@
 // src/webparts/kpfaplus/services/GraphApiService.ts
 
 import { WebPartContext } from '@microsoft/sp-webpart-base';
-import { MSGraphClient } from '@microsoft/sp-http';
+import { MSGraphClientV3 } from '@microsoft/sp-http';
 
 /**
  * Интерфейс для ошибок Graph API
@@ -55,7 +55,7 @@ export interface IFileAvailabilityResult {
  */
 export class GraphApiService {
   private static instance: GraphApiService;
-  private graphClient?: MSGraphClient;
+  private graphClient: MSGraphClientV3 | undefined;
   private context: WebPartContext;
 
   private constructor(context: WebPartContext) {
@@ -76,10 +76,10 @@ export class GraphApiService {
   /**
    * Инициализирует Graph Client при первом использовании
    */
-  private async initializeGraphClient(): Promise<MSGraphClient> {
+  private async initializeGraphClient(): Promise<MSGraphClientV3> {
     if (!this.graphClient) {
       console.log('[GraphApiService] Initializing MS Graph Client...');
-      this.graphClient = await this.context.msGraphClientFactory.getClient();
+      this.graphClient = await this.context.msGraphClientFactory.getClient('3');
       console.log('[GraphApiService] MS Graph Client initialized successfully');
     }
     return this.graphClient;
@@ -215,9 +215,6 @@ export class GraphApiService {
   private convertSharePointPathToGraphPath(sharePointPath: string, forUpload: boolean = false): string {
     // Убираем ведущий слэш если есть
     let cleanPath = sharePointPath.startsWith('/') ? sharePointPath.substring(1) : sharePointPath;
-    
-    // Кодируем путь для URL
-    const encodedPath = encodeURIComponent(cleanPath);
     
     if (forUpload) {
       // Для загрузки используем формат /sites/root:/path/file.xlsx:/content

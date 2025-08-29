@@ -42,10 +42,9 @@ export class SharePointFileService {
   private static instance: SharePointFileService;
   private graphApiService: GraphApiService;
   private excelService: ExcelService;
-  private context: WebPartContext;
 
   private constructor(context: WebPartContext) {
-    this.context = context;
+    // Инициализируем сервисы - context используется через них
     this.graphApiService = GraphApiService.getInstance(context);
     this.excelService = ExcelService.getInstance();
     console.log('[SharePointFileService] Instance created');

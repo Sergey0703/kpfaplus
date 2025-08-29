@@ -224,16 +224,21 @@ export class ExcelService {
 
     try {
       const searchValueTrimmed = searchValue.trim();
-      const rangeRef = worksheet.getCell(range.split(':')[0]).address + ':' + worksheet.getCell(range.split(':')[1]).address;
       
-      // Получаем диапазон и проходим по всем ячейкам
-      const rangeObject = worksheet.getCell(range.split(':')[0]);
-      const startCol = rangeObject.col;
-      const startRow = rangeObject.row;
+      // Парсим диапазон
+      const rangeParts = range.split(':');
+      if (rangeParts.length !== 2) {
+        throw new Error(`Invalid range format: ${range}. Expected format: A1:B10`);
+      }
       
-      const endRangeObject = worksheet.getCell(range.split(':')[1]);
-      const endCol = endRangeObject.col;
-      const endRow = endRangeObject.row;
+      const startCell = worksheet.getCell(rangeParts[0]);
+      const endCell = worksheet.getCell(rangeParts[1]);
+      
+      // Получаем координаты с проверкой типов
+      const startRow = typeof startCell.row === 'number' ? startCell.row : 1;
+      const startCol = typeof startCell.col === 'number' ? startCell.col : 1;
+      const endRow = typeof endCell.row === 'number' ? endCell.row : startRow;
+      const endCol = typeof endCell.col === 'number' ? endCell.col : startCol;
 
       console.log('[ExcelService] Search parameters:', {
         startRow,
@@ -392,7 +397,7 @@ export class ExcelService {
           try {
             const cell = worksheet.getCell(row, col);
             if (cell.note) {
-              cell.note = null;
+              (cell as any).note = null; // Исправлено: обходим типизацию ExcelJS
               deletedCount++;
             }
           } catch (cellError) {
