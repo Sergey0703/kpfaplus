@@ -4,7 +4,6 @@ import * as ExcelJS from 'exceljs';
 import { 
   ISRSExcelExportData,
   ISRSExcelOperationResult,
-  ISRSExcelProcessingConfig,
   ISRSExcelProcessingStats,
   ISRSExcelError,
   SRS_EXCEL_CONSTANTS,
@@ -17,11 +16,12 @@ import {
  * Реплицирует логику Office Script для работы с ExcelJS
  */
 export class SRSExcelProcessor {
-  private logs: string[] = [];
+  private logs: string[];
   private stats: ISRSExcelProcessingStats;
 
   constructor() {
-    this.stats = this.createInitialStats();
+    this.logs = [];
+    this.stats = this.initializeStats();
   }
 
   /**
@@ -43,38 +43,34 @@ export class SRSExcelProcessor {
       maxRows: exportData.metadata.maxRows
     });
 
-    const startTime = Date.now();
-    this.logs = [];
-    this.stats = this.createInitialStats();
+    const startTime: number = Date.now();
+    this.resetProcessor();
     this.stats.typeOfSRS = typeOfSRS;
     this.stats.inputRecords = exportData.records.length;
 
     try {
-      // Проверка входных данных
-      this.validateInputs(workbook, worksheet, date, typeOfSRS, exportData);
+      // Валидация входных данных
+      this.validateInputData(workbook, worksheet, date, typeOfSRS, exportData);
 
-      // Максимальное количество строк для обработки
-      const maxPossibleRows = typeOfSRS === SRS_EXCEL_CONSTANTS.SRS_TYPE_3 
-        ? SRS_EXCEL_CONSTANTS.MAX_ROWS_TYPE_3 
-        : SRS_EXCEL_CONSTANTS.MAX_ROWS_TYPE_2;
-
+      // Определяем максимальное количество строк
+      const maxPossibleRows: number = this.getMaxRowsForType(typeOfSRS);
       this.addLog(`Received ${exportData.records.length} records for processing. Type: ${typeOfSRS}`);
 
       // 1. Найти строку с датой в колонке A
-      const baseRowIndex = await this.findDateInWorksheet(worksheet, date);
+      const baseRowIndex: number = this.findDateInWorksheet(worksheet, date);
       this.addLog(`Found target date "${date}" at row ${baseRowIndex + 1} (0-based: ${baseRowIndex})`);
 
       // 2. Очистить все возможные строки
-      await this.clearAllRows(worksheet, typeOfSRS, baseRowIndex, maxPossibleRows);
+      this.clearAllRows(worksheet, typeOfSRS, baseRowIndex, maxPossibleRows);
 
       // 3. Очистить все комментарии в обрабатываемых строках
-      await this.clearCommentsInRows(worksheet, baseRowIndex, maxPossibleRows);
+      this.clearCommentsInRows(worksheet, baseRowIndex, maxPossibleRows);
 
       // 4. Обработать каждую запись
-      await this.processRecords(worksheet, exportData.records, typeOfSRS, baseRowIndex);
+      this.processAllRecords(worksheet, exportData.records, typeOfSRS, baseRowIndex);
 
       // 5. Финализировать статистику
-      this.finalizeStats(startTime);
+      this.finalizeProcessing(startTime);
 
       const result: ISRSExcelOperationResult = {
         success: true,
@@ -94,27 +90,14 @@ export class SRSExcelProcessor {
       return result;
 
     } catch (error) {
-      this.handleProcessingError(error, startTime);
-      
-      const errorResult: ISRSExcelOperationResult = {
-        success: false,
-        operation: 'export_to_excel',
-        error: error instanceof Error ? error.message : 'Unknown processing error',
-        processingTime: Date.now() - startTime,
-        recordsProcessed: this.stats.processedRecords,
-        typeOfSRS,
-        dateFound: this.stats.processedRecords > 0
-      };
-
-      console.error('[SRSExcelProcessor] *** SRS EXCEL EXPORT FAILED ***', errorResult);
-      return errorResult;
+      return this.handleError(error, startTime, typeOfSRS);
     }
   }
 
   /**
    * Валидирует входные данные
    */
-  private validateInputs(
+  private validateInputData(
     workbook: ExcelJS.Workbook,
     worksheet: ExcelJS.Worksheet,
     date: string,
@@ -122,50 +105,59 @@ export class SRSExcelProcessor {
     exportData: ISRSExcelExportData
   ): void {
     if (!workbook) {
-      throw this.createError('WORKBOOK_NOT_FOUND', 'Workbook not found or inaccessible');
+      throw this.createProcessingError('WORKBOOK_NOT_FOUND', 'Workbook not found or inaccessible');
     }
 
     if (!worksheet) {
-      throw this.createError('WORKSHEET_NOT_FOUND', 'Target worksheet not found');
+      throw this.createProcessingError('WORKSHEET_NOT_FOUND', 'Target worksheet not found');
     }
 
     if (!date || date.trim() === '') {
-      throw this.createError('INVALID_DATE', 'Date parameter is required');
+      throw this.createProcessingError('INVALID_DATE', 'Date parameter is required');
     }
 
     if (typeOfSRS !== SRS_EXCEL_CONSTANTS.SRS_TYPE_2 && typeOfSRS !== SRS_EXCEL_CONSTANTS.SRS_TYPE_3) {
-      throw this.createError('INVALID_TYPE_OF_SRS', `Invalid typeOfSRS: ${typeOfSRS}. Must be 2 or 3`);
+      throw this.createProcessingError('INVALID_TYPE_OF_SRS', `Invalid typeOfSRS: ${typeOfSRS}. Must be 2 or 3`);
     }
 
     if (!exportData.records || exportData.records.length === 0) {
-      throw this.createError('NO_RECORDS', 'No records to process');
+      throw this.createProcessingError('NO_RECORDS', 'No records to process');
     }
 
     console.log('[SRSExcelProcessor] Input validation passed');
   }
 
   /**
+   * Получает максимальное количество строк для типа SRS
+   */
+  private getMaxRowsForType(typeOfSRS: SRSType): number {
+    return typeOfSRS === SRS_EXCEL_CONSTANTS.SRS_TYPE_3 
+      ? SRS_EXCEL_CONSTANTS.MAX_ROWS_TYPE_3 
+      : SRS_EXCEL_CONSTANTS.MAX_ROWS_TYPE_2;
+  }
+
+  /**
    * Ищет дату в листе Excel (реплика логики из Office Script)
    */
-  private async findDateInWorksheet(worksheet: ExcelJS.Worksheet, targetDate: string): Promise<number> {
+  private findDateInWorksheet(worksheet: ExcelJS.Worksheet, targetDate: string): number {
     console.log('[SRSExcelProcessor] *** SEARCHING FOR DATE IN WORKSHEET ***');
     console.log('[SRSExcelProcessor] Target date:', targetDate);
     console.log('[SRSExcelProcessor] Search range:', SRS_EXCEL_CONSTANTS.DATE_SEARCH_RANGE);
 
-    const targetValue = targetDate.trim();
+    const targetValue: string = targetDate.trim();
     
-    // Получаем диапазон A1:A2000
-    const rangeParts = SRS_EXCEL_CONSTANTS.DATE_SEARCH_RANGE.split(':');
+    // Парсим диапазон A1:A2000
+    const rangeParts: string[] = SRS_EXCEL_CONSTANTS.DATE_SEARCH_RANGE.split(':');
     const startCell = worksheet.getCell(rangeParts[0]);
     const endCell = worksheet.getCell(rangeParts[1]);
     
-    const startRow = startCell.row;
-    const endRow = endCell.row;
+    const startRow: number = typeof startCell.row === 'number' ? startCell.row : parseInt(String(startCell.row), 10) || 1;
+    const endRow: number = typeof endCell.row === 'number' ? endCell.row : parseInt(String(endCell.row), 10) || 2000;
 
     // Проходим по всем строкам в диапазоне
-    for (let row = startRow; row <= endRow; row++) {
+    for (let row: number = startRow; row <= endRow; row++) {
       const cell = worksheet.getCell(row, 1); // Колонка A = индекс 1
-      const cellValue = cell.value?.toString().trim() || '';
+      const cellValue: string = cell.value?.toString().trim() || '';
       
       if (cellValue && cellValue === targetValue) {
         console.log('[SRSExcelProcessor] Date found at row:', row, '(0-based:', row - 1, ')');
@@ -173,28 +165,30 @@ export class SRSExcelProcessor {
       }
     }
 
-    throw this.createError('DATE_NOT_FOUND', `Target date "${targetValue}" not found in the worksheet`);
+    throw this.createProcessingError('DATE_NOT_FOUND', `Target date "${targetValue}" not found in the worksheet`);
   }
 
   /**
    * Очищает все строки (реплика логики из Office Script)
    */
-  private async clearAllRows(
+  private clearAllRows(
     worksheet: ExcelJS.Worksheet, 
     typeOfSRS: SRSType, 
     baseRowIndex: number, 
     maxPossibleRows: number
-  ): Promise<void> {
+  ): void {
     console.log('[SRSExcelProcessor] *** CLEARING ALL ROWS ***');
     
-    const columns = this.getColumnsForClearing(typeOfSRS);
+    const columns: string[] = this.getColumnsForClearing(typeOfSRS);
     console.log('[SRSExcelProcessor] Columns to clear:', columns.join(', '));
 
-    let clearedCells = 0;
+    let clearedCells: number = 0;
+    const baseRow: number = baseRowIndex;
+    const maxRows: number = maxPossibleRows;
 
     // Очищаем все возможные строки
-    for (let i = 0; i < maxPossibleRows; i++) {
-      const currentRowIndex = baseRowIndex + i + 1; // +1 потому что Excel 1-indexed
+    for (let i: number = 0; i < maxRows; i++) {
+      const currentRowIndex: number = baseRow + i + 1; // +1 потому что Excel 1-indexed
 
       // Очищаем дату во всех строках кроме первой
       if (i > 0) {
@@ -212,7 +206,7 @@ export class SRSExcelProcessor {
     }
 
     this.stats.cellsCleared = clearedCells;
-    this.addLog(`Cleared ${clearedCells} cells in ${maxPossibleRows} rows`);
+    this.addLog(`Cleared ${clearedCells} cells in ${maxRows} rows`);
 
     console.log('[SRSExcelProcessor] Cleared cells:', clearedCells);
   }
@@ -220,23 +214,25 @@ export class SRSExcelProcessor {
   /**
    * Очищает комментарии в обрабатываемых строках (реплика из Office Script)
    */
-  private async clearCommentsInRows(
+  private clearCommentsInRows(
     worksheet: ExcelJS.Worksheet, 
     baseRowIndex: number, 
     maxPossibleRows: number
-  ): Promise<void> {
+  ): void {
     console.log('[SRSExcelProcessor] *** CLEARING COMMENTS IN ROWS ***');
     
-    let deletedComments = 0;
-    const startRow = baseRowIndex + 1; // Excel 1-indexed
-    const endRow = baseRowIndex + maxPossibleRows;
+    let deletedComments: number = 0;
+    const baseRow: number = baseRowIndex;
+    const maxRows: number = maxPossibleRows;
+    const startRow: number = baseRow + 1; // Excel 1-indexed
+    const endRow: number = baseRow + maxRows;
 
     try {
       // ExcelJS не имеет прямого API для получения всех комментариев
       // Очищаем комментарии построчно в разумном диапазоне колонок
-      for (let row = startRow; row <= endRow; row++) {
+      for (let row: number = startRow; row <= endRow; row++) {
         // Проходим по колонкам от A до BZ (примерно 200 колонок)
-        for (let col = 1; col <= 200; col++) {
+        for (let col: number = 1; col <= 200; col++) {
           const cell = worksheet.getCell(row, col);
           if (cell.note) {
             (cell as any).note = null;
@@ -257,22 +253,23 @@ export class SRSExcelProcessor {
   }
 
   /**
-   * Обрабатывает записи SRS (реплика логики из Office Script)
+   * Обрабатывает все записи SRS (реплика логики из Office Script)
    */
-  private async processRecords(
+  private processAllRecords(
     worksheet: ExcelJS.Worksheet,
     records: ISRSExcelRecord[],
     typeOfSRS: SRSType,
     baseRowIndex: number
-  ): Promise<void> {
+  ): void {
     console.log('[SRSExcelProcessor] *** PROCESSING SRS RECORDS ***');
     
-    let cellsUpdated = 0;
-    let commentsAdded = 0;
+    let cellsUpdated: number = 0;
+    let commentsAdded: number = 0;
+    const baseRow: number = baseRowIndex;
 
-    for (let recordIndex = 0; recordIndex < records.length; recordIndex++) {
-      const record = records[recordIndex];
-      const currentRowIndex = baseRowIndex + recordIndex + 1; // +1 because Excel is 1-indexed
+    for (let recordIndex: number = 0; recordIndex < records.length; recordIndex++) {
+      const record: ISRSExcelRecord = records[recordIndex];
+      const currentRowIndex: number = baseRow + recordIndex + 1; // +1 because Excel is 1-indexed
 
       console.log(`[SRSExcelProcessor] Processing record ${recordIndex + 1}/${records.length}:`, {
         contract: record.Contract,
@@ -280,29 +277,24 @@ export class SRSExcelProcessor {
         rowIndex: currentRowIndex
       });
 
-      if (typeOfSRS === SRS_EXCEL_CONSTANTS.SRS_TYPE_3) {
-        const result = await this.processRecordForType3(worksheet, record, currentRowIndex);
-        cellsUpdated += result.cellsUpdated;
-        commentsAdded += result.commentsAdded;
-      } else {
-        const result = await this.processRecordForType2(worksheet, record, currentRowIndex);
-        cellsUpdated += result.cellsUpdated;
-        commentsAdded += result.commentsAdded;
-      }
+      // Обработка по типам SRS
+      const result = this.processRecordByType(worksheet, record, typeOfSRS, currentRowIndex);
+      cellsUpdated += result.cellsUpdated;
+      commentsAdded += result.commentsAdded;
 
-      // Обработка TypeOfLeaveID 3-19 (общая для всех типов)
+      // Обработка расширенных типов отпусков (3-19)
       if (record.TypeOfLeaveID >= SRS_EXCEL_CONSTANTS.EXTENDED_LEAVE_ID_MIN && 
           record.TypeOfLeaveID <= SRS_EXCEL_CONSTANTS.EXTENDED_LEAVE_ID_MAX) {
-        const extendedResult = await this.processExtendedLeaveType(worksheet, record, typeOfSRS, currentRowIndex);
+        const extendedResult = this.processExtendedLeaveType(worksheet, record, typeOfSRS, currentRowIndex);
         cellsUpdated += extendedResult.cellsUpdated;
         commentsAdded += extendedResult.commentsAdded;
       } 
-      // Комментарии для TypeOfLeaveID 1-2
+      // Комментарии для базовых типов отпусков (1-2)
       else if (record.TypeOfLeaveID === 1 || record.TypeOfLeaveID === 2) {
         if (record.LeaveNote) {
-          const leaveColumn = this.getLeaveColumnForType12(typeOfSRS, record.Contract, record.TypeOfLeaveID);
+          const leaveColumn: string | null = this.getLeaveColumnForBasicTypes(typeOfSRS, record.Contract, record.TypeOfLeaveID);
           if (leaveColumn) {
-            this.addComment(worksheet, `${leaveColumn}${currentRowIndex}`, record.LeaveNote);
+            this.addCommentToCell(worksheet, `${leaveColumn}${currentRowIndex}`, record.LeaveNote);
             commentsAdded++;
           }
         }
@@ -319,15 +311,31 @@ export class SRSExcelProcessor {
   }
 
   /**
+   * Обрабатывает запись по типу SRS
+   */
+  private processRecordByType(
+    worksheet: ExcelJS.Worksheet,
+    record: ISRSExcelRecord,
+    typeOfSRS: SRSType,
+    rowIndex: number
+  ): { cellsUpdated: number; commentsAdded: number } {
+    if (typeOfSRS === SRS_EXCEL_CONSTANTS.SRS_TYPE_3) {
+      return this.processRecordForType3(worksheet, record, rowIndex);
+    } else {
+      return this.processRecordForType2(worksheet, record, rowIndex);
+    }
+  }
+
+  /**
    * Обрабатывает запись для typeOfSRS = 3
    */
-  private async processRecordForType3(
+  private processRecordForType3(
     worksheet: ExcelJS.Worksheet,
     record: ISRSExcelRecord,
     rowIndex: number
-  ): Promise<{ cellsUpdated: number; commentsAdded: number }> {
-    let cellsUpdated = 0;
-    let commentsAdded = 0;
+  ): { cellsUpdated: number; commentsAdded: number } {
+    let cellsUpdated: number = 0;
+    let commentsAdded: number = 0;
 
     if (record.Contract === 1) {
       // Contract 1, Type 3
@@ -336,17 +344,17 @@ export class SRSExcelProcessor {
       worksheet.getCell(`F${rowIndex}`).value = record.LunchTime;
       cellsUpdated += 3;
 
-      // Комментарии
+      // Комментарии для Contract 1, Type 3
       if (record.LunchNote) {
-        this.addComment(worksheet, `F${rowIndex}`, record.LunchNote);
+        this.addCommentToCell(worksheet, `F${rowIndex}`, record.LunchNote);
         commentsAdded++;
       }
       if (record.TotalHoursNote) {
-        this.addComment(worksheet, `H${rowIndex}`, record.TotalHoursNote);
+        this.addCommentToCell(worksheet, `H${rowIndex}`, record.TotalHoursNote);
         commentsAdded++;
       }
 
-      // TypeOfLeaveID специфичные ячейки
+      // TypeOfLeaveID специфичные ячейки для Contract 1, Type 3
       if (record.TypeOfLeaveID === 1) {
         worksheet.getCell(`J${rowIndex}`).value = record.LeaveTime;
         cellsUpdated++;
@@ -363,17 +371,17 @@ export class SRSExcelProcessor {
       worksheet.getCell(`O${rowIndex}`).value = record.LunchTime;
       cellsUpdated += 3;
 
-      // Комментарии
+      // Комментарии для Contract 2, Type 3
       if (record.LunchNote) {
-        this.addComment(worksheet, `O${rowIndex}`, record.LunchNote);
+        this.addCommentToCell(worksheet, `O${rowIndex}`, record.LunchNote);
         commentsAdded++;
       }
       if (record.TotalHoursNote) {
-        this.addComment(worksheet, `Q${rowIndex}`, record.TotalHoursNote);
+        this.addCommentToCell(worksheet, `Q${rowIndex}`, record.TotalHoursNote);
         commentsAdded++;
       }
 
-      // TypeOfLeaveID специфичные ячейки
+      // TypeOfLeaveID специфичные ячейки для Contract 2, Type 3
       if (record.TypeOfLeaveID === 1) {
         worksheet.getCell(`S${rowIndex}`).value = record.LeaveTime;
         cellsUpdated++;
@@ -390,13 +398,13 @@ export class SRSExcelProcessor {
   /**
    * Обрабатывает запись для typeOfSRS = 2
    */
-  private async processRecordForType2(
+  private processRecordForType2(
     worksheet: ExcelJS.Worksheet,
     record: ISRSExcelRecord,
     rowIndex: number
-  ): Promise<{ cellsUpdated: number; commentsAdded: number }> {
-    let cellsUpdated = 0;
-    let commentsAdded = 0;
+  ): { cellsUpdated: number; commentsAdded: number } {
+    let cellsUpdated: number = 0;
+    let commentsAdded: number = 0;
 
     if (record.Contract === 1) {
       // Contract 1, Type 2
@@ -405,17 +413,17 @@ export class SRSExcelProcessor {
       worksheet.getCell(`F${rowIndex}`).value = record.LunchTime;
       cellsUpdated += 3;
 
-      // Комментарии
+      // Комментарии для Contract 1, Type 2
       if (record.LunchNote) {
-        this.addComment(worksheet, `F${rowIndex}`, record.LunchNote);
+        this.addCommentToCell(worksheet, `F${rowIndex}`, record.LunchNote);
         commentsAdded++;
       }
       if (record.TotalHoursNote) {
-        this.addComment(worksheet, `I${rowIndex}`, record.TotalHoursNote);
+        this.addCommentToCell(worksheet, `I${rowIndex}`, record.TotalHoursNote);
         commentsAdded++;
       }
 
-      // TypeOfLeaveID специфичные ячейки
+      // TypeOfLeaveID специфичные ячейки для Contract 1, Type 2
       if (record.TypeOfLeaveID === 1) {
         worksheet.getCell(`K${rowIndex}`).value = record.LeaveTime;
         cellsUpdated++;
@@ -432,17 +440,17 @@ export class SRSExcelProcessor {
       worksheet.getCell(`P${rowIndex}`).value = record.LunchTime;
       cellsUpdated += 3;
 
-      // Комментарии
+      // Комментарии для Contract 2, Type 2
       if (record.LunchNote) {
-        this.addComment(worksheet, `P${rowIndex}`, record.LunchNote);
+        this.addCommentToCell(worksheet, `P${rowIndex}`, record.LunchNote);
         commentsAdded++;
       }
       if (record.TotalHoursNote) {
-        this.addComment(worksheet, `S${rowIndex}`, record.TotalHoursNote);
+        this.addCommentToCell(worksheet, `S${rowIndex}`, record.TotalHoursNote);
         commentsAdded++;
       }
 
-      // TypeOfLeaveID специфичные ячейки
+      // TypeOfLeaveID специфичные ячейки для Contract 2, Type 2
       if (record.TypeOfLeaveID === 1) {
         worksheet.getCell(`U${rowIndex}`).value = record.LeaveTime;
         cellsUpdated++;
@@ -459,24 +467,25 @@ export class SRSExcelProcessor {
   /**
    * Обрабатывает расширенные типы отпусков (TypeOfLeaveID 3-19)
    */
-  private async processExtendedLeaveType(
+  private processExtendedLeaveType(
     worksheet: ExcelJS.Worksheet,
     record: ISRSExcelRecord,
     typeOfSRS: SRSType,
     rowIndex: number
-  ): Promise<{ cellsUpdated: number; commentsAdded: number }> {
-    const columns = typeOfSRS === SRS_EXCEL_CONSTANTS.SRS_TYPE_3 
-      ? SRS_EXCEL_CONSTANTS.EXTENDED_LEAVE_COLUMNS_TYPE_3
-      : SRS_EXCEL_CONSTANTS.EXTENDED_LEAVE_COLUMNS_TYPE_2;
+  ): { cellsUpdated: number; commentsAdded: number } {
+    const columns: string[] = typeOfSRS === SRS_EXCEL_CONSTANTS.SRS_TYPE_3 
+      ? [...SRS_EXCEL_CONSTANTS.EXTENDED_LEAVE_COLUMNS_TYPE_3]
+      : [...SRS_EXCEL_CONSTANTS.EXTENDED_LEAVE_COLUMNS_TYPE_2];
 
-    const leaveColumn = columns[record.TypeOfLeaveID - 3]; // -3 because array starts from TypeOfLeaveID 3
+    const columnIndex: number = record.TypeOfLeaveID - 3; // -3 because array starts from TypeOfLeaveID 3
+    const leaveColumn: string | undefined = columns[columnIndex];
     
     if (leaveColumn) {
       worksheet.getCell(`${leaveColumn}${rowIndex}`).value = record.LeaveTime;
       
-      let commentsAdded = 0;
+      let commentsAdded: number = 0;
       if (record.LeaveNote) {
-        this.addComment(worksheet, `${leaveColumn}${rowIndex}`, record.LeaveNote);
+        this.addCommentToCell(worksheet, `${leaveColumn}${rowIndex}`, record.LeaveNote);
         commentsAdded = 1;
       }
 
@@ -487,9 +496,9 @@ export class SRSExcelProcessor {
   }
 
   /**
-   * Получает колонку для TypeOfLeaveID 1-2
+   * Получает колонку для базовых типов отпусков (TypeOfLeaveID 1-2)
    */
-  private getLeaveColumnForType12(typeOfSRS: SRSType, contract: number, typeOfLeaveID: number): string | null {
+  private getLeaveColumnForBasicTypes(typeOfSRS: SRSType, contract: number, typeOfLeaveID: number): string | null {
     if (typeOfSRS === SRS_EXCEL_CONSTANTS.SRS_TYPE_3) {
       if (contract === 1) {
         return typeOfLeaveID === 1 ? 'J' : 'I'; // Type 3, Contract 1
@@ -511,16 +520,16 @@ export class SRSExcelProcessor {
    */
   private getColumnsForClearing(typeOfSRS: SRSType): string[] {
     if (typeOfSRS === SRS_EXCEL_CONSTANTS.SRS_TYPE_3) {
-      return SRS_EXCEL_CONSTANTS.CLEAR_COLUMNS_TYPE_3;
+      return [...SRS_EXCEL_CONSTANTS.CLEAR_COLUMNS_TYPE_3];
     } else {
-      return SRS_EXCEL_CONSTANTS.CLEAR_COLUMNS_TYPE_2;
+      return [...SRS_EXCEL_CONSTANTS.CLEAR_COLUMNS_TYPE_2];
     }
   }
 
   /**
    * Добавляет комментарий к ячейке (реплика из Office Script)
    */
-  private addComment(worksheet: ExcelJS.Worksheet, cellAddress: string, commentText: string): boolean {
+  private addCommentToCell(worksheet: ExcelJS.Worksheet, cellAddress: string, commentText: string): boolean {
     try {
       const cell = worksheet.getCell(cellAddress);
       
@@ -536,7 +545,7 @@ export class SRSExcelProcessor {
       return true;
 
     } catch (e) {
-      const errorMsg = `Error: Failed to add comment to ${cellAddress}: ${e}`;
+      const errorMsg: string = `Error: Failed to add comment to ${cellAddress}: ${e}`;
       this.addLog(errorMsg);
       console.warn('[SRSExcelProcessor]', errorMsg);
       return false;
@@ -546,7 +555,7 @@ export class SRSExcelProcessor {
   /**
    * Инициализирует статистику
    */
-  private createInitialStats(): ISRSExcelProcessingStats {
+  private initializeStats(): ISRSExcelProcessingStats {
     return {
       totalTime: 0,
       inputRecords: 0,
@@ -566,9 +575,17 @@ export class SRSExcelProcessor {
   }
 
   /**
-   * Финализирует статистику
+   * Сбрасывает процессор к начальному состоянию
    */
-  private finalizeStats(startTime: number): void {
+  private resetProcessor(): void {
+    this.logs = [];
+    this.stats = this.initializeStats();
+  }
+
+  /**
+   * Финализирует обработку
+   */
+  private finalizeProcessing(startTime: number): void {
     this.stats.totalTime = Date.now() - startTime;
     this.stats.success = true;
     this.stats.skippedRecords = this.stats.inputRecords - this.stats.processedRecords;
@@ -577,15 +594,25 @@ export class SRSExcelProcessor {
   /**
    * Обрабатывает ошибки
    */
-  private handleProcessingError(error: any, startTime: number): void {
+  private handleError(error: any, startTime: number, typeOfSRS?: SRSType): ISRSExcelOperationResult {
     this.stats.totalTime = Date.now() - startTime;
     this.stats.success = false;
     
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorMessage: string = error instanceof Error ? error.message : String(error);
     this.stats.errors.push(errorMessage);
     this.addLog(`Error: ${errorMessage}`);
 
     console.error('[SRSExcelProcessor] Processing error:', error);
+
+    return {
+      success: false,
+      operation: 'export_to_excel',
+      error: errorMessage,
+      processingTime: this.stats.totalTime,
+      recordsProcessed: this.stats.processedRecords,
+      typeOfSRS: typeOfSRS || SRS_EXCEL_CONSTANTS.DEFAULT_SRS_TYPE,
+      dateFound: this.stats.processedRecords > 0
+    };
   }
 
   /**
@@ -597,9 +624,9 @@ export class SRSExcelProcessor {
   }
 
   /**
-   * Создает типизированную ошибку
+   * Создает типизированную ошибку обработки
    */
-  private createError(code: string, message: string, details?: any): ISRSExcelError {
+  private createProcessingError(code: string, message: string, details?: any): ISRSExcelError {
     return {
       code,
       message,
