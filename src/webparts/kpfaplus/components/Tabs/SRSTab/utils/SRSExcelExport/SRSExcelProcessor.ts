@@ -235,7 +235,8 @@ export class SRSExcelProcessor {
         for (let col: number = 1; col <= 200; col++) {
           const cell = worksheet.getCell(row, col);
           if (cell.note) {
-            (cell as any).note = null;
+            // ExcelJS note property handling
+            delete (cell as { note?: string }).note;
             deletedComments++;
           }
         }
@@ -535,17 +536,17 @@ export class SRSExcelProcessor {
       
       // Очищаем существующий комментарий
       if (cell.note) {
-        (cell as any).note = null;
+        delete (cell as { note?: string }).note;
       }
 
       // Добавляем новый комментарий
-      cell.note = commentText;
+      (cell as { note: string }).note = commentText;
       
       this.addLog(`Added comment to ${cellAddress}: ${commentText}`);
       return true;
 
     } catch (e) {
-      const errorMsg: string = `Error: Failed to add comment to ${cellAddress}: ${e}`;
+      const errorMsg: string = `Error: Failed to add comment to ${cellAddress}: ${e instanceof Error ? e.message : String(e)}`;
       this.addLog(errorMsg);
       console.warn('[SRSExcelProcessor]', errorMsg);
       return false;
@@ -594,7 +595,7 @@ export class SRSExcelProcessor {
   /**
    * Обрабатывает ошибки
    */
-  private handleError(error: any, startTime: number, typeOfSRS?: SRSType): ISRSExcelOperationResult {
+  private handleError(error: unknown, startTime: number, typeOfSRS?: SRSType): ISRSExcelOperationResult {
     this.stats.totalTime = Date.now() - startTime;
     this.stats.success = false;
     
@@ -626,7 +627,7 @@ export class SRSExcelProcessor {
   /**
    * Создает типизированную ошибку обработки
    */
-  private createProcessingError(code: string, message: string, details?: any): ISRSExcelError {
+  private createProcessingError(code: string, message: string, details?: unknown): ISRSExcelError {
     return {
       code,
       message,
