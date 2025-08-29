@@ -837,7 +837,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
                 backgroundColor: '#0078d4',
                 color: 'white',
                 border: 'none',
-                minWidth: '50px',
+                minWidth: '40px',
                 height: '28px',
                 fontSize: '11px',
                 borderRadius: '2px',
