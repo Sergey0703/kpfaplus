@@ -40,7 +40,7 @@ export interface IFindValueResult {
   row?: number;      // 0-based индекс строки
   column?: number;   // 0-based индекс колонки
   address?: string;  // Адрес ячейки (A1, B5, etc.)
-  value?: any;       // Найденное значение
+  value?: ExcelJS.CellValue; // Найденное значение
 }
 
 /**
@@ -293,7 +293,7 @@ export class ExcelService {
    * @param address - адрес ячейки (например, "A1")
    * @param value - значение для установки
    */
-  public setCellValue(worksheet: ExcelJS.Worksheet, address: string, value: any): void {
+  public setCellValue(worksheet: ExcelJS.Worksheet, address: string, value: ExcelJS.CellValue): void {
     try {
       const cell = worksheet.getCell(address);
       cell.value = value;
@@ -332,8 +332,9 @@ export class ExcelService {
           const cell = worksheet.getCell(address);
           cell.value = null;
           clearedCount++;
-        } catch (cellError) {
-          console.warn(`[ExcelService] Failed to clear cell ${address}:`, cellError);
+        } catch {
+          // Игнорируем ошибки отдельных ячеек - просто логируем предупреждение
+          console.warn(`[ExcelService] Failed to clear cell ${address}`);
         }
       });
 
@@ -397,10 +398,11 @@ export class ExcelService {
           try {
             const cell = worksheet.getCell(row, col);
             if (cell.note) {
-              (cell as any).note = null; // Исправлено: обходим типизацию ExcelJS
+              // Безопасное удаление комментария
+              (cell as { note?: string | null }).note = null;
               deletedCount++;
             }
-          } catch (cellError) {
+          } catch {
             // Игнорируем ошибки отдельных ячеек
           }
         }
@@ -439,15 +441,15 @@ export class ExcelService {
   /**
    * Статические методы для проверки типов ошибок
    */
-  public static isWorksheetNotFound(error: any): boolean {
+  public static isWorksheetNotFound(error: unknown): error is ExcelServiceError {
     return error instanceof ExcelServiceError && error.code === 'WORKSHEET_NOT_FOUND';
   }
 
-  public static isLoadWorkbookFailed(error: any): boolean {
+  public static isLoadWorkbookFailed(error: unknown): error is ExcelServiceError {
     return error instanceof ExcelServiceError && error.code === 'LOAD_WORKBOOK_FAILED';
   }
 
-  public static isSaveWorkbookFailed(error: any): boolean {
+  public static isSaveWorkbookFailed(error: unknown): error is ExcelServiceError {
     return error instanceof ExcelServiceError && error.code === 'SAVE_WORKBOOK_FAILED';
   }
 }

@@ -289,7 +289,7 @@ export class SharePointFileService {
    * @param error - ошибка для форматирования
    * @returns отформатированное сообщение об ошибке
    */
-  private formatError(error: any): string {
+  private formatError(error: unknown): string {
     if (error instanceof GraphApiServiceError) {
       if (error.isFileLocked) {
         return `File is currently locked for editing. Please close the file in Excel and try again.`;
@@ -312,19 +312,19 @@ export class SharePointFileService {
   /**
    * Статические методы для проверки типов ошибок
    */
-  public static isFileLocked(error: any): boolean {
+  public static isFileLocked(error: unknown): boolean {
     return GraphApiService.isFileLocked(error);
   }
 
-  public static isFileNotFound(error: any): boolean {
+  public static isFileNotFound(error: unknown): boolean {
     return GraphApiService.isFileNotFound(error);
   }
 
-  public static isAccessDenied(error: any): boolean {
+  public static isAccessDenied(error: unknown): boolean {
     return GraphApiService.isAccessDenied(error);
   }
 
-  public static isExcelProcessingError(error: any): boolean {
+  public static isExcelProcessingError(error: unknown): boolean {
     return error instanceof ExcelServiceError;
   }
 }

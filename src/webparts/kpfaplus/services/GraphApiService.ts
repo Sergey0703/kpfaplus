@@ -214,7 +214,7 @@ export class GraphApiService {
    */
   private convertSharePointPathToGraphPath(sharePointPath: string, forUpload: boolean = false): string {
     // Убираем ведущий слэш если есть
-    let cleanPath = sharePointPath.startsWith('/') ? sharePointPath.substring(1) : sharePointPath;
+    const cleanPath = sharePointPath.startsWith('/') ? sharePointPath.substring(1) : sharePointPath;
     
     if (forUpload) {
       // Для загрузки используем формат /sites/root:/path/file.xlsx:/content
@@ -230,21 +230,21 @@ export class GraphApiService {
    * @param error - исходная ошибка
    * @returns типизированная ошибка GraphApiServiceError
    */
-  private handleGraphApiError(error: any): GraphApiServiceError {
+  private handleGraphApiError(error: unknown): GraphApiServiceError {
     console.error('[GraphApiService] Processing Graph API error:', error);
 
     let graphError: IGraphApiError;
 
     // Обрабатываем разные форматы ошибок
-    if (error?.code || error?.message) {
+    if (this.isGraphApiErrorLike(error)) {
       // Стандартная ошибка Graph API
       graphError = {
         code: error.code || 'unknown',
         message: error.message || 'Unknown Graph API error',
-        details: error.details || error.toString(),
+        details: error.details || String(error),
         statusCode: error.statusCode
       };
-    } else if (error?.response?.status) {
+    } else if (this.isHttpErrorLike(error)) {
       // HTTP ошибка
       const status = error.response.status;
       let code = 'httpError';
@@ -273,14 +273,17 @@ export class GraphApiService {
         code,
         message,
         statusCode: status,
-        details: error.response?.data || error.toString()
+        details: error.response?.data ? String(error.response.data) : String(error)
       };
     } else {
       // Неизвестная ошибка
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      const errorDetails = error instanceof Error ? error.toString() : String(error);
+      
       graphError = {
         code: 'unknown',
-        message: error?.message || 'Unknown error occurred',
-        details: error?.toString()
+        message: errorMessage,
+        details: errorDetails
       };
     }
 
@@ -297,17 +300,43 @@ export class GraphApiService {
   }
 
   /**
+   * Type guards для проверки типов ошибок
+   */
+  private isGraphApiErrorLike(error: unknown): error is { 
+    code?: string; 
+    message?: string; 
+    details?: string; 
+    statusCode?: number;
+  } {
+    return typeof error === 'object' && error !== null && 
+           ('code' in error || 'message' in error);
+  }
+
+  private isHttpErrorLike(error: unknown): error is { 
+    response: { 
+      status: number; 
+      data?: unknown; 
+    };
+  } {
+    return typeof error === 'object' && error !== null && 
+           'response' in error && 
+           typeof (error as { response: unknown }).response === 'object' &&
+           (error as { response: unknown }).response !== null &&
+           'status' in (error as { response: { status: unknown } }).response;
+  }
+
+  /**
    * Статический метод для проверки типа ошибки (удобство использования)
    */
-  public static isFileLocked(error: any): boolean {
+  public static isFileLocked(error: unknown): boolean {
     return error instanceof GraphApiServiceError && error.isFileLocked;
   }
 
-  public static isFileNotFound(error: any): boolean {
+  public static isFileNotFound(error: unknown): boolean {
     return error instanceof GraphApiServiceError && error.isNotFound;
   }
 
-  public static isAccessDenied(error: any): boolean {
+  public static isAccessDenied(error: unknown): boolean {
     return error instanceof GraphApiServiceError && error.isAccessDenied;
   }
 }
