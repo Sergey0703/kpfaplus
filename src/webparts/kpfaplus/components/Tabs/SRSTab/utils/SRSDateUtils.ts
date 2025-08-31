@@ -320,6 +320,40 @@ export class SRSDateUtils {
   }
 
   /**
+   * *** НОВОЕ: Форматирует дату для поиска в Excel (формат DD.MM.YYYY) ***
+   * Специально для SRS Excel экспорта
+   * 
+   * @param date Дата для форматирования
+   * @returns Строка в формате DD.MM.YYYY для поиска в Excel
+   */
+  public static formatDateForExcelSearch(date: Date): string {
+    if (!date) {
+      console.warn('[SRSDateUtils] formatDateForExcelSearch: empty date provided');
+      return '';
+    }
+
+    try {
+      const day = date.getDate().toString().padStart(2, '0');
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const year = date.getFullYear();
+      
+      const formatted = `${day}.${month}.${year}`;
+      
+      console.log('[SRSDateUtils] formatDateForExcelSearch (for Excel search):', {
+        input: date.toISOString(),
+        inputLocal: date.toLocaleDateString(),
+        formatted: formatted,
+        purpose: 'Excel date search in DD.MM.YYYY format'
+      });
+      
+      return formatted;
+    } catch (error) {
+      console.error('[SRSDateUtils] formatDateForExcelSearch error:', error);
+      return '';
+    }
+  }
+
+  /**
    * Рассчитывает количество дней в указанном диапазоне
    * ОБНОВЛЕНО: Работает только с датами без времени
    * 

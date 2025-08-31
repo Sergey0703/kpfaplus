@@ -610,6 +610,14 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
    onItemChange(updatedItem, 'workingHours', workTime);
  }, [calculatedWorkTimes, onItemChange]);
 
+ // *** НОВЫЙ ОБРАБОТЧИК ДЛЯ ТИПА ОТПУСКА ***
+ const handleTypeOfLeaveChange = useCallback((item: IScheduleItem, value: string): void => {
+   if (item.deleted) { return; }
+   console.log(`[ScheduleTable] *** TYPE OF LEAVE CHANGED ***`);
+   console.log(`[ScheduleTable] Item ID: ${item.id}, New type of leave: ${value}`);
+   onItemChange(item, 'typeOfLeave', value);
+ }, [onItemChange]);
+
  // --- НОВЫЕ ОБРАБОТЧИКИ ДЛЯ ПАГИНАЦИИ ---
  const handleItemsPerPageChange = useCallback((event: React.FormEvent<HTMLDivElement>, option?: IDropdownOption): void => {
      if (option) {
@@ -670,7 +678,7 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
        saveChangesButton={saveChangesButton}
      />
 
-     {/* *** ОБНОВЛЕНО: Передаем holidays в ScheduleTableContent *** */}
+     {/* *** ОБНОВЛЕНО: Передаем holidays и НОВЫЙ обработчик для типа отпуска в ScheduleTableContent *** */}
      <ScheduleTableContent
        items={items}
        options={options}
@@ -685,6 +693,7 @@ export const ScheduleTable: React.FC<IScheduleTableProps> = (props) => {
        onItemChange={handleTimeChange}
        onContractNumberChange={handleContractNumberChange}
        onLunchTimeChange={handleLunchTimeChange}
+       onTypeOfLeaveChange={handleTypeOfLeaveChange} // *** НОВЫЙ ПРОПС: Обработчик для типа отпуска ***
        onAddShift={onAddShift}
      />
 

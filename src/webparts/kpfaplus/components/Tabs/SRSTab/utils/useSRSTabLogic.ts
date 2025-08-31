@@ -352,7 +352,9 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       const staffInfo = {
         id: selectedStaff.id,
         name: selectedStaff.name || 'Unknown',
-        employeeId: selectedStaff.employeeId || ''
+        employeeId: selectedStaff.employeeId || '',
+        pathForSRSFile: selectedStaff.pathForSRSFile || '', // ДОБАВИТЬ ЭТУ СТРОКУ
+        typeOfSRS: 2 //selectedStaff.typeOfSRS || 2 // И ЭТУ ТОЖЕ
       };
 
       // *** КЛЮЧЕВОЙ ВЫЗОВ: Вызываем функцию из SRSButtonHandler.ts ***

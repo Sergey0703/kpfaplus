@@ -1,6 +1,6 @@
 // src/webparts/kpfaplus/components/Tabs/ScheduleTab/components/ScheduleTableContent.tsx
 import * as React from 'react';
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Spinner } from '@fluentui/react';
 import styles from '../ScheduleTab.module.scss';
 import { IScheduleItem, IScheduleOptions, INewShiftData } from './ScheduleTable';
@@ -26,6 +26,7 @@ export interface IScheduleTableContentProps {
  
  onContractNumberChange: (item: IScheduleItem, value: string) => void;
  onLunchTimeChange: (item: IScheduleItem, value: string) => void;
+ onTypeOfLeaveChange: (item: IScheduleItem, value: string) => void; // *** НОВЫЙ ПРОПС: Обработчик для типа отпуска ***
  onAddShift: (date: Date, shiftData?: INewShiftData) => void; // Updated to accept shift data
 }
 
@@ -43,7 +44,8 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
    getDisplayWorkTime,
    onItemChange,
    onContractNumberChange,
-   onLunchTimeChange
+   onLunchTimeChange,
+   onTypeOfLeaveChange // *** НОВЫЙ ПРОПС: Получаем обработчик для типа отпуска ***
    // We still need to receive onAddShift in props, but we won't pass it to ScheduleTableRow
  } = props;
 
@@ -172,7 +174,7 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
  }, [items, calculateTotalTimeForDate, createDateKey, getDisplayWorkTime]);
 
  // *** ОБНОВЛЯЕМ КЭШ КОГДА ПЕРЕСЧИТЫВАЮТСЯ ОБЩИЕ ВРЕМЕНА ***
- useEffect(() => {
+ React.useEffect(() => {
    console.log(`[ScheduleTableContent] *** UPDATING CACHED DATE TOTALS ***`);
    setCachedDateTotals(allDateTotals);
  }, [allDateTotals]);
@@ -322,7 +324,7 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
                    </tr>
                  )}
                  
-                 {/* *** ОБНОВЛЕНО: Передаем holidays в ScheduleTableRow *** */}
+                 {/* *** ОБНОВЛЕНО: Передаем holidays и новый обработчик типа отпуска в ScheduleTableRow *** */}
                  <ScheduleTableRow 
                    item={item}
                    rowIndex={index}
@@ -339,6 +341,7 @@ export const ScheduleTableContent: React.FC<IScheduleTableContentProps> = (props
                    onItemChange={handleItemChangeWithCacheInvalidation}
                    onContractNumberChange={onContractNumberChange}
                    onLunchTimeChange={handleLunchTimeChangeWithCacheInvalidation}
+                   onTypeOfLeaveChange={onTypeOfLeaveChange} // *** НОВЫЙ ПРОПС: Передаем обработчик типа отпуска ***
                  />
                </React.Fragment>
              );

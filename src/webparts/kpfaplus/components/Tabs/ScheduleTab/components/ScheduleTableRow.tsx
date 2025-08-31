@@ -31,6 +31,7 @@ export interface IScheduleTableRowProps {
  
  onContractNumberChange: (item: IScheduleItem, value: string) => void;
  onLunchTimeChange: (item: IScheduleItem, value: string) => void;
+ onTypeOfLeaveChange: (item: IScheduleItem, value: string) => void;
 }
 
 export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
@@ -49,7 +50,8 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
    onRestoreItem,
    onItemChange,
    onContractNumberChange,
-   onLunchTimeChange
+   onLunchTimeChange,
+   onTypeOfLeaveChange
  } = props;
 
  // Определяем, удалена ли запись
@@ -410,7 +412,7 @@ export const ScheduleTableRow: React.FC<IScheduleTableRowProps> = (props) => {
        <Dropdown
          selectedKey={item.typeOfLeave ? String(item.typeOfLeave) : ''}
          options={options.leaveTypes}
-         onChange={(_, option): void => option && onItemChange(item, 'typeOfLeave', option.key as string)}
+         onChange={(_, option): void => option && onTypeOfLeaveChange(item, option.key as string)}
          styles={getLeaveDropdownStyles()}
          disabled={isDeleted}
        />
