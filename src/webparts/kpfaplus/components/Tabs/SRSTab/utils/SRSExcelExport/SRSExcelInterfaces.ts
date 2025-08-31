@@ -104,7 +104,7 @@ export interface ISRSExcelError {
   rowIndex?: number;              // Индекс строки
   
   // Техническая информация
-  originalError?: any;            // Оригинальная ошибка
+  originalError?: Error | string | unknown; // *** FIXED: Replace any with specific union type ***
   stackTrace?: string;            // Stack trace для отладки
 }
 
