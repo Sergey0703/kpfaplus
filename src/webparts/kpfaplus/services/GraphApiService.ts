@@ -49,14 +49,22 @@ export interface IFileAvailabilityResult {
   errorDetails?: string;
 }
 
+// Константа для базового пути к сайту для переиспользования
+const SITE_PATH = 'kpfaie.sharepoint.com:/sites/KPFADataBackUp';
+
 /**
  * Универсальный сервис для работы с Microsoft Graph API
  * Предоставляет методы для работы с файлами в SharePoint
+ * 
+ * ИСПРАВЛЕНО: Правильное построение путей для SharePoint sites
  */
 export class GraphApiService {
   private static instance: GraphApiService;
   private graphClient: MSGraphClientV3 | undefined;
   private context: WebPartContext;
+  
+  // *** ИСПРАВЛЕНО: Возвращаем кэширование Site ID для производительности ***
+  private cachedSiteId: string = '';
 
   private constructor(context: WebPartContext) {
     this.context = context;
@@ -84,111 +92,147 @@ export class GraphApiService {
     }
     return this.graphClient;
   }
+  
+  /**
+   * *** НОВЫЙ МЕТОД (возвращен и исправлен): Получает ID сайта по его пути ***
+   * Это первый шаг в надежном двухэтапном подходе.
+   */
+  private async getSiteIdByPath(): Promise<string> {
+    if (this.cachedSiteId) {
+      return this.cachedSiteId;
+    }
+
+    const graphClient = await this.initializeGraphClient();
+    const siteLookupPath = `/sites/${SITE_PATH}`;
+    
+    console.log('[GraphApiService] Robust Step 1: Getting Site ID from path:', siteLookupPath);
+    
+    try {
+      const siteResponse = await graphClient.api(siteLookupPath).get();
+      if (!siteResponse || !siteResponse.id) {
+        throw new Error("Site ID not found in response for path.");
+      }
+      this.cachedSiteId = siteResponse.id;
+      console.log('[GraphApiService] Robust Step 1 SUCCESS: Found Site ID:', this.cachedSiteId);
+      return this.cachedSiteId;
+    } catch (error) {
+      console.error('[GraphApiService] Robust Step 1 FAILED: Could not get Site ID.', error);
+      throw this.handleGraphApiError(error);
+    }
+  }
+
+  /**
+   * *** НОВЫЙ МЕТОД: Получает DriveItem по пути к файлу ***
+   */
+  private async getDriveItemByPath(filePath: string): Promise<any> {
+    const siteId = await this.getSiteIdByPath();
+    const graphClient = await this.initializeGraphClient();
+    const cleanPath = filePath.startsWith('/') ? filePath.substring(1) : filePath;
+    
+    // *** ИСПРАВЛЕНО: Этот URL использует полученный ID сайта и является надежным ***
+    const metadataGraphPath = `/sites/${siteId}/drive/root:/${cleanPath}`;
+
+    console.log('[GraphApiService] Robust Step 2: Getting DriveItem metadata from:', metadataGraphPath);
+    
+    try {
+        const driveItem = await graphClient.api(metadataGraphPath).get();
+        if (!driveItem || !driveItem.id) {
+            throw new Error("DriveItem ID not found in metadata response.");
+        }
+        console.log('[GraphApiService] Robust Step 2 SUCCESS: Found DriveItem with ID:', driveItem.id);
+        return driveItem;
+    } catch (error) {
+        console.error('[GraphApiService] Robust Step 2 FAILED: Could not get DriveItem metadata.', error);
+        throw this.handleGraphApiError(error);
+    }
+  }
 
   /**
    * Скачивает файл Excel из SharePoint
-   * @param filePath - путь к файлу в формате "/sites/sitename/path/to/file.xlsx"
+   * @param filePath - путь к файлу в формате "Shared Documents/path/to/file.xlsx"
    * @returns ArrayBuffer с содержимым файла
    */
   public async downloadExcelFile(filePath: string): Promise<ArrayBuffer> {
-    console.log('[GraphApiService] *** DOWNLOADING EXCEL FILE ***');
-    console.log('[GraphApiService] File path:', filePath);
-
+    console.log('[GraphApiService] *** DOWNLOADING EXCEL FILE (Robust 2-step approach) ***');
+    
     try {
-      const graphClient = await this.initializeGraphClient();
+        const driveItem = await this.getDriveItemByPath(filePath);
+        const siteId = this.cachedSiteId; // getDriveItemByPath уже закэшировал его
+        const driveItemId = driveItem.id;
 
-      // Конвертируем путь SharePoint в Graph API URL
-      const graphPath = this.convertSharePointPathToGraphPath(filePath);
-      console.log('[GraphApiService] Graph API path:', graphPath);
+        const graphClient = await this.initializeGraphClient();
+        // *** ИСПРАВЛЕНО: Финальный надежный URL для скачивания контента ***
+        const contentGraphPath = `/sites/${siteId}/drive/items/${driveItemId}/content`;
 
-      // Скачиваем содержимое файла
-      const response = await graphClient
-        .api(graphPath)
-        .get();
+        console.log('[GraphApiService] Robust Step 3: Downloading content from:', contentGraphPath);
 
-      if (!response) {
-        throw new Error('Empty response from Graph API');
-      }
+        const response = await graphClient.api(contentGraphPath).get();
 
-      console.log('[GraphApiService] File downloaded successfully:', {
-        contentLength: response.byteLength || 'unknown',
-        type: 'ArrayBuffer'
-      });
+        if (!response) {
+            throw new Error('Empty response from Graph API on content download.');
+        }
 
-      return response as ArrayBuffer;
+        console.log('[GraphApiService] Robust Step 3 SUCCESS: File content downloaded successfully.');
+        return response as ArrayBuffer;
 
     } catch (error) {
-      console.error('[GraphApiService] Error downloading file:', error);
-      throw this.handleGraphApiError(error);
+        console.error('[GraphApiService] Error during robust download process:', error);
+        if (!(error instanceof GraphApiServiceError)) {
+            throw this.handleGraphApiError(error);
+        }
+        throw error;
     }
   }
 
   /**
    * Загружает файл Excel обратно в SharePoint
-   * @param filePath - путь к файлу в SharePoint
-   * @param data - данные файла в формате ArrayBuffer
-   * @returns true если успешно
    */
   public async uploadExcelFile(filePath: string, data: ArrayBuffer): Promise<boolean> {
-    console.log('[GraphApiService] *** UPLOADING EXCEL FILE ***');
-    console.log('[GraphApiService] File path:', filePath);
-    console.log('[GraphApiService] Data size:', data.byteLength, 'bytes');
-
+    console.log('[GraphApiService] *** UPLOADING EXCEL FILE (Robust 2-step approach) ***');
+    
     try {
-      const graphClient = await this.initializeGraphClient();
+        const driveItem = await this.getDriveItemByPath(filePath);
+        const siteId = this.cachedSiteId;
+        const driveItemId = driveItem.id;
 
-      // Конвертируем путь SharePoint в Graph API URL для загрузки
-      const graphPath = this.convertSharePointPathToGraphPath(filePath, true);
-      console.log('[GraphApiService] Graph API upload path:', graphPath);
+        const graphClient = await this.initializeGraphClient();
+        // *** ИСПРАВЛЕНО: Финальный надежный URL для загрузки контента ***
+        const contentGraphPath = `/sites/${siteId}/drive/items/${driveItemId}/content`;
 
-      // Загружаем файл
-      const response = await graphClient
-        .api(graphPath)
-        .put(data);
+        console.log('[GraphApiService] Robust Step 3: Uploading content to:', contentGraphPath);
 
-      if (response && response.id) {
-        console.log('[GraphApiService] File uploaded successfully:', {
-          fileId: response.id,
-          name: response.name,
-          size: response.size
-        });
-        return true;
-      } else {
-        console.warn('[GraphApiService] Upload response missing expected fields:', response);
-        return false;
-      }
+        const response = await graphClient.api(contentGraphPath).put(data);
+
+        if (response && response.id) {
+            console.log('[GraphApiService] Robust Step 3 SUCCESS: File uploaded successfully.');
+            return true;
+        }
+        
+        throw new Error("Upload response did not contain expected data.");
 
     } catch (error) {
-      console.error('[GraphApiService] Error uploading file:', error);
-      throw this.handleGraphApiError(error);
+        console.error('[GraphApiService] Error during robust upload process:', error);
+        if (!(error instanceof GraphApiServiceError)) {
+            throw this.handleGraphApiError(error);
+        }
+        throw error;
     }
   }
 
   /**
    * Проверяет доступность файла для редактирования
-   * @param filePath - путь к файлу в SharePoint
-   * @returns информация о доступности файла
    */
   public async checkFileAvailability(filePath: string): Promise<IFileAvailabilityResult> {
-    console.log('[GraphApiService] *** CHECKING FILE AVAILABILITY ***');
-    console.log('[GraphApiService] File path:', filePath);
-
+    console.log('[GraphApiService] *** CHECKING FILE AVAILABILITY (Robust metadata check) ***');
+    
     try {
-      const graphClient = await this.initializeGraphClient();
-
-      // Получаем метаданные файла
-      const graphPath = this.convertSharePointPathToGraphPath(filePath);
-      const metadataPath = graphPath.replace('/content', ''); // Убираем /content для метаданных
-
-      const response = await graphClient
-        .api(metadataPath)
-        .get();
-
+      const driveItem = await this.getDriveItemByPath(filePath);
+      
       const result: IFileAvailabilityResult = {
-        available: true, // Если мы получили ответ, файл доступен
-        lastModified: response.lastModifiedDateTime ? new Date(response.lastModifiedDateTime) : undefined,
-        size: response.size,
-        lockedBy: response.lastModifiedBy?.user?.displayName
+        available: true,
+        lastModified: driveItem.lastModifiedDateTime ? new Date(driveItem.lastModifiedDateTime) : undefined,
+        size: driveItem.size,
+        lockedBy: driveItem.lastModifiedBy?.user?.displayName
       };
 
       console.log('[GraphApiService] File availability check result:', result);
@@ -197,7 +241,7 @@ export class GraphApiService {
     } catch (error) {
       console.warn('[GraphApiService] File availability check failed:', error);
       
-      const graphError = this.handleGraphApiError(error);
+      const graphError = (error instanceof GraphApiServiceError) ? error : this.handleGraphApiError(error);
       
       return {
         available: false,
@@ -207,25 +251,7 @@ export class GraphApiService {
   }
 
   /**
-   * Конвертирует путь SharePoint в Graph API путь
-   * @param sharePointPath - путь SharePoint (/sites/...)
-   * @param forUpload - если true, добавляет :/content: для загрузки
-   * @returns путь для Graph API
-   */
- private convertSharePointPathToGraphPath(sharePointPath: string, forUpload: boolean = false): string {
-    const cleanPath = sharePointPath.startsWith('/') ? sharePointPath.substring(1) : sharePointPath;
-    
-    if (forUpload) {
-        return `/sites/kpfaie.sharepoint.com:/sites/KPFADataBackUp:/drive/root:/${cleanPath}:/content`;
-    } else {
-        return `/sites/kpfaie.sharepoint.com:/sites/KPFADataBackUp:/drive/root:/${cleanPath}:/content`;
-    }
-}
-
-  /**
    * Обрабатывает ошибки Graph API и конвертирует их в типизированные ошибки
-   * @param error - исходная ошибка
-   * @returns типизированная ошибка GraphApiServiceError
    */
   private handleGraphApiError(error: unknown): GraphApiServiceError {
     console.error('[GraphApiService] Processing Graph API error:', error);
@@ -248,21 +274,25 @@ export class GraphApiService {
       let message = `HTTP Error ${status}`;
 
       switch (status) {
+        case 400:
+          code = 'badRequest';
+          message = 'Bad Request. The URL or request body is malformed.';
+          break;
         case 404:
           code = 'itemNotFound';
-          message = 'File not found';
+          message = 'File or resource not found.';
           break;
         case 403:
           code = 'accessDenied';
-          message = 'Access denied to file';
+          message = 'Access denied to file.';
           break;
         case 423:
           code = 'locked';
-          message = 'File is locked for editing';
+          message = 'File is locked for editing.';
           break;
         case 409:
           code = 'conflict';
-          message = 'File conflict occurred';
+          message = 'File conflict occurred.';
           break;
       }
 
