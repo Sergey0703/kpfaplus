@@ -1,6 +1,7 @@
 // src/webparts/kpfaplus/services/GraphApiService.ts
 
 import { WebPartContext } from '@microsoft/sp-webpart-base';
+// *** ИСПРАВЛЕНО: Убран импорт несуществующего 'ResponseType' ***
 import { MSGraphClientV3 } from '@microsoft/sp-http';
 
 /**
@@ -63,7 +64,6 @@ export class GraphApiService {
   private graphClient: MSGraphClientV3 | undefined;
   private context: WebPartContext;
   
-  // *** ИСПРАВЛЕНО: Возвращаем кэширование Site ID для производительности ***
   private cachedSiteId: string = '';
 
   private constructor(context: WebPartContext) {
@@ -94,8 +94,7 @@ export class GraphApiService {
   }
   
   /**
-   * *** НОВЫЙ МЕТОД (возвращен и исправлен): Получает ID сайта по его пути ***
-   * Это первый шаг в надежном двухэтапном подходе.
+   * Получает ID сайта по его пути
    */
   private async getSiteIdByPath(): Promise<string> {
     if (this.cachedSiteId) {
@@ -122,15 +121,22 @@ export class GraphApiService {
   }
 
   /**
-   * *** НОВЫЙ МЕТОД: Получает DriveItem по пути к файлу ***
+   * Получает DriveItem по пути к файлу
    */
   private async getDriveItemByPath(filePath: string): Promise<any> {
     const siteId = await this.getSiteIdByPath();
     const graphClient = await this.initializeGraphClient();
-    const cleanPath = filePath.startsWith('/') ? filePath.substring(1) : filePath;
     
-    // *** ИСПРАВЛЕНО: Этот URL использует полученный ID сайта и является надежным ***
-    const metadataGraphPath = `/sites/${siteId}/drive/root:/${cleanPath}`;
+    let relativePath = filePath.startsWith('/') ? filePath.substring(1) : filePath;
+    
+    const docLibPrefix = "Shared Documents/";
+    if (relativePath.toLowerCase().startsWith(docLibPrefix.toLowerCase())) {
+        console.log(`[GraphApiService] Path starts with "${docLibPrefix}". Removing it for the API call.`);
+        relativePath = relativePath.substring(docLibPrefix.length);
+        console.log('[GraphApiService] Path after stripping document library:', relativePath);
+    }
+    
+    const metadataGraphPath = `/sites/${siteId}/drive/root:/${relativePath}`;
 
     console.log('[GraphApiService] Robust Step 2: Getting DriveItem metadata from:', metadataGraphPath);
     
@@ -149,24 +155,27 @@ export class GraphApiService {
 
   /**
    * Скачивает файл Excel из SharePoint
-   * @param filePath - путь к файлу в формате "Shared Documents/path/to/file.xlsx"
-   * @returns ArrayBuffer с содержимым файла
    */
   public async downloadExcelFile(filePath: string): Promise<ArrayBuffer> {
     console.log('[GraphApiService] *** DOWNLOADING EXCEL FILE (Robust 2-step approach) ***');
     
     try {
         const driveItem = await this.getDriveItemByPath(filePath);
-        const siteId = this.cachedSiteId; // getDriveItemByPath уже закэшировал его
+        const siteId = this.cachedSiteId;
         const driveItemId = driveItem.id;
 
         const graphClient = await this.initializeGraphClient();
-        // *** ИСПРАВЛЕНО: Финальный надежный URL для скачивания контента ***
         const contentGraphPath = `/sites/${siteId}/drive/items/${driveItemId}/content`;
 
         console.log('[GraphApiService] Robust Step 3: Downloading content from:', contentGraphPath);
 
-        const response = await graphClient.api(contentGraphPath).get();
+        // --- НАЧАЛО ИСПРАВЛЕНИЯ ---
+        // **КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ**: Используем type assertion 'as any' для обхода ошибки компиляции TypeScript.
+        const response = await graphClient
+            .api(contentGraphPath)
+            .responseType('arraybuffer' as any) 
+            .get();
+        // --- КОНЕЦ ИСПРАВЛЕНИЯ ---
 
         if (!response) {
             throw new Error('Empty response from Graph API on content download.');
@@ -196,7 +205,6 @@ export class GraphApiService {
         const driveItemId = driveItem.id;
 
         const graphClient = await this.initializeGraphClient();
-        // *** ИСПРАВЛЕНО: Финальный надежный URL для загрузки контента ***
         const contentGraphPath = `/sites/${siteId}/drive/items/${driveItemId}/content`;
 
         console.log('[GraphApiService] Robust Step 3: Uploading content to:', contentGraphPath);
@@ -258,9 +266,7 @@ export class GraphApiService {
 
     let graphError: IGraphApiError;
 
-    // Обрабатываем разные форматы ошибок
     if (this.isGraphApiErrorLike(error)) {
-      // Стандартная ошибка Graph API
       graphError = {
         code: error.code || 'unknown',
         message: error.message || 'Unknown Graph API error',
@@ -268,7 +274,6 @@ export class GraphApiService {
         statusCode: error.statusCode
       };
     } else if (this.isHttpErrorLike(error)) {
-      // HTTP ошибка
       const status = error.response.status;
       let code = 'httpError';
       let message = `HTTP Error ${status}`;
@@ -303,7 +308,6 @@ export class GraphApiService {
         details: error.response?.data ? String(error.response.data) : String(error)
       };
     } else {
-      // Неизвестная ошибка
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       const errorDetails = error instanceof Error ? error.toString() : String(error);
       

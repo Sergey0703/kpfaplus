@@ -9,6 +9,21 @@
 export class SRSDateUtils {
   
   /**
+   * Helper function to get the correct day suffix (st, nd, rd, th)
+   * @param day - The day of the month (1-31)
+   * @returns The correct ordinal suffix as a string
+   */
+  private static getDaySuffix(day: number): string {
+    if (day > 3 && day < 21) return 'th'; // for 4-20
+    switch (day % 10) {
+        case 1:  return "st";
+        case 2:  return "nd";
+        case 3:  return "rd";
+        default: return "th";
+    }
+  }
+
+  /**
    * Форматирует дату для отправки в SharePoint в формате "только дата"
    * КРИТИЧЕСКИ ВАЖНО: Добавляет 'Z' суффикс для предотвращения timezone сдвигов
    * 
@@ -20,7 +35,6 @@ export class SRSDateUtils {
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const day = date.getDate().toString().padStart(2, '0');
     
-    // КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: Отправляем как UTC midnight для предотвращения timezone конверсии
     const formattedDate = `${year}-${month}-${day}T00:00:00.000Z`;
     
     console.log('[SRSDateUtils] formatDateForSharePoint (Date-only):', {
@@ -35,10 +49,6 @@ export class SRSDateUtils {
 
   /**
    * Парсит дату из SharePoint формата в локальную дату
-   * ОБНОВЛЕНО: Обрабатывает Date-only поля которые приходят как UTC midnight
-   * 
-   * @param sharePointDate - Дата из SharePoint в ISO формате
-   * @returns Локальная дата без времени
    */
   public static parseSharePointDate(sharePointDate: string | Date): Date {
     if (!sharePointDate) {
@@ -54,7 +64,6 @@ export class SRSDateUtils {
       parsedDate = new Date(sharePointDate);
     }
 
-    // Нормализуем к локальной дате без времени
     const localDate = new Date(
       parsedDate.getFullYear(),
       parsedDate.getMonth(),
@@ -73,10 +82,6 @@ export class SRSDateUtils {
 
   /**
    * Нормализует дату к локальной полуночи (без UTC)
-   * ИЗМЕНЕНО: Работает только с датами, убрано время
-   * 
-   * @param date Дата для нормализации
-   * @returns Нормализованная дата в локальной полуночи
    */
   public static normalizeDateToLocalMidnight(date: Date): Date {
     if (!date) {
@@ -84,7 +89,6 @@ export class SRSDateUtils {
       return new Date();
     }
 
-    // Создаем новую дату в локальной полуночи
     const normalizedDate = new Date(
       date.getFullYear(),
       date.getMonth(),
@@ -103,10 +107,6 @@ export class SRSDateUtils {
 
   /**
    * Нормализует дату к UTC полуночи для запросов к SharePoint
-   * ОБНОВЛЕНО: Специально для Date-only полей в SharePoint
-   * 
-   * @param date Дата для нормализации
-   * @returns Нормализованная дата в UTC полуночи
    */
   public static normalizeDateToUTCMidnight(date: Date): Date {
     if (!date) {
@@ -114,7 +114,6 @@ export class SRSDateUtils {
       return new Date();
     }
 
-    // Создаем дату в UTC полуночи на основе локальных компонентов даты
     const normalizedDate = new Date(Date.UTC(
       date.getFullYear(),
       date.getMonth(),
@@ -134,9 +133,6 @@ export class SRSDateUtils {
 
   /**
    * Получает первый день текущего месяца (для fromDate по умолчанию)
-   * ОБНОВЛЕНО: Возвращает дату без времени
-   * 
-   * @returns Первый день текущего месяца в локальной полуночи
    */
   public static getFirstDayOfCurrentMonth(): Date {
     const today = new Date();
@@ -158,10 +154,6 @@ export class SRSDateUtils {
 
   /**
    * Получает дату ровно через 6 дней после указанной даты (полная неделя)
-   * ОБНОВЛЕНО: Работает только с датами без времени
-   * 
-   * @param startDate Начальная дата
-   * @returns Дата через 6 дней в локальной полуночи
    */
   public static getWeekEndAfterDate(startDate: Date): Date {
     if (!startDate) {
@@ -169,10 +161,8 @@ export class SRSDateUtils {
       return SRSDateUtils.getFirstDayOfCurrentMonth();
     }
 
-    // Нормализуем входную дату к локальной полуночи
     const normalizedStartDate = SRSDateUtils.normalizeDateToLocalMidnight(startDate);
     
-    // Добавляем ровно 6 дней (полная неделя от startDate)
     const weekEnd = new Date(normalizedStartDate);
     weekEnd.setDate(weekEnd.getDate() + 6);
     
@@ -189,10 +179,6 @@ export class SRSDateUtils {
 
   /**
    * Рассчитывает полный недельный диапазон начиная с указанной даты
-   * ОБНОВЛЕНО: Возвращает диапазон дат без времени
-   * 
-   * @param startDate Начальная дата
-   * @returns Объект с началом и концом недели
    */
   public static calculateWeekRange(startDate: Date): { start: Date; end: Date } {
     if (!startDate) {
@@ -204,10 +190,8 @@ export class SRSDateUtils {
       };
     }
 
-    // Нормализуем начальную дату
     const normalizedStart = SRSDateUtils.normalizeDateToLocalMidnight(startDate);
     
-    // Получаем конец недели (startDate + 6 дней)
     const weekEnd = SRSDateUtils.getWeekEndAfterDate(normalizedStart);
     
     console.log('[SRSDateUtils] calculateWeekRange (Date-only):', {
@@ -216,7 +200,7 @@ export class SRSDateUtils {
       end: weekEnd.toLocaleDateString(),
       startISO: normalizedStart.toISOString(),
       endISO: weekEnd.toISOString(),
-      daysSpan: 7 // Start date + 6 days = 7 days total
+      daysSpan: 7
     });
     
     return {
@@ -227,9 +211,6 @@ export class SRSDateUtils {
 
   /**
    * Получает дату конца недели для текущего месяца (по умолчанию для toDate)
-   * ОБНОВЛЕНО: Работает только с датами без времени
-   * 
-   * @returns Первый день месяца + 6 дней
    */
   public static getDefaultToDate(): Date {
     const firstDayOfMonth = SRSDateUtils.getFirstDayOfCurrentMonth();
@@ -247,28 +228,20 @@ export class SRSDateUtils {
 
   /**
    * Проверяет, нужно ли обновить toDate при изменении fromDate
-   * ОБНОВЛЕНО: Сравнивает только даты без времени
-   * 
-   * @param newFromDate Новая дата начала
-   * @param currentToDate Текущая дата окончания
-   * @returns true если нужно обновить toDate
    */
   public static shouldUpdateToDate(newFromDate: Date, currentToDate: Date): boolean {
     if (!newFromDate || !currentToDate) {
       return true;
     }
 
-    // Нормализуем даты для сравнения (убираем время)
     const normalizedFrom = SRSDateUtils.normalizeDateToLocalMidnight(newFromDate);
     const normalizedTo = SRSDateUtils.normalizeDateToLocalMidnight(currentToDate);
     
-    // Проверяем, что toDate не раньше fromDate
     if (normalizedTo < normalizedFrom) {
       console.log('[SRSDateUtils] shouldUpdateToDate: toDate is before fromDate, update needed');
       return true;
     }
     
-    // Проверяем, что разница не больше 2 недель (14 дней)
     const diffInMs = normalizedTo.getTime() - normalizedFrom.getTime();
     const diffInDays = diffInMs / (1000 * 60 * 60 * 24);
     
@@ -288,10 +261,6 @@ export class SRSDateUtils {
 
   /**
    * Форматирует дату для отображения в интерфейсе SRS
-   * ОБНОВЛЕНО: Работает только с датами без времени
-   * 
-   * @param date Дата для форматирования
-   * @returns Отформатированная строка даты
    */
   public static formatDateForDisplay(date: Date): string {
     if (!date) {
@@ -299,7 +268,6 @@ export class SRSDateUtils {
     }
 
     try {
-      // Используем локальную дату для отображения пользователю
       const day = date.getDate().toString().padStart(2, '0');
       const month = (date.getMonth() + 1).toString().padStart(2, '0');
       const year = date.getFullYear();
@@ -320,11 +288,11 @@ export class SRSDateUtils {
   }
 
   /**
-   * *** НОВОЕ: Форматирует дату для поиска в Excel (формат DD.MM.YYYY) ***
+   * *** ИСПРАВЛЕНО: Форматирует дату для поиска в Excel в формате "1st of June" ***
    * Специально для SRS Excel экспорта
    * 
    * @param date Дата для форматирования
-   * @returns Строка в формате DD.MM.YYYY для поиска в Excel
+   * @returns Строка в формате "1st of June" для поиска в Excel
    */
   public static formatDateForExcelSearch(date: Date): string {
     if (!date) {
@@ -333,17 +301,22 @@ export class SRSDateUtils {
     }
 
     try {
-      const day = date.getDate().toString().padStart(2, '0');
-      const month = (date.getMonth() + 1).toString().padStart(2, '0');
-      const year = date.getFullYear();
+      // --- НАЧАЛО ИСПРАВЛЕНИЯ ---
+      // **КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ**: Используем полные названия месяцев.
+      const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+      // --- КОНЕЦ ИСПРАВЛЕНИЯ ---
       
-      const formatted = `${day}.${month}.${year}`;
+      const day = date.getDate();
+      const monthName = monthNames[date.getMonth()];
+      const suffix = this.getDaySuffix(day);
+      
+      const formatted = `${day}${suffix} of ${monthName}`;
       
       console.log('[SRSDateUtils] formatDateForExcelSearch (for Excel search):', {
         input: date.toISOString(),
         inputLocal: date.toLocaleDateString(),
         formatted: formatted,
-        purpose: 'Excel date search in DD.MM.YYYY format'
+        purpose: 'Excel date search in "[Day]th of [Month]" format'
       });
       
       return formatted;
@@ -355,11 +328,6 @@ export class SRSDateUtils {
 
   /**
    * Рассчитывает количество дней в указанном диапазоне
-   * ОБНОВЛЕНО: Работает только с датами без времени
-   * 
-   * @param startDate Дата начала
-   * @param endDate Дата окончания
-   * @returns Количество дней в диапазоне (включительно)
    */
   public static calculateDaysInRange(startDate: Date, endDate: Date): number {
     if (!startDate || !endDate) {
@@ -371,7 +339,7 @@ export class SRSDateUtils {
       const normalizedEnd = SRSDateUtils.normalizeDateToLocalMidnight(endDate);
       
       const diffInMs = normalizedEnd.getTime() - normalizedStart.getTime();
-      const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24)) + 1; // +1 для включения последнего дня
+      const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24)) + 1;
       
       const result = Math.max(0, diffInDays);
       
@@ -390,12 +358,6 @@ export class SRSDateUtils {
 
   /**
    * Проверяет, попадает ли дата в указанный диапазон
-   * ОБНОВЛЕНО: Сравнивает только даты без времени
-   * 
-   * @param date Проверяемая дата
-   * @param startDate Дата начала диапазона
-   * @param endDate Дата окончания диапазона
-   * @returns true если дата в диапазоне
    */
   public static isDateInRange(date: Date, startDate: Date, endDate: Date): boolean {
     if (!date || !startDate || !endDate) {
@@ -425,10 +387,6 @@ export class SRSDateUtils {
 
   /**
    * Получает следующую неделю от указанной даты
-   * ОБНОВЛЕНО: Работает только с датами без времени
-   * 
-   * @param currentDate Текущая дата
-   * @returns Дата через неделю
    */
   public static getNextWeek(currentDate: Date): Date {
     if (!currentDate) {
@@ -454,10 +412,6 @@ export class SRSDateUtils {
 
   /**
    * Получает предыдущую неделю от указанной даты
-   * ОБНОВЛЕНО: Работает только с датами без времени
-   * 
-   * @param currentDate Текущая дата
-   * @returns Дата неделю назад
    */
   public static getPreviousWeek(currentDate: Date): Date {
     if (!currentDate) {
@@ -483,11 +437,6 @@ export class SRSDateUtils {
 
   /**
    * Сравнивает две даты без учета времени
-   * НОВАЯ ФУНКЦИЯ: Специально для Date-only полей
-   * 
-   * @param date1 Первая дата
-   * @param date2 Вторая дата
-   * @returns true если даты одинаковые (без учета времени)
    */
   public static areDatesEqual(date1: Date, date2: Date): boolean {
     if (!date1 || !date2) {
@@ -515,11 +464,6 @@ export class SRSDateUtils {
 
   /**
    * Создает границы диапазона дат для запросов к SharePoint
-   * НОВАЯ ФУНКЦИЯ: Специально для Date-only полей в SharePoint
-   * 
-   * @param fromDate Дата начала
-   * @param toDate Дата окончания
-   * @returns Объект с UTC границами для SharePoint запросов
    */
   public static createSharePointDateRangeBounds(fromDate: Date, toDate: Date): {
     startBound: Date;
@@ -531,7 +475,6 @@ export class SRSDateUtils {
       throw new Error('Both fromDate and toDate are required for SharePoint range bounds');
     }
 
-    // Начало диапазона: UTC midnight начальной даты
     const startBound = new Date(Date.UTC(
       fromDate.getFullYear(),
       fromDate.getMonth(),
@@ -539,7 +482,6 @@ export class SRSDateUtils {
       0, 0, 0, 0
     ));
 
-    // Конец диапазона: UTC конец дня конечной даты
     const endBound = new Date(Date.UTC(
       toDate.getFullYear(),
       toDate.getMonth(),
@@ -570,10 +512,6 @@ export class SRSDateUtils {
 
   /**
    * Валидирует дату для использования с Date-only полями
-   * НОВАЯ ФУНКЦИЯ: Проверка корректности даты
-   * 
-   * @param date Дата для валидации
-   * @returns Объект с результатом валидации
    */
   public static validateDateForSharePoint(date: Date): {
     isValid: boolean;
@@ -601,7 +539,6 @@ export class SRSDateUtils {
       };
     }
 
-    // Проверяем разумные границы дат
     const year = date.getFullYear();
     if (year < 1900 || year > 2100) {
       return {
