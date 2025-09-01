@@ -212,18 +212,15 @@ export class GraphApiService {
    * @param forUpload - если true, добавляет :/content: для загрузки
    * @returns путь для Graph API
    */
-  private convertSharePointPathToGraphPath(sharePointPath: string, forUpload: boolean = false): string {
-    // Убираем ведущий слэш если есть
+ private convertSharePointPathToGraphPath(sharePointPath: string, forUpload: boolean = false): string {
     const cleanPath = sharePointPath.startsWith('/') ? sharePointPath.substring(1) : sharePointPath;
     
     if (forUpload) {
-      // Для загрузки используем формат /sites/root:/path/file.xlsx:/content
-      return `/sites/root:/${cleanPath}:/content`;
+        return `/sites/kpfaie.sharepoint.com:/sites/KPFADataBackUp:/drive/root:/${cleanPath}:/content`;
     } else {
-      // Для скачивания используем формат /sites/root:/path/file.xlsx:/content
-      return `/sites/root:/${cleanPath}:/content`;
+        return `/sites/kpfaie.sharepoint.com:/sites/KPFADataBackUp:/drive/root:/${cleanPath}:/content`;
     }
-  }
+}
 
   /**
    * Обрабатывает ошибки Graph API и конвертирует их в типизированные ошибки
