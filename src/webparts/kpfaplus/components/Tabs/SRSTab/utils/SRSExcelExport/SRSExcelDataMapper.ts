@@ -164,8 +164,10 @@ export class SRSExcelDataMapper {
     // Конвертируем тип отпуска в число
     const typeOfLeaveID = this.parseLeaveTypeID(record.typeOfLeave);
     
-    // Время отпуска как строка
-    const leaveTime = record.timeLeave || '0';
+    // --- НАЧАЛО ИСПРАВЛЕНИЯ ---
+    // **ИСПРАВЛЕНО**: Время отпуска как число, а не строка.
+    const leaveTime = parseFloat(record.timeLeave || '0');
+    // --- КОНЕЦ ИСПРАВЛЕНИЯ ---
 
     const excelRecord: ISRSExcelRecord = {
       ShiftStart: shiftStart,

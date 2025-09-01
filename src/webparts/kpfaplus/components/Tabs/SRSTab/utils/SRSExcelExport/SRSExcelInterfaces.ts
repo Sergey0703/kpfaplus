@@ -12,7 +12,9 @@ export interface ISRSExcelRecord {
   LunchTime: string;         // "0:30" - время обеда
   Contract: number;          // 1 или 2 - номер контракта
   TypeOfLeaveID: number;     // 0-19 - тип отпуска (0 = обычная работа)
-  LeaveTime: string;         // "7.50" - время отпуска в часах
+  // --- НАЧАЛО ИСПРАВЛЕНИЯ ---
+  LeaveTime: number;         // **ИСПРАВЛЕНО**: "7.50" - время отпуска в часах (теперь число)
+  // --- КОНЕЦ ИСПРАВЛЕНИЯ ---
   LunchNote?: string;        // Комментарий к обеду (пока не используется)
   TotalHoursNote?: string;   // Комментарий к общему времени (пока не используется)
   LeaveNote?: string;        // Комментарий к отпуску (пока не используется)
@@ -104,7 +106,7 @@ export interface ISRSExcelError {
   rowIndex?: number;              // Индекс строки
   
   // Техническая информация
-  originalError?: Error | string | unknown; // *** FIXED: Replace any with specific union type ***
+  originalError?: Error | string | unknown; 
   stackTrace?: string;            // Stack trace для отладки
 }
 
