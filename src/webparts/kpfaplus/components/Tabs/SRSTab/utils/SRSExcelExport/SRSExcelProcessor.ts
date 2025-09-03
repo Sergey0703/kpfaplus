@@ -718,11 +718,15 @@ export class SRSExcelProcessor {
           console.log('[SRSExcelProcessor] Updating cell', update.cell, 'with', update.value, `(${update.desc})`);
           const cell = worksheet.getCell(update.cell);
           const oldValue = cell.value;
+          
+          // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Устанавливаем значение и формат времени ***
           cell.value = update.value;
+          cell.numFmt = 'h:mm AM/PM'; // Форматируем как время
+          
           cellsUpdated++;
           
           updateResults.push({ cell: update.cell, value: update.value, success: true });
-          console.log('[SRSExcelProcessor] ✓ Successfully updated', update.cell, ':', oldValue, '->', update.value);
+          console.log('[SRSExcelProcessor] ✓ Successfully updated', update.cell, ':', oldValue, '->', update.value, 'with time format');
         } catch (error) {
           console.error('[SRSExcelProcessor] ✗ Failed to update', update.cell, ':', error);
           updateResults.push({ cell: update.cell, value: update.value, success: false });
@@ -748,7 +752,9 @@ export class SRSExcelProcessor {
       if (record.TypeOfLeaveID === 1) {
         console.log('[SRSExcelProcessor] Setting leave type 1 value in J' + rowIndex, ':', record.LeaveTime);
         try {
-          worksheet.getCell(`J${rowIndex}`).value = record.LeaveTime;
+          const cell = worksheet.getCell(`J${rowIndex}`);
+          cell.value = record.LeaveTime;
+          cell.numFmt = '0.00'; // Числовой формат для времени отпуска
           cellsUpdated++;
           console.log('[SRSExcelProcessor] ✓ Leave type 1 value set successfully');
         } catch (error) {
@@ -759,7 +765,9 @@ export class SRSExcelProcessor {
       if (record.TypeOfLeaveID === 2) {
         console.log('[SRSExcelProcessor] Setting leave type 2 value in I' + rowIndex, ':', record.LeaveTime);
         try {
-          worksheet.getCell(`I${rowIndex}`).value = record.LeaveTime;
+          const cell = worksheet.getCell(`I${rowIndex}`);
+          cell.value = record.LeaveTime;
+          cell.numFmt = '0.00'; // Числовой формат для времени отпуска
           cellsUpdated++;
           console.log('[SRSExcelProcessor] ✓ Leave type 2 value set successfully');
         } catch (error) {
@@ -782,11 +790,15 @@ export class SRSExcelProcessor {
           console.log('[SRSExcelProcessor] Updating cell', update.cell, 'with', update.value, `(${update.desc})`);
           const cell = worksheet.getCell(update.cell);
           const oldValue = cell.value;
+          
+          // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Устанавливаем значение и формат времени ***
           cell.value = update.value;
+          cell.numFmt = 'h:mm AM/PM'; // Форматируем как время
+          
           cellsUpdated++;
           
           updateResults.push({ cell: update.cell, value: update.value, success: true });
-          console.log('[SRSExcelProcessor] ✓ Successfully updated', update.cell, ':', oldValue, '->', update.value);
+          console.log('[SRSExcelProcessor] ✓ Successfully updated', update.cell, ':', oldValue, '->', update.value, 'with time format');
         } catch (error) {
           console.error('[SRSExcelProcessor] ✗ Failed to update', update.cell, ':', error);
           updateResults.push({ cell: update.cell, value: update.value, success: false });
@@ -812,7 +824,9 @@ export class SRSExcelProcessor {
       if (record.TypeOfLeaveID === 1) {
         console.log('[SRSExcelProcessor] Setting leave type 1 value in S' + rowIndex, ':', record.LeaveTime);
         try {
-          worksheet.getCell(`S${rowIndex}`).value = record.LeaveTime;
+          const cell = worksheet.getCell(`S${rowIndex}`);
+          cell.value = record.LeaveTime;
+          cell.numFmt = '0.00'; // Числовой формат для времени отпуска
           cellsUpdated++;
           console.log('[SRSExcelProcessor] ✓ Leave type 1 value set successfully');
         } catch (error) {
@@ -823,7 +837,9 @@ export class SRSExcelProcessor {
       if (record.TypeOfLeaveID === 2) {
         console.log('[SRSExcelProcessor] Setting leave type 2 value in R' + rowIndex, ':', record.LeaveTime);
         try {
-          worksheet.getCell(`R${rowIndex}`).value = record.LeaveTime;
+          const cell = worksheet.getCell(`R${rowIndex}`);
+          cell.value = record.LeaveTime;
+          cell.numFmt = '0.00'; // Числовой формат для времени отпуска
           cellsUpdated++;
           console.log('[SRSExcelProcessor] ✓ Leave type 2 value set successfully');
         } catch (error) {
@@ -882,11 +898,15 @@ export class SRSExcelProcessor {
           console.log('[SRSExcelProcessor] Updating cell', update.cell, 'with', update.value, `(${update.desc})`);
           const cell = worksheet.getCell(update.cell);
           const oldValue = cell.value;
+          
+          // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Устанавливаем значение и формат времени ***
           cell.value = update.value;
+          cell.numFmt = 'h:mm AM/PM'; // Форматируем как время
+          
           cellsUpdated++;
           
           updateResults.push({ cell: update.cell, value: update.value, success: true });
-          console.log('[SRSExcelProcessor] ✓ Successfully updated', update.cell, ':', oldValue, '->', update.value);
+          console.log('[SRSExcelProcessor] ✓ Successfully updated', update.cell, ':', oldValue, '->', update.value, 'with time format');
         } catch (error) {
           console.error('[SRSExcelProcessor] ✗ Failed to update', update.cell, ':', error);
           updateResults.push({ cell: update.cell, value: update.value, success: false });
@@ -912,7 +932,9 @@ export class SRSExcelProcessor {
       if (record.TypeOfLeaveID === 1) {
         console.log('[SRSExcelProcessor] Setting leave type 1 value in K' + rowIndex, ':', record.LeaveTime);
         try {
-          worksheet.getCell(`K${rowIndex}`).value = record.LeaveTime;
+          const cell = worksheet.getCell(`K${rowIndex}`);
+          cell.value = record.LeaveTime;
+          cell.numFmt = '0.00'; // Числовой формат для времени отпуска
           cellsUpdated++;
           console.log('[SRSExcelProcessor] ✓ Leave type 1 value set successfully');
         } catch (error) {
@@ -923,7 +945,9 @@ export class SRSExcelProcessor {
       if (record.TypeOfLeaveID === 2) {
         console.log('[SRSExcelProcessor] Setting leave type 2 value in J' + rowIndex, ':', record.LeaveTime);
         try {
-          worksheet.getCell(`J${rowIndex}`).value = record.LeaveTime;
+          const cell = worksheet.getCell(`J${rowIndex}`);
+          cell.value = record.LeaveTime;
+          cell.numFmt = '0.00'; // Числовой формат для времени отпуска
           cellsUpdated++;
           console.log('[SRSExcelProcessor] ✓ Leave type 2 value set successfully');
         } catch (error) {
@@ -946,11 +970,15 @@ export class SRSExcelProcessor {
           console.log('[SRSExcelProcessor] Updating cell', update.cell, 'with', update.value, `(${update.desc})`);
           const cell = worksheet.getCell(update.cell);
           const oldValue = cell.value;
+          
+          // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Устанавливаем значение и формат времени ***
           cell.value = update.value;
+          cell.numFmt = 'h:mm AM/PM'; // Форматируем как время
+          
           cellsUpdated++;
           
           updateResults.push({ cell: update.cell, value: update.value, success: true });
-          console.log('[SRSExcelProcessor] ✓ Successfully updated', update.cell, ':', oldValue, '->', update.value);
+          console.log('[SRSExcelProcessor] ✓ Successfully updated', update.cell, ':', oldValue, '->', update.value, 'with time format');
         } catch (error) {
           console.error('[SRSExcelProcessor] ✗ Failed to update', update.cell, ':', error);
           updateResults.push({ cell: update.cell, value: update.value, success: false });
@@ -976,7 +1004,9 @@ export class SRSExcelProcessor {
       if (record.TypeOfLeaveID === 1) {
         console.log('[SRSExcelProcessor] Setting leave type 1 value in U' + rowIndex, ':', record.LeaveTime);
         try {
-          worksheet.getCell(`U${rowIndex}`).value = record.LeaveTime;
+          const cell = worksheet.getCell(`U${rowIndex}`);
+          cell.value = record.LeaveTime;
+          cell.numFmt = '0.00'; // Числовой формат для времени отпуска
           cellsUpdated++;
           console.log('[SRSExcelProcessor] ✓ Leave type 1 value set successfully');
         } catch (error) {
@@ -987,7 +1017,9 @@ export class SRSExcelProcessor {
       if (record.TypeOfLeaveID === 2) {
         console.log('[SRSExcelProcessor] Setting leave type 2 value in T' + rowIndex, ':', record.LeaveTime);
         try {
-          worksheet.getCell(`T${rowIndex}`).value = record.LeaveTime;
+          const cell = worksheet.getCell(`T${rowIndex}`);
+          cell.value = record.LeaveTime;
+          cell.numFmt = '0.00'; // Числовой формат для времени отпуска
           cellsUpdated++;
           console.log('[SRSExcelProcessor] ✓ Leave type 2 value set successfully');
         } catch (error) {
@@ -1046,6 +1078,7 @@ export class SRSExcelProcessor {
         const cell = worksheet.getCell(cellAddress);
         const oldValue = cell.value;
         cell.value = record.LeaveTime;
+        cell.numFmt = '0.00'; // Числовой формат для времени отпуска
         
         console.log('[SRSExcelProcessor] ✓ Successfully set extended leave value:', {
           cell: cellAddress,

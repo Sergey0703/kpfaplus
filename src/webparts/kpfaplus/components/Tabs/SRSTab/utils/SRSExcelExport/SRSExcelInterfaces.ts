@@ -1,23 +1,20 @@
 // src/webparts/kpfaplus/components/Tabs/SRSTab/utils/SRSExcelExport/SRSExcelInterfaces.ts
 
-import { ISRSRecord } from '../SRSTabInterfaces';
-
 /**
  * *** РЕПЛИКА OFFICE SCRIPT: Формат записи для Excel экспорта ***
- * Точно соответствует интерфейсу SRSRecord из Office Script
+ * ИСПРАВЛЕНО: Поля времени теперь являются объектами Date, а время отпуска - числом,
+ * чтобы обеспечить правильную запись числовых значений в Excel.
  */
 export interface ISRSExcelRecord {
-  // --- НАЧАЛО ИСПРАВЛЕНИЯ ---
-  ShiftStart: Date;        // **ИСПРАВЛЕНО**: "08:00" -> Date object
-  ShiftEnd: Date;          // **ИСПРАВЛЕНО**: "16:00" -> Date object
-  LunchTime: Date;         // **ИСПРАВЛЕНО**: "0:30" -> Date object
-  // --- КОНЕЦ ИСПРАВЛЕНИЯ ---
+  ShiftStart: Date;          // **ИСПРАВЛЕНО**: "08:00" -> Date object
+  ShiftEnd: Date;            // **ИСПРАВЛЕНО**: "16:00" -> Date object
+  LunchTime: Date;           // **ИСПРАВЛЕНО**: "0:30" -> Date object
   Contract: number;          // 1 или 2 - номер контракта
   TypeOfLeaveID: number;     // 0-19 - тип отпуска (0 = обычная работа)
-  LeaveTime: number;         // "7.50" - время отпуска в часах (число)
-  LunchNote?: string;        // Комментарий к обеду (пока не используется)
-  TotalHoursNote?: string;   // Комментарий к общему времени (пока не используется)
-  LeaveNote?: string;        // Комментарий к отпуску (пока не используется)
+  LeaveTime: number;         // **ИСПРАВЛЕНО**: "7.50" -> number
+  LunchNote?: string;
+  TotalHoursNote?: string;
+  LeaveNote?: string;
 }
 
 // ... (остальная часть файла остается без изменений) ...
@@ -94,23 +91,8 @@ export interface ISRSExcelColumnMapping {
   leaveType2Column?: string;
   extendedLeaveColumns: string[];
 }
-export interface ISRSExcelColumnMappingData {
-  type2Contract1: ISRSExcelColumnMapping;
-  type2Contract2: ISRSExcelColumnMapping;
-  type3Contract1: ISRSExcelColumnMapping;
-  type3Contract2: ISRSExcelColumnMapping;
-}
-export interface ISRSExcelClearingConfig {
-  typeOfSRS: number;
-  columnsToClean: string[];
-  maxRows: number;
-  clearComments: boolean;
-}
 export interface ISRSExcelProcessingStats {
   totalTime: number;
-  downloadTime?: number;
-  processingTime?: number;
-  uploadTime?: number;
   inputRecords: number;
   processedRecords: number;
   skippedRecords: number;
@@ -133,22 +115,6 @@ export interface ISRSRecordValidationResult {
   hasValidContract: boolean;
   hasValidLeaveType: boolean;
   hasValidLeaveTime: boolean;
-}
-export interface ISRSExcelOperationContext {
-  sourceRecords: ISRSRecord[];
-  targetDate: Date;
-  selectedStaffInfo: {
-    id: string;
-    name: string;
-    filePath: string;
-  };
-  config: ISRSExcelProcessingConfig;
-  columnMapping: ISRSExcelColumnMapping;
-  exportData: ISRSExcelExportData;
-  stats: ISRSExcelProcessingStats;
-  isProcessing: boolean;
-  startTime: number;
-  currentStep: string;
 }
 export const SRS_EXCEL_CONSTANTS = {
   WORKSHEET_NAME: '2.Employee  Data Entry',
