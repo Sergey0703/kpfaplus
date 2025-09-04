@@ -719,14 +719,19 @@ export class SRSExcelProcessor {
           const cell = worksheet.getCell(update.cell);
           const oldValue = cell.value;
           
-          // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Устанавливаем значение и формат времени ***
+          // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Устанавливаем значение и правильный формат времени ***
           cell.value = update.value;
-          cell.numFmt = 'h:mm AM/PM'; // Форматируем как время
+          // Different formats for different cell types
+          if (update.desc === 'Lunch time') {
+            cell.numFmt = 'h:mm'; // Lunch time format (duration)
+          } else {
+            cell.numFmt = 'h:mm AM/PM'; // Shift time format (time of day)
+          }
           
           cellsUpdated++;
           
           updateResults.push({ cell: update.cell, value: update.value, success: true });
-          console.log('[SRSExcelProcessor] ✓ Successfully updated', update.cell, ':', oldValue, '->', update.value, 'with time format');
+          console.log('[SRSExcelProcessor] ✓ Successfully updated', update.cell, ':', oldValue, '->', update.value, 'with correct time format');
         } catch (error) {
           console.error('[SRSExcelProcessor] ✗ Failed to update', update.cell, ':', error);
           updateResults.push({ cell: update.cell, value: update.value, success: false });
@@ -791,14 +796,19 @@ export class SRSExcelProcessor {
           const cell = worksheet.getCell(update.cell);
           const oldValue = cell.value;
           
-          // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Устанавливаем значение и формат времени ***
+          // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Устанавливаем значение и правильный формат времени ***
           cell.value = update.value;
-          cell.numFmt = 'h:mm AM/PM'; // Форматируем как время
+          // Different formats for different cell types
+          if (update.desc === 'Lunch time') {
+            cell.numFmt = 'h:mm'; // Lunch time format (duration)
+          } else {
+            cell.numFmt = 'h:mm AM/PM'; // Shift time format (time of day)
+          }
           
           cellsUpdated++;
           
           updateResults.push({ cell: update.cell, value: update.value, success: true });
-          console.log('[SRSExcelProcessor] ✓ Successfully updated', update.cell, ':', oldValue, '->', update.value, 'with time format');
+          console.log('[SRSExcelProcessor] ✓ Successfully updated', update.cell, ':', oldValue, '->', update.value, 'with correct time format');
         } catch (error) {
           console.error('[SRSExcelProcessor] ✗ Failed to update', update.cell, ':', error);
           updateResults.push({ cell: update.cell, value: update.value, success: false });
@@ -899,14 +909,19 @@ export class SRSExcelProcessor {
           const cell = worksheet.getCell(update.cell);
           const oldValue = cell.value;
           
-          // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Устанавливаем значение и формат времени ***
+          // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Устанавливаем значение и правильный формат времени ***
           cell.value = update.value;
-          cell.numFmt = 'h:mm AM/PM'; // Форматируем как время
+          // Different formats for different cell types
+          if (update.desc === 'Lunch time') {
+            cell.numFmt = 'h:mm'; // Lunch time format (duration)
+          } else {
+            cell.numFmt = 'h:mm AM/PM'; // Shift time format (time of day)
+          }
           
           cellsUpdated++;
           
           updateResults.push({ cell: update.cell, value: update.value, success: true });
-          console.log('[SRSExcelProcessor] ✓ Successfully updated', update.cell, ':', oldValue, '->', update.value, 'with time format');
+          console.log('[SRSExcelProcessor] ✓ Successfully updated', update.cell, ':', oldValue, '->', update.value, 'with correct time format');
         } catch (error) {
           console.error('[SRSExcelProcessor] ✗ Failed to update', update.cell, ':', error);
           updateResults.push({ cell: update.cell, value: update.value, success: false });
@@ -971,14 +986,19 @@ export class SRSExcelProcessor {
           const cell = worksheet.getCell(update.cell);
           const oldValue = cell.value;
           
-          // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Устанавливаем значение и формат времени ***
+          // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Устанавливаем значение и правильный формат времени ***
           cell.value = update.value;
-          cell.numFmt = 'h:mm AM/PM'; // Форматируем как время
+          // Different formats for different cell types
+          if (update.desc === 'Lunch time') {
+            cell.numFmt = 'h:mm'; // Lunch time format (duration)
+          } else {
+            cell.numFmt = 'h:mm AM/PM'; // Shift time format (time of day)
+          }
           
           cellsUpdated++;
           
           updateResults.push({ cell: update.cell, value: update.value, success: true });
-          console.log('[SRSExcelProcessor] ✓ Successfully updated', update.cell, ':', oldValue, '->', update.value, 'with time format');
+          console.log('[SRSExcelProcessor] ✓ Successfully updated', update.cell, ':', oldValue, '->', update.value, 'with correct time format');
         } catch (error) {
           console.error('[SRSExcelProcessor] ✗ Failed to update', update.cell, ':', error);
           updateResults.push({ cell: update.cell, value: update.value, success: false });
