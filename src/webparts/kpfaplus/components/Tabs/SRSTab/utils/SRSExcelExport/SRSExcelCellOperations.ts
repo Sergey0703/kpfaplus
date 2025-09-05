@@ -10,7 +10,7 @@ import {
 /**
  * Service for Excel cell operations and data writing
  * Handles record processing, cell value setting, and comment management
- * *** FIXED: Proper format assignment and total hours calculation ***
+ * *** FIXED: Does not set formulas in D, G, I columns - Excel already has them ***
  */
 export class SRSExcelCellOperations {
   private addLog: (message: string) => void;
@@ -42,14 +42,14 @@ export class SRSExcelCellOperations {
   }
 
   /**
-   * *** FIXED: Processes record for typeOfSRS = 3 with proper format assignment and total hours ***
+   * Processes record for typeOfSRS = 3
    */
   public processRecordForType3(
     worksheet: ExcelJS.Worksheet,
     record: ISRSExcelRecord,
     rowIndex: number
   ): { cellsUpdated: number; commentsAdded: number } {
-    console.log('[SRSExcelCellOperations] *** PROCESSING RECORD FOR TYPE 3 (FIXED) ***');
+    console.log('[SRSExcelCellOperations] *** PROCESSING RECORD FOR TYPE 3 ***');
     console.log('[SRSExcelCellOperations] Type 3 processing parameters:', {
       rowIndex,
       contract: record.Contract,
@@ -73,7 +73,7 @@ export class SRSExcelCellOperations {
       commentsAdded += contractResult.commentsAdded;
     }
 
-    console.log('[SRSExcelCellOperations] *** TYPE 3 PROCESSING COMPLETED (FIXED) ***');
+    console.log('[SRSExcelCellOperations] *** TYPE 3 PROCESSING COMPLETED ***');
     console.log('[SRSExcelCellOperations] Type 3 results:', {
       cellsUpdated,
       commentsAdded
@@ -83,19 +83,18 @@ export class SRSExcelCellOperations {
   }
 
   /**
-   * *** FIXED: Processes Contract 1 for Type 3 SRS with proper formats and total hours ***
+   * Processes Contract 1 for Type 3 SRS
    */
   private processContract1Type3(
     worksheet: ExcelJS.Worksheet,
     record: ISRSExcelRecord,
     rowIndex: number
   ): { cellsUpdated: number; commentsAdded: number } {
-    console.log('[SRSExcelCellOperations] *** PROCESSING CONTRACT 1, TYPE 3 (FIXED) ***');
+    console.log('[SRSExcelCellOperations] *** PROCESSING CONTRACT 1, TYPE 3 ***');
     
     let cellsUpdated = 0;
     let commentsAdded = 0;
 
-    // *** FIXED: Set time cells with correct formats ***
     // Start time - B column
     const startResult = this.setCellValueWithSpecificFormat(
       worksheet, 
@@ -126,23 +125,10 @@ export class SRSExcelCellOperations {
     );
     if (lunchResult.success) cellsUpdated++;
 
-    // *** FIXED: Calculate and set total hours in H column for Type 3 Contract 1 ***
-    const totalHours = this.calculateTotalHours(record.ShiftStart, record.ShiftEnd, record.LunchTime);
-    const totalHoursResult = this.setCellValueWithSpecificFormat(
-      worksheet,
-      `H${rowIndex}`,
-      totalHours,
-      '0.000000000',
-      'Total hours calculated'
-    );
-    if (totalHoursResult.success) cellsUpdated++;
-
     console.log('[SRSExcelCellOperations] Contract 1 Type 3 cells set:', {
       startTime: `B${rowIndex}`,
       endTime: `C${rowIndex}`,
-      lunchTime: `F${rowIndex}`,
-      totalHours: `H${rowIndex}`,
-      totalHoursValue: totalHours
+      lunchTime: `F${rowIndex}`
     });
 
     // Comments for Contract 1, Type 3
@@ -166,19 +152,18 @@ export class SRSExcelCellOperations {
   }
 
   /**
-   * *** FIXED: Processes Contract 2 for Type 3 SRS with proper formats and total hours ***
+   * Processes Contract 2 for Type 3 SRS
    */
   private processContract2Type3(
     worksheet: ExcelJS.Worksheet,
     record: ISRSExcelRecord,
     rowIndex: number
   ): { cellsUpdated: number; commentsAdded: number } {
-    console.log('[SRSExcelCellOperations] *** PROCESSING CONTRACT 2, TYPE 3 (FIXED) ***');
+    console.log('[SRSExcelCellOperations] *** PROCESSING CONTRACT 2, TYPE 3 ***');
     
     let cellsUpdated = 0;
     let commentsAdded = 0;
 
-    // *** FIXED: Set time cells with correct formats ***
     // Start time - K column
     const startResult = this.setCellValueWithSpecificFormat(
       worksheet, 
@@ -209,23 +194,10 @@ export class SRSExcelCellOperations {
     );
     if (lunchResult.success) cellsUpdated++;
 
-    // *** FIXED: Calculate and set total hours in Q column for Type 3 Contract 2 ***
-    const totalHours = this.calculateTotalHours(record.ShiftStart, record.ShiftEnd, record.LunchTime);
-    const totalHoursResult = this.setCellValueWithSpecificFormat(
-      worksheet,
-      `Q${rowIndex}`,
-      totalHours,
-      '0.000000000',
-      'Total hours calculated'
-    );
-    if (totalHoursResult.success) cellsUpdated++;
-
     console.log('[SRSExcelCellOperations] Contract 2 Type 3 cells set:', {
       startTime: `K${rowIndex}`,
       endTime: `L${rowIndex}`,
-      lunchTime: `O${rowIndex}`,
-      totalHours: `Q${rowIndex}`,
-      totalHoursValue: totalHours
+      lunchTime: `O${rowIndex}`
     });
 
     // Comments for Contract 2, Type 3
@@ -249,14 +221,14 @@ export class SRSExcelCellOperations {
   }
 
   /**
-   * *** FIXED: Processes record for typeOfSRS = 2 with proper format assignment and total hours ***
+   * Processes record for typeOfSRS = 2
    */
   public processRecordForType2(
     worksheet: ExcelJS.Worksheet,
     record: ISRSExcelRecord,
     rowIndex: number
   ): { cellsUpdated: number; commentsAdded: number } {
-    console.log('[SRSExcelCellOperations] *** PROCESSING RECORD FOR TYPE 2 (FIXED) ***');
+    console.log('[SRSExcelCellOperations] *** PROCESSING RECORD FOR TYPE 2 ***');
     console.log('[SRSExcelCellOperations] Type 2 processing parameters:', {
       rowIndex,
       contract: record.Contract,
@@ -280,7 +252,7 @@ export class SRSExcelCellOperations {
       commentsAdded += contractResult.commentsAdded;
     }
 
-    console.log('[SRSExcelCellOperations] *** TYPE 2 PROCESSING COMPLETED (FIXED) ***');
+    console.log('[SRSExcelCellOperations] *** TYPE 2 PROCESSING COMPLETED ***');
     console.log('[SRSExcelCellOperations] Type 2 results:', {
       cellsUpdated,
       commentsAdded
@@ -290,19 +262,18 @@ export class SRSExcelCellOperations {
   }
 
   /**
-   * *** FIXED: Processes Contract 1 for Type 2 SRS with proper formats and total hours ***
+   * Processes Contract 1 for Type 2 SRS
    */
   private processContract1Type2(
     worksheet: ExcelJS.Worksheet,
     record: ISRSExcelRecord,
     rowIndex: number
   ): { cellsUpdated: number; commentsAdded: number } {
-    console.log('[SRSExcelCellOperations] *** PROCESSING CONTRACT 1, TYPE 2 (FIXED) ***');
+    console.log('[SRSExcelCellOperations] *** PROCESSING CONTRACT 1, TYPE 2 ***');
     
     let cellsUpdated = 0;
     let commentsAdded = 0;
 
-    // *** FIXED: Set time cells with correct formats ***
     // Start time - B column
     const startResult = this.setCellValueWithSpecificFormat(
       worksheet, 
@@ -333,23 +304,10 @@ export class SRSExcelCellOperations {
     );
     if (lunchResult.success) cellsUpdated++;
 
-    // *** FIXED: Calculate and set total hours in I column for Type 2 Contract 1 ***
-    const totalHours = this.calculateTotalHours(record.ShiftStart, record.ShiftEnd, record.LunchTime);
-    const totalHoursResult = this.setCellValueWithSpecificFormat(
-      worksheet,
-      `I${rowIndex}`,
-      totalHours,
-      '0.000000000',
-      'Total hours calculated'
-    );
-    if (totalHoursResult.success) cellsUpdated++;
-
     console.log('[SRSExcelCellOperations] Contract 1 Type 2 cells set:', {
       startTime: `B${rowIndex}`,
       endTime: `C${rowIndex}`,
-      lunchTime: `F${rowIndex}`,
-      totalHours: `I${rowIndex}`,
-      totalHoursValue: totalHours
+      lunchTime: `F${rowIndex}`
     });
 
     // Comments for Contract 1, Type 2
@@ -373,19 +331,18 @@ export class SRSExcelCellOperations {
   }
 
   /**
-   * *** FIXED: Processes Contract 2 for Type 2 SRS with proper formats and total hours ***
+   * Processes Contract 2 for Type 2 SRS
    */
   private processContract2Type2(
     worksheet: ExcelJS.Worksheet,
     record: ISRSExcelRecord,
     rowIndex: number
   ): { cellsUpdated: number; commentsAdded: number } {
-    console.log('[SRSExcelCellOperations] *** PROCESSING CONTRACT 2, TYPE 2 (FIXED) ***');
+    console.log('[SRSExcelCellOperations] *** PROCESSING CONTRACT 2, TYPE 2 ***');
     
     let cellsUpdated = 0;
     let commentsAdded = 0;
 
-    // *** FIXED: Set time cells with locale-specific formats to force 12-hour display ***
     // Start time - L column
     const startResult = this.setCellValueWithSpecificFormat(
       worksheet, 
@@ -416,23 +373,10 @@ export class SRSExcelCellOperations {
     );
     if (lunchResult.success) cellsUpdated++;
 
-    // *** FIXED: Calculate and set total hours in S column for Type 2 Contract 2 ***
-    const totalHours = this.calculateTotalHours(record.ShiftStart, record.ShiftEnd, record.LunchTime);
-    const totalHoursResult = this.setCellValueWithSpecificFormat(
-      worksheet,
-      `S${rowIndex}`,
-      totalHours,
-      '0.000000000',
-      'Total hours calculated'
-    );
-    if (totalHoursResult.success) cellsUpdated++;
-
     console.log('[SRSExcelCellOperations] Contract 2 Type 2 cells set:', {
       startTime: `L${rowIndex}`,
       endTime: `M${rowIndex}`,
-      lunchTime: `P${rowIndex}`,
-      totalHours: `S${rowIndex}`,
-      totalHoursValue: totalHours
+      lunchTime: `P${rowIndex}`
     });
 
     // Comments for Contract 2, Type 2
@@ -456,57 +400,7 @@ export class SRSExcelCellOperations {
   }
 
   /**
-   * *** NEW: Calculate total hours from start, end, and lunch times ***
-   */
-  private calculateTotalHours(shiftStart: Date, shiftEnd: Date, lunchTime: Date): number {
-    console.log('[SRSExcelCellOperations] *** CALCULATING TOTAL HOURS ***');
-    
-    try {
-      // Extract hours and minutes from Date objects
-      const startHours = shiftStart.getUTCHours();
-      const startMinutes = shiftStart.getUTCMinutes();
-      const endHours = shiftEnd.getUTCHours();
-      const endMinutes = shiftEnd.getUTCMinutes();
-      const lunchHours = lunchTime.getUTCHours();
-      const lunchMinutes = lunchTime.getUTCMinutes();
-
-      // Convert to total minutes
-      const startTotalMinutes = startHours * 60 + startMinutes;
-      const endTotalMinutes = endHours * 60 + endMinutes;
-      const lunchTotalMinutes = lunchHours * 60 + lunchMinutes;
-
-      // Calculate work minutes (end - start - lunch)
-      let workMinutes = endTotalMinutes - startTotalMinutes - lunchTotalMinutes;
-
-      // Handle overnight shifts (if end time is next day)
-      if (workMinutes < 0) {
-        workMinutes += 24 * 60; // Add 24 hours in minutes
-      }
-
-      // Convert to decimal hours
-      const totalHours = workMinutes / 60;
-
-      console.log('[SRSExcelCellOperations] Total hours calculation:', {
-        startTime: `${startHours.toString().padStart(2, '0')}:${startMinutes.toString().padStart(2, '0')}`,
-        endTime: `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`,
-        lunchTime: `${lunchHours.toString().padStart(2, '0')}:${lunchMinutes.toString().padStart(2, '0')}`,
-        workMinutes,
-        totalHours
-      });
-
-      return totalHours;
-
-    } catch (error) {
-      console.error('[SRSExcelCellOperations] Error calculating total hours:', error);
-      return 0;
-    }
-  }
-
-  /**
-   * *** FIXED: Sets cell value with specific format and detailed logging ***
-   */
-  /**
-   * *** FIXED: Sets cell value with specific format and detailed logging ***
+   * Sets cell value with specific format and detailed logging
    */
   private setCellValueWithSpecificFormat(
     worksheet: ExcelJS.Worksheet,
@@ -536,7 +430,7 @@ export class SRSExcelCellOperations {
   }
 
   /**
-   * *** DETAILED LOGGING: Processes extended leave types (TypeOfLeaveID 3-19) ***
+   * Processes extended leave types (TypeOfLeaveID 3-19)
    */
   public processExtendedLeaveType(
     worksheet: ExcelJS.Worksheet,
@@ -642,7 +536,7 @@ export class SRSExcelCellOperations {
   }
 
   /**
-   * *** DETAILED LOGGING: Adds comment to cell ***
+   * Adds comment to cell
    */
   public addCommentToCell(worksheet: ExcelJS.Worksheet, cellAddress: string, commentText: string): boolean {
     console.log('[SRSExcelCellOperations] *** ADDING COMMENT TO CELL ***');
