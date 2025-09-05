@@ -385,13 +385,13 @@ export class SRSExcelCellOperations {
     let cellsUpdated = 0;
     let commentsAdded = 0;
 
-    // *** FIXED: Set time cells with correct formats ***
+    // *** FIXED: Set time cells with locale-specific formats to force 12-hour display ***
     // Start time - L column
     const startResult = this.setCellValueWithSpecificFormat(
       worksheet, 
       `L${rowIndex}`, 
       record.ShiftStart, 
-      'h:mm AM/PM',
+      '[$-409]h:mm AM/PM',
       'Start time'
     );
     if (startResult.success) cellsUpdated++;
@@ -401,7 +401,7 @@ export class SRSExcelCellOperations {
       worksheet, 
       `M${rowIndex}`, 
       record.ShiftEnd, 
-      'h:mm AM/PM',
+      '[$-409]h:mm AM/PM',
       'End time'
     );
     if (endResult.success) cellsUpdated++;
@@ -502,6 +502,9 @@ export class SRSExcelCellOperations {
     }
   }
 
+  /**
+   * *** FIXED: Sets cell value with specific format and detailed logging ***
+   */
   /**
    * *** FIXED: Sets cell value with specific format and detailed logging ***
    */
