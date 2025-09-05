@@ -10,6 +10,7 @@ import {
 /**
  * Service for Excel cell operations and data writing
  * Handles record processing, cell value setting, and comment management
+ * *** FIXED: Proper format assignment and total hours calculation ***
  */
 export class SRSExcelCellOperations {
   private addLog: (message: string) => void;
@@ -41,14 +42,14 @@ export class SRSExcelCellOperations {
   }
 
   /**
-   * *** DETAILED LOGGING: Processes record for typeOfSRS = 3 ***
+   * *** FIXED: Processes record for typeOfSRS = 3 with proper format assignment and total hours ***
    */
   public processRecordForType3(
     worksheet: ExcelJS.Worksheet,
     record: ISRSExcelRecord,
     rowIndex: number
   ): { cellsUpdated: number; commentsAdded: number } {
-    console.log('[SRSExcelCellOperations] *** PROCESSING RECORD FOR TYPE 3 ***');
+    console.log('[SRSExcelCellOperations] *** PROCESSING RECORD FOR TYPE 3 (FIXED) ***');
     console.log('[SRSExcelCellOperations] Type 3 processing parameters:', {
       rowIndex,
       contract: record.Contract,
@@ -61,59 +62,87 @@ export class SRSExcelCellOperations {
 
     let cellsUpdated: number = 0;
     let commentsAdded: number = 0;
-    const updateResults: Array<{cell: string, value: any, success: boolean}> = [];
 
     if (record.Contract === 1) {
       const contractResult = this.processContract1Type3(worksheet, record, rowIndex);
       cellsUpdated += contractResult.cellsUpdated;
       commentsAdded += contractResult.commentsAdded;
-      updateResults.push(...contractResult.updateResults);
     } else if (record.Contract === 2) {
       const contractResult = this.processContract2Type3(worksheet, record, rowIndex);
       cellsUpdated += contractResult.cellsUpdated;
       commentsAdded += contractResult.commentsAdded;
-      updateResults.push(...contractResult.updateResults);
     }
 
-    console.log('[SRSExcelCellOperations] *** TYPE 3 PROCESSING COMPLETED ***');
+    console.log('[SRSExcelCellOperations] *** TYPE 3 PROCESSING COMPLETED (FIXED) ***');
     console.log('[SRSExcelCellOperations] Type 3 results:', {
       cellsUpdated,
-      commentsAdded,
-      updateResults: updateResults.length,
-      successfulUpdates: updateResults.filter(r => r.success).length,
-      failedUpdates: updateResults.filter(r => !r.success).length
+      commentsAdded
     });
 
     return { cellsUpdated, commentsAdded };
   }
 
   /**
-   * Processes Contract 1 for Type 3 SRS
+   * *** FIXED: Processes Contract 1 for Type 3 SRS with proper formats and total hours ***
    */
   private processContract1Type3(
     worksheet: ExcelJS.Worksheet,
     record: ISRSExcelRecord,
     rowIndex: number
-  ): { cellsUpdated: number; commentsAdded: number; updateResults: Array<{cell: string, value: any, success: boolean}> } {
-    console.log('[SRSExcelCellOperations] Processing Contract 1, Type 3');
+  ): { cellsUpdated: number; commentsAdded: number } {
+    console.log('[SRSExcelCellOperations] *** PROCESSING CONTRACT 1, TYPE 3 (FIXED) ***');
     
     let cellsUpdated = 0;
     let commentsAdded = 0;
-    const updateResults: Array<{cell: string, value: any, success: boolean}> = [];
 
-    // Contract 1, Type 3 - main cells
-    const updates = [
-      { cell: `B${rowIndex}`, value: record.ShiftStart, desc: 'Start time' },
-      { cell: `C${rowIndex}`, value: record.ShiftEnd, desc: 'End time' },
-      { cell: `F${rowIndex}`, value: record.LunchTime, desc: 'Lunch time' }
-    ];
-    
-    updates.forEach(update => {
-      const result = this.setCellValueWithTimeFormat(worksheet, update.cell, update.value, update.desc);
-      if (result.success) {
-        cellsUpdated++;
-      }
-      updateResults.push(result);
+    // *** FIXED: Set time cells with correct formats ***
+    // Start time - B column
+    const startResult = this.setCellValueWithSpecificFormat(
+      worksheet, 
+      `B${rowIndex}`, 
+      record.ShiftStart, 
+      'h:mm AM/PM',
+      'Start time'
+    );
+    if (startResult.success) cellsUpdated++;
+
+    // End time - C column  
+    const endResult = this.setCellValueWithSpecificFormat(
+      worksheet, 
+      `C${rowIndex}`, 
+      record.ShiftEnd, 
+      'h:mm AM/PM',
+      'End time'
+    );
+    if (endResult.success) cellsUpdated++;
+
+    // Lunch time - F column
+    const lunchResult = this.setCellValueWithSpecificFormat(
+      worksheet, 
+      `F${rowIndex}`, 
+      record.LunchTime, 
+      '[h]:mm',
+      'Lunch time'
+    );
+    if (lunchResult.success) cellsUpdated++;
+
+    // *** FIXED: Calculate and set total hours in H column for Type 3 Contract 1 ***
+    const totalHours = this.calculateTotalHours(record.ShiftStart, record.ShiftEnd, record.LunchTime);
+    const totalHoursResult = this.setCellValueWithSpecificFormat(
+      worksheet,
+      `H${rowIndex}`,
+      totalHours,
+      '0.000000000',
+      'Total hours calculated'
+    );
+    if (totalHoursResult.success) cellsUpdated++;
+
+    console.log('[SRSExcelCellOperations] Contract 1 Type 3 cells set:', {
+      startTime: `B${rowIndex}`,
+      endTime: `C${rowIndex}`,
+      lunchTime: `F${rowIndex}`,
+      totalHours: `H${rowIndex}`,
+      totalHoursValue: totalHours
     });
 
     // Comments for Contract 1, Type 3
@@ -133,36 +162,70 @@ export class SRSExcelCellOperations {
     const leaveResult = this.processLeaveTypesContract1Type3(worksheet, record, rowIndex);
     cellsUpdated += leaveResult.cellsUpdated;
 
-    return { cellsUpdated, commentsAdded, updateResults };
+    return { cellsUpdated, commentsAdded };
   }
 
   /**
-   * Processes Contract 2 for Type 3 SRS
+   * *** FIXED: Processes Contract 2 for Type 3 SRS with proper formats and total hours ***
    */
   private processContract2Type3(
     worksheet: ExcelJS.Worksheet,
     record: ISRSExcelRecord,
     rowIndex: number
-  ): { cellsUpdated: number; commentsAdded: number; updateResults: Array<{cell: string, value: any, success: boolean}> } {
-    console.log('[SRSExcelCellOperations] Processing Contract 2, Type 3');
+  ): { cellsUpdated: number; commentsAdded: number } {
+    console.log('[SRSExcelCellOperations] *** PROCESSING CONTRACT 2, TYPE 3 (FIXED) ***');
     
     let cellsUpdated = 0;
     let commentsAdded = 0;
-    const updateResults: Array<{cell: string, value: any, success: boolean}> = [];
 
-    // Contract 2, Type 3 - main cells
-    const updates = [
-      { cell: `K${rowIndex}`, value: record.ShiftStart, desc: 'Start time' },
-      { cell: `L${rowIndex}`, value: record.ShiftEnd, desc: 'End time' },
-      { cell: `O${rowIndex}`, value: record.LunchTime, desc: 'Lunch time' }
-    ];
-    
-    updates.forEach(update => {
-      const result = this.setCellValueWithTimeFormat(worksheet, update.cell, update.value, update.desc);
-      if (result.success) {
-        cellsUpdated++;
-      }
-      updateResults.push(result);
+    // *** FIXED: Set time cells with correct formats ***
+    // Start time - K column
+    const startResult = this.setCellValueWithSpecificFormat(
+      worksheet, 
+      `K${rowIndex}`, 
+      record.ShiftStart, 
+      'h:mm AM/PM',
+      'Start time'
+    );
+    if (startResult.success) cellsUpdated++;
+
+    // End time - L column
+    const endResult = this.setCellValueWithSpecificFormat(
+      worksheet, 
+      `L${rowIndex}`, 
+      record.ShiftEnd, 
+      'h:mm AM/PM',
+      'End time'
+    );
+    if (endResult.success) cellsUpdated++;
+
+    // Lunch time - O column
+    const lunchResult = this.setCellValueWithSpecificFormat(
+      worksheet, 
+      `O${rowIndex}`, 
+      record.LunchTime, 
+      '[h]:mm',
+      'Lunch time'
+    );
+    if (lunchResult.success) cellsUpdated++;
+
+    // *** FIXED: Calculate and set total hours in Q column for Type 3 Contract 2 ***
+    const totalHours = this.calculateTotalHours(record.ShiftStart, record.ShiftEnd, record.LunchTime);
+    const totalHoursResult = this.setCellValueWithSpecificFormat(
+      worksheet,
+      `Q${rowIndex}`,
+      totalHours,
+      '0.000000000',
+      'Total hours calculated'
+    );
+    if (totalHoursResult.success) cellsUpdated++;
+
+    console.log('[SRSExcelCellOperations] Contract 2 Type 3 cells set:', {
+      startTime: `K${rowIndex}`,
+      endTime: `L${rowIndex}`,
+      lunchTime: `O${rowIndex}`,
+      totalHours: `Q${rowIndex}`,
+      totalHoursValue: totalHours
     });
 
     // Comments for Contract 2, Type 3
@@ -182,18 +245,18 @@ export class SRSExcelCellOperations {
     const leaveResult = this.processLeaveTypesContract2Type3(worksheet, record, rowIndex);
     cellsUpdated += leaveResult.cellsUpdated;
 
-    return { cellsUpdated, commentsAdded, updateResults };
+    return { cellsUpdated, commentsAdded };
   }
 
   /**
-   * *** DETAILED LOGGING: Processes record for typeOfSRS = 2 ***
+   * *** FIXED: Processes record for typeOfSRS = 2 with proper format assignment and total hours ***
    */
   public processRecordForType2(
     worksheet: ExcelJS.Worksheet,
     record: ISRSExcelRecord,
     rowIndex: number
   ): { cellsUpdated: number; commentsAdded: number } {
-    console.log('[SRSExcelCellOperations] *** PROCESSING RECORD FOR TYPE 2 ***');
+    console.log('[SRSExcelCellOperations] *** PROCESSING RECORD FOR TYPE 2 (FIXED) ***');
     console.log('[SRSExcelCellOperations] Type 2 processing parameters:', {
       rowIndex,
       contract: record.Contract,
@@ -206,59 +269,87 @@ export class SRSExcelCellOperations {
 
     let cellsUpdated: number = 0;
     let commentsAdded: number = 0;
-    const updateResults: Array<{cell: string, value: any, success: boolean}> = [];
 
     if (record.Contract === 1) {
       const contractResult = this.processContract1Type2(worksheet, record, rowIndex);
       cellsUpdated += contractResult.cellsUpdated;
       commentsAdded += contractResult.commentsAdded;
-      updateResults.push(...contractResult.updateResults);
     } else if (record.Contract === 2) {
       const contractResult = this.processContract2Type2(worksheet, record, rowIndex);
       cellsUpdated += contractResult.cellsUpdated;
       commentsAdded += contractResult.commentsAdded;
-      updateResults.push(...contractResult.updateResults);
     }
 
-    console.log('[SRSExcelCellOperations] *** TYPE 2 PROCESSING COMPLETED ***');
+    console.log('[SRSExcelCellOperations] *** TYPE 2 PROCESSING COMPLETED (FIXED) ***');
     console.log('[SRSExcelCellOperations] Type 2 results:', {
       cellsUpdated,
-      commentsAdded,
-      updateResults: updateResults.length,
-      successfulUpdates: updateResults.filter(r => r.success).length,
-      failedUpdates: updateResults.filter(r => !r.success).length
+      commentsAdded
     });
 
     return { cellsUpdated, commentsAdded };
   }
 
   /**
-   * Processes Contract 1 for Type 2 SRS
+   * *** FIXED: Processes Contract 1 for Type 2 SRS with proper formats and total hours ***
    */
   private processContract1Type2(
     worksheet: ExcelJS.Worksheet,
     record: ISRSExcelRecord,
     rowIndex: number
-  ): { cellsUpdated: number; commentsAdded: number; updateResults: Array<{cell: string, value: any, success: boolean}> } {
-    console.log('[SRSExcelCellOperations] Processing Contract 1, Type 2');
+  ): { cellsUpdated: number; commentsAdded: number } {
+    console.log('[SRSExcelCellOperations] *** PROCESSING CONTRACT 1, TYPE 2 (FIXED) ***');
     
     let cellsUpdated = 0;
     let commentsAdded = 0;
-    const updateResults: Array<{cell: string, value: any, success: boolean}> = [];
 
-    // Contract 1, Type 2 - main cells
-    const updates = [
-      { cell: `B${rowIndex}`, value: record.ShiftStart, desc: 'Start time' },
-      { cell: `C${rowIndex}`, value: record.ShiftEnd, desc: 'End time' },
-      { cell: `F${rowIndex}`, value: record.LunchTime, desc: 'Lunch time' }
-    ];
-    
-    updates.forEach(update => {
-      const result = this.setCellValueWithTimeFormat(worksheet, update.cell, update.value, update.desc);
-      if (result.success) {
-        cellsUpdated++;
-      }
-      updateResults.push(result);
+    // *** FIXED: Set time cells with correct formats ***
+    // Start time - B column
+    const startResult = this.setCellValueWithSpecificFormat(
+      worksheet, 
+      `B${rowIndex}`, 
+      record.ShiftStart, 
+      'h:mm AM/PM',
+      'Start time'
+    );
+    if (startResult.success) cellsUpdated++;
+
+    // End time - C column
+    const endResult = this.setCellValueWithSpecificFormat(
+      worksheet, 
+      `C${rowIndex}`, 
+      record.ShiftEnd, 
+      'h:mm AM/PM',
+      'End time'
+    );
+    if (endResult.success) cellsUpdated++;
+
+    // Lunch time - F column
+    const lunchResult = this.setCellValueWithSpecificFormat(
+      worksheet, 
+      `F${rowIndex}`, 
+      record.LunchTime, 
+      '[h]:mm',
+      'Lunch time'
+    );
+    if (lunchResult.success) cellsUpdated++;
+
+    // *** FIXED: Calculate and set total hours in I column for Type 2 Contract 1 ***
+    const totalHours = this.calculateTotalHours(record.ShiftStart, record.ShiftEnd, record.LunchTime);
+    const totalHoursResult = this.setCellValueWithSpecificFormat(
+      worksheet,
+      `I${rowIndex}`,
+      totalHours,
+      '0.000000000',
+      'Total hours calculated'
+    );
+    if (totalHoursResult.success) cellsUpdated++;
+
+    console.log('[SRSExcelCellOperations] Contract 1 Type 2 cells set:', {
+      startTime: `B${rowIndex}`,
+      endTime: `C${rowIndex}`,
+      lunchTime: `F${rowIndex}`,
+      totalHours: `I${rowIndex}`,
+      totalHoursValue: totalHours
     });
 
     // Comments for Contract 1, Type 2
@@ -278,36 +369,70 @@ export class SRSExcelCellOperations {
     const leaveResult = this.processLeaveTypesContract1Type2(worksheet, record, rowIndex);
     cellsUpdated += leaveResult.cellsUpdated;
 
-    return { cellsUpdated, commentsAdded, updateResults };
+    return { cellsUpdated, commentsAdded };
   }
 
   /**
-   * Processes Contract 2 for Type 2 SRS
+   * *** FIXED: Processes Contract 2 for Type 2 SRS with proper formats and total hours ***
    */
   private processContract2Type2(
     worksheet: ExcelJS.Worksheet,
     record: ISRSExcelRecord,
     rowIndex: number
-  ): { cellsUpdated: number; commentsAdded: number; updateResults: Array<{cell: string, value: any, success: boolean}> } {
-    console.log('[SRSExcelCellOperations] Processing Contract 2, Type 2');
+  ): { cellsUpdated: number; commentsAdded: number } {
+    console.log('[SRSExcelCellOperations] *** PROCESSING CONTRACT 2, TYPE 2 (FIXED) ***');
     
     let cellsUpdated = 0;
     let commentsAdded = 0;
-    const updateResults: Array<{cell: string, value: any, success: boolean}> = [];
 
-    // Contract 2, Type 2 - main cells
-    const updates = [
-      { cell: `L${rowIndex}`, value: record.ShiftStart, desc: 'Start time' },
-      { cell: `M${rowIndex}`, value: record.ShiftEnd, desc: 'End time' },
-      { cell: `P${rowIndex}`, value: record.LunchTime, desc: 'Lunch time' }
-    ];
-    
-    updates.forEach(update => {
-      const result = this.setCellValueWithTimeFormat(worksheet, update.cell, update.value, update.desc);
-      if (result.success) {
-        cellsUpdated++;
-      }
-      updateResults.push(result);
+    // *** FIXED: Set time cells with correct formats ***
+    // Start time - L column
+    const startResult = this.setCellValueWithSpecificFormat(
+      worksheet, 
+      `L${rowIndex}`, 
+      record.ShiftStart, 
+      'h:mm AM/PM',
+      'Start time'
+    );
+    if (startResult.success) cellsUpdated++;
+
+    // End time - M column
+    const endResult = this.setCellValueWithSpecificFormat(
+      worksheet, 
+      `M${rowIndex}`, 
+      record.ShiftEnd, 
+      'h:mm AM/PM',
+      'End time'
+    );
+    if (endResult.success) cellsUpdated++;
+
+    // Lunch time - P column
+    const lunchResult = this.setCellValueWithSpecificFormat(
+      worksheet, 
+      `P${rowIndex}`, 
+      record.LunchTime, 
+      '[h]:mm',
+      'Lunch time'
+    );
+    if (lunchResult.success) cellsUpdated++;
+
+    // *** FIXED: Calculate and set total hours in S column for Type 2 Contract 2 ***
+    const totalHours = this.calculateTotalHours(record.ShiftStart, record.ShiftEnd, record.LunchTime);
+    const totalHoursResult = this.setCellValueWithSpecificFormat(
+      worksheet,
+      `S${rowIndex}`,
+      totalHours,
+      '0.000000000',
+      'Total hours calculated'
+    );
+    if (totalHoursResult.success) cellsUpdated++;
+
+    console.log('[SRSExcelCellOperations] Contract 2 Type 2 cells set:', {
+      startTime: `L${rowIndex}`,
+      endTime: `M${rowIndex}`,
+      lunchTime: `P${rowIndex}`,
+      totalHours: `S${rowIndex}`,
+      totalHoursValue: totalHours
     });
 
     // Comments for Contract 2, Type 2
@@ -327,7 +452,84 @@ export class SRSExcelCellOperations {
     const leaveResult = this.processLeaveTypesContract2Type2(worksheet, record, rowIndex);
     cellsUpdated += leaveResult.cellsUpdated;
 
-    return { cellsUpdated, commentsAdded, updateResults };
+    return { cellsUpdated, commentsAdded };
+  }
+
+  /**
+   * *** NEW: Calculate total hours from start, end, and lunch times ***
+   */
+  private calculateTotalHours(shiftStart: Date, shiftEnd: Date, lunchTime: Date): number {
+    console.log('[SRSExcelCellOperations] *** CALCULATING TOTAL HOURS ***');
+    
+    try {
+      // Extract hours and minutes from Date objects
+      const startHours = shiftStart.getUTCHours();
+      const startMinutes = shiftStart.getUTCMinutes();
+      const endHours = shiftEnd.getUTCHours();
+      const endMinutes = shiftEnd.getUTCMinutes();
+      const lunchHours = lunchTime.getUTCHours();
+      const lunchMinutes = lunchTime.getUTCMinutes();
+
+      // Convert to total minutes
+      const startTotalMinutes = startHours * 60 + startMinutes;
+      const endTotalMinutes = endHours * 60 + endMinutes;
+      const lunchTotalMinutes = lunchHours * 60 + lunchMinutes;
+
+      // Calculate work minutes (end - start - lunch)
+      let workMinutes = endTotalMinutes - startTotalMinutes - lunchTotalMinutes;
+
+      // Handle overnight shifts (if end time is next day)
+      if (workMinutes < 0) {
+        workMinutes += 24 * 60; // Add 24 hours in minutes
+      }
+
+      // Convert to decimal hours
+      const totalHours = workMinutes / 60;
+
+      console.log('[SRSExcelCellOperations] Total hours calculation:', {
+        startTime: `${startHours.toString().padStart(2, '0')}:${startMinutes.toString().padStart(2, '0')}`,
+        endTime: `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`,
+        lunchTime: `${lunchHours.toString().padStart(2, '0')}:${lunchMinutes.toString().padStart(2, '0')}`,
+        workMinutes,
+        totalHours
+      });
+
+      return totalHours;
+
+    } catch (error) {
+      console.error('[SRSExcelCellOperations] Error calculating total hours:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * *** FIXED: Sets cell value with specific format and detailed logging ***
+   */
+  private setCellValueWithSpecificFormat(
+    worksheet: ExcelJS.Worksheet,
+    cellAddress: string,
+    value: any,
+    format: string,
+    description: string
+  ): { cell: string; value: any; success: boolean } {
+    try {
+      console.log('[SRSExcelCellOperations] *** SETTING CELL WITH SPECIFIC FORMAT ***');
+      console.log('[SRSExcelCellOperations] Cell:', cellAddress, 'Value:', value, 'Format:', format, 'Description:', description);
+      
+      const cell = worksheet.getCell(cellAddress);
+      const oldValue = cell.value;
+      
+      // Set value and specific format
+      cell.value = value;
+      cell.numFmt = format;
+      
+      console.log('[SRSExcelCellOperations] ✓ Successfully updated', cellAddress, ':', oldValue, '->', value, 'with format:', format);
+      return { cell: cellAddress, value: value, success: true };
+      
+    } catch (error) {
+      console.error('[SRSExcelCellOperations] ✗ Failed to update', cellAddress, ':', error);
+      return { cell: cellAddress, value: value, success: false };
+    }
   }
 
   /**
@@ -434,32 +636,6 @@ export class SRSExcelCellOperations {
 
     console.log('[SRSExcelCellOperations] Determined leave column:', column || 'None');
     return column;
-  }
-
-  /**
-   * Sets cell value with time formatting and detailed logging
-   */
-  private setCellValueWithTimeFormat(
-    worksheet: ExcelJS.Worksheet,
-    cellAddress: string,
-    value: any,
-    description: string
-  ): { cell: string; value: any; success: boolean } {
-    try {
-      console.log('[SRSExcelCellOperations] Updating cell', cellAddress, 'with', value, `(${description})`);
-      const cell = worksheet.getCell(cellAddress);
-      const oldValue = cell.value;
-      
-      // *** KEY CORRECTION: Set value and time format ***
-      cell.value = value;
-      cell.numFmt = 'h:mm AM/PM'; // Format as time
-      
-      console.log('[SRSExcelCellOperations] ✓ Successfully updated', cellAddress, ':', oldValue, '->', value, 'with time format');
-      return { cell: cellAddress, value: value, success: true };
-    } catch (error) {
-      console.error('[SRSExcelCellOperations] ✗ Failed to update', cellAddress, ':', error);
-      return { cell: cellAddress, value: value, success: false };
-    }
   }
 
   /**
