@@ -119,7 +119,8 @@ export async function handleSRSButtonClick(params: ISRSButtonHandlerParams): Pro
         const staffRecordsService = StaffRecordsService.getInstance(context);
         await staffRecordsService.updateStaffRecord(item.id, { ExportResult: 1, Title: `Export Failed: ${errorMsg}` });
         setTimeout(() => { void refreshSRSData(); }, 500);
-    } catch (statusError) {
+    } catch {
+        // **FIXED**: Removed unused 'statusError' variable
         console.error(`[SRSButtonHandler] Failed to even set error status for record ${item.id}`);
     }
     return { success: false, operation: 'error', error: errorMsg };

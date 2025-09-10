@@ -444,7 +444,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       console.log('[useSRSTabLogic] Preparing new SRS record data with NUMERIC TIME FIELDS and DATE-ONLY format...');
       
       // *** КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Используем SRSDateUtils для правильной обработки Date-only ***
-      const normalizedDate = SRSDateUtils.normalizeDateToLocalMidnight(date);
+      const normalizedDate = SRSDateUtils.normalizeDateToUTCMidnight(date); //const normalizedDate = SRSDateUtils.normalizeDateToLocalMidnight(date);
       
       console.log('[useSRSTabLogic] *** DATE-ONLY FORMAT PROCESSING ***:', {
         originalDate: date.toISOString(),

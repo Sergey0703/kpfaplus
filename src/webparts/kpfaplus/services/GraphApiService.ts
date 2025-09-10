@@ -1,7 +1,6 @@
 // src/webparts/kpfaplus/services/GraphApiService.ts
 
 import { WebPartContext } from '@microsoft/sp-webpart-base';
-// *** ИСПРАВЛЕНО: Убран импорт несуществующего 'ResponseType' ***
 import { MSGraphClientV3 } from '@microsoft/sp-http';
 
 export interface IGraphApiError {
@@ -40,7 +39,48 @@ export interface IFileAvailabilityResult {
   errorDetails?: string;
 }
 
-const SITE_PATH = 'kpfaie.sharepoint.com:/sites/StaffRecordSheets'; //const SITE_PATH = 'kpfaie.sharepoint.com:/sites/KPFADataBackUp';
+// *** ADDED: Interface for Drive Item response ***
+interface IDriveItem {
+  id: string;
+  name: string;
+  size: number;
+  lastModifiedDateTime: string;
+  lastModifiedBy?: {
+    user?: {
+      displayName: string;
+    };
+  };
+}
+
+// *** ADDED: Interface for Site response ***
+interface ISiteResponse {
+  id: string;
+  displayName: string;
+}
+
+// *** ADDED: Interface for Upload Session response ***
+interface IUploadSession {
+  uploadUrl: string;
+  expirationDateTime: string;
+}
+
+// *** ADDED: Interface for HTTP error response ***
+interface IHttpErrorResponse {
+  response: {
+    status: number;
+    data?: unknown;
+  };
+}
+
+// *** ADDED: Interface for Graph API error response ***
+interface IGraphApiErrorResponse {
+  code?: string;
+  message?: string;
+  details?: string;
+  statusCode?: number;
+}
+
+const SITE_PATH = 'kpfaie.sharepoint.com:/sites/StaffRecordSheets';
 
 export class GraphApiService {
   private static instance: GraphApiService;
@@ -75,7 +115,7 @@ export class GraphApiService {
     const siteLookupPath = `/sites/${SITE_PATH}`;
     
     try {
-      const siteResponse = await graphClient.api(siteLookupPath).get();
+      const siteResponse = await graphClient.api(siteLookupPath).get() as ISiteResponse;
       this.cachedSiteId = siteResponse.id;
       return this.cachedSiteId;
     } catch (error) {
@@ -83,7 +123,7 @@ export class GraphApiService {
     }
   }
 
-  private async getDriveItemByPath(filePath: string): Promise<any> {
+  private async getDriveItemByPath(filePath: string): Promise<IDriveItem> {
     const siteId = await this.getSiteIdByPath();
     const graphClient = await this.initializeGraphClient();
     
@@ -97,7 +137,7 @@ export class GraphApiService {
     const metadataGraphPath = `/sites/${siteId}/drive/root:/${relativePath}`;
 
     try {
-        const driveItem = await graphClient.api(metadataGraphPath).get();
+        const driveItem = await graphClient.api(metadataGraphPath).get() as IDriveItem;
         return driveItem;
     } catch (error) {
         throw this.handleGraphApiError(error);
@@ -113,13 +153,39 @@ export class GraphApiService {
         const graphClient = await this.initializeGraphClient();
         const contentGraphPath = `/sites/${siteId}/drive/items/${driveItemId}/content`;
 
-        // **КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ**: Используем type assertion 'as any' для обхода ошибки компиляции TypeScript.
+        // *** FIXED: Using getStream() for binary data download ***
         const response = await graphClient
             .api(contentGraphPath)
-            .responseType('arraybuffer' as any)
-            .get();
+            .getStream();
 
-        return response as ArrayBuffer;
+        // Convert ReadableStream to ArrayBuffer
+        const reader = response.getReader();
+        const chunks: Uint8Array[] = [];
+        
+        try {
+            let done = false;
+            while (!done) {
+                const result = await reader.read();
+                done = result.done;
+                if (!done && result.value) {
+                    chunks.push(result.value);
+                }
+            }
+        } finally {
+            reader.releaseLock();
+        }
+        
+        // Combine all chunks into a single ArrayBuffer
+        const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+        const result = new Uint8Array(totalLength);
+        let offset = 0;
+        
+        for (const chunk of chunks) {
+            result.set(chunk, offset);
+            offset += chunk.length;
+        }
+
+        return result.buffer;
     } catch (error) {
         if (!(error instanceof GraphApiServiceError)) {
             throw this.handleGraphApiError(error);
@@ -139,7 +205,7 @@ export class GraphApiService {
 
         const session = await graphClient.api(createSessionUrl).post({
           item: { "@microsoft.graph.conflictBehavior": "replace" }
-        });
+        }) as IUploadSession;
         
         if (!session || !session.uploadUrl) {
           throw new Error("Failed to create upload session.");
@@ -184,7 +250,7 @@ export class GraphApiService {
     }
   }
 
-  private handleGraphApiError(error: any): GraphApiServiceError {
+  private handleGraphApiError(error: unknown): GraphApiServiceError {
     let graphError: IGraphApiError;
     if (this.isGraphApiErrorLike(error)) {
       graphError = { code: error.code || 'unknown', message: error.message || 'Unknown', statusCode: error.statusCode };
@@ -205,12 +271,17 @@ export class GraphApiService {
     return new GraphApiServiceError(graphError);
   }
 
-  private isGraphApiErrorLike(error: unknown): error is { code?: string; message?: string; details?: string; statusCode?: number; } {
+  private isGraphApiErrorLike(error: unknown): error is IGraphApiErrorResponse {
     return typeof error === 'object' && error !== null && ('code' in error || 'message' in error);
   }
 
-  private isHttpErrorLike(error: unknown): error is { response: { status: number; data?: unknown; }; } {
-    return typeof error === 'object' && error !== null && 'response' in error && typeof (error as any).response === 'object' && (error as any).response !== null && 'status' in (error as any).response;
+  private isHttpErrorLike(error: unknown): error is IHttpErrorResponse {
+    return typeof error === 'object' && 
+           error !== null && 
+           'response' in error && 
+           typeof (error as IHttpErrorResponse).response === 'object' && 
+           (error as IHttpErrorResponse).response !== null && 
+           'status' in (error as IHttpErrorResponse).response;
   }
 
   public static isFileLocked(error: unknown): boolean {

@@ -262,6 +262,38 @@ export class SRSExcelCellOperations {
   }
 
   /**
+   * CRITICAL METHOD - Lines 408-411 errors are likely here
+   * Sets cell value with specific format and detailed logging
+   * *** FIXED: Replaced 'any' with proper ExcelJS types ***
+   */
+  private setCellValueWithSpecificFormat(
+    worksheet: ExcelJS.Worksheet,
+    cellAddress: string,
+    value: ExcelJS.CellValue, // *** FIXED: was 'any' ***
+    format: string,
+    description: string
+  ): { cell: string; value: ExcelJS.CellValue; success: boolean } { // *** FIXED: was 'any' ***
+    try {
+      console.log('[SRSExcelCellOperations] *** SETTING CELL WITH SPECIFIC FORMAT ***');
+      console.log('[SRSExcelCellOperations] Cell:', cellAddress, 'Value:', value, 'Format:', format, 'Description:', description);
+      
+      const cell = worksheet.getCell(cellAddress);
+      const oldValue = cell.value;
+      
+      // Set value and specific format
+      cell.value = value;
+      cell.numFmt = format;
+      
+      console.log('[SRSExcelCellOperations] ✓ Successfully updated', cellAddress, ':', oldValue, '->', value, 'with format:', format);
+      return { cell: cellAddress, value: value, success: true };
+      
+    } catch (error) {
+      console.error('[SRSExcelCellOperations] ✗ Failed to update', cellAddress, ':', error);
+      return { cell: cellAddress, value: value, success: false };
+    }
+  }
+////////
+/**
    * Processes Contract 1 for Type 2 SRS
    */
   private processContract1Type2(
@@ -400,36 +432,6 @@ export class SRSExcelCellOperations {
   }
 
   /**
-   * Sets cell value with specific format and detailed logging
-   */
-  private setCellValueWithSpecificFormat(
-    worksheet: ExcelJS.Worksheet,
-    cellAddress: string,
-    value: any,
-    format: string,
-    description: string
-  ): { cell: string; value: any; success: boolean } {
-    try {
-      console.log('[SRSExcelCellOperations] *** SETTING CELL WITH SPECIFIC FORMAT ***');
-      console.log('[SRSExcelCellOperations] Cell:', cellAddress, 'Value:', value, 'Format:', format, 'Description:', description);
-      
-      const cell = worksheet.getCell(cellAddress);
-      const oldValue = cell.value;
-      
-      // Set value and specific format
-      cell.value = value;
-      cell.numFmt = format;
-      
-      console.log('[SRSExcelCellOperations] ✓ Successfully updated', cellAddress, ':', oldValue, '->', value, 'with format:', format);
-      return { cell: cellAddress, value: value, success: true };
-      
-    } catch (error) {
-      console.error('[SRSExcelCellOperations] ✗ Failed to update', cellAddress, ':', error);
-      return { cell: cellAddress, value: value, success: false };
-    }
-  }
-
-  /**
    * Processes extended leave types (TypeOfLeaveID 3-19)
    */
   public processExtendedLeaveType(
@@ -507,15 +509,16 @@ export class SRSExcelCellOperations {
 
   /**
    * Gets leave column for basic leave types (TypeOfLeaveID 1-2)
+   * *** FIXED: Line 511 - Replaced 'null' with 'undefined' ***
    */
-  public getLeaveColumnForBasicTypes(typeOfSRS: SRSType, contract: number, typeOfLeaveID: number): string | null {
+  public getLeaveColumnForBasicTypes(typeOfSRS: SRSType, contract: number, typeOfLeaveID: number): string | undefined {
     console.log('[SRSExcelCellOperations] Getting leave column for basic types:', {
       typeOfSRS,
       contract,
       typeOfLeaveID
     });
 
-    let column: string | null = null;
+    let column: string | undefined = undefined; // *** FIXED: was 'null' ***
 
     if (typeOfSRS === SRS_EXCEL_CONSTANTS.SRS_TYPE_3) {
       if (contract === 1) {
@@ -532,7 +535,7 @@ export class SRSExcelCellOperations {
     }
 
     console.log('[SRSExcelCellOperations] Determined leave column:', column || 'None');
-    return column;
+    return column; // *** FIXED: was 'column || null' ***
   }
 
   /**
@@ -571,7 +574,7 @@ export class SRSExcelCellOperations {
       return false;
     }
   }
-
+  ///////
   /**
    * Process leave types for Contract 1, Type 3
    */

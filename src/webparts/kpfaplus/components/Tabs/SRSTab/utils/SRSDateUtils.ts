@@ -561,4 +561,37 @@ export class SRSDateUtils {
       normalizedDate
     };
   }
+  
+  /**
+   * NEW: Serializes a Date object to a timezone-agnostic YYYY-MM-DD string.
+   * This is the correct way to store a "Date Only" value in storage.
+   */
+  public static serializeDateOnly(date: Date): string {
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    const serialized = `${year}-${month}-${day}`;
+    console.log(`[SRSDateUtils] Serializing date ${date.toLocaleDateString()} to ${serialized}`);
+    return serialized;
+  }
+
+  /**
+   * NEW: Deserializes a YYYY-MM-DD string back into a local Date object.
+   * Treats the string as a local date, preventing timezone shifts.
+   */
+  public static deserializeDateOnly(dateString: string): Date | null {
+    const parts = dateString.split('-');
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed in JS
+      const day = parseInt(parts[2], 10);
+      
+      // Creating the date this way interprets the values in the local timezone
+      const deserialized = new Date(year, month, day);
+      console.log(`[SRSDateUtils] Deserializing string "${dateString}" to ${deserialized.toLocaleDateString()}`);
+      return deserialized;
+    }
+    console.warn(`[SRSDateUtils] Invalid date string for deserialization: ${dateString}`);
+    return null;
+  }
 }

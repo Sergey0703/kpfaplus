@@ -195,7 +195,7 @@ export class SRSExcelProcessingHelpers {
       console.log('[SRSExcelProcessingHelpers] Step 3: Processing basic leave type', record.TypeOfLeaveID);
       
       if (record.LeaveNote) {
-        const leaveColumn: string | null = cellOperations.getLeaveColumnForBasicTypes(typeOfSRS, record.Contract, record.TypeOfLeaveID);
+        const leaveColumn: string | undefined = cellOperations.getLeaveColumnForBasicTypes(typeOfSRS, record.Contract, record.TypeOfLeaveID);
         if (leaveColumn) {
           const cellAddress = `${leaveColumn}${currentRowIndex}`;
           console.log('[SRSExcelProcessingHelpers] Adding leave note to basic leave cell', cellAddress);
@@ -233,8 +233,8 @@ export class SRSExcelProcessingHelpers {
     hasComments: boolean;
     hasExtendedLeaveTypes: boolean;
     timeRangeAnalysis: {
-      earliestStart: Date | null;
-      latestEnd: Date | null;
+      earliestStart: Date | undefined;
+      latestEnd: Date | undefined;
       averageLunchTime: number;
     };
     leaveTimeAnalysis: {
@@ -253,8 +253,8 @@ export class SRSExcelProcessingHelpers {
       hasComments: false,
       hasExtendedLeaveTypes: false,
       timeRangeAnalysis: {
-        earliestStart: null as Date | null,
-        latestEnd: null as Date | null,
+        earliestStart: undefined as Date | undefined,
+        latestEnd: undefined as Date | undefined,
         averageLunchTime: 0
       },
       leaveTimeAnalysis: {
@@ -482,7 +482,7 @@ export class SRSExcelProcessingHelpers {
     processingTime: number
   ): {
     summary: string;
-    details: Record<string, any>;
+    details: Record<string, unknown>;
   } {
     const successRate = records.length > 0 ? Math.round((result.recordsProcessed / records.length) * 100) : 0;
     const avgCellsPerRecord = result.recordsProcessed > 0 ? Math.round(result.cellsUpdated / result.recordsProcessed) : 0;
@@ -490,7 +490,7 @@ export class SRSExcelProcessingHelpers {
 
     const summary = `Processed ${result.recordsProcessed}/${records.length} records (${successRate}%) in ${processingTime}ms. Updated ${result.cellsUpdated} cells, added ${result.commentsAdded} comments.`;
 
-    const details = {
+    const details: Record<string, unknown> = {
       inputRecords: records.length,
       processedRecords: result.recordsProcessed,
       skippedRecords: records.length - result.recordsProcessed,

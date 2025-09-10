@@ -59,6 +59,7 @@ interface UseSRSTabStateReturn {
 /**
  * Функция для получения сохраненных дат из sessionStorage
  * Пытается восстановить последние выбранные даты пользователя
+ * CORRECTED: Uses timezone-safe serialization/deserialization.
  */
 const getSavedDates = (): { fromDate: Date; toDate: Date } => {
   try {
@@ -66,8 +67,8 @@ const getSavedDates = (): { fromDate: Date; toDate: Date } => {
     const savedToDate = sessionStorage.getItem('srsTab_toDate');
     
     console.log('[useSRSTabState] Checking saved dates:', {
-      savedFromDate,
-      savedToDate
+      savedFromDate, // Should be "YYYY-MM-DD"
+      savedToDate    // Should be "YYYY-MM-DD"
     });
     
     let fromDate: Date;
@@ -76,8 +77,9 @@ const getSavedDates = (): { fromDate: Date; toDate: Date } => {
     // Восстанавливаем fromDate или используем первый день месяца по умолчанию
     if (savedFromDate) {
       try {
-        const parsedFromDate = new Date(savedFromDate);
-        if (!isNaN(parsedFromDate.getTime())) {
+        // CORRECTED: Use timezone-safe deserializer
+        const parsedFromDate = SRSDateUtils.deserializeDateOnly(savedFromDate);
+        if (parsedFromDate && !isNaN(parsedFromDate.getTime())) {
           fromDate = parsedFromDate;
           console.log('[useSRSTabState] Restored fromDate from sessionStorage:', fromDate.toISOString());
         } else {
@@ -95,8 +97,9 @@ const getSavedDates = (): { fromDate: Date; toDate: Date } => {
     // Восстанавливаем toDate или рассчитываем на основе fromDate
     if (savedToDate) {
       try {
-        const parsedToDate = new Date(savedToDate);
-        if (!isNaN(parsedToDate.getTime())) {
+        // CORRECTED: Use timezone-safe deserializer
+        const parsedToDate = SRSDateUtils.deserializeDateOnly(savedToDate);
+        if (parsedToDate && !isNaN(parsedToDate.getTime())) {
           // Проверяем, что сохраненная toDate имеет смысл относительно fromDate
           if (SRSDateUtils.shouldUpdateToDate(fromDate, parsedToDate)) {
             console.log('[useSRSTabState] Saved toDate needs update, recalculating');
@@ -391,6 +394,7 @@ export const SRSTabStateHelpers = {
   
   /**
    * Обновляет даты и сохраняет их в sessionStorage
+   * CORRECTED: Uses timezone-safe serialization.
    */
   updateDates: (
     setState: React.Dispatch<React.SetStateAction<ISRSTabState>>,
@@ -403,9 +407,10 @@ export const SRSTabStateHelpers = {
       
       // Сохраняем в sessionStorage
       try {
-        sessionStorage.setItem('srsTab_fromDate', newFromDate.toISOString());
-        sessionStorage.setItem('srsTab_toDate', newToDate.toISOString());
-        console.log('[SRSTabStateHelpers] Dates saved to sessionStorage');
+        // CORRECTED: Use timezone-safe serializer to store "YYYY-MM-DD"
+        sessionStorage.setItem('srsTab_fromDate', SRSDateUtils.serializeDateOnly(newFromDate));
+        sessionStorage.setItem('srsTab_toDate', SRSDateUtils.serializeDateOnly(newToDate));
+        console.log('[SRSTabStateHelpers] Dates saved to sessionStorage in YYYY-MM-DD format');
       } catch (error) {
         console.warn('[SRSTabStateHelpers] Failed to save dates to sessionStorage:', error);
       }
@@ -574,6 +579,3 @@ export const SRSTabStateHelpers = {
     });
   }
 };
-
-// *** УБРАНО: export { calculateTotalHours } ***
-// Total Hours теперь вычисляется в реальном времени в SRSTable
