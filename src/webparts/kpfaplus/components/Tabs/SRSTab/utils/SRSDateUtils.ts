@@ -5,6 +5,7 @@
  * ОБНОВЛЕНО: Все методы работают только с датами без времени
  * Поле Date теперь имеет тип "только дата" в SharePoint
  * ShiftDate1, ShiftDate2, ShiftDate3, ShiftDate4 больше не используются
+ * ИСПРАВЛЕНО: Excel month names для правильного поиска дат
  */
 export class SRSDateUtils {
   
@@ -288,11 +289,12 @@ export class SRSDateUtils {
   }
 
   /**
-   * *** ИСПРАВЛЕНО: Форматирует дату для поиска в Excel в формате "1st of June" ***
+   * *** ИСПРАВЛЕНО: Форматирует дату для поиска в Excel в формате "1st of Sept" ***
+   * Использует правильные названия месяцев: Jan, Feb, Mar, Apr, May, June, July, Aug, Sept, Oct, Nov, Dec
    * Специально для SRS Excel экспорта
    * 
    * @param date Дата для форматирования
-   * @returns Строка в формате "1st of June" для поиска в Excel
+   * @returns Строка в формате "1st of Sept" для поиска в Excel
    */
   public static formatDateForExcelSearch(date: Date): string {
     if (!date) {
@@ -301,10 +303,21 @@ export class SRSDateUtils {
     }
 
     try {
-      // --- НАЧАЛО ИСПРАВЛЕНИЯ ---
-      // **КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ**: Используем полные названия месяцев.
-      const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-      // --- КОНЕЦ ИСПРАВЛЕНИЯ ---
+      // *** ИСПРАВЛЕНО: Используем точные названия месяцев как в Excel файле ***
+      const monthNames = [
+        "Jan",      // January
+        "Feb",      // February  
+        "Mar",      // March
+        "Apr",      // April
+        "May",      // May
+        "June",     // June - НЕ сокращается
+        "July",     // July - НЕ сокращается
+        "Aug",      // August
+        "Sept",     // September - ИСПРАВЛЕНО: "Sept" вместо "Sep"
+        "Oct",      // October
+        "Nov",      // November
+        "Dec"       // December
+      ];
       
       const day = date.getDate();
       const monthName = monthNames[date.getMonth()];
@@ -312,11 +325,14 @@ export class SRSDateUtils {
       
       const formatted = `${day}${suffix} of ${monthName}`;
       
-      console.log('[SRSDateUtils] formatDateForExcelSearch (for Excel search):', {
+      console.log('[SRSDateUtils] formatDateForExcelSearch (FIXED Excel month names):', {
         input: date.toISOString(),
         inputLocal: date.toLocaleDateString(),
         formatted: formatted,
-        purpose: 'Excel date search in "[Day]th of [Month]" format'
+        monthUsed: monthName,
+        monthIndex: date.getMonth(),
+        purpose: 'Excel date search in "[Day]th of [Month]" format with correct abbreviations',
+        fixApplied: 'Sept instead of September, June/July not abbreviated'
       });
       
       return formatted;
