@@ -9,6 +9,7 @@ import { SRSDateUtils } from './SRSDateUtils';
 /**
  * Интерфейс для состояния SRS Tab
  * *** ОЧИЩЕН: Убрано поле totalHours - теперь вычисляется в реальном времени в SRSTable ***
+ * *** НОВОЕ: Добавлена поддержка панели сообщений для SRS операций ***
  */
 export interface ISRSTabState {
   // Основные даты периода
@@ -43,6 +44,14 @@ export interface ISRSTabState {
   
   // Флаг отображения удаленных записей
   showDeleted: boolean;              // Показывать ли удаленные записи (аналогично Schedule)
+  
+  // *** НОВОЕ: Состояние панели сообщений для SRS операций ***
+  srsMessage?: {
+    text: string;
+    type: 'success' | 'error' | 'warning' | 'info';
+    details?: string[];
+    timestamp: number;
+  };
   
   // Дополнительные флаги
   isInitialized: boolean;           // Инициализирован ли компонент
@@ -145,6 +154,7 @@ const getSavedDates = (): { fromDate: Date; toDate: Date } => {
 /**
  * Custom hook для управления состоянием SRS Tab
  * *** УПРОЩЕН: Убрана инициализация totalHours - теперь Real-time архитектура ***
+ * *** НОВОЕ: Добавлена поддержка панели сообщений SRS операций ***
  */
 export const useSRSTabState = (): UseSRSTabStateReturn => {
   // Получаем сохраненные или дефолтные даты
@@ -185,11 +195,14 @@ export const useSRSTabState = (): UseSRSTabStateReturn => {
     // Флаг отображения удаленных записей
     showDeleted: false, // По умолчанию удаленные записи не показываем (как в Schedule)
     
+    // *** НОВОЕ: Состояние панели сообщений ***
+    srsMessage: undefined,
+    
     // Флаги
     isInitialized: false
   });
   
-  console.log('[useSRSTabState] *** REAL-TIME TOTAL HOURS ARCHITECTURE *** State initialized:', {
+  console.log('[useSRSTabState] *** REAL-TIME TOTAL HOURS + SRS MESSAGE PANEL ARCHITECTURE *** State initialized:', {
     fromDate: state.fromDate.toISOString(),
     toDate: state.toDate.toISOString(),
     daysInRange: SRSDateUtils.calculateDaysInRange(state.fromDate, state.toDate),
@@ -199,6 +212,8 @@ export const useSRSTabState = (): UseSRSTabStateReturn => {
     showDeleted: state.showDeleted,
     totalHoursCalculation: 'Real-time in SRSTable', // *** НОВАЯ АРХИТЕКТУРА ***
     noTotalHoursInState: true, // *** КЛЮЧЕВОЕ ИЗМЕНЕНИЕ ***
+    srsMessagePanelSupport: true, // *** НОВОЕ: Поддержка панели сообщений ***
+    srsMessageState: !!state.srsMessage ? 'Has message' : 'No message',
     cleanedFromComplexLogic: true
   });
   
@@ -211,6 +226,7 @@ export const useSRSTabState = (): UseSRSTabStateReturn => {
 /**
  * Вспомогательные функции для работы с состоянием SRS Tab
  * *** ОЧИЩЕНЫ: Убраны все функции для работы с totalHours ***
+ * *** НОВОЕ: Добавлены функции для работы с панелью сообщений ***
  */
 export const SRSTabStateHelpers = {
   
@@ -389,6 +405,110 @@ export const SRSTabStateHelpers = {
     return statistics;
   },
 
+  // *** НОВЫЕ ФУНКЦИИ ДЛЯ ПАНЕЛИ СООБЩЕНИЙ SRS ***
+
+  /**
+   * *** НОВОЕ: Устанавливает сообщение панели SRS ***
+   */
+  setSRSMessage: (
+    setState: React.Dispatch<React.SetStateAction<ISRSTabState>>,
+    message?: {
+      text: string;
+      type: 'success' | 'error' | 'warning' | 'info';
+      details?: string[];
+    }
+  ): void => {
+    setState(prevState => ({
+      ...prevState,
+      srsMessage: message ? {
+        ...message,
+        timestamp: Date.now()
+      } : undefined
+    }));
+    
+    console.log('[SRSTabStateHelpers] setSRSMessage:', {
+      hasMessage: !!message,
+      type: message?.type,
+      messageLength: message?.text?.length || 0,
+      detailsCount: message?.details?.length || 0,
+      timestamp: message ? Date.now() : undefined
+    });
+  },
+
+  /**
+   * *** НОВОЕ: Очищает сообщение панели SRS ***
+   */
+  clearSRSMessage: (
+    setState: React.Dispatch<React.SetStateAction<ISRSTabState>>
+  ): void => {
+    setState(prevState => ({
+      ...prevState,
+      srsMessage: undefined
+    }));
+    
+    console.log('[SRSTabStateHelpers] clearSRSMessage: message cleared');
+  },
+
+  /**
+   * *** НОВОЕ: Устанавливает сообщение успеха SRS операции ***
+   */
+  setSRSSuccessMessage: (
+    setState: React.Dispatch<React.SetStateAction<ISRSTabState>>,
+    message: string,
+    details?: string[]
+  ): void => {
+    SRSTabStateHelpers.setSRSMessage(setState, {
+      text: message,
+      type: 'success',
+      details: details
+    });
+  },
+
+  /**
+   * *** НОВОЕ: Устанавливает сообщение ошибки SRS операции ***
+   */
+  setSRSErrorMessage: (
+    setState: React.Dispatch<React.SetStateAction<ISRSTabState>>,
+    message: string,
+    details?: string[]
+  ): void => {
+    SRSTabStateHelpers.setSRSMessage(setState, {
+      text: message,
+      type: 'error',
+      details: details
+    });
+  },
+
+  /**
+   * *** НОВОЕ: Устанавливает предупреждающее сообщение SRS операции ***
+   */
+  setSRSWarningMessage: (
+    setState: React.Dispatch<React.SetStateAction<ISRSTabState>>,
+    message: string,
+    details?: string[]
+  ): void => {
+    SRSTabStateHelpers.setSRSMessage(setState, {
+      text: message,
+      type: 'warning',
+      details: details
+    });
+  },
+
+  /**
+   * *** НОВОЕ: Устанавливает информационное сообщение SRS операции ***
+   */
+  setSRSInfoMessage: (
+    setState: React.Dispatch<React.SetStateAction<ISRSTabState>>,
+    message: string,
+    details?: string[]
+  ): void => {
+    SRSTabStateHelpers.setSRSMessage(setState, {
+      text: message,
+      type: 'info',
+      details: details
+    });
+  },
+
   // *** УБРАНЫ: updateTotalHours, recalculateTotalHours функции ***
   // Total Hours теперь вычисляется в реальном времени в SRSTable
   
@@ -542,6 +662,7 @@ export const SRSTabStateHelpers = {
   /**
    * Сбрасывает состояние к начальным значениям
    * *** УПРОЩЕНО: Убран сброс totalHours ***
+   * *** НОВОЕ: Сброс панели сообщений ***
    */
   resetState: (
     setState: React.Dispatch<React.SetStateAction<ISRSTabState>>
@@ -567,15 +688,20 @@ export const SRSTabStateHelpers = {
       selectedItems: new Set<string>(),
       // Сброс showDeleted
       showDeleted: false, // По умолчанию не показываем удаленные
+      
+      // *** НОВОЕ: Сброс панели сообщений ***
+      srsMessage: undefined,
+      
       isInitialized: false
     });
     
-    console.log('[SRSTabStateHelpers] *** STATE RESET TO REAL-TIME TOTAL HOURS ARCHITECTURE ***:', {
+    console.log('[SRSTabStateHelpers] *** STATE RESET TO REAL-TIME TOTAL HOURS + SRS MESSAGE PANEL ARCHITECTURE ***:', {
       totalHoursHandling: 'Real-time calculation in SRSTable',
       cleanedFromComplexLogic: true,
       typesOfLeaveSupport: true,
       holidaysSupport: true,
-      showDeletedSupport: true
+      showDeletedSupport: true,
+      srsMessagePanelSupport: true // *** НОВОЕ ***
     });
   }
 };
