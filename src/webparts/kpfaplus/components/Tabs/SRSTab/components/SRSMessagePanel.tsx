@@ -1,34 +1,38 @@
 // src/webparts/kpfaplus/components/Tabs/SRSTab/components/SRSMessagePanel.tsx
 
 import * as React from 'react';
-import { MessageBar, MessageBarType, IconButton } from '@fluentui/react';
+import { MessageBar, MessageBarType } from '@fluentui/react';
 
 export interface ISRSMessagePanelProps {
   message?: string;
-  messageType: 'success' | 'error' | 'warning' | 'info';
-  onDismiss: () => void;
-  isVisible: boolean;
+  type?: 'success' | 'error' | 'warning' | 'info';
   details?: string[];
+  onDismiss?: () => void;
 }
 
 /**
- * Message panel component for showing SRS export results
- * Displays above the SRS table with success/error information
+ * *** NEW COMPONENT: SRS Message Panel ***
+ * Displays success/error/warning messages for SRS export operations
+ * Shows detailed information about SRS export results above the table
  */
-export const SRSMessagePanel: React.FC<ISRSMessagePanelProps> = ({
-  message,
-  messageType,
-  onDismiss,
-  isVisible,
-  details
-}) => {
-  
-  if (!isVisible || !message) {
+export const SRSMessagePanel: React.FC<ISRSMessagePanelProps> = (props): JSX.Element | null => {
+  const { message, type = 'info', details, onDismiss } = props;
+
+  console.log('[SRSMessagePanel] Rendering message panel:', {
+    hasMessage: !!message,
+    messageType: type,
+    messageLength: message?.length || 0,
+    detailsCount: details?.length || 0,
+    hasDismissHandler: !!onDismiss
+  });
+
+  // Don't render if no message
+  if (!message) {
     return null;
   }
 
-  // Map our message types to Fluent UI MessageBarType
-  const getMessageBarType = (): MessageBarType => {
+  // Map message types to Fluent UI MessageBarType
+  const getMessageBarType = (messageType: string): MessageBarType => {
     switch (messageType) {
       case 'success':
         return MessageBarType.success;
@@ -42,93 +46,46 @@ export const SRSMessagePanel: React.FC<ISRSMessagePanelProps> = ({
     }
   };
 
-  const getMessageIcon = (): string => {
-    switch (messageType) {
-      case 'success':
-        return 'CheckMark';
-      case 'error':
-        return 'Error';
-      case 'warning':
-        return 'Warning';
-      case 'info':
-      default:
-        return 'Info';
-    }
-  };
-
-  console.log('[SRSMessagePanel] Rendering message panel:', {
-    messageType,
-    message: message.substring(0, 100) + (message.length > 100 ? '...' : ''),
-    hasDetails: !!details && details.length > 0,
-    detailsCount: details?.length || 0
-  });
-
   return (
     <div style={{ 
-      marginBottom: '16px',
-      border: messageType === 'error' ? '1px solid #d13438' : 
-             messageType === 'success' ? '1px solid #107c10' :
-             messageType === 'warning' ? '1px solid #ffb900' : '1px solid #0078d4',
-      borderRadius: '4px'
+      marginBottom: '12px',
+      position: 'relative'
     }}>
       <MessageBar
-        messageBarType={getMessageBarType()}
-        isMultiline={true}
+        messageBarType={getMessageBarType(type)}
+        isMultiline={!!details && details.length > 0}
         onDismiss={onDismiss}
-        dismissButtonAriaLabel="Close message"
+        dismissButtonAriaLabel="Close"
         styles={{
           root: {
-            borderRadius: '4px'
-          },
-          content: {
-            padding: '12px 16px'
+            marginBottom: 0
           }
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ 
-              fontWeight: '600', 
-              marginBottom: details && details.length > 0 ? '8px' : '0',
-              fontSize: '14px'
-            }}>
-              {message}
-            </div>
-            
-            {/* Show details if available */}
-            {details && details.length > 0 && (
-              <div style={{ marginTop: '8px' }}>
-                <details>
-                  <summary style={{ 
-                    cursor: 'pointer',
-                    fontWeight: '500',
-                    color: '#666',
-                    fontSize: '13px',
-                    marginBottom: '4px'
-                  }}>
-                    Show details ({details.length} items)
-                  </summary>
-                  <div style={{ 
-                    marginTop: '8px',
-                    padding: '8px 12px',
-                    backgroundColor: 'rgba(0,0,0,0.05)',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    fontFamily: 'Consolas, Monaco, monospace'
-                  }}>
-                    {details.map((detail, index) => (
-                      <div key={index} style={{ 
-                        marginBottom: index < details.length - 1 ? '4px' : '0',
-                        wordBreak: 'break-word'
-                      }}>
-                        {index + 1}. {detail}
-                      </div>
-                    ))}
-                  </div>
-                </details>
-              </div>
-            )}
+        <div>
+          <div style={{ 
+            fontWeight: 600,
+            marginBottom: details && details.length > 0 ? '8px' : 0
+          }}>
+            {message}
           </div>
+          
+          {details && details.length > 0 && (
+            <div style={{
+              fontSize: '12px',
+              lineHeight: '16px',
+              marginTop: '4px'
+            }}>
+              {details.map((detail, index) => (
+                <div key={index} style={{ 
+                  marginBottom: index < details.length - 1 ? '2px' : 0,
+                  color: type === 'error' ? '#a4262c' : undefined
+                }}>
+                  {detail}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </MessageBar>
     </div>
@@ -136,80 +93,106 @@ export const SRSMessagePanel: React.FC<ISRSMessagePanelProps> = ({
 };
 
 /**
- * Helper function to create success message data
+ * *** HELPER FUNCTIONS FOR CREATING DIFFERENT MESSAGE TYPES ***
+ */
+
+/**
+ * Creates a success message for SRS export operations
  */
 export const createSRSSuccessMessage = (
-  recordsProcessed: number,
+  recordsCount: number,
   processingTime?: number,
   cellsUpdated?: number
-): { message: string; details: string[] } => {
-  const message = `SRS Export Successful! Processed ${recordsProcessed} record${recordsProcessed !== 1 ? 's' : ''}.`;
+): {
+  message: string;
+  details: string[];
+} => {
+  const message = `Successfully exported ${recordsCount} record${recordsCount !== 1 ? 's' : ''} to Excel`;
   
   const details: string[] = [
-    `Records processed: ${recordsProcessed}`,
+    `${recordsCount} record${recordsCount !== 1 ? 's' : ''} processed successfully`
   ];
   
-  if (cellsUpdated !== undefined) {
-    details.push(`Excel cells updated: ${cellsUpdated}`);
-  }
-  
-  if (processingTime !== undefined) {
+  if (processingTime) {
     details.push(`Processing time: ${processingTime}ms`);
   }
   
-  details.push(`Export completed at: ${new Date().toLocaleTimeString()}`);
+  if (cellsUpdated) {
+    details.push(`Excel cells updated: ${cellsUpdated}`);
+  }
+  
+  details.push('Records have been marked as exported in the system');
   
   return { message, details };
 };
 
 /**
- * Helper function to create error message data
+ * Creates an error message for SRS export operations
  */
 export const createSRSErrorMessage = (
-  error: string,
-  operation?: string,
-  additionalDetails?: string[]
-): { message: string; details: string[] } => {
-  const message = `SRS Export Failed: ${error}`;
+  errorMessage: string,
+  operation: string,
+  details?: string[]
+): {
+  message: string;
+  details: string[];
+} => {
+  const message = `SRS Export Failed: ${errorMessage}`;
   
-  const details: string[] = [
-    `Error: ${error}`,
+  const defaultDetails: string[] = [
+    `Operation: ${operation}`,
+    `Error: ${errorMessage}`
   ];
   
-  if (operation) {
-    details.push(`Failed operation: ${operation}`);
+  if (details && details.length > 0) {
+    defaultDetails.push(...details);
   }
   
-  if (additionalDetails && additionalDetails.length > 0) {
-    details.push(...additionalDetails);
-  }
-  
-  details.push(`Error occurred at: ${new Date().toLocaleTimeString()}`);
-  
-  return { message, details };
+  return { message, details: defaultDetails };
 };
 
 /**
- * Helper function to create warning message data
+ * Creates a warning message for SRS export operations
  */
 export const createSRSWarningMessage = (
-  warning: string,
-  suggestions?: string[]
-): { message: string; details: string[] } => {
-  const message = `SRS Export Warning: ${warning}`;
+  warningMessage: string,
+  details?: string[]
+): {
+  message: string;
+  details: string[];
+} => {
+  const message = `SRS Export Warning: ${warningMessage}`;
   
-  const details: string[] = [
-    `Warning: ${warning}`,
+  const defaultDetails: string[] = [
+    `Warning: ${warningMessage}`
   ];
   
-  if (suggestions && suggestions.length > 0) {
-    details.push('Suggestions:');
-    suggestions.forEach(suggestion => {
-      details.push(`• ${suggestion}`);
-    });
+  if (details && details.length > 0) {
+    defaultDetails.push(...details);
   }
   
-  details.push(`Warning at: ${new Date().toLocaleTimeString()}`);
+  return { message, details: defaultDetails };
+};
+
+/**
+ * Creates an info message for SRS export operations
+ */
+export const createSRSInfoMessage = (
+  infoMessage: string,
+  details?: string[]
+): {
+  message: string;
+  details: string[];
+} => {
+  const message = `SRS Export Info: ${infoMessage}`;
   
-  return { message, details };
+  const defaultDetails: string[] = [
+    `Info: ${infoMessage}`
+  ];
+  
+  if (details && details.length > 0) {
+    defaultDetails.push(...details);
+  }
+  
+  return { message, details: defaultDetails };
 };

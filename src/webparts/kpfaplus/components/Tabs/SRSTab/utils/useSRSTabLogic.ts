@@ -59,6 +59,14 @@ export interface UseSRSTabLogicReturn extends ISRSTabState {
   hasCheckedItems: boolean;
   selectedItemsCount: number;
   
+  // *** NEW: SRS Message Panel ***
+  srsMessage?: {
+    text: string;
+    type: 'success' | 'error' | 'warning' | 'info';
+    details?: string[];
+    timestamp: number;
+  };
+  
   // Dependency functions
   loadSRSData: () => Promise<void>;
   isDataValid: boolean;
@@ -101,6 +109,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     mainFileSize: 'Reduced from 1000+ to ~250 lines',
     dateFormat: 'Date-only using SRSDateUtils',
     realTimeFeatures: 'Total Hours calculated in SRSTable',
+    messagePanelSupport: 'SRS message panel for export feedback',
     separatedFiles: [
       'useSRSDateHandlers',
       'useSRSRecordOperations', 
@@ -372,6 +381,9 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     hasCheckedItems,
     selectedItemsCount,
     
+    // *** NEW: SRS Message Panel ***
+    srsMessage: state.srsMessage,
+    
     // Dependency functions
     loadSRSData,
     isDataValid,
@@ -392,6 +404,11 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       activeRecords,
       hasOngoingOperations
     },
+    srsMessagePanel: {
+      hasMessage: !!state.srsMessage,
+      messageType: state.srsMessage?.type,
+      messageSupport: 'Full message panel integration ready'
+    },
     architecture: {
       mainFileSize: '~250 lines (reduced from 1000+)',
       separatedConcerns: 7,
@@ -407,7 +424,8 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       dependencyCoordination: 'Fixed loading order',
       operationTracking: 'Delete/restore/addShift progress',
       checkboxSupport: 'Both UI selections and record data',
-      holidayDetection: 'Holidays list date matching (Date-only)'
+      holidayDetection: 'Holidays list date matching (Date-only)',
+      messagePanelIntegration: 'Complete SRS export feedback system'
     }
   });
 

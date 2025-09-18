@@ -16,6 +16,9 @@ import { SRSDataMapper } from './utils/SRSDataMapper';
 // *** НОВОЕ: Импортируем компонент диалогов подтверждения ***
 import { ConfirmDialog } from '../../ConfirmDialog/ConfirmDialog';
 
+// *** НОВОЕ: Импортируем компонент панели сообщений ***
+import { SRSMessagePanel } from './components/SRSMessagePanel';
+
 export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
   const { selectedStaff } = props;
   
@@ -29,7 +32,8 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     srsTableControlsFilterControls: true, // *** SRSTable теперь контролирует SRSFilterControls ***
     holidaysFromList: true, // *** НОВОЕ: Праздники из списка holidays Date-only, а не из Holiday поля ***
     dateOnlyFormat: true, // *** НОВОЕ: Date-only формат праздников ***
-    checkboxFunctionality: true // *** НОВОЕ: Checkbox функциональность для Check колонки ***
+    checkboxFunctionality: true, // *** НОВОЕ: Checkbox функциональность для Check колонки ***
+    srsMessagePanelSupport: true // *** НОВОЕ: Поддержка панели сообщений SRS операций ***
   });
   
   // *** ИСПРАВЛЕНО: Используем главный хук логики с поддержкой real-time ***
@@ -52,7 +56,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     message: ''
   });
 
-  console.log('[SRSTab] *** SRS Logic state with REAL-TIME TOTAL HOURS and HOLIDAYS FROM LIST (Date-only) ***:', {
+  console.log('[SRSTab] *** SRS Logic state with REAL-TIME TOTAL HOURS and HOLIDAYS FROM LIST (Date-only) + SRS MESSAGE PANEL ***:', {
     recordsCount: srsLogic.srsRecords.length,
     // *** УБРАНО: totalHours больше не в state - вычисляется в SRSTable ***
     fromDate: srsLogic.fromDate.toLocaleDateString(),
@@ -84,7 +88,11 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     holidayDetectionMethod: 'Holidays list date matching (Date-only), not Holiday field',
     // *** НОВОЕ: Информация о checkbox функциональности ***
     hasCheckboxHandler: !!srsLogic.onItemCheckboxChange,
-    checkboxIntegration: 'Saves to Checked column in StaffRecords'
+    checkboxIntegration: 'Saves to Checked column in StaffRecords',
+    // *** НОВОЕ: Информация о панели сообщений ***
+    hasSRSMessage: !!srsLogic.srsMessage,
+    srsMessageType: srsLogic.srsMessage?.type,
+    srsMessagePanelIntegration: 'Complete SRS export feedback system'
   });
 
   // *** НОВОЕ: Обработчик показа диалога удаления ***
@@ -222,6 +230,19 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     setRestoreConfirmDialog(prev => ({ ...prev, isOpen: false }));
   }, []);
 
+  // *** НОВОЕ: Обработчик закрытия панели сообщений ***
+  const handleSRSMessageDismiss = useCallback((): void => {
+    console.log('[SRSTab] SRS message panel dismissed');
+    // Используем setState напрямую для очистки сообщения
+    const setState = (srsLogic as any).setState;
+    if (setState) {
+      setState((prevState: any) => ({
+        ...prevState,
+        srsMessage: undefined
+      }));
+    }
+  }, [srsLogic]);
+
   // Создание опций для таблицы с типами отпусков
   const tableOptions: ISRSTableOptions = React.useMemo(() => {
     console.log('[SRSTab] Creating table options with types of leave, holidays from list (Date-only), and delete/restore support:', {
@@ -233,7 +254,8 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       showDeletedSupport: true,
       holidaysFromList: true, // *** НОВОЕ: Праздники из списка Date-only ***
       holidayFormat: 'Date-only (no time component)', // *** НОВОЕ ***
-      checkboxSupport: true // *** НОВОЕ: Checkbox функциональность ***
+      checkboxSupport: true, // *** НОВОЕ: Checkbox функциональность ***
+      srsMessagePanelSupport: true // *** НОВОЕ: Поддержка панели сообщений ***
     });
 
     // Создаем стандартные опции
@@ -269,7 +291,8 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       showDeleted: srsLogic.showDeleted,
       holidaysFromList: true, // *** НОВОЕ: Праздники из списка Date-only ***
       holidayFormat: 'Date-only (no time component)', // *** НОВОЕ ***
-      checkboxFunctionality: true // *** НОВОЕ: Checkbox функциональность ***
+      checkboxFunctionality: true, // *** НОВОЕ: Checkbox функциональность ***
+      srsMessagePanelSupport: true // *** НОВОЕ: Поддержка панели сообщений ***
     });
 
     const mappedRecords = SRSDataMapper.mapStaffRecordsToSRSRecords(srsLogic.srsRecords);
@@ -404,6 +427,14 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         </div>
       )}
       
+      {/* *** НОВОЕ: Панель сообщений SRS операций *** */}
+      <SRSMessagePanel
+        message={srsLogic.srsMessage?.text}
+        type={srsLogic.srsMessage?.type}
+        details={srsLogic.srsMessage?.details}
+        onDismiss={handleSRSMessageDismiss}
+      />
+      
       {/* *** КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: SRSTable теперь управляет SRSFilterControls и Total Hours, получает holidays Date-only *** */}
       <SRSTable
         items={srsRecordsForTable}
@@ -468,7 +499,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         confirmButtonColor="#107c10" // Green for restore
       />
       
-      {/* *** ИСПРАВЛЕНО: Отладочная информация с real-time архитектурой и праздниками из списка Date-only *** */}
+      {/* *** ИСПРАВЛЕНО: Отладочная информация с real-time архитектурой и праздниками из списка Date-only + SRS Message Panel *** */}
       {process.env.NODE_ENV === 'development' && (
         <div style={{
           marginTop: '20px',
@@ -479,7 +510,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
           fontSize: '11px',
           color: '#666'
         }}>
-          <strong>Debug Info (Real-time Total Hours + Holidays from List Date-only + Checkbox):</strong>
+          <strong>Debug Info (Real-time Total Hours + Holidays from List Date-only + Checkbox + SRS Message Panel):</strong>
           <div>SRS Records: {srsRecordsForTable.length}</div>
           <div>Types of Leave: {srsLogic.typesOfLeave.length}</div>
           <div>Loading Types: {srsLogic.isLoadingTypesOfLeave ? 'Yes' : 'No'}</div>
@@ -506,6 +537,9 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
           {/* *** НОВОЕ: Информация о checkbox функциональности *** */}
           <div>Checkbox Handler Available: {!!srsLogic.onItemCheckboxChange ? 'Yes' : 'No'}</div>
           <div>Checkbox Integration: Saves to Checked column in StaffRecords</div>
+          {/* *** НОВОЕ: Информация о панели сообщений *** */}
+          <div>SRS Message Panel: {srsLogic.srsMessage ? `Active (${srsLogic.srsMessage.type})` : 'No message'}</div>
+          <div>SRS Message Support: Complete export feedback system</div>
           
           {srsLogic.typesOfLeave.length > 0 && (
             <div>
@@ -558,6 +592,9 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
               </div>
               <div>
                 Checkbox Functionality: Check column saves to Checked field in StaffRecords
+              </div>
+              <div>
+                SRS Message Panel: {srsLogic.srsMessage ? `${srsLogic.srsMessage.type.toUpperCase()} - ${srsLogic.srsMessage.text.substring(0, 50)}${srsLogic.srsMessage.text.length > 50 ? '...' : ''}` : 'No active message'}
               </div>
             </>
           )}
