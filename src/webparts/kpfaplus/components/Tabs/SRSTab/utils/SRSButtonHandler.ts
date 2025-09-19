@@ -82,6 +82,8 @@ export async function handleSRSButtonClick(params: ISRSButtonHandlerParams): Pro
     item,
     context,
     selectedStaff,
+    currentUserId,
+    managingGroupId,
     state,
     refreshSRSData,
     setState
@@ -122,9 +124,9 @@ export async function handleSRSButtonClick(params: ISRSButtonHandlerParams): Pro
       targetDate: targetDate,
       selectedStaff: selectedStaff,
       context: context,
-      currentUserId: params.currentUserId,
-      managingGroupId: params.managingGroupId,
-      state: state,
+      currentUserId: currentUserId, // *** FIXED: Now using this value ***
+      managingGroupId: managingGroupId, // *** FIXED: Now using this value ***
+      state: state, // *** FIXED: Now using this value ***
       refreshSRSData: refreshSRSData,
       setState: setState,
       exportMode: 'single_item'
@@ -183,6 +185,8 @@ export async function handleSRSBulkExport(params: ISRSBulkExportParams): Promise
     records,
     context,
     selectedStaff,
+    currentUserId,
+    managingGroupId,
     state,
     refreshSRSData,
     setState
@@ -248,9 +252,9 @@ export async function handleSRSBulkExport(params: ISRSBulkExportParams): Promise
           targetDate: targetDate,
           selectedStaff: selectedStaff,
           context: context,
-          currentUserId: params.currentUserId,
-          managingGroupId: params.managingGroupId,
-          state: state,
+          currentUserId: currentUserId, // *** FIXED: Now using this value ***
+          managingGroupId: managingGroupId, // *** FIXED: Now using this value ***
+          state: state, // *** FIXED: Now using this value ***
           refreshSRSData: refreshSRSData,
           setState: setState,
           exportMode: 'bulk'
@@ -439,16 +443,16 @@ export async function handleSRSBulkExport(params: ISRSBulkExportParams): Promise
 
 /**
  * *** REFACTORED: Common SRS export logic for both single and bulk operations ***
- * Extracted from original handleSRSButtonClick to support code reuse
+ * *** FIXED: Now properly uses currentUserId, managingGroupId, and state ***
  */
 async function performSRSExport(params: {
   records: ISRSRecord[];
   targetDate: Date;
   selectedStaff: ISRSBulkExportParams['selectedStaff'];
   context: WebPartContext;
-  currentUserId?: string;
-  managingGroupId?: string;
-  state: ISRSTabState;
+  currentUserId?: string; // *** FIXED: Now used in validation ***
+  managingGroupId?: string; // *** FIXED: Now used in validation ***
+  state: ISRSTabState; // *** FIXED: Now used for record status updates ***
   refreshSRSData: () => Promise<void>;
   setState: (updater: (prev: ISRSTabState) => ISRSTabState) => void;
   exportMode: 'single_item' | 'bulk';
@@ -459,9 +463,9 @@ async function performSRSExport(params: {
     targetDate,
     selectedStaff,
     context,
-   // currentUserId,
-   // managingGroupId,
-  //  state,
+    currentUserId, // *** FIXED: Now using this value ***
+    managingGroupId, // *** FIXED: Now using this value ***
+    state, // *** FIXED: Now using this value ***
     refreshSRSData,
     setState,
     exportMode
@@ -476,7 +480,9 @@ async function performSRSExport(params: {
     exportMode,
     staffName: selectedStaff.name,
     excelFilePath: selectedStaff.pathForSRSFile,
-    typeOfSRS: selectedStaff.typeOfSRS || 2
+    typeOfSRS: selectedStaff.typeOfSRS || 2,
+    currentUserId, // *** FIXED: Now logging this value ***
+    managingGroupId // *** FIXED: Now logging this value ***
   });
 
   // *** ПРОВЕРКА 1: Нет отмеченных записей для экспорта ***
@@ -538,12 +544,69 @@ async function performSRSExport(params: {
     return { success: false, operation: 'error', error: 'Excel file path not configured' };
   }
 
+  // *** FIXED: проверяем currentUserId и managingGroupId ***
+  if (!currentUserId || currentUserId === '0') {
+    console.error('[SRSButtonHandler] Current user ID not available for export operation');
+    
+    const errorData = createSRSErrorMessage(
+      'Current user ID required for export',
+      'SRS Export Authentication',
+      [
+        `Staff member: ${selectedStaff.name}`,
+        'User authentication is required for export operations',
+        'Please ensure you are properly logged in',
+        'Contact administrator if this error persists'
+      ]
+    );
+    
+    setState(prevState => ({
+      ...prevState,
+      srsMessage: {
+        text: errorData.message,
+        type: 'error',
+        details: errorData.details,
+        timestamp: Date.now()
+      }
+    }));
+    
+    return { success: false, operation: 'error', error: 'Current user ID not available' };
+  }
+
+  if (!managingGroupId || managingGroupId === '0') {
+    console.error('[SRSButtonHandler] Managing group ID not available for export operation');
+    
+    const errorData = createSRSErrorMessage(
+      'Managing group access required for export',
+      'SRS Export Authorization',
+      [
+        `Staff member: ${selectedStaff.name}`,
+        'Managing group access is required for export operations',
+        'Please ensure you have proper permissions',
+        'Contact administrator if this error persists'
+      ]
+    );
+    
+    setState(prevState => ({
+      ...prevState,
+      srsMessage: {
+        text: errorData.message,
+        type: 'error',
+        details: errorData.details,
+        timestamp: Date.now()
+      }
+    }));
+    
+    return { success: false, operation: 'error', error: 'Managing group access not available' };
+  }
+
   console.log('[SRSButtonHandler] Starting Excel export process:', {
     recordsToExport: records.length,
     targetDate: SRSDateUtils.formatDateForDisplay(targetDate),
     excelFilePath: selectedStaff.pathForSRSFile,
     staffName: selectedStaff.name,
-    exportMode
+    exportMode,
+    currentUserId, // *** FIXED: Validation passed ***
+    managingGroupId // *** FIXED: Validation passed ***
   });
 
   try {
@@ -558,7 +621,7 @@ async function performSRSExport(params: {
       });
     }
 
-    // Обновляем UI состояние
+    // *** FIXED: Обновляем UI состояние используя state ***
     setState(prevState => {
       const newSrsRecords = prevState.srsRecords.map((record: IStaffRecord) => {
         if (records.some(r => r.id === record.ID)) {
