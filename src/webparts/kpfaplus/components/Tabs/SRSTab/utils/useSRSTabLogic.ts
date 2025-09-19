@@ -219,6 +219,15 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     onErrorDismiss
   } = useSRSSaveHandlers({
     context,
+    selectedStaff: selectedStaff && selectedStaff.employeeId ? {
+      id: selectedStaff.id,
+      name: selectedStaff.name || 'Unknown',
+      employeeId: selectedStaff.employeeId,
+      pathForSRSFile: selectedStaff.pathForSRSFile,
+      typeOfSRS: 2
+    } : undefined,
+    currentUserId,
+    managingGroupId,
     state,
     setState,
     modifiedRecords,

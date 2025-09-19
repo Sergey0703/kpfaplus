@@ -465,7 +465,7 @@ async function performSRSExport(params: {
     context,
     currentUserId, // *** FIXED: Now using this value ***
     managingGroupId, // *** FIXED: Now using this value ***
-    state, // *** FIXED: Now using this value ***
+    //state, // *** FIXED: Now using this value ***
     refreshSRSData,
     setState,
     exportMode
