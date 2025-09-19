@@ -2,8 +2,9 @@
 
 import { useCallback, useState } from 'react';
 import { ITabProps } from '../../../../models/types';
-import { ISRSTabState, useSRSTabState } from './useSRSTabState';
+import { ISRSTabState, useSRSTabState, SRSTabStateHelpers } from './useSRSTabState';
 import { ISRSRecord } from './SRSTabInterfaces';
+import { SRSDateUtils } from './SRSDateUtils';
 
 // *** NEW: Import all separated handlers and hooks ***
 import { useSRSDateHandlers } from './handlers/useSRSDateHandlers';
@@ -224,7 +225,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       name: selectedStaff.name || 'Unknown',
       employeeId: selectedStaff.employeeId,
       pathForSRSFile: selectedStaff.pathForSRSFile,
-      typeOfSRS: 2
+      typeOfSRS: 2 //selectedStaff.typeOfSRS
     } : undefined,
     currentUserId,
     managingGroupId,
@@ -284,7 +285,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   });
 
   // *** ORCHESTRATED: SRS Button Handler ***
-  const handleSRSButton = useCallback((item: ISRSRecord): void => {
+  const handleSRSButton = useCallback(async (item: ISRSRecord): Promise<void> => {
     console.log('[useSRSTabLogic] *** SRS BUTTON CLICK ORCHESTRATION ***');
     console.log('[useSRSTabLogic] Item clicked:', {
       id: item.id,
@@ -320,11 +321,11 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
         name: selectedStaff.name || 'Unknown',
         employeeId: selectedStaff.employeeId || '',
         pathForSRSFile: selectedStaff.pathForSRSFile || '',
-        typeOfSRS: 2 // selectedStaff.typeOfSRS || 2
+        typeOfSRS: 2
       };
 
-      // Call the SRS button handler with all orchestrated dependencies
-      void handleSRSButtonClick({
+      // Call the SRS button handler with all orchestrated dependencies and AWAIT the result
+      const result = await handleSRSButtonClick({
         item,
         context,
         selectedStaff: staffInfo,
@@ -337,14 +338,38 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
         setState: setState as (updater: (prev: ISRSTabState) => ISRSTabState) => void
       });
 
-      console.log('[useSRSTabLogic] SRS button handler orchestration completed successfully');
+      console.log('[useSRSTabLogic] SRS button handler orchestration completed:', result);
+
+      // Act on the result to show a message on the panel
+      if (result.success) {
+        SRSTabStateHelpers.setSRSSuccessMessage(
+          setState,
+          result.message || `Successfully exported records for ${SRSDateUtils.formatDateForDisplay(item.date)}`,
+          [
+            `Records processed: ${result.recordsProcessed || 1}`,
+            `Processing time: ${result.processingTime || 'N/A'}ms`,
+            `Excel file: ${result.excelFilePath || 'N/A'}`
+          ]
+        );
+      } else {
+        SRSTabStateHelpers.setSRSErrorMessage(
+          setState,
+          result.error || `Failed to export records for ${SRSDateUtils.formatDateForDisplay(item.date)}`,
+          [
+            `Error: ${result.error || 'Unknown error'}`,
+            `Record ID: ${item.id}`,
+            'Please check the console for more details.'
+          ]
+        );
+      }
       
     } catch (error) {
       console.error('[useSRSTabLogic] Error in SRS button orchestration:', error);
       
       // Use error handler from save handlers
       onErrorDismiss();
-      console.error(`SRS operation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const errorMessage = `SRS operation failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      SRSTabStateHelpers.setSRSErrorMessage(setState, errorMessage);
     }
   }, [context, selectedStaff, currentUserId, managingGroupId, state, refreshSRSData, setState, onErrorDismiss]);
 
