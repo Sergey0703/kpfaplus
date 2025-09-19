@@ -6,6 +6,10 @@ import { StaffRecordsService, IStaffRecord } from '../../../../../services/Staff
 import { ISRSRecord } from '../SRSTabInterfaces';
 import { ISRSTabState, SRSTabStateHelpers } from '../useSRSTabState';
 import { SRSDateUtils } from '../SRSDateUtils';
+import { SRSDataMapper } from '../SRSDataMapper';
+
+// *** NEW: Import SRS export functionality ***
+import { handleSRSButtonClick } from '../SRSButtonHandler';
 
 /**
  * Interface for save handlers return type
@@ -13,7 +17,7 @@ import { SRSDateUtils } from '../SRSDateUtils';
 export interface UseSRSSaveHandlersReturn {
   onSave: () => Promise<void>;
   onSaveChecked: () => void;
-  onExportAll: () => void;
+  onExportAll: () => Promise<void>; // *** UPDATED: Now async for real export ***
   onRefreshData: () => void;
   onErrorDismiss: () => void;
 }
@@ -23,6 +27,15 @@ export interface UseSRSSaveHandlersReturn {
  */
 interface UseSRSSaveHandlersParams {
   context?: WebPartContext;
+  selectedStaff?: {
+    id: string;
+    name: string;
+    employeeId: string;
+    pathForSRSFile?: string;
+    typeOfSRS?: number;
+  };
+  currentUserId?: string;
+  managingGroupId?: string;
   state: ISRSTabState;
   setState: React.Dispatch<React.SetStateAction<ISRSTabState>>;
   modifiedRecords: Map<string, Partial<ISRSRecord>>;
@@ -36,18 +49,21 @@ interface UseSRSSaveHandlersParams {
 
 /**
  * Custom hook for handling save, export, and data refresh operations
- * Extracted from useSRSTabLogic.ts for better separation of concerns
+ * *** UPDATED: Now includes real "Export All SRS" functionality ***
  * 
  * Responsibilities:
  * - Save all modified records to server with numeric time fields
  * - Save only checked/selected records  
- * - Export all SRS data functionality
+ * - *** NEW: Export all checked SRS records to Excel ***
  * - Manual data refresh with dependency reload
  * - Error dismissal
  */
 export const useSRSSaveHandlers = (params: UseSRSSaveHandlersParams): UseSRSSaveHandlersReturn => {
   const {
     context,
+    selectedStaff,
+    currentUserId,
+    managingGroupId,
     state,
     setState,
     modifiedRecords,
@@ -59,13 +75,18 @@ export const useSRSSaveHandlers = (params: UseSRSSaveHandlersParams): UseSRSSave
     setAddShiftOperations
   } = params;
 
-  console.log('[useSRSSaveHandlers] Hook initialized with REAL StaffRecordsService integration:', {
+  console.log('[useSRSSaveHandlers] Hook initialized with REAL Export All SRS functionality:', {
     hasContext: !!context,
+    hasSelectedStaff: !!selectedStaff,
+    selectedStaffName: selectedStaff?.name,
+    selectedStaffPathForSRSFile: selectedStaff?.pathForSRSFile,
     modifiedRecordsCount: modifiedRecords.size,
     hasUnsavedChanges: state.hasUnsavedChanges,
     selectedItemsCount: state.selectedItems.size,
     totalRecords: state.srsRecords.length,
+    checkedRecords: state.srsRecords.filter((r: IStaffRecord) => r.Checked === 1).length,
     saveIntegration: 'StaffRecordsService.updateStaffRecord with numeric time fields',
+    exportAllIntegration: 'SRSButtonHandler for bulk checked records export', // *** NEW ***
     dateFormat: 'Date-only using SRSDateUtils',
     totalHoursHandling: 'Real-time calculation in SRSTable',
     checkboxSupport: 'Saves Checked field to server'
@@ -296,38 +317,270 @@ export const useSRSSaveHandlers = (params: UseSRSSaveHandlersParams): UseSRSSave
   }, [state.selectedItems, setState, modifiedRecords, setModifiedRecords]);
 
   /**
-   * Export all SRS data functionality
+   * *** NEW: REAL Export All Checked SRS Records to Excel ***
+   * This replaces the mock export functionality with real Excel export
    */
-  const handleExportAll = useCallback((): void => {
-    console.log('[useSRSSaveHandlers] *** EXPORT ALL SRS DATA (SIMPLIFIED ARCHITECTURE + DATE-ONLY) ***');
-    console.log('[useSRSSaveHandlers] Current SRS records count:', state.srsRecords.length);
-    console.log('[useSRSSaveHandlers] Types of leave available:', state.typesOfLeave.length);
-    console.log('[useSRSSaveHandlers] Holidays available (Date-only):', state.holidays.length);
-    console.log('[useSRSSaveHandlers] Show deleted enabled:', state.showDeleted);
-    console.log('[useSRSSaveHandlers] Total Hours: Calculated in real-time by SRSTable');
-    console.log('[useSRSSaveHandlers] Date format: Date-only using SRSDateUtils');
-    
-    if (state.srsRecords.length === 0) {
-      console.warn('[useSRSSaveHandlers] No SRS records to export');
+  const handleExportAll = useCallback(async (): Promise<void> => {
+    console.log('[useSRSSaveHandlers] *** REAL EXPORT ALL CHECKED SRS RECORDS TO EXCEL ***');
+
+    // Validate required parameters
+    if (!context) {
+      console.error('[useSRSSaveHandlers] Context is not available for export all operation');
+      SRSTabStateHelpers.setSRSErrorMessage(setState, 'Context not available for export operation');
       return;
     }
 
-    console.log('[useSRSSaveHandlers] Exporting SRS records (simplified architecture + Date-only):', {
-      recordsCount: state.srsRecords.length,
-      dateRange: `${SRSDateUtils.formatDateForDisplay(state.fromDate)} - ${SRSDateUtils.formatDateForDisplay(state.toDate)}`,
-      typesOfLeaveCount: state.typesOfLeave.length,
-      holidaysCount: state.holidays.length,
-      showDeleted: state.showDeleted,
-      deletedRecordsCount: state.srsRecords.filter((r: IStaffRecord) => r.Deleted === 1).length,
-      activeRecordsCount: state.srsRecords.filter((r: IStaffRecord) => r.Deleted !== 1).length,
-      numericTimeFieldsEnabled: true,
-      totalHoursCalculation: 'Real-time in SRSTable',
-      dateFormat: 'Date-only with SRSDateUtils'
+    if (!selectedStaff) {
+      console.error('[useSRSSaveHandlers] Selected staff is not available for export all operation');
+      SRSTabStateHelpers.setSRSErrorMessage(setState, 'Staff member not selected for export operation');
+      return;
+    }
+
+    if (!selectedStaff.pathForSRSFile) {
+      console.error('[useSRSSaveHandlers] Excel file path not configured for staff member');
+      SRSTabStateHelpers.setSRSErrorMessage(setState, 'Excel file path not configured for this staff member', [
+        `Staff member: ${selectedStaff.name}`,
+        'Please contact administrator to configure SRS Excel file path'
+      ]);
+      return;
+    }
+
+    if (!currentUserId || currentUserId === '0') {
+      console.error('[useSRSSaveHandlers] Current user ID not available for export all operation');
+      SRSTabStateHelpers.setSRSErrorMessage(setState, 'User authentication required for export operation');
+      return;
+    }
+
+    if (!managingGroupId || managingGroupId === '0') {
+      console.error('[useSRSSaveHandlers] Managing group ID not available for export all operation');
+      SRSTabStateHelpers.setSRSErrorMessage(setState, 'Managing group access required for export operation');
+      return;
+    }
+
+    // Find all checked records
+    const checkedStaffRecords = state.srsRecords.filter((record: IStaffRecord) => {
+      return record.Checked === 1 && record.Deleted !== 1; // Checked and not deleted
     });
 
-    // TODO: Implement actual export functionality
-    alert(`Export functionality will be implemented. Records to export: ${state.srsRecords.length}, Types of leave: ${state.typesOfLeave.length}, Holidays: ${state.holidays.length}, Show deleted: ${state.showDeleted}, Total Hours: Calculated in real-time, Date format: Date-only`);
-  }, [state.srsRecords, state.fromDate, state.toDate, state.typesOfLeave, state.holidays, state.showDeleted]);
+    console.log('[useSRSSaveHandlers] Checked records analysis:', {
+      totalRecords: state.srsRecords.length,
+      checkedRecords: checkedStaffRecords.length,
+      deletedRecords: state.srsRecords.filter((r: IStaffRecord) => r.Deleted === 1).length,
+      checkedAndActiveRecords: checkedStaffRecords.length,
+      dateRange: `${SRSDateUtils.formatDateForDisplay(state.fromDate)} - ${SRSDateUtils.formatDateForDisplay(state.toDate)}`,
+      staffName: selectedStaff.name,
+      excelFilePath: selectedStaff.pathForSRSFile
+    });
+
+    // Check if there are any checked records
+    if (checkedStaffRecords.length === 0) {
+      console.warn('[useSRSSaveHandlers] No checked records found for export');
+      SRSTabStateHelpers.setSRSWarningMessage(setState, 'No checked records found for export', [
+        'Please check at least one record before clicking "Export all SRS"',
+        'Only checked (✓) records will be exported to Excel',
+        `Total records available: ${state.srsRecords.length}`,
+        `Date range: ${SRSDateUtils.formatDateForDisplay(state.fromDate)} - ${SRSDateUtils.formatDateForDisplay(state.toDate)}`,
+        'Use the checkboxes in the "Check" column to select records for export'
+      ]);
+      return;
+    }
+
+    try {
+      console.log('[useSRSSaveHandlers] *** STARTING BULK SRS EXPORT PROCESS ***');
+
+      // Clear any existing messages
+      SRSTabStateHelpers.clearSRSMessage(setState);
+
+      // Convert IStaffRecord[] to ISRSRecord[] using SRSDataMapper
+      const srsRecordsForExport: ISRSRecord[] = SRSDataMapper.mapStaffRecordsToSRSRecords(checkedStaffRecords);
+
+      console.log('[useSRSSaveHandlers] Converted staff records to SRS records for export:', {
+        originalCount: checkedStaffRecords.length,
+        convertedCount: srsRecordsForExport.length,
+        dateFormat: 'Date-only using SRSDataMapper'
+      });
+
+      // Group records by date for processing
+      const recordsByDate = new Map<string, ISRSRecord[]>();
+
+      srsRecordsForExport.forEach(record => {
+        const dateKey = SRSDateUtils.formatDateForDisplay(record.date);
+        if (!recordsByDate.has(dateKey)) {
+          recordsByDate.set(dateKey, []);
+        }
+        recordsByDate.get(dateKey)!.push(record);
+      });
+
+      console.log('[useSRSSaveHandlers] Records grouped by date for export:', {
+        totalDates: recordsByDate.size,
+        datesWithRecords: Array.from(recordsByDate.keys()),
+        recordsPerDate: Array.from(recordsByDate.entries()).map(([date, records]) => ({
+          date,
+          count: records.length
+        }))
+      });
+
+      // Process each date group using the existing SRS export functionality
+      let totalExported = 0;
+      let totalFailed = 0;
+      const exportResults: Array<{ date: string; success: boolean; error?: string; recordsCount: number }> = [];
+
+      // Convert Map entries to array for ES5 compatibility
+      const dateGroupsArray = Array.from(recordsByDate.entries());
+      
+      for (let i = 0; i < dateGroupsArray.length; i++) {
+        const [dateKey, dateRecords] = dateGroupsArray[i];
+        try {
+          console.log(`[useSRSSaveHandlers] *** EXPORTING ${dateRecords.length} RECORDS FOR DATE ${dateKey} ***`);
+
+          // Get the first record's date for this group
+          const targetDate = dateRecords[0].date;
+
+          // Use the existing SRS export handler for this date group
+          const exportResult = await handleSRSButtonClick({
+            item: dateRecords[0], // Use first record as the "trigger" item
+            context,
+            selectedStaff: {
+              id: selectedStaff.id,
+              name: selectedStaff.name,
+              employeeId: selectedStaff.employeeId,
+              pathForSRSFile: selectedStaff.pathForSRSFile,
+              typeOfSRS: selectedStaff.typeOfSRS || 2
+            },
+            currentUserId,
+            managingGroupId,
+            state: {
+              ...state,
+              // Override srsRecords to only include the checked records for this date
+              srsRecords: checkedStaffRecords.filter((record: IStaffRecord) => {
+                const recordDate = SRSDateUtils.normalizeDateToLocalMidnight(record.Date);
+                return SRSDateUtils.areDatesEqual(recordDate, targetDate) && record.Checked === 1;
+              })
+            },
+            holidays: state.holidays,
+            typesOfLeave: state.typesOfLeave,
+            refreshSRSData,
+            setState: setState as (updater: (prev: ISRSTabState) => ISRSTabState) => void
+          });
+
+          if (exportResult.success) {
+            console.log(`[useSRSSaveHandlers] ✓ Export successful for date ${dateKey}: ${dateRecords.length} records`);
+            totalExported += dateRecords.length;
+            exportResults.push({
+              date: dateKey,
+              success: true,
+              recordsCount: dateRecords.length
+            });
+          } else {
+            console.error(`[useSRSSaveHandlers] ✗ Export failed for date ${dateKey}: ${exportResult.error}`);
+            totalFailed += dateRecords.length;
+            exportResults.push({
+              date: dateKey,
+              success: false,
+              error: exportResult.error,
+              recordsCount: dateRecords.length
+            });
+          }
+
+        } catch (dateExportError) {
+          const errorMsg = dateExportError instanceof Error ? dateExportError.message : String(dateExportError);
+          console.error(`[useSRSSaveHandlers] Critical error exporting date ${dateKey}:`, dateExportError);
+          totalFailed += dateRecords.length;
+          exportResults.push({
+            date: dateKey,
+            success: false,
+            error: errorMsg,
+            recordsCount: dateRecords.length
+          });
+        }
+      }
+
+      console.log('[useSRSSaveHandlers] *** BULK SRS EXPORT PROCESS COMPLETED ***');
+      console.log('[useSRSSaveHandlers] Final export results:', {
+        totalRecordsAttempted: srsRecordsForExport.length,
+        totalExported,
+        totalFailed,
+        successfulDates: exportResults.filter(r => r.success).length,
+        failedDates: exportResults.filter(r => !r.success).length,
+        exportResults
+      });
+
+      // Show appropriate success/error message
+      if (totalFailed === 0) {
+        // Complete success
+        SRSTabStateHelpers.setSRSSuccessMessage(setState, `Successfully exported all ${totalExported} checked records to Excel`, [
+          `Records exported: ${totalExported}`,
+          `Dates processed: ${recordsByDate.size}`,
+          `Staff member: ${selectedStaff.name}`,
+          `Excel file: ${selectedStaff.pathForSRSFile}`,
+          `Date range: ${SRSDateUtils.formatDateForDisplay(state.fromDate)} - ${SRSDateUtils.formatDateForDisplay(state.toDate)}`,
+          'All records have been marked as exported in the system'
+        ]);
+      } else if (totalExported === 0) {
+        // Complete failure
+        const failedDatesInfo = exportResults
+          .filter(r => !r.success)
+          .map(r => `${r.date}: ${r.error}`)
+          .join('; ');
+
+        SRSTabStateHelpers.setSRSErrorMessage(setState, `Failed to export all ${totalFailed} checked records`, [
+          `Records failed: ${totalFailed}`,
+          `Dates failed: ${exportResults.filter(r => !r.success).length}`,
+          `Errors: ${failedDatesInfo}`,
+          `Staff member: ${selectedStaff.name}`,
+          `Excel file: ${selectedStaff.pathForSRSFile}`,
+          'Please check the errors above and try again'
+        ]);
+      } else {
+        // Partial success
+        const successfulDatesInfo = exportResults
+          .filter(r => r.success)
+          .map(r => `${r.date} (${r.recordsCount} records)`)
+          .join(', ');
+
+        const failedDatesInfo = exportResults
+          .filter(r => !r.success)
+          .map(r => `${r.date}: ${r.error}`)
+          .join('; ');
+
+        SRSTabStateHelpers.setSRSWarningMessage(setState, `Partially exported checked records: ${totalExported} successful, ${totalFailed} failed`, [
+          `Successfully exported: ${totalExported} records`,
+          `Failed to export: ${totalFailed} records`,
+          `Successful dates: ${successfulDatesInfo}`,
+          `Failed dates: ${failedDatesInfo}`,
+          `Staff member: ${selectedStaff.name}`,
+          'Successfully exported records have been marked in the system'
+        ]);
+      }
+
+      // Refresh data to show updated export statuses
+      console.log('[useSRSSaveHandlers] Auto-refreshing data after bulk export...');
+      setTimeout(() => {
+        void refreshSRSData();
+      }, 1000); // Longer delay for bulk operations
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('[useSRSSaveHandlers] Critical error during export all operation:', error);
+      
+      SRSTabStateHelpers.setSRSErrorMessage(setState, `Bulk export failed: ${errorMessage}`, [
+        `Records attempted: ${checkedStaffRecords.length}`,
+        `Staff member: ${selectedStaff.name}`,
+        `Excel file: ${selectedStaff.pathForSRSFile || 'Not configured'}`,
+        `Error: ${errorMessage}`,
+        'Please check the error details and try again'
+      ]);
+    }
+
+  }, [
+    context,
+    selectedStaff,
+    currentUserId,
+    managingGroupId,
+    state,
+    setState,
+    refreshSRSData
+  ]);
 
   /**
    * Manual data refresh with dependency reload
@@ -367,26 +620,29 @@ export const useSRSSaveHandlers = (params: UseSRSSaveHandlersParams): UseSRSSave
   }, [setState]);
 
   // Log handlers creation
-  console.log('[useSRSSaveHandlers] Save handlers created:', {
+  console.log('[useSRSSaveHandlers] Save handlers created with REAL Export All functionality:', {
     hasSaveHandler: !!handleSave,
     hasSaveCheckedHandler: !!handleSaveChecked,
-    hasExportAllHandler: !!handleExportAll,
+    hasExportAllHandler: !!handleExportAll, // *** UPDATED: Now real export ***
     hasRefreshDataHandler: !!handleRefreshData,
     hasErrorDismissHandler: !!handleErrorDismiss,
     currentModifications: modifiedRecords.size,
     hasUnsavedChanges: state.hasUnsavedChanges,
     selectedItemsCount: state.selectedItems.size,
+    checkedRecordsCount: state.srsRecords.filter((r: IStaffRecord) => r.Checked === 1).length,
     realServiceIntegration: 'StaffRecordsService.updateStaffRecord',
+    realExportIntegration: 'SRSButtonHandler for bulk checked records', // *** NEW ***
     dateFormat: 'Date-only with SRSDateUtils integration',
     totalHoursHandling: 'Real-time calculation in SRSTable',
     numericTimeFields: 'ShiftDate1Hours/Minutes, ShiftDate2Hours/Minutes',
-    checkboxSaving: 'Checked field saved as 0/1 to server'
+    checkboxSaving: 'Checked field saved as 0/1 to server',
+    exportAllFeature: 'Processes all checked records grouped by date' // *** NEW ***
   });
 
   return {
     onSave: handleSave,
     onSaveChecked: handleSaveChecked,
-    onExportAll: handleExportAll,
+    onExportAll: handleExportAll, // *** UPDATED: Now async and real ***
     onRefreshData: handleRefreshData,
     onErrorDismiss: handleErrorDismiss
   };
