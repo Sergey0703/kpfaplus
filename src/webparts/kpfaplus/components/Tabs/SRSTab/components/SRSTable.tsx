@@ -32,6 +32,8 @@ export const SRSTable: React.FC<ISRSTableProps & {
   hasCheckedItems: boolean;
   // *** НОВОЕ: Добавлен onItemCheck prop для поддержки checkbox функциональности ***
   onItemCheck?: (item: ISRSRecord, checked: boolean) => void;
+  // *** НОВОЕ: Добавлен showSRSConfirmDialog prop для диалога подтверждения SRS ***
+  showSRSConfirmDialog?: (item: ISRSRecord) => void;
 }> = (props) => {
   const {
     items,
@@ -66,8 +68,8 @@ export const SRSTable: React.FC<ISRSTableProps & {
     hasCheckedItems,
     // *** НОВОЕ: Обработчик checkbox функциональности ***
     onItemCheck,
-    // *** НОВОЕ: Обработчик кнопки SRS ***
-    onSRSButtonClick
+    // *** НОВОЕ: Обработчик диалога подтверждения SRS ***
+    showSRSConfirmDialog
   } = props;
 
   // *** КЛЮЧЕВОЕ ДОБАВЛЕНИЕ: State для вычисленного времени работы ***
@@ -110,8 +112,8 @@ export const SRSTable: React.FC<ISRSTableProps & {
     holidaysFromList: true, // *** НОВАЯ ФУНКЦИЯ: Праздники из списка Date-only, а не из поля ***
     addShiftWithoutHolidayCheck: true, // *** ИСПРАВЛЕНО: Добавление смены без проверки Holiday поля ***
     hasItemCheckHandler: !!onItemCheck, // *** НОВОЕ: Логируем наличие checkbox обработчика ***
-    // *** НОВОЕ: Логируем наличие обработчика кнопки SRS ***
-    hasSRSButtonHandler: !!onSRSButtonClick
+    // *** НОВОЕ: Логируем наличие обработчика диалога подтверждения SRS ***
+    hasSRSConfirmHandler: !!showSRSConfirmDialog
   });
 
   // *** КЛЮЧЕВАЯ ФУНКЦИЯ: Вычисление общего времени в реальном времени ***
@@ -595,7 +597,7 @@ export const SRSTable: React.FC<ISRSTableProps & {
   };
 
   // Helper function to calculate total hours for date (only for non-deleted rows)
-  const calculateTotalHoursForDate = (items: typeof props.items, index: number): string => {
+ const calculateTotalHoursForDate = (items: typeof props.items, index: number): string => {
     const currentDate = items[index].date;
     
     // Find all rows with the same date
@@ -655,8 +657,6 @@ export const SRSTable: React.FC<ISRSTableProps & {
       );
     }).length;
   };
-
-  // ИСПРАВЛЕНО: Функция `getRecordsStatistics` удалена, так как переменная `recordsStats` больше не используется
 
   if (isLoading) {
     return (
@@ -947,8 +947,8 @@ export const SRSTable: React.FC<ISRSTableProps & {
                     showAddShiftConfirmDialog={showAddShiftConfirmDialog}
                     // *** НОВОЕ: Передаем обработчик checkbox функциональности ***
                     onItemCheck={onItemCheck}
-                    // *** НОВОЕ: Передаем обработчик кнопки SRS ***
-                    onSRSButtonClick={onSRSButtonClick}
+                    // *** НОВОЕ: Передаем обработчик диалога подтверждения SRS ***
+                    showSRSConfirmDialog={showSRSConfirmDialog}
                   />
                 </React.Fragment>
               ))

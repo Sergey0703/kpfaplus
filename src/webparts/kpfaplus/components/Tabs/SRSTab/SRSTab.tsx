@@ -56,6 +56,14 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     message: ''
   });
 
+  // *** НОВОЕ: State для диалога подтверждения SRS ***
+  const [srsConfirmDialog, setSrsConfirmDialog] = useState({
+    isOpen: false,
+    item: null as ISRSRecord | null,
+    title: '',
+    message: ''
+  });
+
   console.log('[SRSTab] *** SRS Logic state with REAL-TIME TOTAL HOURS and HOLIDAYS FROM LIST (Date-only) + SRS MESSAGE PANEL ***:', {
     recordsCount: srsLogic.srsRecords.length,
     // *** УБРАНО: totalHours больше не в state - вычисляется в SRSTable ***
@@ -126,6 +134,25 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       recordDate,
       title: 'Confirm Restore',
       message: `Are you sure you want to restore the deleted SRS record for ${selectedStaff?.name} on ${recordDate}? This will call StaffRecordsService.restoreDeletedRecord.`
+    });
+  }, [srsLogic.srsRecords, selectedStaff?.name]);
+
+  // *** НОВОЕ: Обработчик показа диалога подтверждения SRS ***
+  const showSRSConfirmDialog = useCallback((item: ISRSRecord): void => {
+    console.log('[SRSTab] showSRSConfirmDialog called for item:', item.id);
+    
+    // Находим количество отмеченных записей для этой даты
+    const dateRecords = srsLogic.srsRecords.filter(r => {
+      const recordDate = r.Date.toLocaleDateString();
+      const itemDate = item.date.toLocaleDateString();
+      return recordDate === itemDate && r.Checked === 1 && r.Deleted !== 1;
+    });
+    
+    setSrsConfirmDialog({
+      isOpen: true,
+      item,
+      title: 'Confirm Export',
+      message: `Export SRS records to Excel for ${selectedStaff?.name} on ${item.date.toLocaleDateString()}? ${dateRecords.length} checked record(s) will be exported.`
     });
   }, [srsLogic.srsRecords, selectedStaff?.name]);
 
@@ -219,6 +246,34 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     }
   }, [restoreConfirmDialog.recordId, srsLogic.onRestoreRecord]);
 
+  // *** НОВОЕ: Обработчик подтверждения SRS экспорта ***
+  const handleSRSConfirm = useCallback(async (): Promise<void> => {
+    const { item } = srsConfirmDialog;
+    console.log('[SRSTab] handleSRSConfirm called - delegating to REAL srsLogic.onSRSButtonClick');
+    
+    if (!item) {
+      console.error('[SRSTab] No item for SRS export');
+      setSrsConfirmDialog(prev => ({ ...prev, isOpen: false }));
+      return;
+    }
+
+    try {
+      console.log('[SRSTab] Calling REAL srsLogic.onSRSButtonClick');
+      
+      // *** КЛЮЧЕВОЙ ВЫЗОВ: Используем РЕАЛЬНЫЙ обработчик из useSRSTabLogic ***
+      await srsLogic.onSRSButtonClick(item);
+      
+      console.log('[SRSTab] SRS export operation completed');
+      
+    } catch (error) {
+      console.error('[SRSTab] Error during SRS export operation:', error);
+      alert(`Error exporting SRS: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      // Закрываем диалог
+      setSrsConfirmDialog(prev => ({ ...prev, isOpen: false }));
+    }
+  }, [srsConfirmDialog.item, srsLogic.onSRSButtonClick]);
+
   // *** НОВОЕ: Обработчики закрытия диалогов ***
   const handleDeleteCancel = useCallback((): void => {
     console.log('[SRSTab] Delete dialog cancelled');
@@ -228,6 +283,12 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
   const handleRestoreCancel = useCallback((): void => {
     console.log('[SRSTab] Restore dialog cancelled');
     setRestoreConfirmDialog(prev => ({ ...prev, isOpen: false }));
+  }, []);
+
+  // *** НОВОЕ: Обработчик отмены SRS экспорта ***
+  const handleSRSCancel = useCallback((): void => {
+    console.log('[SRSTab] SRS export dialog cancelled');
+    setSrsConfirmDialog(prev => ({ ...prev, isOpen: false }));
   }, []);
 
   // *** НОВОЕ: Обработчик закрытия панели сообщений ***
@@ -470,7 +531,8 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         
         // *** НОВОЕ: Передаем обработчик checkbox функциональности ***
         onItemCheck={srsLogic.onItemCheckboxChange}
-        onSRSButtonClick={srsLogic.onSRSButtonClick}
+        // *** ИЗМЕНЕНО: Передаем showSRSConfirmDialog вместо прямого onSRSButtonClick ***
+        showSRSConfirmDialog={showSRSConfirmDialog}
       />
       
       {/* *** НОВОЕ: Диалоги подтверждения удаления и восстановления *** */}
@@ -498,6 +560,18 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         onDismiss={handleRestoreCancel}
         confirmButtonColor="#107c10" // Green for restore
       />
+
+      {/* *** НОВОЕ: Диалог подтверждения SRS экспорта *** */}
+      <ConfirmDialog
+        isOpen={srsConfirmDialog.isOpen}
+        title={srsConfirmDialog.title}
+        message={srsConfirmDialog.message}
+        confirmButtonText="Export"
+        cancelButtonText="Cancel"
+        onConfirm={handleSRSConfirm}
+        onDismiss={handleSRSCancel}
+        confirmButtonColor="#0078d4" // Blue for export
+      />
       
       {/* *** ИСПРАВЛЕНО: Отладочная информация с real-time архитектурой и праздниками из списка Date-only + SRS Message Panel *** */}
       {process.env.NODE_ENV === 'development' && (
@@ -513,7 +587,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
           <strong>Debug Info (Real-time Total Hours + Holidays from List Date-only + Checkbox + SRS Message Panel):</strong>
           <div>SRS Records: {srsRecordsForTable.length}</div>
           <div>Types of Leave: {srsLogic.typesOfLeave.length}</div>
-          <div>Loading Types: {srsLogic.isLoadingTypesOfLeave ? 'Yes' : 'No'}</div>
+         <div>Loading Types: {srsLogic.isLoadingTypesOfLeave ? 'Yes' : 'No'}</div>
           {/* *** ОБНОВЛЕНО: Информация о праздниках из списка Date-only *** */}
           <div>Holidays from List (Date-only): {srsLogic.holidays.length}</div>
           <div>Loading Holidays: {srsLogic.isLoadingHolidays ? 'Yes' : 'No'}</div>
@@ -525,6 +599,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
           <div>Restore Support: Enabled</div>
           <div>Delete Dialog Open: {deleteConfirmDialog.isOpen ? 'Yes' : 'No'}</div>
           <div>Restore Dialog Open: {restoreConfirmDialog.isOpen ? 'Yes' : 'No'}</div>
+          <div>SRS Dialog Open: {srsConfirmDialog.isOpen ? 'Yes' : 'No'}</div>
           {/* *** ИСПРАВЛЕНО: Отладочная информация о showDeleted из srsLogic *** */}
           <div>Show Deleted (srsLogic): {srsLogic.showDeleted ? 'Yes' : 'No'}</div>
           <div>Show Deleted Support: Enabled</div>
@@ -540,6 +615,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
           {/* *** НОВОЕ: Информация о панели сообщений *** */}
           <div>SRS Message Panel: {srsLogic.srsMessage ? `Active (${srsLogic.srsMessage.type})` : 'No message'}</div>
           <div>SRS Message Support: Complete export feedback system</div>
+          <div>SRS Export Confirmation: Dialog enabled</div>
           
           {srsLogic.typesOfLeave.length > 0 && (
             <div>
@@ -595,6 +671,9 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
               </div>
               <div>
                 SRS Message Panel: {srsLogic.srsMessage ? `${srsLogic.srsMessage.type.toUpperCase()} - ${srsLogic.srsMessage.text.substring(0, 50)}${srsLogic.srsMessage.text.length > 50 ? '...' : ''}` : 'No active message'}
+              </div>
+              <div>
+                SRS Export Confirmation: {srsConfirmDialog.isOpen ? 'Dialog open' : 'Dialog closed'}
               </div>
             </>
           )}

@@ -37,8 +37,8 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   showAddShiftConfirmDialog?: (item: ISRSRecord) => void;
   onAddShift?: (date: Date, shiftData?: INewSRSShiftData) => void;
   onItemCheck?: (item: ISRSRecord, checked: boolean) => void;
-  // *** НОВОЕ: Добавлен обработчик для кнопки SRS ***
-  onSRSButtonClick?: (item: ISRSRecord) => void;
+  // *** ИЗМЕНЕНО: Заменен onSRSButtonClick на showSRSConfirmDialog ***
+  showSRSConfirmDialog?: (item: ISRSRecord) => void;
 }> = (props) => {
   const {
     item,
@@ -58,8 +58,8 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     showAddShiftConfirmDialog,
     onAddShift,
     onItemCheck,
-    // *** НОВОЕ: Получаем обработчик кнопки SRS ***
-    onSRSButtonClick
+    // *** ИЗМЕНЕНО: Получаем showSRSConfirmDialog вместо onSRSButtonClick ***
+    showSRSConfirmDialog
   } = props;
 
   // Extract handlers directly from props to avoid unused variable errors
@@ -103,10 +103,10 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     holidayDetectionMethod: 'Holidays list date matching (Date-only), not Holiday field', // *** НОВОЕ ***
     checked: item.checked,
     hasItemCheckHandler: !!onItemCheck,
-    // *** НОВОЕ: Логируем информацию о кнопке SRS ***
+    // *** ИЗМЕНЕНО: Логируем информацию о диалоге подтверждения SRS ***
     rowPositionInDate,
-    hasSRSButtonHandler: !!onSRSButtonClick,
-    willShowSRSButton: rowPositionInDate === 0 && !!onSRSButtonClick
+    hasSRSConfirmHandler: !!showSRSConfirmDialog,
+    willShowSRSButton: rowPositionInDate === 0 && !!showSRSConfirmDialog
   });
 
   // Синхронизируем локальное состояние с props при изменении item
@@ -185,24 +185,24 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     }
   }, [item, isDeleted, onItemCheck]);
 
-  // *** НОВОЕ: Обработчик клика по кнопке SRS ***
+  // *** ИЗМЕНЕНО: Обработчик клика по кнопке SRS - теперь показывает диалог подтверждения ***
   const handleSRSButtonClick = useCallback((): void => {
-    console.log(`[SRSTableRow] *** SRS BUTTON CLICK *** for item ${item.id} on date: ${item.date.toLocaleDateString()}`);
+    console.log(`[SRSTableRow] *** SRS BUTTON CLICK - SHOW CONFIRMATION DIALOG *** for item ${item.id} on date: ${item.date.toLocaleDateString()}`);
     
-    if (!onSRSButtonClick) {
-      console.error('[SRSTableRow] onSRSButtonClick handler not available');
+    if (!showSRSConfirmDialog) {
+      console.error('[SRSTableRow] showSRSConfirmDialog handler not available');
       return;
     }
 
-    console.log('[SRSTableRow] Calling onSRSButtonClick handler:', {
+    console.log('[SRSTableRow] Calling showSRSConfirmDialog:', {
       itemId: item.id,
       date: item.date.toISOString(),
       rowPositionInDate,
       isFirstRowOfDay: rowPositionInDate === 0
     });
     
-    onSRSButtonClick(item);
-  }, [item, onSRSButtonClick, rowPositionInDate]);
+    showSRSConfirmDialog(item);
+  }, [item, showSRSConfirmDialog, rowPositionInDate]);
 
   // *** ОБНОВЛЕНО: Holiday cell style - колонко-специфичная стилизация на основе списка праздников Date-only ***
   const getHolidayCellStyle = (columnType: 'date' | 'hours' | 'other'): React.CSSProperties => {
@@ -608,13 +608,13 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     numericTimeFieldsSupport: true,
     timeLeaveFixed: true,
     holidayDetectionMethod: 'Holidays list date matching (Date-only)', // *** НОВОЕ ***
-    addShiftWithoutHolidayCheck: true, // *** ИСПРАВЛЕНО ***
+    addShiftWithoutHolidayCheck: true,
     checked: item.checked,
     hasItemCheckHandler: !!onItemCheck,
-    // *** НОВОЕ: Информация о кнопке SRS ***
+    // *** ИЗМЕНЕНО: Информация о диалоге подтверждения SRS ***
     rowPositionInDate,
-    hasSRSButtonHandler: !!onSRSButtonClick,
-    willShowSRSButton: rowPositionInDate === 0 && !!onSRSButtonClick
+    hasSRSConfirmHandler: !!showSRSConfirmDialog,
+    willShowSRSButton: rowPositionInDate === 0 && !!showSRSConfirmDialog
   });
 
   return (
@@ -825,9 +825,9 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
         />
       </td>
 
-      {/* *** ИЗМЕНЕНО: SRS cell - теперь с кнопкой в первой строке дня *** */}
+      {/* *** ИЗМЕНЕНО: SRS cell - теперь с кнопкой в первой строке дня, которая показывает диалог подтверждения *** */}
       <td style={getCellStyle('other')}>
-        {rowPositionInDate === 0 && onSRSButtonClick && (
+        {rowPositionInDate === 0 && showSRSConfirmDialog && (
           <DefaultButton
             text="SRS"
             onClick={handleSRSButtonClick}
@@ -854,7 +854,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
           />
         )}
         {/* *** ОСТАВЛЕНО: Показываем SRS текст если нет кнопки и item.srs === true *** */}
-        {(rowPositionInDate !== 0 || !onSRSButtonClick) && item.srs && (
+        {(rowPositionInDate !== 0 || !showSRSConfirmDialog) && item.srs && (
           <span style={{
             // *** ИЗМЕНЕНО: Праздничный цвет на основе isHoliday из списка Date-only ***
             color: isHoliday ? '#ff69b4' : '#0078d4',
