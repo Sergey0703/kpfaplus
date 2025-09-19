@@ -34,6 +34,8 @@ export const SRSTable: React.FC<ISRSTableProps & {
   onItemCheck?: (item: ISRSRecord, checked: boolean) => void;
   // *** НОВОЕ: Добавлен showSRSConfirmDialog prop для диалога подтверждения SRS ***
   showSRSConfirmDialog?: (item: ISRSRecord) => void;
+  // *** НОВОЕ: Добавлен isSRSExporting prop для состояния экспорта ***
+  isSRSExporting?: boolean;
 }> = (props) => {
   const {
     items,
@@ -69,7 +71,9 @@ export const SRSTable: React.FC<ISRSTableProps & {
     // *** НОВОЕ: Обработчик checkbox функциональности ***
     onItemCheck,
     // *** НОВОЕ: Обработчик диалога подтверждения SRS ***
-    showSRSConfirmDialog
+    showSRSConfirmDialog,
+    // *** НОВОЕ: Состояние экспорта SRS ***
+    isSRSExporting
   } = props;
 
   // *** КЛЮЧЕВОЕ ДОБАВЛЕНИЕ: State для вычисленного времени работы ***
@@ -90,7 +94,7 @@ export const SRSTable: React.FC<ISRSTableProps & {
     message: ''
   });
 
-  console.log('[SRSTable] Rendering with REAL-TIME TOTAL HOURS CALCULATION AND HOLIDAYS LIST WITHOUT HOLIDAY FIELD CHECKS (Date-only):', {
+  console.log('[SRSTable] Rendering with REAL-TIME TOTAL HOURS CALCULATION AND HOLIDAYS LIST WITHOUT HOLIDAY FIELD CHECKS (Date-only) AND SRS EXPORT SPINNER:', {
     itemsCount: items.length,
     // *** НОВОЕ: Логируем информацию о праздниках Date-only ***
     holidaysCount: holidays.length,
@@ -113,7 +117,10 @@ export const SRSTable: React.FC<ISRSTableProps & {
     addShiftWithoutHolidayCheck: true, // *** ИСПРАВЛЕНО: Добавление смены без проверки Holiday поля ***
     hasItemCheckHandler: !!onItemCheck, // *** НОВОЕ: Логируем наличие checkbox обработчика ***
     // *** НОВОЕ: Логируем наличие обработчика диалога подтверждения SRS ***
-    hasSRSConfirmHandler: !!showSRSConfirmDialog
+    hasSRSConfirmHandler: !!showSRSConfirmDialog,
+    // *** НОВОЕ: Логируем состояние экспорта SRS ***
+    isSRSExporting: !!isSRSExporting,
+    srsExportSpinnerSupport: true
   });
 
   // *** КЛЮЧЕВАЯ ФУНКЦИЯ: Вычисление общего времени в реальном времени ***
@@ -904,6 +911,15 @@ export const SRSTable: React.FC<ISRSTableProps & {
                   <small style={{ color: '#0078d4', marginTop: '5px', display: 'block' }}>
                     Total Hours: {calculateCurrentTotalHours} (Real-time calculation)
                   </small>
+                  {/* *** НОВОЕ: Информация о состоянии экспорта SRS *** */}
+                  {isSRSExporting && (
+                    <>
+                      <br />
+                      <small style={{ color: '#d83b01', marginTop: '5px', display: 'block' }}>
+                        SRS Export in progress... Please wait.
+                      </small>
+                    </>
+                  )}
                 </td>
               </tr>
             ) : (
@@ -949,6 +965,8 @@ export const SRSTable: React.FC<ISRSTableProps & {
                     onItemCheck={onItemCheck}
                     // *** НОВОЕ: Передаем обработчик диалога подтверждения SRS ***
                     showSRSConfirmDialog={showSRSConfirmDialog}
+                    // *** НОВОЕ: Передаем состояние экспорта SRS ***
+                    isSRSExporting={isSRSExporting}
                   />
                 </React.Fragment>
               ))

@@ -134,6 +134,7 @@ export interface ISRSTableRowProps {
   onItemCheck?: (item: ISRSRecord, checked: boolean) => void;
   // *** НОВОЕ: Обработчик кнопки SRS ***
   onSRSButtonClick?: (item: ISRSRecord) => void;
+  isSRSExporting?: boolean;
 }
 
 /**
