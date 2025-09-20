@@ -11,6 +11,9 @@ interface IResizableLayoutProps {
   defaultLeftWidth?: number;
   collapsedWidth?: number;
   showCollapseButton?: boolean;
+  // Новые пропсы для информации о пользователе
+  userName?: string;
+  userId?: string | number;
 }
 
 export const ResizableLayout: React.FC<IResizableLayoutProps> = ({
@@ -20,7 +23,9 @@ export const ResizableLayout: React.FC<IResizableLayoutProps> = ({
   maxLeftWidth = 500,
   defaultLeftWidth = 250,
   collapsedWidth = 36,
-  showCollapseButton = true
+  showCollapseButton = true,
+  userName,
+  userId
 }) => {
   const [leftWidth, setLeftWidth] = useState<number>(defaultLeftWidth);
   const [isResizing, setIsResizing] = useState<boolean>(false);
@@ -196,9 +201,13 @@ export const ResizableLayout: React.FC<IResizableLayoutProps> = ({
                 <span style={{
                   fontWeight: '600',
                   fontSize: '14px',
-                  color: '#323130'
+                  color: '#323130',
+                  wordWrap: 'break-word',
+                  wordBreak: 'break-word',
+                  lineHeight: '1.3',
+                  maxWidth: '200px'
                 }}>
-                  Staff Members
+                  {userName || 'Unknown User'} (ID: {userId || 'Unknown'})
                 </span>
                 
                 {showCollapseButton && (

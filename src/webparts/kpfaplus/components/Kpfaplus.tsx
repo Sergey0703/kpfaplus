@@ -670,6 +670,8 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
        defaultLeftWidth={250}
        collapsedWidth={36}
        showCollapseButton={true}
+       userName={effectiveUser?.Title}
+       userId={effectiveUser?.ID}
        leftPanel={
          <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
            {/* Select Group и Manage Groups на одной строке */}
