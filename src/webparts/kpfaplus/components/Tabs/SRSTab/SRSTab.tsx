@@ -19,6 +19,12 @@ import { ConfirmDialog } from '../../ConfirmDialog/ConfirmDialog';
 // *** НОВОЕ: Импортируем компонент панели сообщений ***
 import { SRSMessagePanel } from './components/SRSMessagePanel';
 
+// *** ИСПРАВЛЕНИЕ: Добавляем интерфейс для состояния SRS Logic ***
+interface ISRSLogicWithSetState {
+  setState?: (updater: (prevState: unknown) => unknown) => void;
+  [key: string]: unknown;
+}
+
 export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
   const { selectedStaff } = props;
   
@@ -412,14 +418,14 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     setExportAllConfirmDialog(prev => ({ ...prev, isOpen: false }));
   }, []);
 
-  // *** НОВОЕ: Обработчик закрытия панели сообщений ***
+  // *** ИСПРАВЛЕНО: Обработчик закрытия панели сообщений без any типов ***
   const handleSRSMessageDismiss = useCallback((): void => {
     console.log('[SRSTab] SRS message panel dismissed');
-    // Используем setState напрямую для очистки сообщения
-    const setState = (srsLogic as any).setState;
-    if (setState) {
-      setState((prevState: any) => ({
-        ...prevState,
+    // Используем безопасное приведение типов через unknown
+    const srsLogicWithSetState = srsLogic as unknown as ISRSLogicWithSetState;
+    if (srsLogicWithSetState.setState) {
+      srsLogicWithSetState.setState((prevState: unknown) => ({
+        ...(prevState as Record<string, unknown>),
         srsMessage: undefined
       }));
     }
