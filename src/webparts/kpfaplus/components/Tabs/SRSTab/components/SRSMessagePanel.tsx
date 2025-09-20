@@ -15,7 +15,7 @@ export interface ISRSMessagePanelProps {
  * Displays success/error/warning messages for SRS export operations
  * Shows detailed information about SRS export results above the table
  */
-export const SRSMessagePanel: React.FC<ISRSMessagePanelProps> = (props): JSX.Element | null => {
+export const SRSMessagePanel = (props: ISRSMessagePanelProps): JSX.Element => {
   const { message, type = 'info', details, onDismiss } = props;
 
   console.log('[SRSMessagePanel] Rendering message panel:', {
@@ -26,9 +26,9 @@ export const SRSMessagePanel: React.FC<ISRSMessagePanelProps> = (props): JSX.Ele
     hasDismissHandler: !!onDismiss
   });
 
-  // Don't render if no message
+  // Don't render if no message - return empty fragment instead
   if (!message) {
-    return null;
+    return <></>;
   }
 
   // Map message types to Fluent UI MessageBarType

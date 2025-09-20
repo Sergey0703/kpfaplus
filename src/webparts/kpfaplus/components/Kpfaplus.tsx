@@ -859,7 +859,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
                <PivotItem itemKey="timetable" headerText="Timetable" />
                <PivotItem itemKey="srs" headerText="SRS" />
                <PivotItem itemKey="srsReports" headerText="SRS Reports" />
-               <PivotItem itemKey="notes" headerText="Notes" />
+             {/*  <PivotItem itemKey="notes" headerText="Notes" /> */}
                <PivotItem itemKey="leaveTimeByYears" headerText="Leave by Years" />
                {/* ПОКАЗЫВАТЬ ТОЛЬКО ДЛЯ ОРИГИНАЛЬНЫХ АДМИНОВ */}
 {impersonationState.originalUser?.IsAdmin === 1 && (
