@@ -22,7 +22,7 @@ import { SRSMessagePanel } from './components/SRSMessagePanel';
 export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
   const { selectedStaff } = props;
   
-  console.log('[SRSTab] Rendering with REAL-TIME TOTAL HOURS ARCHITECTURE and HOLIDAYS FROM LIST (Date-only):', {
+  console.log('[SRSTab] Rendering with REAL-TIME TOTAL HOURS ARCHITECTURE and HOLIDAYS FROM LIST (Date-only) and EXPORT ALL CONFIRMATION DIALOG:', {
     hasSelectedStaff: !!selectedStaff,
     selectedStaffId: selectedStaff?.id,
     selectedStaffName: selectedStaff?.name,
@@ -35,7 +35,8 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     checkboxFunctionality: true, // *** НОВОЕ: Checkbox функциональность для Check колонки ***
     srsMessagePanelSupport: true, // *** НОВОЕ: Поддержка панели сообщений SRS операций ***
     fixedDialogClosing: true, // *** ИСПРАВЛЕНО: Диалог закрывается сразу, спиннер показывается ***
-    exportAllConfirmDialog: true // *** НОВОЕ: Диалог подтверждения для Export All SRS ***
+    exportAllConfirmDialog: true, // *** НОВОЕ: Диалог подтверждения для Export All SRS ***
+    exportAllDialogSupport: true // *** НОВОЕ: Полная поддержка диалога Export All ***
   });
   
   // *** ИСПРАВЛЕНО: Используем главный хук логики с поддержкой real-time ***
@@ -123,7 +124,8 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     // *** НОВОЕ: Информация о Export All диалоге ***
     exportAllDialogSupport: true,
     isExportAllInProgress,
-    exportAllConfirmationEnabled: true
+    exportAllConfirmationEnabled: true,
+    hasShowExportAllConfirmDialogHandler: !!srsLogic.showExportAllConfirmDialog // *** НОВОЕ ***
   });
 
   // *** НОВОЕ: Обработчик показа диалога удаления ***
@@ -187,13 +189,17 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
 
   // *** НОВОЕ: Обработчик показа диалога подтверждения Export All SRS ***
   const showExportAllConfirmDialog = useCallback((): void => {
-    console.log('[SRSTab] *** SHOW EXPORT ALL CONFIRM DIALOG ***');
+    console.log('[SRSTab] *** SHOW EXPORT ALL CONFIRM DIALOG (TRIGGERED BY BUTTON) ***');
     
     // Проверяем, не идет ли уже экспорт
     if (isExportAllInProgress) {
       console.log('[SRSTab] Export All already in progress, ignoring dialog request');
       return;
     }
+    
+    // Вызываем логику из srsLogic для проверки и подготовки
+    console.log('[SRSTab] Calling srsLogic.showExportAllConfirmDialog for validation and preparation...');
+    srsLogic.showExportAllConfirmDialog();
     
     // Подсчитываем количество отмеченных записей
     const checkedRecords = srsLogic.srsRecords.filter(r => r.Checked === 1 && r.Deleted !== 1);
@@ -206,18 +212,25 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     });
     
     if (checkedRecords.length === 0) {
-      console.warn('[SRSTab] No checked records found for Export All');
-      // Можно показать предупреждение пользователю
+      console.warn('[SRSTab] No checked records found for Export All - srsLogic.showExportAllConfirmDialog should have shown warning');
+      // Предупреждение уже показано через srsLogic.showExportAllConfirmDialog
       return;
     }
     
+    // Показываем диалог подтверждения
     setExportAllConfirmDialog({
       isOpen: true,
       title: 'Confirm Export All SRS',
       message: `Export all ${checkedRecords.length} checked SRS record(s) to Excel for ${selectedStaff?.name}? This will process all checked records across all dates in the current range.`,
       checkedRecordsCount: checkedRecords.length
     });
-  }, [srsLogic.srsRecords, selectedStaff?.name, isExportAllInProgress]);
+    
+    console.log('[SRSTab] Export All confirmation dialog state set:', {
+      isOpen: true,
+      checkedRecordsCount: checkedRecords.length,
+      readyForUserConfirmation: true
+    });
+  }, [srsLogic, selectedStaff?.name, isExportAllInProgress]);
 
   // *** НОВОЕ: Обработчик подтверждения удаления ***
   const handleDeleteConfirm = useCallback(async (): Promise<void> => {
@@ -412,9 +425,10 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     }
   }, [srsLogic]);
 
-  // *** НОВОЕ: Модифицированный обработчик Export All с диалогом подтверждения ***
+  // *** ОБНОВЛЕНО: Модифицированный обработчик Export All с диалогом подтверждения ***
   const handleExportAllWithConfirmation = useCallback((): void => {
-    console.log('[SRSTab] Export All button clicked - showing confirmation dialog');
+    console.log('[SRSTab] *** Export All button clicked - showing confirmation dialog ***');
+    console.log('[SRSTab] This will call showExportAllConfirmDialog which validates and shows dialog');
     showExportAllConfirmDialog();
   }, [showExportAllConfirmDialog]);
 
@@ -622,7 +636,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       
       {/* *** КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: SRSTable теперь управляет SRSFilterControls и Total Hours, получает holidays Date-only *** */}
       {/* *** ИСПРАВЛЕНО: Передаем состояние экспорта для спиннера *** */}
-      {/* *** НОВОЕ: Передаем модифицированный обработчик Export All с диалогом подтверждения *** */}
+      {/* *** ОБНОВЛЕНО: Передаем модифицированный обработчик Export All с диалогом подтверждения *** */}
       <SRSTable
         items={srsRecordsForTable}
         options={tableOptions}
@@ -649,7 +663,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         onFromDateChange={srsLogic.onFromDateChange}
         onToDateChange={srsLogic.onToDateChange}
         onRefresh={srsLogic.onRefreshData}
-        // *** ИЗМЕНЕНО: Используем модифицированный обработчик Export All с диалогом подтверждения ***
+        // *** ОБНОВЛЕНО: Используем модифицированный обработчик Export All с диалогом подтверждения ***
         onExportAll={handleExportAllWithConfirmation}
         onSave={srsLogic.onSave}
         onSaveChecked={srsLogic.onSaveChecked}
@@ -747,6 +761,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
           {/* *** НОВОЕ: Отладочная информация о диалоге Export All *** */}
           <div>Export All Dialog Open: {exportAllConfirmDialog.isOpen ? 'Yes' : 'No'}</div>
           <div>Export All Dialog Support: Enabled</div>
+          <div>Export All Handler Available: {!!srsLogic.showExportAllConfirmDialog ? 'Yes' : 'No'}</div>
           {/* *** ИСПРАВЛЕНО: Отладочная информация о showDeleted из srsLogic *** */}
           <div>Show Deleted (srsLogic): {srsLogic.showDeleted ? 'Yes' : 'No'}</div>
           <div>Show Deleted Support: Enabled</div>
@@ -772,6 +787,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
           <div>Export All Dialog: {exportAllConfirmDialog.isOpen ? 'Open' : 'Closed'}</div>
           <div>Export All Confirmation: Enabled</div>
           <div>Export All Button State: {isExportAllInProgress ? 'Disabled with progress indicator' : 'Enabled'}</div>
+          <div>Export All Workflow: Button - showExportAllConfirmDialog - Dialog - handleExportAllConfirm - onExportAll</div>
           
           {srsLogic.typesOfLeave.length > 0 && (
             <div>
@@ -850,6 +866,9 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
               </div>
               <div>
                 Export All Checked Records: {srsRecordsForTable.filter(r => r.checked === true && r.deleted !== true).length} records ready for bulk export
+              </div>
+              <div>
+                Export All Workflow Complete: showExportAllConfirmDialog handler available and integrated
               </div>
             </>
           )}

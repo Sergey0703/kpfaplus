@@ -19,7 +19,8 @@ import { useSRSComputedValues } from './hooks/useSRSComputedValues';
 import { handleSRSButtonClick } from './SRSButtonHandler';
 
 /**
- * *** SIMPLIFIED: Main interface for useSRSTabLogic return values ***
+ * *** UPDATED: Main interface for useSRSTabLogic return values ***
+ * *** NEW: Added showExportAllConfirmDialog handler ***
  * Now much cleaner - just orchestrates the separated concerns
  */
 export interface UseSRSTabLogicReturn extends ISRSTabState {
@@ -30,6 +31,8 @@ export interface UseSRSTabLogicReturn extends ISRSTabState {
   // Data handlers
   onRefreshData: () => void;
   onExportAll: () => void;
+  // *** NEW: Handler to show Export All confirmation dialog ***
+  showExportAllConfirmDialog: () => void;
   
   // Save handlers
   onSave: () => void;
@@ -77,6 +80,7 @@ export interface UseSRSTabLogicReturn extends ISRSTabState {
 
 /**
  * *** REFACTORED: Main orchestrating hook for SRS Tab Logic ***
+ * *** UPDATED: Now includes Export All confirmation dialog support ***
  * 
  * BEFORE: 1000+ lines with mixed responsibilities
  * AFTER:  ~200-250 lines of pure orchestration
@@ -86,12 +90,13 @@ export interface UseSRSTabLogicReturn extends ISRSTabState {
  * - Maintains minimal local state for tracking modifications
  * - Orchestrates communication between handlers
  * - Provides a clean interface to components
+ * - *** NEW: Includes Export All confirmation dialog handler ***
  * 
  * Separated concerns are handled by:
  * - useSRSDateHandlers: Date change logic
  * - useSRSRecordOperations: Delete/restore/add shift operations
  * - useSRSItemHandlers: Item field changes and checkboxes
- * - useSRSSaveHandlers: Save, export, refresh operations
+ * - useSRSSaveHandlers: Save, export, refresh operations + NEW confirmation dialog
  * - useSRSSelectionHandlers: Mass selection for bulk operations
  * - useSRSDependencies: Dependencies coordination
  * - useSRSComputedValues: All derived values and statistics
@@ -99,7 +104,7 @@ export interface UseSRSTabLogicReturn extends ISRSTabState {
 export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   const { selectedStaff, context, currentUserId, managingGroupId } = props;
 
-  console.log('[useSRSTabLogic] *** REFACTORED MAIN ORCHESTRATOR HOOK STARTED ***:', {
+  console.log('[useSRSTabLogic] *** REFACTORED MAIN ORCHESTRATOR HOOK WITH EXPORT ALL CONFIRMATION DIALOG ***:', {
     hasSelectedStaff: !!selectedStaff,
     selectedStaffId: selectedStaff?.id,
     selectedStaffEmployeeId: selectedStaff?.employeeId,
@@ -111,11 +116,12 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     dateFormat: 'Date-only using SRSDateUtils',
     realTimeFeatures: 'Total Hours calculated in SRSTable',
     messagePanelSupport: 'SRS message panel for export feedback',
+    exportAllConfirmationDialog: 'NEW - confirmation dialog before bulk export', // *** NEW ***
     separatedFiles: [
       'useSRSDateHandlers',
       'useSRSRecordOperations', 
       'useSRSItemHandlers',
-      'useSRSSaveHandlers',
+      'useSRSSaveHandlers + NEW confirmation dialog', // *** UPDATED ***
       'useSRSSelectionHandlers',
       'useSRSDependencies',
       'useSRSComputedValues'
@@ -212,12 +218,15 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   console.log('[useSRSTabLogic] Item handlers initialized');
 
   // *** SEPARATED CONCERN 5: Save handlers ***
+  // *** UPDATED: Now includes showExportAllConfirmDialog ***
   const {
     onSave,
     onSaveChecked,
     onExportAll,
     onRefreshData,
-    onErrorDismiss
+    onErrorDismiss,
+    // *** NEW: Export All confirmation dialog handler ***
+    showExportAllConfirmDialog
   } = useSRSSaveHandlers({
     context,
     selectedStaff: selectedStaff && selectedStaff.employeeId ? {
@@ -240,7 +249,11 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     setAddShiftOperations: () => {}
   });
 
-  console.log('[useSRSTabLogic] Save handlers initialized');
+  console.log('[useSRSTabLogic] Save handlers initialized WITH Export All confirmation dialog:', {
+    hasExportAllHandler: !!onExportAll,
+    hasShowExportAllConfirmDialogHandler: !!showExportAllConfirmDialog, // *** NEW ***
+    exportAllConfirmationSupport: true // *** NEW ***
+  });
 
   // *** SEPARATED CONCERN 6: Selection handlers ***
   const { onItemCheck, onSelectAll } = useSRSSelectionHandlers({
@@ -374,6 +387,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
   }, [context, selectedStaff, currentUserId, managingGroupId, state, refreshSRSData, setState, onErrorDismiss]);
 
   // *** ORCHESTRATION COMPLETE - RETURN UNIFIED INTERFACE ***
+  // *** UPDATED: Now includes showExportAllConfirmDialog ***
   const orchestratedReturn: UseSRSTabLogicReturn = {
     // Spread main state
     ...state,
@@ -385,6 +399,8 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     // Data handlers
     onRefreshData,
     onExportAll,
+    // *** NEW: Export All confirmation dialog handler ***
+    showExportAllConfirmDialog,
     
     // Save handlers
     onSave,
@@ -425,7 +441,7 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
     loadHolidays
   };
 
-  console.log('[useSRSTabLogic] *** ORCHESTRATION COMPLETE - RETURNING UNIFIED INTERFACE ***:', {
+  console.log('[useSRSTabLogic] *** ORCHESTRATION COMPLETE - RETURNING UNIFIED INTERFACE WITH EXPORT ALL CONFIRMATION DIALOG ***:', {
     stateProperties: Object.keys(state).length,
     handlerFunctions: Object.keys(orchestratedReturn).filter(key => {
       const value = (orchestratedReturn as any)[key];
@@ -443,6 +459,13 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       messageType: state.srsMessage?.type,
       messageSupport: 'Full message panel integration ready'
     },
+    // *** NEW: Export All confirmation dialog info ***
+    exportAllConfirmationDialog: {
+      hasShowHandler: !!showExportAllConfirmDialog,
+      hasExecuteHandler: !!onExportAll,
+      integrationReady: true,
+      workflowPattern: 'showExportAllConfirmDialog -> user confirms -> onExportAll executes'
+    },
     architecture: {
       mainFileSize: '~250 lines (reduced from 1000+)',
       separatedConcerns: 7,
@@ -459,7 +482,8 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
       operationTracking: 'Delete/restore/addShift progress',
       checkboxSupport: 'Both UI selections and record data',
       holidayDetection: 'Holidays list date matching (Date-only)',
-      messagePanelIntegration: 'Complete SRS export feedback system'
+      messagePanelIntegration: 'Complete SRS export feedback system',
+      exportAllConfirmationDialog: 'NEW - confirmation dialog before bulk export' // *** NEW ***
     }
   });
 

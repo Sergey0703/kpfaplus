@@ -13,6 +13,7 @@ import { handleSRSButtonClick } from '../SRSButtonHandler';
 
 /**
  * Interface for save handlers return type
+ * *** UPDATED: Added showExportAllConfirmDialog ***
  */
 export interface UseSRSSaveHandlersReturn {
   onSave: () => Promise<void>;
@@ -20,6 +21,8 @@ export interface UseSRSSaveHandlersReturn {
   onExportAll: () => Promise<void>; // *** UPDATED: Now async for real export ***
   onRefreshData: () => void;
   onErrorDismiss: () => void;
+  // *** NEW: Handler to show Export All confirmation dialog ***
+  showExportAllConfirmDialog: () => void;
 }
 
 /**
@@ -49,12 +52,13 @@ interface UseSRSSaveHandlersParams {
 
 /**
  * Custom hook for handling save, export, and data refresh operations
- * *** UPDATED: Now includes real "Export All SRS" functionality ***
+ * *** UPDATED: Now includes real "Export All SRS" functionality WITH confirmation dialog ***
  * 
  * Responsibilities:
  * - Save all modified records to server with numeric time fields
  * - Save only checked/selected records  
- * - *** NEW: Export all checked SRS records to Excel ***
+ * - *** NEW: Show Export All confirmation dialog ***
+ * - *** EXISTING: Export all checked SRS records to Excel ***
  * - Manual data refresh with dependency reload
  * - Error dismissal
  */
@@ -75,7 +79,7 @@ export const useSRSSaveHandlers = (params: UseSRSSaveHandlersParams): UseSRSSave
     setAddShiftOperations
   } = params;
 
-  console.log('[useSRSSaveHandlers] Hook initialized with REAL Export All SRS functionality:', {
+  console.log('[useSRSSaveHandlers] Hook initialized with REAL Export All SRS functionality and NEW confirmation dialog:', {
     hasContext: !!context,
     hasSelectedStaff: !!selectedStaff,
     selectedStaffName: selectedStaff?.name,
@@ -86,7 +90,8 @@ export const useSRSSaveHandlers = (params: UseSRSSaveHandlersParams): UseSRSSave
     totalRecords: state.srsRecords.length,
     checkedRecords: state.srsRecords.filter((r: IStaffRecord) => r.Checked === 1).length,
     saveIntegration: 'StaffRecordsService.updateStaffRecord with numeric time fields',
-    exportAllIntegration: 'SRSButtonHandler for bulk checked records export', // *** NEW ***
+    exportAllIntegration: 'SRSButtonHandler for bulk checked records export', // *** EXISTING ***
+    exportAllConfirmDialog: 'NEW - confirmation dialog support added', // *** NEW ***
     dateFormat: 'Date-only using SRSDateUtils',
     totalHoursHandling: 'Real-time calculation in SRSTable',
     checkboxSupport: 'Saves Checked field to server'
@@ -317,7 +322,68 @@ export const useSRSSaveHandlers = (params: UseSRSSaveHandlersParams): UseSRSSave
   }, [state.selectedItems, setState, modifiedRecords, setModifiedRecords]);
 
   /**
-   * *** NEW: REAL Export All Checked SRS Records to Excel ***
+   * *** NEW: Show Export All confirmation dialog instead of immediate export ***
+   * This function is called by the "Export all SRS" button and shows the confirmation dialog
+   * *** IMPORTANT: This does NOT perform the export - only prepares for dialog display ***
+   */
+  const showExportAllConfirmDialog = useCallback((): void => {
+    console.log('[useSRSSaveHandlers] *** NEW: SHOW EXPORT ALL CONFIRMATION DIALOG ***');
+
+    // Basic validation before showing dialog
+    if (!selectedStaff) {
+      console.error('[useSRSSaveHandlers] Selected staff is not available');
+      SRSTabStateHelpers.setSRSErrorMessage(setState, 'Staff member not selected');
+      return;
+    }
+
+    // Find all checked records
+    const checkedStaffRecords = state.srsRecords.filter((record: IStaffRecord) => {
+      return record.Checked === 1 && record.Deleted !== 1; // Checked and not deleted
+    });
+
+    console.log('[useSRSSaveHandlers] Export All confirmation dialog - checked records analysis:', {
+      totalRecords: state.srsRecords.length,
+      checkedRecords: checkedStaffRecords.length,
+      deletedRecords: state.srsRecords.filter((r: IStaffRecord) => r.Deleted === 1).length,
+      checkedAndActiveRecords: checkedStaffRecords.length,
+      dateRange: `${SRSDateUtils.formatDateForDisplay(state.fromDate)} - ${SRSDateUtils.formatDateForDisplay(state.toDate)}`,
+      staffName: selectedStaff.name,
+      excelFilePath: selectedStaff.pathForSRSFile
+    });
+
+    // Check if there are any checked records
+    if (checkedStaffRecords.length === 0) {
+      console.warn('[useSRSSaveHandlers] No checked records found, showing warning instead of dialog');
+      SRSTabStateHelpers.setSRSWarningMessage(setState, 'No checked records found for export', [
+        'Please check at least one record before clicking "Export all SRS"',
+        'Only checked (✓) records will be exported to Excel',
+        `Total records available: ${state.srsRecords.length}`,
+        `Date range: ${SRSDateUtils.formatDateForDisplay(state.fromDate)} - ${SRSDateUtils.formatDateForDisplay(state.toDate)}`,
+        'Use the checkboxes in the "Check" column to select records for export'
+      ]);
+      return;
+    }
+
+    // *** NOTE: The actual dialog state management is handled in the parent component (SRSTab.tsx) ***
+    // This function just prepares the data and signals that the dialog should be shown
+    console.log('[useSRSSaveHandlers] *** Export All confirmation dialog ready to be shown by parent component ***');
+    console.log('[useSRSSaveHandlers] Dialog data prepared:', {
+      checkedRecordsCount: checkedStaffRecords.length,
+      staffName: selectedStaff.name,
+      dateRange: `${SRSDateUtils.formatDateForDisplay(state.fromDate)} - ${SRSDateUtils.formatDateForDisplay(state.toDate)}`,
+      excelFilePath: selectedStaff.pathForSRSFile,
+      readyForConfirmation: true,
+      willCallHandleExportAllAfterConfirmation: true
+    });
+
+    // The parent component (SRSTab.tsx) will handle showing the actual dialog
+    // and will call handleExportAll() after user confirmation
+
+  }, [state.srsRecords, state.fromDate, state.toDate, selectedStaff, setState]);
+
+  /**
+   * *** EXISTING: REAL Export All Checked SRS Records to Excel ***
+   * *** PRESERVED: All original logic maintained exactly as it was ***
    * This replaces the mock export functionality with real Excel export
    */
   const handleExportAll = useCallback(async (): Promise<void> => {
@@ -620,10 +686,11 @@ export const useSRSSaveHandlers = (params: UseSRSSaveHandlersParams): UseSRSSave
   }, [setState]);
 
   // Log handlers creation
-  console.log('[useSRSSaveHandlers] Save handlers created with REAL Export All functionality:', {
+  console.log('[useSRSSaveHandlers] Save handlers created with REAL Export All functionality AND NEW confirmation dialog:', {
     hasSaveHandler: !!handleSave,
     hasSaveCheckedHandler: !!handleSaveChecked,
-    hasExportAllHandler: !!handleExportAll, // *** UPDATED: Now real export ***
+    hasExportAllHandler: !!handleExportAll, // *** EXISTING: Real export functionality preserved ***
+    hasShowExportAllConfirmDialogHandler: !!showExportAllConfirmDialog, // *** NEW: Confirmation dialog ***
     hasRefreshDataHandler: !!handleRefreshData,
     hasErrorDismissHandler: !!handleErrorDismiss,
     currentModifications: modifiedRecords.size,
@@ -631,19 +698,22 @@ export const useSRSSaveHandlers = (params: UseSRSSaveHandlersParams): UseSRSSave
     selectedItemsCount: state.selectedItems.size,
     checkedRecordsCount: state.srsRecords.filter((r: IStaffRecord) => r.Checked === 1).length,
     realServiceIntegration: 'StaffRecordsService.updateStaffRecord',
-    realExportIntegration: 'SRSButtonHandler for bulk checked records', // *** NEW ***
+    realExportIntegration: 'SRSButtonHandler for bulk checked records', 
     dateFormat: 'Date-only with SRSDateUtils integration',
     totalHoursHandling: 'Real-time calculation in SRSTable',
     numericTimeFields: 'ShiftDate1Hours/Minutes, ShiftDate2Hours/Minutes',
     checkboxSaving: 'Checked field saved as 0/1 to server',
-    exportAllFeature: 'Processes all checked records grouped by date' // *** NEW ***
+    exportAllFeature: 'Processes all checked records grouped by date', // *** EXISTING ***
+    exportAllConfirmationDialog: 'NEW - shows confirmation dialog before export' // *** NEW ***
   });
 
   return {
     onSave: handleSave,
     onSaveChecked: handleSaveChecked,
-    onExportAll: handleExportAll, // *** UPDATED: Now async and real ***
+    onExportAll: handleExportAll, // *** EXISTING: Real export functionality preserved ***
     onRefreshData: handleRefreshData,
-    onErrorDismiss: handleErrorDismiss
+    onErrorDismiss: handleErrorDismiss,
+    // *** NEW: Handler to show Export All confirmation dialog ***
+    showExportAllConfirmDialog: showExportAllConfirmDialog
   };
 };
