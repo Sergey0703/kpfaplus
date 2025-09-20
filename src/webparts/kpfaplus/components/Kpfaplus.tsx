@@ -3,13 +3,14 @@ import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { IKPFAprops } from './IKpfaplusProps';
 import { StaffGallery } from './StaffGallery/StaffGallery';
-import { Pivot, PivotItem, Toggle, MessageBar, MessageBarType, Icon } from '@fluentui/react';
+import { Pivot, PivotItem, Toggle, MessageBar, MessageBarType } from '@fluentui/react';
+//import { Icon } from '@fluentui/react';
 import { useDataContext } from '../context';
 import { LoadingProgress } from './LoadingProgress/LoadingProgress';
 import { LoadingSpinner } from './LoadingSpinner/LoadingSpinner';
-import { RefreshButton } from './RefreshButton/RefreshButton';
+//import { RefreshButton } from './RefreshButton/RefreshButton';
 import { IDepartment } from '../services/DepartmentService';
-import { ILoadingStep } from '../context/types';
+//import { ILoadingStep } from '../context/types';
 import { IStaffMemberUpdateData } from '../models/types';
 import { ConfirmDialog } from './ConfirmDialog/ConfirmDialog';
 import { StaffSelector } from './StaffSelector/StaffSelector';
@@ -43,7 +44,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
  // Получаем данные из контекста вместо локальных состояний
  const {
    // Данные пользователя
-   currentUser,
+  // currentUser,
    
    // --- NEW IMPERSONATION CONTEXT ---
    impersonationState,
@@ -743,7 +744,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
        }
        rightPanel={
          <div style={{ padding: '10px', height: '100%', display: 'flex', flexDirection: 'column' }}>
-           {/* --- MODIFIED: Enhanced user information with impersonation status --- */}
+           {/* ЗАКОММЕНТИРОВАНО - информация о пользователе в правой панели
            <div style={{ 
              backgroundColor: impersonationState.isImpersonating ? '#fff4ce' : '#f6f6f6', 
              padding: '8px', 
@@ -755,7 +756,6 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
            }}>
              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                 {/* Impersonation status icon */}
                  {impersonationState.isImpersonating && (
                    <Icon 
                      iconName="Contact" 
@@ -768,7 +768,6 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
                  )}
                  
                  <div>
-                   {/* Show impersonation status */}
                    {impersonationState.isImpersonating ? (
                      <div>
                        <strong style={{ color: '#d83b01' }}>Acting as:</strong> {effectiveUser?.Title || 'Unknown'} (ID: {effectiveUser?.ID || 'Unknown'})
@@ -783,7 +782,6 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
                      </div>
                    )}
                    
-                   {/* Department count */}
                    {departments.length > 0 && (
                      <div style={{ fontSize: '11px', color: '#605e5c', marginTop: '2px' }}>
                        Managing groups: {departments.length}
@@ -808,7 +806,6 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
                </div>
              </div>
              
-             {/* Показываем журнал загрузки, если включен */}
              {showLoadingDetails && (
                <div style={{ marginTop: '10px', maxHeight: '200px', overflowY: 'auto' }}>
                  <h4 style={{ margin: '0 0 5px 0', fontSize: '14px' }}>Loading Log:</h4>
@@ -837,7 +834,7 @@ const Kpfaplus: React.FC<IKPFAprops> = (props): JSX.Element => {
                </div>
              )}
            </div>
-           {/* --- END MODIFIED USER INFORMATION --- */}
+           КОНЕЦ ЗАКОММЕНТИРОВАННОГО БЛОКА */}
            {/* Сообщение о статусе операции */}
            {statusMessage && (
              <div style={{ marginBottom: '15px', flexShrink: 0 }}>
