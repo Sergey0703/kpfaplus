@@ -5,6 +5,7 @@ import { WebPartContext } from '@microsoft/sp-webpart-base';
 import { StaffRecordsService, IStaffRecord } from '../../../../../services/StaffRecordsService';
 import { ISRSTabState, SRSTabStateHelpers } from '../useSRSTabState';
 import { SRSDateUtils } from '../SRSDateUtils';
+import { ISRSRecord } from '../SRSTabInterfaces';
 
 /**
  * Interface for new SRS shift data
@@ -52,7 +53,8 @@ interface UseSRSRecordOperationsParams {
   state: ISRSTabState;
   setState: React.Dispatch<React.SetStateAction<ISRSTabState>>;
   refreshSRSData: () => Promise<void>;
-  setModifiedRecords: React.Dispatch<React.SetStateAction<Map<string, Partial<any>>>>;
+  // *** ИСПРАВЛЕНО: Заменил any на правильный тип ***
+  setModifiedRecords: React.Dispatch<React.SetStateAction<Map<string, Partial<ISRSRecord>>>>;
 }
 
 /**

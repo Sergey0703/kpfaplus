@@ -443,8 +443,9 @@ export const useSRSTabLogic = (props: ITabProps): UseSRSTabLogicReturn => {
 
   console.log('[useSRSTabLogic] *** ORCHESTRATION COMPLETE - RETURNING UNIFIED INTERFACE WITH EXPORT ALL CONFIRMATION DIALOG ***:', {
     stateProperties: Object.keys(state).length,
+    // *** ИСПРАВЛЕНО: Подсчет функций без использования any ***
     handlerFunctions: Object.keys(orchestratedReturn).filter(key => {
-      const value = (orchestratedReturn as any)[key];
+      const value = orchestratedReturn[key as keyof UseSRSTabLogicReturn];
       return typeof value === 'function';
     }).length,
     computedValues: {
