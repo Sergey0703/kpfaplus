@@ -592,10 +592,11 @@ export class SRSDateUtils {
   }
 
   /**
+   * *** ИСПРАВЛЕНО: Заменил null на undefined ***
    * NEW: Deserializes a YYYY-MM-DD string back into a local Date object.
    * Treats the string as a local date, preventing timezone shifts.
    */
-  public static deserializeDateOnly(dateString: string): Date | null {
+  public static deserializeDateOnly(dateString: string): Date | undefined {
     const parts = dateString.split('-');
     if (parts.length === 3) {
       const year = parseInt(parts[0], 10);
@@ -608,6 +609,6 @@ export class SRSDateUtils {
       return deserialized;
     }
     console.warn(`[SRSDateUtils] Invalid date string for deserialization: ${dateString}`);
-    return null;
+    return undefined;
   }
 }

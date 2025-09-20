@@ -3,6 +3,7 @@
 import { useCallback } from 'react';
 import { ISRSTabState, SRSTabStateHelpers } from '../useSRSTabState';
 import { SRSDateUtils } from '../SRSDateUtils';
+import { ISRSRecord } from '../SRSTabInterfaces';
 
 /**
  * Interface for date handlers return type
@@ -18,7 +19,8 @@ export interface UseSRSDateHandlersReturn {
 interface UseSRSDateHandlersParams {
   state: ISRSTabState;
   setState: React.Dispatch<React.SetStateAction<ISRSTabState>>;
-  setModifiedRecords: React.Dispatch<React.SetStateAction<Map<string, Partial<any>>>>;
+  // *** ИСПРАВЛЕНО: Заменил any на правильный тип ***
+  setModifiedRecords: React.Dispatch<React.SetStateAction<Map<string, Partial<ISRSRecord>>>>;
   setAddShiftOperations: React.Dispatch<React.SetStateAction<Map<string, boolean>>>;
 }
 
