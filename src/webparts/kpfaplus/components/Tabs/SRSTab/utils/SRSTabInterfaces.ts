@@ -62,7 +62,7 @@ export interface ISRSTableOptions {
 }
 
 /**
- * ОБНОВЛЕНО: Пропсы для компонента SRSFilterControls - убран totalHours, добавлен calculatedTotalHours
+ * ОБНОВЛЕНО: Пропсы для компонента SRSFilterControls - убран totalHours, добавлен calculatedTotalHours и isExportAllInProgress
  */
 export interface ISRSFilterControlsProps {
   fromDate: Date; // ОБНОВЛЕНО: Date-only формат
@@ -77,10 +77,12 @@ export interface ISRSFilterControlsProps {
   onSaveChecked: () => void;
   hasChanges: boolean; // Есть ли несохраненные изменения
   hasCheckedItems: boolean; // Есть ли отмеченные записи
+  // *** НОВОЕ: Поддержка состояния Export All прогресса ***
+  isExportAllInProgress?: boolean; // Состояние Export All операции
 }
 
 /**
- * ОБНОВЛЕНО: Пропсы для компонента SRSTable - добавлен holidays list для определения праздников Date-only
+ * ОБНОВЛЕНО: Пропсы для компонента SRSTable - добавлен holidays list для определения праздников Date-only и isExportAllInProgress
  */
 export interface ISRSTableProps {
   items: ISRSRecord[];
@@ -108,11 +110,13 @@ export interface ISRSTableProps {
   // *** НОВОЕ: Обработчик кнопки SRS ***
   onSRSButtonClick?: (item: ISRSRecord) => void;
   isSRSExporting?: boolean;
+  // *** НОВОЕ: Поддержка состояния Export All прогресса ***
+  isExportAllInProgress?: boolean; // Состояние Export All операции
 }
 
 /**
  * Пропсы для компонента SRSTableRow
- * ОБНОВЛЕНО: Добавлен holidays list для определения праздников Date-only
+ * ОБНОВЛЕНО: Добавлен holidays list для определения праздников Date-only и isExportAllInProgress
  */
 export interface ISRSTableRowProps {
   item: ISRSRecord;
@@ -135,6 +139,8 @@ export interface ISRSTableRowProps {
   // *** НОВОЕ: Обработчик кнопки SRS ***
   onSRSButtonClick?: (item: ISRSRecord) => void;
   isSRSExporting?: boolean;
+  // *** НОВОЕ: Поддержка состояния Export All прогресса ***
+  isExportAllInProgress?: boolean; // Состояние Export All операции
 }
 
 /**
@@ -239,6 +245,17 @@ export interface ISRSDeleteRestoreParams {
   managingGroupId: string;
 }
 
+/**
+ * *** НОВОЕ: Интерфейс для диалога подтверждения Export All SRS ***
+ */
+export interface ISRSExportAllConfirmDialogProps {
+  isOpen: boolean;
+  checkedRecordsCount: number;
+  staffName?: string;
+  dateRange?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
 /**
  * ИСПРАВЛЕНО: Интерфейсы для showDeleted функционала
  */

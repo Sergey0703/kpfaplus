@@ -34,7 +34,8 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     dateOnlyFormat: true, // *** НОВОЕ: Date-only формат праздников ***
     checkboxFunctionality: true, // *** НОВОЕ: Checkbox функциональность для Check колонки ***
     srsMessagePanelSupport: true, // *** НОВОЕ: Поддержка панели сообщений SRS операций ***
-    fixedDialogClosing: true // *** ИСПРАВЛЕНО: Диалог закрывается сразу, спиннер показывается ***
+    fixedDialogClosing: true, // *** ИСПРАВЛЕНО: Диалог закрывается сразу, спиннер показывается ***
+    exportAllConfirmDialog: true // *** НОВОЕ: Диалог подтверждения для Export All SRS ***
   });
   
   // *** ИСПРАВЛЕНО: Используем главный хук логики с поддержкой real-time ***
@@ -65,10 +66,21 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     message: ''
   });
 
+  // *** НОВОЕ: State для диалога подтверждения Export All SRS ***
+  const [exportAllConfirmDialog, setExportAllConfirmDialog] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    checkedRecordsCount: 0
+  });
+
   // *** ИСПРАВЛЕНИЕ: Добавляем состояние для отслеживания SRS экспорта ***
   const [isSRSExporting, setIsSRSExporting] = useState(false);
 
-  console.log('[SRSTab] *** SRS Logic state with REAL-TIME TOTAL HOURS and HOLIDAYS FROM LIST (Date-only) + SRS MESSAGE PANEL + FIXED DIALOG ***:', {
+  // *** НОВОЕ: Добавляем состояние для отслеживания Export All экспорта ***
+  const [isExportAllInProgress, setIsExportAllInProgress] = useState(false);
+
+  console.log('[SRSTab] *** SRS Logic state with REAL-TIME TOTAL HOURS and HOLIDAYS FROM LIST (Date-only) + SRS MESSAGE PANEL + FIXED DIALOG + EXPORT ALL DIALOG ***:', {
     recordsCount: srsLogic.srsRecords.length,
     // *** УБРАНО: totalHours больше не в state - вычисляется в SRSTable ***
     fromDate: srsLogic.fromDate.toLocaleDateString(),
@@ -107,7 +119,11 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     srsMessagePanelIntegration: 'Complete SRS export feedback system',
     // *** ИСПРАВЛЕНИЕ: Информация о состоянии экспорта ***
     isSRSExporting,
-    dialogFixApplied: 'Dialog closes immediately, spinner shows during export'
+    dialogFixApplied: 'Dialog closes immediately, spinner shows during export',
+    // *** НОВОЕ: Информация о Export All диалоге ***
+    exportAllDialogSupport: true,
+    isExportAllInProgress,
+    exportAllConfirmationEnabled: true
   });
 
   // *** НОВОЕ: Обработчик показа диалога удаления ***
@@ -168,6 +184,40 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       message: `Export SRS records to Excel for ${selectedStaff?.name} on ${item.date.toLocaleDateString()}? ${dateRecords.length} checked record(s) will be exported.`
     });
   }, [srsLogic.srsRecords, selectedStaff?.name, isSRSExporting]);
+
+  // *** НОВОЕ: Обработчик показа диалога подтверждения Export All SRS ***
+  const showExportAllConfirmDialog = useCallback((): void => {
+    console.log('[SRSTab] *** SHOW EXPORT ALL CONFIRM DIALOG ***');
+    
+    // Проверяем, не идет ли уже экспорт
+    if (isExportAllInProgress) {
+      console.log('[SRSTab] Export All already in progress, ignoring dialog request');
+      return;
+    }
+    
+    // Подсчитываем количество отмеченных записей
+    const checkedRecords = srsLogic.srsRecords.filter(r => r.Checked === 1 && r.Deleted !== 1);
+    
+    console.log('[SRSTab] Export All dialog data:', {
+      totalRecords: srsLogic.srsRecords.length,
+      checkedRecords: checkedRecords.length,
+      deletedRecords: srsLogic.srsRecords.filter(r => r.Deleted === 1).length,
+      staffName: selectedStaff?.name
+    });
+    
+    if (checkedRecords.length === 0) {
+      console.warn('[SRSTab] No checked records found for Export All');
+      // Можно показать предупреждение пользователю
+      return;
+    }
+    
+    setExportAllConfirmDialog({
+      isOpen: true,
+      title: 'Confirm Export All SRS',
+      message: `Export all ${checkedRecords.length} checked SRS record(s) to Excel for ${selectedStaff?.name}? This will process all checked records across all dates in the current range.`,
+      checkedRecordsCount: checkedRecords.length
+    });
+  }, [srsLogic.srsRecords, selectedStaff?.name, isExportAllInProgress]);
 
   // *** НОВОЕ: Обработчик подтверждения удаления ***
   const handleDeleteConfirm = useCallback(async (): Promise<void> => {
@@ -296,6 +346,36 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     }
   }, [srsConfirmDialog.item, srsLogic.onSRSButtonClick]);
 
+  // *** НОВОЕ: Обработчик подтверждения Export All SRS экспорта ***
+  const handleExportAllConfirm = useCallback(async (): Promise<void> => {
+    console.log('[SRSTab] *** EXPORT ALL CONFIRM - IMMEDIATE DIALOG CLOSE + PROGRESS TRACKING ***');
+    
+    // *** ЗАКРЫВАЕМ ДИАЛОГ СРАЗУ В НАЧАЛЕ ***
+    setExportAllConfirmDialog(prev => ({ ...prev, isOpen: false }));
+    console.log('[SRSTab] ✓ Export All dialog closed immediately');
+
+    // *** ПОКАЗЫВАЕМ ИНДИКАТОР ПРОЦЕССА ***
+    setIsExportAllInProgress(true);
+    console.log('[SRSTab] ✓ Export All progress indicator enabled');
+
+    try {
+      console.log('[SRSTab] Calling REAL srsLogic.onExportAll with progress tracking active');
+      
+      // *** КЛЮЧЕВОЙ ВЫЗОВ: Используем РЕАЛЬНЫЙ обработчик из useSRSTabLogic ***
+      await srsLogic.onExportAll();
+      
+      console.log('[SRSTab] ✓ Export All operation completed successfully');
+      
+    } catch (error) {
+      console.error('[SRSTab] ✗ Error during Export All operation:', error);
+      alert(`Error exporting all SRS records: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      // *** УБИРАЕМ ИНДИКАТОР ПРОЦЕССА В ЛЮБОМ СЛУЧАЕ ***
+      setIsExportAllInProgress(false);
+      console.log('[SRSTab] ✓ Export All progress indicator disabled');
+    }
+  }, [srsLogic.onExportAll]);
+
   // *** НОВОЕ: Обработчики закрытия диалогов ***
   const handleDeleteCancel = useCallback((): void => {
     console.log('[SRSTab] Delete dialog cancelled');
@@ -313,6 +393,12 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     setSrsConfirmDialog(prev => ({ ...prev, isOpen: false }));
   }, []);
 
+  // *** НОВОЕ: Обработчик отмены Export All экспорта ***
+  const handleExportAllCancel = useCallback((): void => {
+    console.log('[SRSTab] Export All dialog cancelled (no progress indicator needed)');
+    setExportAllConfirmDialog(prev => ({ ...prev, isOpen: false }));
+  }, []);
+
   // *** НОВОЕ: Обработчик закрытия панели сообщений ***
   const handleSRSMessageDismiss = useCallback((): void => {
     console.log('[SRSTab] SRS message panel dismissed');
@@ -326,9 +412,15 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
     }
   }, [srsLogic]);
 
+  // *** НОВОЕ: Модифицированный обработчик Export All с диалогом подтверждения ***
+  const handleExportAllWithConfirmation = useCallback((): void => {
+    console.log('[SRSTab] Export All button clicked - showing confirmation dialog');
+    showExportAllConfirmDialog();
+  }, [showExportAllConfirmDialog]);
+
   // Создание опций для таблицы с типами отпусков
   const tableOptions: ISRSTableOptions = React.useMemo(() => {
-    console.log('[SRSTab] Creating table options with types of leave, holidays from list (Date-only), delete/restore support, and FIXED DIALOG + SPINNER:', {
+    console.log('[SRSTab] Creating table options with types of leave, holidays from list (Date-only), delete/restore support, and FIXED DIALOG + SPINNER + EXPORT ALL DIALOG:', {
       typesOfLeaveCount: srsLogic.typesOfLeave.length,
       isLoadingTypesOfLeave: srsLogic.isLoadingTypesOfLeave,
       holidaysCount: srsLogic.holidays.length,
@@ -340,7 +432,9 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       checkboxSupport: true, // *** НОВОЕ: Checkbox функциональность ***
       srsMessagePanelSupport: true, // *** НОВОЕ: Поддержка панели сообщений ***
       fixedDialogAndSpinner: true, // *** ИСПРАВЛЕНО ***
-      isSRSExporting // *** ИСПРАВЛЕНИЕ: Состояние экспорта для спиннера ***
+      isSRSExporting, // *** ИСПРАВЛЕНИЕ: Состояние экспорта для спиннера ***
+      exportAllDialogSupport: true, // *** НОВОЕ: Поддержка диалога Export All ***
+      isExportAllInProgress // *** НОВОЕ: Состояние Export All для индикации прогресса ***
     });
 
     // Создаем стандартные опции
@@ -364,11 +458,11 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       ...standardOptions,
       leaveTypes: leaveTypesOptions
     };
-  }, [srsLogic.typesOfLeave, srsLogic.isLoadingTypesOfLeave, srsLogic.holidays.length, srsLogic.isLoadingHolidays, isSRSExporting]);
+  }, [srsLogic.typesOfLeave, srsLogic.isLoadingTypesOfLeave, srsLogic.holidays.length, srsLogic.isLoadingHolidays, isSRSExporting, isExportAllInProgress]);
 
   // Преобразуем IStaffRecord[] в ISRSRecord[] для компонентов
   const srsRecordsForTable: ISRSRecord[] = React.useMemo(() => {
-    console.log('[SRSTab] Converting staff records to SRS records with types of leave, holidays from list (Date-only), delete support, checkbox support, showDeleted filter, and FIXED DIALOG + SPINNER:', {
+    console.log('[SRSTab] Converting staff records to SRS records with types of leave, holidays from list (Date-only), delete support, checkbox support, showDeleted filter, FIXED DIALOG + SPINNER, and EXPORT ALL DIALOG:', {
       originalCount: srsLogic.srsRecords.length,
       typesOfLeaveAvailable: srsLogic.typesOfLeave.length,
       holidaysAvailable: srsLogic.holidays.length,
@@ -379,7 +473,9 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       checkboxFunctionality: true, // *** НОВОЕ: Checkbox функциональность ***
       srsMessagePanelSupport: true, // *** НОВОЕ: Поддержка панели сообщений ***
       fixedDialogAndSpinner: true, // *** ИСПРАВЛЕНО ***
-      isSRSExporting // *** ИСПРАВЛЕНИЕ: Состояние экспорта ***
+      isSRSExporting, // *** ИСПРАВЛЕНИЕ: Состояние экспорта ***
+      exportAllDialogSupport: true, // *** НОВОЕ: Поддержка диалога Export All ***
+      isExportAllInProgress // *** НОВОЕ: Состояние Export All ***
     });
 
     const mappedRecords = SRSDataMapper.mapStaffRecordsToSRSRecords(srsLogic.srsRecords);
@@ -431,7 +527,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       
       console.log('[SRSTab] Checkbox statistics in mapped records:', checkedStats);
       
-      // *** НОВОЕ: Логируем информацию о фильтрации ***
+              // *** НОВОЕ: Логируем информацию о фильтрации ***
       console.log('[SRSTab] ShowDeleted filtering info:', {
         showDeleted: srsLogic.showDeleted,
         totalRecords: deleteStats.totalRecords,
@@ -440,12 +536,13 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         serverFiltering: 'Records already filtered by server based on showDeleted flag',
         holidayDetection: 'Based on holidays list date matching (Date-only), not Holiday field',
         checkboxSupport: 'Checkbox values from Checked column in StaffRecords',
-        exportSpinnerSupport: 'SRS button shows spinner during export' // *** ИСПРАВЛЕНО ***
+        exportSpinnerSupport: 'SRS button shows spinner during export', // *** ИСПРАВЛЕНО ***
+        exportAllDialogSupport: 'Export All SRS button shows confirmation dialog' // *** НОВОЕ ***
       });
     }
 
     return mappedRecords;
-  }, [srsLogic.srsRecords, srsLogic.typesOfLeave.length, srsLogic.holidays, srsLogic.showDeleted, isSRSExporting]);
+  }, [srsLogic.srsRecords, srsLogic.typesOfLeave.length, srsLogic.holidays, srsLogic.showDeleted, isSRSExporting, isExportAllInProgress]);
 
   // Обработчик изменения типа отпуска
   const handleTypeOfLeaveChange = React.useCallback((item: ISRSRecord, value: string) => {
@@ -525,6 +622,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
       
       {/* *** КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: SRSTable теперь управляет SRSFilterControls и Total Hours, получает holidays Date-only *** */}
       {/* *** ИСПРАВЛЕНО: Передаем состояние экспорта для спиннера *** */}
+      {/* *** НОВОЕ: Передаем модифицированный обработчик Export All с диалогом подтверждения *** */}
       <SRSTable
         items={srsRecordsForTable}
         options={tableOptions}
@@ -551,7 +649,8 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         onFromDateChange={srsLogic.onFromDateChange}
         onToDateChange={srsLogic.onToDateChange}
         onRefresh={srsLogic.onRefreshData}
-        onExportAll={srsLogic.onExportAll}
+        // *** ИЗМЕНЕНО: Используем модифицированный обработчик Export All с диалогом подтверждения ***
+        onExportAll={handleExportAllWithConfirmation}
         onSave={srsLogic.onSave}
         onSaveChecked={srsLogic.onSaveChecked}
         hasChanges={srsLogic.hasUnsavedChanges}
@@ -564,6 +663,8 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         
         // *** ИСПРАВЛЕНИЕ: Передаем состояние экспорта для спиннера на кнопке SRS ***
         isSRSExporting={isSRSExporting}
+        // *** НОВОЕ: Передаем состояние Export All для индикации прогресса ***
+        isExportAllInProgress={isExportAllInProgress}
       />
       
       {/* *** НОВОЕ: Диалоги подтверждения удаления и восстановления *** */}
@@ -603,8 +704,20 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
         onDismiss={handleSRSCancel}
         confirmButtonColor="#0078d4" // Blue for export
       />
+
+      {/* *** НОВОЕ: Диалог подтверждения Export All SRS экспорта *** */}
+      <ConfirmDialog
+        isOpen={exportAllConfirmDialog.isOpen}
+        title={exportAllConfirmDialog.title}
+        message={exportAllConfirmDialog.message}
+        confirmButtonText="Export All"
+        cancelButtonText="Cancel"
+        onConfirm={handleExportAllConfirm}
+        onDismiss={handleExportAllCancel}
+        confirmButtonColor="#0078d4" // Blue for export
+      />
       
-      {/* *** ИСПРАВЛЕНО: Отладочная информация с real-time архитектурой, праздниками из списка Date-only, SRS Message Panel и ИСПРАВЛЕННЫМ ДИАЛОГОМ *** */}
+      {/* *** ИСПРАВЛЕНО: Отладочная информация с real-time архитектурой, праздниками из списка Date-only, SRS Message Panel, ИСПРАВЛЕННЫМ ДИАЛОГОМ и EXPORT ALL ДИАЛОГОМ *** */}
       {process.env.NODE_ENV === 'development' && (
         <div style={{
           marginTop: '20px',
@@ -615,7 +728,7 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
           fontSize: '11px',
           color: '#666'
         }}>
-          <strong>Debug Info (Real-time Total Hours + Holidays from List Date-only + Checkbox + SRS Message Panel + Fixed Dialog):</strong>
+          <strong>Debug Info (Real-time Total Hours + Holidays from List Date-only + Checkbox + SRS Message Panel + Fixed Dialog + Export All Dialog):</strong>
           <div>SRS Records: {srsRecordsForTable.length}</div>
           <div>Types of Leave: {srsLogic.typesOfLeave.length}</div>
          <div>Loading Types: {srsLogic.isLoadingTypesOfLeave ? 'Yes' : 'No'}</div>
@@ -631,6 +744,9 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
           <div>Delete Dialog Open: {deleteConfirmDialog.isOpen ? 'Yes' : 'No'}</div>
           <div>Restore Dialog Open: {restoreConfirmDialog.isOpen ? 'Yes' : 'No'}</div>
           <div>SRS Dialog Open: {srsConfirmDialog.isOpen ? 'Yes' : 'No'}</div>
+          {/* *** НОВОЕ: Отладочная информация о диалоге Export All *** */}
+          <div>Export All Dialog Open: {exportAllConfirmDialog.isOpen ? 'Yes' : 'No'}</div>
+          <div>Export All Dialog Support: Enabled</div>
           {/* *** ИСПРАВЛЕНО: Отладочная информация о showDeleted из srsLogic *** */}
           <div>Show Deleted (srsLogic): {srsLogic.showDeleted ? 'Yes' : 'No'}</div>
           <div>Show Deleted Support: Enabled</div>
@@ -651,6 +767,11 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
           <div>SRS Export State: {isSRSExporting ? 'EXPORTING (Spinner Active)' : 'Ready'}</div>
           <div>Dialog Fix Applied: {isSRSExporting ? 'Dialog closes immediately, spinner shows' : 'Dialog and spinner ready'}</div>
           <div>Export Button State: {isSRSExporting ? 'Disabled with spinner' : 'Enabled'}</div>
+          {/* *** НОВОЕ: Информация о состоянии Export All *** */}
+          <div>Export All State: {isExportAllInProgress ? 'IN PROGRESS (Progress Indicator Active)' : 'Ready'}</div>
+          <div>Export All Dialog: {exportAllConfirmDialog.isOpen ? 'Open' : 'Closed'}</div>
+          <div>Export All Confirmation: Enabled</div>
+          <div>Export All Button State: {isExportAllInProgress ? 'Disabled with progress indicator' : 'Enabled'}</div>
           
           {srsLogic.typesOfLeave.length > 0 && (
             <div>
@@ -716,6 +837,19 @@ export const SRSTab: React.FC<ITabProps> = (props): JSX.Element => {
               </div>
               <div>
                 Dialog Fix Status: {isSRSExporting ? 'Dialog closed, export in progress' : 'Ready for next export'}
+              </div>
+              {/* *** НОВОЕ: Отладочная информация о Export All *** */}
+              <div>
+                Export All Confirmation: {exportAllConfirmDialog.isOpen ? 'Dialog open' : 'Dialog closed'}
+              </div>
+              <div>
+                Export All Progress: {isExportAllInProgress ? 'IN PROGRESS - Progress indicator active' : 'READY - Button shows "Export all SRS"'}
+              </div>
+              <div>
+                Export All Dialog Status: {isExportAllInProgress ? 'Dialog closed, export in progress' : 'Ready for next export'}
+              </div>
+              <div>
+                Export All Checked Records: {srsRecordsForTable.filter(r => r.checked === true && r.deleted !== true).length} records ready for bulk export
               </div>
             </>
           )}

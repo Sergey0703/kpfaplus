@@ -18,17 +18,21 @@ export const SRSFilterControls: React.FC<ISRSFilterControlsProps> = (props) => {
     onSave,
     onSaveChecked,
     hasChanges,
-    hasCheckedItems
+    hasCheckedItems,
+    // *** НОВОЕ: Поддержка состояния Export All прогресса ***
+    isExportAllInProgress
   } = props;
 
-  console.log('[SRSFilterControls] Rendering with REAL-TIME TOTAL HOURS:', {
+  console.log('[SRSFilterControls] Rendering with REAL-TIME TOTAL HOURS and EXPORT ALL DIALOG SUPPORT:', {
     fromDate: fromDate.toISOString(),
     toDate: toDate.toISOString(),
     calculatedTotalHours, // *** ИЗМЕНЕНО: calculatedTotalHours вместо totalHours ***
     isLoading,
     hasChanges,
     hasCheckedItems,
-    realTimeCalculation: true // *** НОВОЕ: Индикатор вычисления в реальном времени ***
+    realTimeCalculation: true, // *** НОВОЕ: Индикатор вычисления в реальном времени ***
+    isExportAllInProgress, // *** НОВОЕ: Состояние Export All прогресса ***
+    exportAllDialogSupport: true // *** НОВОЕ: Поддержка диалога Export All ***
   });
 
   return (
@@ -107,24 +111,25 @@ export const SRSFilterControls: React.FC<ISRSFilterControlsProps> = (props) => {
           }}
         />
 
-        {/* Export All SRS Button - moved here */}
+        {/* *** ОБНОВЛЕНО: Export All SRS Button - теперь с поддержкой диалога подтверждения и состояния прогресса *** */}
         <DefaultButton
-          text="Export all SRS"
+          text={isExportAllInProgress ? "Exporting..." : "Export all SRS"}
           onClick={onExportAll}
-          disabled={isLoading}
-          styles={{
-            root: {
-              backgroundColor: '#0078d4',
-              color: 'white',
+          disabled={isLoading || isExportAllInProgress} // *** НОВОЕ: Блокируем во время экспорта ***
+          styles={{ 
+            root: { 
+              backgroundColor: isExportAllInProgress ? '#f3f2f1' : '#0078d4', // *** НОВОЕ: Изменяем цвет во время экспорта ***
+              color: isExportAllInProgress ? '#a19f9d' : 'white', // *** НОВОЕ: Изменяем цвет текста ***
               border: 'none',
               minWidth: '120px',
               height: '32px',
-              fontSize: '12px'
+              fontSize: '12px',
+              cursor: isExportAllInProgress ? 'not-allowed' : 'pointer' // *** НОВОЕ: Изменяем курсор ***
             },
-            rootHovered: {
+            rootHovered: !isLoading && !isExportAllInProgress ? { // *** НОВОЕ: Hover только если не экспортируем ***
               backgroundColor: '#106ebe',
               color: 'white'
-            }
+            } : undefined
           }}
         />
       </div>
@@ -158,6 +163,20 @@ export const SRSFilterControls: React.FC<ISRSFilterControlsProps> = (props) => {
           }}>
             Real-time
           </span>
+          {/* *** НОВОЕ: Индикатор Export All прогресса *** */}
+          {isExportAllInProgress && (
+            <span style={{
+              fontSize: '11px',
+              color: '#0078d4',
+              fontWeight: 'normal',
+              padding: '2px 6px',
+              backgroundColor: '#f0f6ff',
+              borderRadius: '3px',
+              border: '1px solid #c7e4f9'
+            }}>
+              Export All in progress...
+            </span>
+          )}
         </div>
 
         {/* Кнопки Save */}
@@ -165,11 +184,11 @@ export const SRSFilterControls: React.FC<ISRSFilterControlsProps> = (props) => {
           <PrimaryButton
             text="💾 Save"
             onClick={onSave}
-            disabled={isLoading || !hasChanges}
+            disabled={isLoading || !hasChanges || isExportAllInProgress} // *** НОВОЕ: Блокируем во время Export All ***
             styles={{
               root: {
-                backgroundColor: hasChanges ? '#0078d4' : '#f3f2f1',
-                color: hasChanges ? 'white' : '#a19f9d',
+                backgroundColor: hasChanges && !isExportAllInProgress ? '#0078d4' : '#f3f2f1', // *** НОВОЕ: Учитываем Export All прогресс ***
+                color: hasChanges && !isExportAllInProgress ? 'white' : '#a19f9d',
                 border: 'none',
                 minWidth: '80px',
                 height: '28px',
@@ -178,7 +197,7 @@ export const SRSFilterControls: React.FC<ISRSFilterControlsProps> = (props) => {
                 alignItems: 'center',
                 gap: '4px'
               },
-              rootHovered: hasChanges ? {
+              rootHovered: hasChanges && !isExportAllInProgress ? {
                 backgroundColor: '#106ebe',
                 color: 'white'
               } : undefined
@@ -188,17 +207,17 @@ export const SRSFilterControls: React.FC<ISRSFilterControlsProps> = (props) => {
           <PrimaryButton
             text="All in Checked & Save"
             onClick={onSaveChecked}
-            disabled={isLoading || !hasCheckedItems}
+            disabled={isLoading || !hasCheckedItems || isExportAllInProgress} // *** НОВОЕ: Блокируем во время Export All ***
             styles={{
               root: {
-                backgroundColor: hasCheckedItems ? '#0078d4' : '#f3f2f1',
-                color: hasCheckedItems ? 'white' : '#a19f9d',
+                backgroundColor: hasCheckedItems && !isExportAllInProgress ? '#0078d4' : '#f3f2f1', // *** НОВОЕ: Учитываем Export All прогресс ***
+                color: hasCheckedItems && !isExportAllInProgress ? 'white' : '#a19f9d',
                 border: 'none',
                 minWidth: '140px',
                 height: '28px',
                 fontSize: '12px'
               },
-              rootHovered: hasCheckedItems ? {
+              rootHovered: hasCheckedItems && !isExportAllInProgress ? {
                 backgroundColor: '#106ebe',
                 color: 'white'
               } : undefined
