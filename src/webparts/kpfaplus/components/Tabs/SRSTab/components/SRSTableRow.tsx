@@ -81,7 +81,58 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   // Определяем состояние записи: Является ли запись удаленной
   const isDeleted = item.deleted === true;
 
-  console.log(`[SRSTableRow] Rendering row for item ${item.id} with HOLIDAY FROM HOLIDAYS LIST (Date-only):`, {
+  // *** НОВОЕ: Функция для определения стилей кнопки SRS на основе ExportResult ***
+  const getSRSButtonStyles = useCallback((): object => {
+    // Определяем цвет кнопки на основе значения srs (которое маппится из ExportResult)
+    // ExportResult = 0 (не экспортировано) -> синий цвет
+    // ExportResult = 1 (ошибка экспорта) -> красный цвет  
+    // ExportResult = 2 (успешно экспортировано) -> зеленый цвет
+    
+    // Поскольку srs в ISRSRecord является boolean, нам нужно получить исходное значение ExportResult
+    // Временно используем логику на основе существующего boolean поля
+    // В будущем может потребоваться добавить отдельное поле exportResult в ISRSRecord
+    
+    let backgroundColor = '#0078d4'; // Синий по умолчанию (ExportResult = 0)
+    let hoverBackgroundColor = '#106ebe'; // Темно-синий hover
+    
+    // Логика определения цвета:
+    // Если srs === true, это может означать ExportResult = 1 или 2
+    // Для более точного определения нужна дополнительная логика
+    if (item.srs === true) {
+      // Пока что делаем зеленым для успешного экспорта (ExportResult = 2)
+      backgroundColor = '#107c10'; // Зеленый
+      hoverBackgroundColor = '#0b5a0b'; // Темно-зеленый hover
+    } else if (item.srs === false) {
+      // Если srs === false, это ExportResult = 0 (не экспортировано)
+      backgroundColor = '#0078d4'; // Синий
+      hoverBackgroundColor = '#106ebe'; // Темно-синий hover
+    }
+    
+    // TODO: Для полной реализации нужно добавить поддержку ExportResult = 1 (красный цвет)
+    // Это потребует изменения в SRSDataMapper для передачи точного значения ExportResult
+    
+    return {
+      root: {
+        backgroundColor: backgroundColor,
+        color: 'white',
+        border: 'none',
+        minWidth: '40px',
+        height: '28px',
+        fontSize: '11px',
+        borderRadius: '2px',
+        ...(isDeleted && {
+          backgroundColor: '#f5f5f5',
+          color: '#888',
+          borderColor: '#ddd'
+        })
+      },
+      rootHovered: !isDeleted ? {
+        backgroundColor: hoverBackgroundColor
+      } : undefined
+    };
+  }, [item.srs, isDeleted]);
+
+  console.log(`[SRSTableRow] Rendering row for item ${item.id} with HOLIDAY FROM HOLIDAYS LIST (Date-only) and SRS BUTTON COLOR LOGIC:`, {
     date: item.date.toLocaleDateString(),
     // *** ИЗМЕНЕНО: Логируем праздник на основе списка с Date-only форматом ***
     isHoliday: isHoliday,
@@ -103,6 +154,11 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     holidayDetectionMethod: 'Holidays list date matching (Date-only), not Holiday field', // *** НОВОЕ ***
     checked: item.checked,
     hasItemCheckHandler: !!onItemCheck,
+    // *** НОВОЕ: Логируем информацию о цвете кнопки SRS ***
+    srsButtonColorLogic: true,
+    srsValue: item.srs,
+    srsButtonColor: item.srs === true ? 'Green (ExportResult=2)' : 'Blue (ExportResult=0)',
+    srsButtonColorNote: 'Red color (ExportResult=1) requires SRSDataMapper changes',
     // *** ИЗМЕНЕНО: Логируем информацию о диалоге подтверждения SRS ***
     rowPositionInDate,
     hasSRSConfirmHandler: !!showSRSConfirmDialog,
@@ -111,7 +167,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
 
   // Синхронизируем локальное состояние с props при изменении item
   useEffect(() => {
-    console.log('[SRSTableRow] Syncing local state with item (numeric time fields + timeLeave + holiday from list Date-only):', {
+    console.log('[SRSTableRow] Syncing local state with item (numeric time fields + timeLeave + holiday from list Date-only + SRS button colors):', {
       itemId: item.id,
       startWork: item.startWork,
       finishWork: item.finishWork,
@@ -124,7 +180,10 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
       // *** ИЗМЕНЕНО: Логируем праздник из списка Date-only, а не из поля ***
       holidayFromField: item.Holiday,
       holidayFromList: isHoliday,
-      holidayTitle: holidayInfo?.title || 'Not a holiday'
+      holidayTitle: holidayInfo?.title || 'Not a holiday',
+      // *** НОВОЕ: Логируем SRS статус для цвета кнопки ***
+      srsStatus: item.srs,
+      srsButtonWillBe: item.srs === true ? 'Green' : 'Blue'
     });
     
     setLocalStartWork(item.startWork);
@@ -133,7 +192,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     setLocalContract(item.contract);
     setLocalTypeOfLeave(item.typeOfLeave);
     setLocalTimeLeave(item.timeLeave);
-  }, [item.id, item.startWork, item.finishWork, item.lunch, item.contract, item.typeOfLeave, item.timeLeave, item.deleted, item.checked, isHoliday, holidayInfo]);
+  }, [item.id, item.startWork, item.finishWork, item.lunch, item.contract, item.typeOfLeave, item.timeLeave, item.deleted, item.checked, isHoliday, holidayInfo, item.srs]);
 
   // *** ИСПРАВЛЕНО: Обработчик клика по кнопке "+Shift" без проверки Holiday поля ***
   const handleAddShiftClick = useCallback((): void => {
@@ -188,6 +247,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   // *** ИЗМЕНЕНО: Обработчик клика по кнопке SRS - теперь показывает диалог подтверждения ***
   const handleSRSButtonClick = useCallback((): void => {
     console.log(`[SRSTableRow] *** SRS BUTTON CLICK - SHOW CONFIRMATION DIALOG *** for item ${item.id} on date: ${item.date.toLocaleDateString()}`);
+    console.log(`[SRSTableRow] SRS button color logic: srs=${item.srs}, will show ${item.srs === true ? 'GREEN' : 'BLUE'} button`);
     
     if (!showSRSConfirmDialog) {
       console.error('[SRSTableRow] showSRSConfirmDialog handler not available');
@@ -198,7 +258,9 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
       itemId: item.id,
       date: item.date.toISOString(),
       rowPositionInDate,
-      isFirstRowOfDay: rowPositionInDate === 0
+      isFirstRowOfDay: rowPositionInDate === 0,
+      srsStatus: item.srs,
+      buttonColor: item.srs === true ? 'Green (exported)' : 'Blue (not exported)'
     });
     
     showSRSConfirmDialog(item);
@@ -588,7 +650,7 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
   });
 
   // Логирование текущих отображаемых значений для отладки
-  console.log('[SRSTableRow] Rendering row for item', item.id, 'with HOLIDAY FROM HOLIDAYS LIST Date-only and FIXED timeLeave:', {
+  console.log('[SRSTableRow] Rendering row for item', item.id, 'with HOLIDAY FROM HOLIDAYS LIST Date-only and FIXED timeLeave and SRS BUTTON COLORS:', {
     displayWorkTime,
     localStartWork,
     localFinishWork,
@@ -611,6 +673,11 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
     addShiftWithoutHolidayCheck: true,
     checked: item.checked,
     hasItemCheckHandler: !!onItemCheck,
+    // *** НОВОЕ: Информация о цвете кнопки SRS ***
+    srsButtonColorLogic: true,
+    srsValue: item.srs,
+    srsButtonColorWillBe: item.srs === true ? 'Green (exported)' : 'Blue (not exported)',
+    srsButtonRedColorNote: 'Red color requires ExportResult=1 support in SRSDataMapper',
     // *** ИЗМЕНЕНО: Информация о диалоге подтверждения SRS ***
     rowPositionInDate,
     hasSRSConfirmHandler: !!showSRSConfirmDialog,
@@ -825,32 +892,14 @@ export const SRSTableRow: React.FC<ISRSTableRowProps & {
         />
       </td>
 
-      {/* *** ИЗМЕНЕНО: SRS cell - теперь с кнопкой в первой строке дня, которая показывает диалог подтверждения *** */}
+      {/* *** ИЗМЕНЕНО: SRS cell - теперь с кнопкой в первой строке дня, которая показывает диалог подтверждения И ИМЕЕТ ЦВЕТ НА ОСНОВЕ ExportResult *** */}
       <td style={getCellStyle('other')}>
         {rowPositionInDate === 0 && showSRSConfirmDialog && (
           <DefaultButton
             text="SRS"
             onClick={handleSRSButtonClick}
             disabled={isDeleted}
-            styles={{
-              root: {
-                backgroundColor: '#0078d4',
-                color: 'white',
-                border: 'none',
-                minWidth: '40px',
-                height: '28px',
-                fontSize: '11px',
-                borderRadius: '2px',
-                ...(isDeleted && {
-                  backgroundColor: '#f5f5f5',
-                  color: '#888',
-                  borderColor: '#ddd'
-                })
-              },
-              rootHovered: !isDeleted ? {
-                backgroundColor: '#106ebe'
-              } : undefined
-            }}
+            styles={getSRSButtonStyles()} // *** НОВОЕ: Используем функцию для определения цвета кнопки ***
           />
         )}
         {/* *** ОСТАВЛЕНО: Показываем SRS текст если нет кнопки и item.srs === true *** */}

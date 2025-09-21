@@ -8,6 +8,7 @@ import { IStaffRecord } from '../../../../services/StaffRecordsService';
 /**
  * Основной интерфейс для записи SRS
  * ОБНОВЛЕНО: Holiday поле изменено - теперь вычисляется на основе списка праздников (Date-only), а не поля StaffRecords
+ * *** НОВОЕ: Добавлено поле exportResult для цвета кнопки SRS ***
  */
 export interface ISRSRecord {
   id: string;
@@ -35,6 +36,8 @@ export interface ISRSRecord {
   deleted?: boolean; // Для удаленных записей
   // ОБНОВЛЕНО: Holiday поле теперь вычисляется на основе списка праздников Date-only
   Holiday?: number; // DEPRECATED: Больше не используется из StaffRecords, вычисляется из holidays list
+  // *** НОВОЕ: Точное значение ExportResult для цвета кнопки SRS ***
+  exportResult?: number; // 0 = синяя кнопка (не экспортировано), 1 = красная кнопка (ошибка), 2 = зеленая кнопка (успешно)
 }
 
 /**

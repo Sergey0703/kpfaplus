@@ -10,19 +10,19 @@ import { SRSDateUtils } from './SRSDateUtils';
  * Используется только числовые поля времени для ScheduleTab совместимости
  * Holiday поле больше не используется - праздники определяются из списка holidays (Date-only)
  * *** НОВОЕ: Добавлена поддержка поля Checked для checkbox функциональности ***
- * *** ИСПРАВЛЕНО: Используется ExportResult поле вместо вывода по typeOfLeave ***
+ * *** ОБНОВЛЕНО: Теперь передает точное значение ExportResult (0/1/2) вместо boolean для цвета кнопки SRS ***
  */
 export class SRSDataMapper {
 
   /**
    * Преобразует массив IStaffRecord в массив ISRSRecord
    * ОБНОВЛЕНО: Date-only формат и только числовые поля времени
-   * ИСПРАВЛЕНО: Использует ExportResult поле для определения SRS статуса
+   * ОБНОВЛЕНО: Использует точное значение ExportResult поля для цвета кнопки SRS
    */
   public static mapStaffRecordsToSRSRecords(staffRecords: IStaffRecord[]): ISRSRecord[] {
-    console.log('[SRSDataMapper] Converting', staffRecords.length, 'IStaffRecord to ISRSRecord with Date-only format, Checkbox support, and ExportResult field');
+    console.log('[SRSDataMapper] Converting', staffRecords.length, 'IStaffRecord to ISRSRecord with Date-only format, Checkbox support, and ExportResult field for SRS button colors');
     console.log('[SRSDataMapper] Using only numeric time fields, no ShiftDate1-4 support');
-    console.log('[SRSDataMapper] Using ExportResult field for SRS status (not inferring from typeOfLeave)');
+    console.log('[SRSDataMapper] Using ExportResult field for SRS button colors (0=blue, 1=red, 2=green)');
     
     return staffRecords.map((record, index) => {
       try {
@@ -38,10 +38,10 @@ export class SRSDataMapper {
   /**
    * Преобразует одну запись IStaffRecord в ISRSRecord
    * ОБНОВЛЕНО: Date-only формат, только числовые поля времени, без Holiday поля, с полем Checked
-   * ИСПРАВЛЕНО: Использует ExportResult поле для определения SRS статуса
+   * ОБНОВЛЕНО: Использует точное значение ExportResult поля для цвета кнопки SRS
    */
   private static mapSingleStaffRecordToSRS(record: IStaffRecord): ISRSRecord {
-    console.log(`[SRSDataMapper] *** MAPPING STAFF RECORD ${record.ID} TO SRS RECORD (Date-only format + Checkbox + ExportResult field) ***`);
+    console.log(`[SRSDataMapper] *** MAPPING STAFF RECORD ${record.ID} TO SRS RECORD (Date-only format + Checkbox + ExportResult for SRS colors) ***`);
     console.log(`[SRSDataMapper] Record data:`, {
       ID: record.ID,
       Date: record.Date ? SRSDateUtils.formatDateForDisplay(record.Date) : 'No date',
@@ -52,7 +52,7 @@ export class SRSDataMapper {
       WorkTime: record.WorkTime,
       // *** НОВОЕ: Логируем поле Checked из SharePoint (ожидается 0 или 1) ***
       Checked: record.Checked,
-      // *** ИСПРАВЛЕНО: Логируем ExportResult поле из SharePoint (ожидается 0 или 1) ***
+      // *** ОБНОВЛЕНО: Логируем ExportResult поле из SharePoint для цвета кнопки SRS (ожидается 0, 1 или 2) ***
       ExportResult: record.ExportResult,
       // Числовые поля времени
       ShiftDate1Hours: record.ShiftDate1Hours,
@@ -63,7 +63,7 @@ export class SRSDataMapper {
       noShiftDateFields: 'ShiftDate1-4 fields no longer used',
       holidayFieldIgnored: 'Holiday field is now determined from holidays list (Date-only), not from StaffRecords',
       dateFormat: 'Date-only (no time component)',
-      srsFieldSource: 'ExportResult field (not inferred from typeOfLeave)'
+      srsButtonColorSource: 'ExportResult field (0=blue, 1=red, 2=green)'
     });
 
     // Парсим Date поле с использованием Date-only утилит
@@ -102,8 +102,10 @@ export class SRSDataMapper {
     // Holiday поле теперь всегда 0 (будет определяться из списка праздников Date-only)
     const holidayValue = 0;
     
-    // *** ИСПРАВЛЕНО: SRS статус теперь берется из ExportResult поля, а не выводится ***
-    const srsStatus = record.ExportResult === 1;
+    // *** ОБНОВЛЕНО: SRS статус теперь берется из ExportResult поля для определения цвета кнопки ***
+    // ExportResult: 0 = не экспортировано (синяя кнопка), 1 = ошибка экспорта (красная кнопка), 2 = успешно экспортировано (зеленая кнопка)
+    const exportResultValue = record.ExportResult || 0;
+    const srsStatus = exportResultValue === 2; // true только для успешно экспортированных (зеленая кнопка)
     
     // Определяем статус
     const status = SRSDataMapper.determineStatus(record);
@@ -123,28 +125,32 @@ export class SRSDataMapper {
       contract: (record.Contract || 1).toString(),
       contractCheck: true,
       status: status,
-      // *** ИСПРАВЛЕНО: SRS статус из ExportResult поля ***
+      // *** ОБНОВЛЕНО: SRS статус из ExportResult поля для цвета кнопки ***
       srs: srsStatus,
       // *** НОВОЕ: Преобразуем числовое поле Checked (0/1) в boolean ***
       checked: record.Checked === 1,
       deleted: record.Deleted === 1,
-      Holiday: holidayValue // Всегда 0, так как праздники определяются из holidays list (Date-only)
+      Holiday: holidayValue, // Всегда 0, так как праздники определяются из holidays list (Date-only)
+      // *** НОВОЕ: Добавляем точное значение ExportResult для цвета кнопки SRS ***
+      exportResult: exportResultValue
     };
 
-    console.log(`[SRSDataMapper] *** MAPPED SRS RECORD (Date-only format + Checkbox + ExportResult field) ***:`, {
+    console.log(`[SRSDataMapper] *** MAPPED SRS RECORD (Date-only format + Checkbox + ExportResult for SRS colors) ***:`, {
       id: srsRecord.id,
       date: SRSDateUtils.formatDateForDisplay(srsRecord.date),
       dateISO: srsRecord.date.toISOString(),
       startWork: `${srsRecord.startWork.hours}:${srsRecord.startWork.minutes}`,
       finishWork: `${srsRecord.finishWork.hours}:${srsRecord.finishWork.minutes}`,
       checked: srsRecord.checked, // *** НОВОЕ: Логируем результат маппинга checkbox ***
-      srs: srsRecord.srs, // *** ИСПРАВЛЕНО: Логируем результат маппинга ExportResult поля ***
-      exportResultSource: record.ExportResult, // *** ИСПРАВЛЕНО: Показываем источник ***
+      srs: srsRecord.srs, // *** ОБНОВЛЕНО: Логируем результат маппинга ExportResult поля ***
+      exportResult: srsRecord.exportResult, // *** НОВОЕ: Точное значение для цвета кнопки ***
+      exportResultSource: record.ExportResult, // *** ОБНОВЛЕНО: Показываем источник ***
+      srsButtonColor: exportResultValue === 0 ? 'Blue (not exported)' : exportResultValue === 1 ? 'Red (error)' : 'Green (exported)',
       Holiday: srsRecord.Holiday,
       HolidayDeterminedBy: 'Holidays list (Date-only) in component, not StaffRecords field',
       dateFormat: 'Date-only (no time component)',
       timeFieldsSource: 'Numeric fields only',
-      srsStatusSource: 'ExportResult field (not inferred from typeOfLeave)'
+      srsButtonColorSupport: 'Full ExportResult support (0=blue, 1=red, 2=green)'
     });
 
     return srsRecord;
@@ -277,8 +283,8 @@ export class SRSDataMapper {
       return 'negative';
     }
     
-    // *** ИСПРАВЛЕНО: Учитываем ExportResult для определения положительного статуса ***
-    if (record.ExportResult === 1) {
+    // *** ОБНОВЛЕНО: Учитываем ExportResult для определения положительного статуса ***
+    if (record.ExportResult === 2) {
       return 'positive';
     }
     
@@ -299,7 +305,7 @@ export class SRSDataMapper {
 
   /**
    * Создает пустую SRS запись в случае ошибки
-   * ОБНОВЛЕНО: Date-only формат, Holiday всегда 0, checked по умолчанию false, srs по умолчанию false
+   * ОБНОВЛЕНО: Date-only формат, Holiday всегда 0, checked по умолчанию false, srs по умолчанию false, exportResult по умолчанию 0
    */
   private static createEmptySRSRecord(id: string): ISRSRecord {
     const emptyDate = new Date();
@@ -320,28 +326,31 @@ export class SRSDataMapper {
       contract: '1',
       contractCheck: false,
       status: 'none',
-      srs: false, // *** ИСПРАВЛЕНО: По умолчанию false (ExportResult = 0) ***
+      srs: false, // *** ОБНОВЛЕНО: По умолчанию false (ExportResult = 0) ***
       checked: false, // *** НОВОЕ: По умолчанию false ***
       deleted: false,
-      Holiday: 0 // Всегда 0 - определяется из списка праздников Date-only
+      Holiday: 0, // Всегда 0 - определяется из списка праздников Date-only
+      // *** НОВОЕ: Добавляем exportResult со значением по умолчанию ***
+      exportResult: 0 // По умолчанию 0 (не экспортировано, синяя кнопка)
     };
   }
 
   /**
    * Преобразует ISRSRecord обратно в частичный IStaffRecord для сохранения
    * ОБНОВЛЕНО: Date-only формат, числовые поля времени, без Holiday поля, с полем Checked
-   * ИСПРАВЛЕНО: Добавлено сохранение ExportResult поля
+   * ОБНОВЛЕНО: Добавлено сохранение ExportResult поля для цвета кнопки SRS
    */
   public static mapSRSRecordToStaffRecordUpdate(srsRecord: ISRSRecord): Partial<IStaffRecord> {
-    console.log(`[SRSDataMapper] *** MAPPING SRS RECORD TO STAFF RECORD UPDATE (Date-only format + Checkbox + ExportResult field) ***`);
+    console.log(`[SRSDataMapper] *** MAPPING SRS RECORD TO STAFF RECORD UPDATE (Date-only format + Checkbox + ExportResult for SRS colors) ***`);
     console.log(`[SRSDataMapper] SRS Record ID: ${srsRecord.id}`);
     console.log(`[SRSDataMapper] Type of leave: "${srsRecord.typeOfLeave}"`);
     console.log(`[SRSDataMapper] Date (Date-only): ${SRSDateUtils.formatDateForDisplay(srsRecord.date)}`);
     console.log(`[SRSDataMapper] Holiday field NOT saved: Holiday determined from holidays list (Date-only), not saved to StaffRecords`);
     // *** НОВОЕ: Логируем состояние checkbox ***
     console.log(`[SRSDataMapper] Checked state: ${srsRecord.checked}`);
-    // *** ИСПРАВЛЕНО: Логируем состояние ExportResult ***
+    // *** ОБНОВЛЕНО: Логируем состояние ExportResult для цвета кнопки SRS ***
     console.log(`[SRSDataMapper] SRS state (maps to ExportResult): ${srsRecord.srs}`);
+    console.log(`[SRSDataMapper] ExportResult value: ${(srsRecord as any).exportResult || (srsRecord.srs ? 2 : 0)}`);
     
     const updateData: Partial<IStaffRecord> = {
       ID: srsRecord.id,
@@ -353,8 +362,8 @@ export class SRSDataMapper {
       Deleted: srsRecord.deleted ? 1 : 0,
       // *** НОВОЕ: Преобразуем boolean 'checked' в числовое поле 'Checked' (1/0) для сохранения ***
       Checked: srsRecord.checked ? 1 : 0,
-      // *** ИСПРАВЛЕНО: Преобразуем boolean 'srs' в числовое поле 'ExportResult' (1/0) для сохранения ***
-      ExportResult: srsRecord.srs ? 1 : 0
+      // *** ОБНОВЛЕНО: Преобразуем ExportResult для цвета кнопки SRS ***
+      ExportResult: (srsRecord as any).exportResult !== undefined ? (srsRecord as any).exportResult : (srsRecord.srs ? 2 : 0)
       // Holiday поле НЕ сохраняется - больше не используется
     };
 
@@ -384,7 +393,7 @@ export class SRSDataMapper {
       updateData.TypeOfLeaveID = '';
     }
 
-    console.log('[SRSDataMapper] *** MAPPED UPDATE DATA (Date-only format + Checkbox + ExportResult field) ***:', {
+    console.log('[SRSDataMapper] *** MAPPED UPDATE DATA (Date-only format + Checkbox + ExportResult for SRS colors) ***:', {
       originalId: srsRecord.id,
       dateField: 'Date-only format',
       dateValue: updateData.Date?.toISOString(),
@@ -392,7 +401,8 @@ export class SRSDataMapper {
       startTime: `${updateData.ShiftDate1Hours}:${updateData.ShiftDate1Minutes}`,
       finishTime: `${updateData.ShiftDate2Hours}:${updateData.ShiftDate2Minutes}`,
       checkedFieldHandling: `Saved as ${updateData.Checked} (1 for true, 0 for false)`, // *** НОВОЕ ***
-      exportResultFieldHandling: `Saved as ${updateData.ExportResult} (1 for true, 0 for false)`, // *** ИСПРАВЛЕНО ***
+      exportResultFieldHandling: `Saved as ${updateData.ExportResult} (0=blue, 1=red, 2=green)`, // *** ОБНОВЛЕНО ***
+      srsButtonColorSupport: 'Full ExportResult support for button colors',
       holidayFieldHandling: 'NOT SAVED - determined from holidays list (Date-only)',
       noShiftDateFields: 'ShiftDate1-4 fields no longer used'
     });
@@ -408,17 +418,17 @@ export class SRSDataMapper {
     const typeOfLeaveValue = SRSDataMapper.extractTypeOfLeaveID(record);
     const hasTypeOfLeave = typeOfLeaveValue !== '' && typeOfLeaveValue !== '0';
     
-    // *** ИСПРАВЛЕНО: Запись валидна если есть ExportResult ИЛИ тип отпуска ***
-    const hasExportResult = record.ExportResult === 1;
+    // *** ОБНОВЛЕНО: Запись валидна если есть ExportResult ИЛИ тип отпуска ***
+    const hasExportResult = record.ExportResult === 2;
     const isValid = hasTypeOfLeave || hasExportResult;
     
     if (!isValid) {
-      console.log(`[SRSDataMapper] Record ${record.ID} is NOT valid for SRS (no type of leave and ExportResult is 0)`);
+      console.log(`[SRSDataMapper] Record ${record.ID} is NOT valid for SRS (no type of leave and ExportResult is not 2)`);
     } else {
       console.log(`[SRSDataMapper] Record ${record.ID} is valid for SRS:`, {
         typeOfLeave: typeOfLeaveValue || 'None',
         exportResult: record.ExportResult,
-        validReason: hasExportResult ? 'ExportResult=1' : 'Has type of leave'
+        validReason: hasExportResult ? 'ExportResult=2' : 'Has type of leave'
       });
     }
     
@@ -430,7 +440,7 @@ export class SRSDataMapper {
    * ОБНОВЛЕНО: Теперь учитывает ExportResult поле
    */
   public static filterSRSRecords(staffRecords: IStaffRecord[]): IStaffRecord[] {
-    console.log(`[SRSDataMapper] Filtering ${staffRecords.length} staff records for SRS (Date-only format + ExportResult field)`);
+    console.log(`[SRSDataMapper] Filtering ${staffRecords.length} staff records for SRS (Date-only format + ExportResult field for SRS button colors)`);
     
     const srsRecords = staffRecords.filter(record => SRSDataMapper.isValidSRSRecord(record));
     
@@ -461,38 +471,41 @@ export class SRSDataMapper {
   }
 
   /**
-   * *** НОВОЕ: Получение статистики по ExportResult полю ***
+   * *** ОБНОВЛЕНО: Получение статистики по ExportResult полю для цвета кнопки SRS ***
    */
   public static getExportResultStatistics(staffRecords: IStaffRecord[]): Record<string, number> {
-    console.log(`[SRSDataMapper] Analyzing ExportResult statistics for ${staffRecords.length} records`);
+    console.log(`[SRSDataMapper] Analyzing ExportResult statistics for ${staffRecords.length} records (for SRS button colors)`);
     
     const stats: Record<string, number> = {
-      'Exported (ExportResult=1)': 0,
-      'Not Exported (ExportResult=0)': 0,
+      'Not Exported (ExportResult=0, Blue button)': 0,
+      'Export Error (ExportResult=1, Red button)': 0,
+      'Exported Successfully (ExportResult=2, Green button)': 0,
       'No ExportResult field': 0
     };
     
     staffRecords.forEach(record => {
-      if (record.ExportResult === 1) {
-        stats['Exported (ExportResult=1)']++;
-      } else if (record.ExportResult === 0) {
-        stats['Not Exported (ExportResult=0)']++;
+      if (record.ExportResult === 0) {
+        stats['Not Exported (ExportResult=0, Blue button)']++;
+      } else if (record.ExportResult === 1) {
+        stats['Export Error (ExportResult=1, Red button)']++;
+      } else if (record.ExportResult === 2) {
+        stats['Exported Successfully (ExportResult=2, Green button)']++;
       } else {
         stats['No ExportResult field']++;
       }
     });
     
-    console.log(`[SRSDataMapper] ExportResult statistics:`, stats);
+    console.log(`[SRSDataMapper] ExportResult statistics (for SRS button colors):`, stats);
     
     return stats;
   }
 
   /**
    * Отладочная информация о записи
-   * ОБНОВЛЕНО: Добавлена отладка поля Checked и ExportResult
+   * ОБНОВЛЕНО: Добавлена отладка поля Checked и ExportResult для цвета кнопки SRS
    */
   public static debugRecordMapping(record: IStaffRecord): void {
-    console.log(`[SRSDataMapper] *** DEBUG INFO FOR RECORD ${record.ID} (Date-only format + Checkbox + ExportResult field) ***`);
+    console.log(`[SRSDataMapper] *** DEBUG INFO FOR RECORD ${record.ID} (Date-only format + Checkbox + ExportResult for SRS button colors) ***`);
     console.log(`[SRSDataMapper] Date (Date-only):`, record.Date ? SRSDateUtils.formatDateForDisplay(record.Date) : 'No date');
     console.log(`[SRSDataMapper] Date ISO:`, record.Date ? record.Date.toISOString() : 'No date');
     console.log(`[SRSDataMapper] TypeOfLeaveID (direct):`, record.TypeOfLeaveID);
@@ -501,9 +514,10 @@ export class SRSDataMapper {
     // *** НОВОЕ: Отладка поля Checked ***
     console.log(`[SRSDataMapper] Checked (numeric from SP):`, record.Checked);
     console.log(`[SRSDataMapper] Mapped to checked (boolean):`, record.Checked === 1);
-    // *** ИСПРАВЛЕНО: Отладка поля ExportResult ***
+    // *** ОБНОВЛЕНО: Отладка поля ExportResult для цвета кнопки SRS ***
     console.log(`[SRSDataMapper] ExportResult (numeric from SP):`, record.ExportResult);
-    console.log(`[SRSDataMapper] Mapped to srs (boolean):`, record.ExportResult === 1);
+    console.log(`[SRSDataMapper] Mapped to srs (boolean):`, record.ExportResult === 2);
+    console.log(`[SRSDataMapper] SRS Button Color:`, record.ExportResult === 0 ? 'Blue (not exported)' : record.ExportResult === 1 ? 'Red (error)' : record.ExportResult === 2 ? 'Green (exported)' : 'Unknown');
     console.log(`[SRSDataMapper] Extracted type of leave:`, SRSDataMapper.extractTypeOfLeaveID(record));
     console.log(`[SRSDataMapper] Is valid SRS record:`, SRSDataMapper.isValidSRSRecord(record));
     
@@ -518,13 +532,13 @@ export class SRSDataMapper {
     console.log(`[SRSDataMapper] Holiday handling: Now determined from holidays list (Date-only), not from StaffRecords field`);
     console.log(`[SRSDataMapper] ShiftDate1-4 fields: No longer used`);
     console.log(`[SRSDataMapper] Date format: Date-only (no time component)`);
-    console.log(`[SRSDataMapper] SRS status source: ExportResult field (not inferred from typeOfLeave)`);
+    console.log(`[SRSDataMapper] SRS button color support: Full ExportResult support (0=blue, 1=red, 2=green)`);
     console.log(`[SRSDataMapper] All record keys:`, Object.keys(record));
   }
 
   /**
    * Создание данных для нового SRS записи
-   * ОБНОВЛЕНО: Date-only формат без Holiday поля, с полем Checked, с полем ExportResult
+   * ОБНОВЛЕНО: Date-only формат без Holiday поля, с полем Checked, с полем ExportResult для цвета кнопки SRS
    */
   public static createNewStaffRecordData(
     date: Date,
@@ -536,10 +550,10 @@ export class SRSDataMapper {
       startMinutes?: number;
       endHours?: number;
       endMinutes?: number;
-      exportResult?: boolean; // *** ИСПРАВЛЕНО: Добавлен параметр ExportResult ***
+      exportResult?: number; // *** ОБНОВЛЕНО: Добавлен параметр ExportResult для цвета кнопки SRS ***
     } = {}
   ): Partial<IStaffRecord> {
-    console.log(`[SRSDataMapper] *** CREATING NEW STAFF RECORD DATA (Date-only format + Checkbox + ExportResult field) ***`);
+    console.log(`[SRSDataMapper] *** CREATING NEW STAFF RECORD DATA (Date-only format + Checkbox + ExportResult for SRS button colors) ***`);
     
     const {
       timeForLunch = 30,
@@ -549,7 +563,7 @@ export class SRSDataMapper {
       startMinutes = 0,
       endHours = 0,
       endMinutes = 0,
-      exportResult = false // *** ИСПРАВЛЕНО: По умолчанию ExportResult = false (0) ***
+      exportResult = 0 // *** ОБНОВЛЕНО: По умолчанию ExportResult = 0 (синяя кнопка) ***
     } = staffData;
 
     // Нормализуем дату к Date-only формату
@@ -570,11 +584,11 @@ export class SRSDataMapper {
       Deleted: 0,
       Holiday: 0, // Всегда 0 - праздники определяются из holidays list (Date-only)
       Checked: 0, // *** НОВОЕ: По умолчанию новые записи не отмечены (0) ***
-      ExportResult: exportResult ? 1 : 0, // *** ИСПРАВЛЕНО: По умолчанию новые записи не экспортированы (0) ***
+      ExportResult: exportResult, // *** ОБНОВЛЕНО: По умолчанию ExportResult = 0 (синяя кнопка) ***
       Title: typeOfLeaveID ? `Leave on ${SRSDateUtils.formatDateForDisplay(normalizedDate)}` : `SRS Shift on ${SRSDateUtils.formatDateForDisplay(normalizedDate)}`
     };
 
-    console.log(`[SRSDataMapper] New staff record data prepared (Date-only format + Checkbox + ExportResult field):`, {
+    console.log(`[SRSDataMapper] New staff record data prepared (Date-only format + Checkbox + ExportResult for SRS button colors):`, {
       date: SRSDateUtils.formatDateForDisplay(newRecordData.Date!),
       dateISO: newRecordData.Date!.toISOString(),
       startTime: `${newRecordData.ShiftDate1Hours}:${newRecordData.ShiftDate1Minutes}`,
@@ -584,7 +598,8 @@ export class SRSDataMapper {
       typeOfLeaveID: newRecordData.TypeOfLeaveID,
       Holiday: newRecordData.Holiday + ' (always 0 - determined from holidays list Date-only)',
       Checked: newRecordData.Checked + ' (default for new records)', // *** НОВОЕ ***
-      ExportResult: newRecordData.ExportResult + ' (default for new records)', // *** ИСПРАВЛЕНО ***
+      ExportResult: newRecordData.ExportResult + ' (0=blue button, default for new records)', // *** ОБНОВЛЕНО ***
+      srsButtonColor: exportResult === 0 ? 'Blue (not exported)' : exportResult === 1 ? 'Red (error)' : 'Green (exported)',
       title: newRecordData.Title,
       dateFormat: 'Date-only (no time component)',
       noShiftDateSupport: true
@@ -595,7 +610,7 @@ export class SRSDataMapper {
 
   /**
    * Валидация данных для создания записи
-   * ОБНОВЛЕНО: Date-only валидация без Holiday поля, с полем ExportResult
+   * ОБНОВЛЕНО: Date-only валидация без Holiday поля, с полем ExportResult для цвета кнопки SRS
    */
   public static validateStaffRecordData(recordData: Partial<IStaffRecord>): {
     isValid: boolean;
@@ -661,10 +676,10 @@ export class SRSDataMapper {
         }
     }
 
-    // *** ИСПРАВЛЕНО: Проверка поля ExportResult ***
+    // *** ОБНОВЛЕНО: Проверка поля ExportResult для цвета кнопки SRS ***
     if (recordData.ExportResult !== undefined) {
-        if (recordData.ExportResult !== 0 && recordData.ExportResult !== 1) {
-            warnings.push('ExportResult field should be 0 or 1');
+        if (recordData.ExportResult !== 0 && recordData.ExportResult !== 1 && recordData.ExportResult !== 2) {
+            warnings.push('ExportResult field should be 0 (blue button), 1 (red button), or 2 (green button)');
         }
     }
 
@@ -673,13 +688,14 @@ export class SRSDataMapper {
       warnings.push('Holiday field should always be 0 - holidays are determined from holidays list (Date-only)');
     }
 
-    console.log(`[SRSDataMapper] Validation result for staff record data (Date-only format + Checkbox + ExportResult):`, {
+    console.log(`[SRSDataMapper] Validation result for staff record data (Date-only format + Checkbox + ExportResult for SRS button colors):`, {
       isValid: errors.length === 0,
       errorsCount: errors.length,
       warningsCount: warnings.length,
       holidayFieldHandling: 'Should always be 0 (Date-only)',
       checkedFieldHandling: 'Should be 0 or 1', // *** НОВОЕ ***
-      exportResultFieldHandling: 'Should be 0 or 1', // *** ИСПРАВЛЕНО ***
+      exportResultFieldHandling: 'Should be 0 (blue), 1 (red), or 2 (green) for SRS button colors', // *** ОБНОВЛЕНО ***
+      srsButtonColorSupport: 'Full ExportResult validation for button colors',
       dateFormat: 'Date-only (no time component)'
     });
 
