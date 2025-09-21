@@ -24,6 +24,10 @@ export interface IConfirmDialogProps {
   onConfirm: () => void;
   // Опциональный цвет для кнопки подтверждения
   confirmButtonColor?: string;
+  // *** НОВОЕ: Режим "только предупреждение" - показывать только кнопку Cancel ***
+  warningOnly?: boolean;
+  // *** НОВОЕ: Иконка для предупреждающего диалога ***
+  warningIcon?: string;
 }
 
 export const ConfirmDialog: React.FC<IConfirmDialogProps> = (props) => {
@@ -35,32 +39,76 @@ export const ConfirmDialog: React.FC<IConfirmDialogProps> = (props) => {
     cancelButtonText,
     onDismiss,
     onConfirm,
-    confirmButtonColor
+    confirmButtonColor,
+    warningOnly = false,
+    warningIcon = 'Warning'
   } = props;
+
+  console.log('[ConfirmDialog] Rendering dialog:', {
+    isOpen,
+    title,
+    warningOnly,
+    hasConfirmButton: !warningOnly,
+    dialogType: warningOnly ? 'Warning only' : 'Confirmation',
+    warningIcon
+  });
 
   // Настройка диалога
   const dialogContentProps = {
-    type: DialogType.normal,
+    type: warningOnly ? DialogType.normal : DialogType.normal,
     title: title,
     closeButtonAriaLabel: 'Close',
-    subText: message
+    subText: message,
+    // *** НОВОЕ: Добавляем иконку для предупреждающего диалога ***
+    ...(warningOnly && warningIcon && {
+      iconProps: { iconName: warningIcon }
+    })
   };
 
-  // Создаем стили кнопки в формате, принимаемом Fluent UI
+  // Создаем стили кнопки подтверждения
   const confirmButtonStyles: Partial<IButtonStyles> = {
     root: {
       backgroundColor: confirmButtonColor,
       borderColor: confirmButtonColor
     },
     rootHovered: {
-      backgroundColor: confirmButtonColor ? `${confirmButtonColor}CC` : undefined, // Добавляем прозрачность для hover
+      backgroundColor: confirmButtonColor ? `${confirmButtonColor}CC` : undefined,
       borderColor: confirmButtonColor
     },
     rootPressed: {
-      backgroundColor: confirmButtonColor ? `${confirmButtonColor}AA` : undefined, // Более прозрачный для pressed
+      backgroundColor: confirmButtonColor ? `${confirmButtonColor}AA` : undefined,
       borderColor: confirmButtonColor
     }
   };
+
+  // *** НОВОЕ: Стили для кнопки Cancel в режиме предупреждения ***
+  const warningCancelButtonStyles: Partial<IButtonStyles> = {
+    root: {
+      backgroundColor: '#0078d4',
+      color: 'white',
+      borderColor: '#0078d4',
+      minWidth: '100px'
+    },
+    rootHovered: {
+      backgroundColor: '#106ebe',
+      color: 'white',
+      borderColor: '#106ebe'
+    },
+    rootPressed: {
+      backgroundColor: '#005a9e',
+      color: 'white',
+      borderColor: '#005a9e'
+    }
+  };
+
+  console.log('[ConfirmDialog] Dialog configuration:', {
+    warningOnly,
+    showConfirmButton: !warningOnly,
+    confirmButtonText: warningOnly ? 'Hidden' : confirmButtonText,
+    cancelButtonText,
+    cancelButtonStyle: warningOnly ? 'Primary (blue)' : 'Default (gray)',
+    iconShown: warningOnly && warningIcon ? warningIcon : 'None'
+  });
 
   return (
     <Dialog
@@ -69,18 +117,34 @@ export const ConfirmDialog: React.FC<IConfirmDialogProps> = (props) => {
       dialogContentProps={dialogContentProps}
       modalProps={{
         isBlocking: true,
-        styles: { main: { maxWidth: 450 } }
+        styles: { 
+          main: { 
+            maxWidth: 450,
+            // *** НОВОЕ: Специальные стили для предупреждающего диалога ***
+            ...(warningOnly && {
+              border: '2px solid #ff8c00',
+              boxShadow: '0 4px 16px rgba(255, 140, 0, 0.3)'
+            })
+          } 
+        }
       }}
     >
       <DialogFooter>
-        <PrimaryButton
-          onClick={onConfirm}
-          text={confirmButtonText}
-          styles={confirmButtonStyles}
-        />
+        {/* *** УСЛОВНЫЙ РЕНДЕРИНГ: Кнопка подтверждения показывается только если НЕ warningOnly *** */}
+        {!warningOnly && (
+          <PrimaryButton
+            onClick={onConfirm}
+            text={confirmButtonText}
+            styles={confirmButtonStyles}
+          />
+        )}
+        
+        {/* *** ОБНОВЛЕНО: Кнопка Cancel меняет стиль в зависимости от режима *** */}
         <DefaultButton
           onClick={onDismiss}
           text={cancelButtonText}
+          // *** НОВОЕ: В режиме предупреждения Cancel становится основной кнопкой ***
+          styles={warningOnly ? warningCancelButtonStyles : undefined}
         />
       </DialogFooter>
     </Dialog>
